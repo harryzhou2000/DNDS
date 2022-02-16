@@ -7,10 +7,16 @@ LINK   =${MPILIB}
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe
 
+HEADERS=DNDS_Array.hpp DNDS_BasicTypes.hpp DNDS_Defines.h DNDS_IndexMapping.hpp DNDS_MPI.hpp
+
 VPATH:=test
+
+
 
 FLAGS=-g
 # FLAGS=-O3 -DNDEBUG
+
+
 
 all: ${SINGLE_TARGETS}
 

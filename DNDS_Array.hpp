@@ -1,13 +1,12 @@
 #pragma once
 
-#include "DNDS_Defines.h"
-
-#include <tuple>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "DNDS_Defines.h"
 #include "DNDS_MPI.hpp"
+#include "DNDS_IndexMapping.hpp"
 
 namespace DNDS
 {
@@ -15,30 +14,38 @@ namespace DNDS
     class Array
     {
 
-    public:
+    private:
         std::vector<uint8_t> data;
+        std::vector<uint8_t> dataGhost;
 
         MPIInfo mpi;
 
     public:
         typedef typename T::Indexer tIndexer;
         typedef typename T::Context tContext;
-        typedef std::shared_ptr<tIndexer> tpIndexer;
-        typedef std::shared_ptr<tContext> tpContext;
 
-        tpIndexer pIndexer;
-        tpContext pContext;
+        tContext context;
+        tIndexer indexer;
+
+        typedef std::shared_ptr<GlobalOffsetsMapping> tpLGlobalMapping;
+        typedef std::shared_ptr<OffsetAscendIndexMapping> tpLGhostMapping;
+
+        tpLGlobalMapping pLGlobalMapping;
+        tpLGhostMapping pLGhostMapping;
+
+        std::vector<tIndexer>
+            ghostIndexerVec;
 
         static std::string PrintTypes()
         {
             return "Types: " + T::Indexer::Tname + ", " + T::Context::Tname;
         }
 
-        Array(tpContext &&newContext, const MPIInfo &nmpi) : mpi(nmpi)
+        template <class TtContext>
+        Array(TtContext &&newContext, const MPIInfo &nmpi) : context(std::forward<TtContext>(newContext)),
+                                                             indexer(context), mpi(nmpi)
         {
-            pContext = std::forward<tpContext>(newContext);
-            pIndexer = tpIndexer(new tIndexer(*pContext));
-            data.resize(pIndexer->LengthByte());
+            data.resize(indexer.LengthByte());
         }
 
         ~Array()
@@ -47,43 +54,24 @@ namespace DNDS
 
         T operator[](index i)
         {
-            auto indexInfo = (*pIndexer)[i];
+            auto indexInfo = indexer[i];
             assert(std::get<0>(indexInfo) + std::get<1>(indexInfo) <= data.size());
             assert(std::get<0>(indexInfo) >= 0);
-            return T(data.data() + std::get<0>(indexInfo), std::get<1>(indexInfo), *pContext, i);
+            return T(data.data() + std::get<0>(indexInfo), std::get<1>(indexInfo), context, i);
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         class Iterator
         {
             T instace;
             uint8_t *ptr;
-            tpIndexer pIndexer;
-            tpContext pContext;
+            tIndexer *pIndexer;
+            tContext *pContext;
             index i;
 
         public:
-            Iterator(uint8_t *nptr, index ni, tpIndexer &&npIndexer, tpContext &&npContext)
-                : ptr(nptr), i(ni), pIndexer(std::forward(npIndexer)),
-                  pContext(std::forward(npContext))
+            Iterator(uint8_t *nptr, index ni, tIndexer *npIndexer, tContext *npContext)
+                : ptr(nptr), i(ni), pIndexer(npIndexer),
+                  pContext(npContext)
             {
                 if (i < pIndexer->Length)
                 {
@@ -93,6 +81,7 @@ namespace DNDS
                     instace = T(ptr + std::get<0>(indexInfo), std::get<1>(indexInfo), *pContext, i);
                 }
             }
+
             inline bool operator!=(const Iterator &r)
             {
                 assert(ptr == r.ptr);
@@ -106,12 +95,59 @@ namespace DNDS
                 instace.ConstructOn(ptr + std::get<0>(indexInfo), std::get<1>(indexInfo), *pContext, i);
             }
 
-            T& operator*()
+            T &operator*()
             {
                 assert(i < pIndexer->Length);
                 return instace;
             }
         };
-    };
 
+        index size() { return indexer.Length; }
+
+        index sizeByte() { return indexer.LengthByte(); }
+
+        void createGhost(const std::vector<tIndexVec> &pullingIndexGlobal)
+        {
+            // phase1.1: create localGlobal mapping (broadcast)
+
+            // phase1.2: inform each rank which to pull while being informed of which to push 
+        
+            // phase2.1: count how many to pull and allocate the localGhost mapping, fill the mapping
+
+            // phase2.2: be informed of pulled sub-indexers, (use mpi's comm requests)
+        
+            // phase3: create and register MPI types of pushing and pulling
+        }
+
+        void initPersistentPush()
+        {
+
+        }
+
+        void initPersistentPull()
+        {
+
+        }
+
+        void startPush()
+        {
+
+        }
+
+        void startPull()
+        {
+
+        }
+
+        void waitPush()
+        {
+
+        }
+
+        void waitPull()
+        {
+            
+        }
+
+    };
 }
