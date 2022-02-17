@@ -1,19 +1,22 @@
 
 #include "../DNDS_Array.hpp"
 #include "../DNDS_BasicTypes.hpp"
+#include "../DNDS_MPI.hpp"
 
 #include <iostream>
 
 void testType();
 void testMPI();
+void testGhost();
 
 int main(int argc, char *argv[])
 {
     int ierr;
     ierr = MPI_Init(&argc, &argv);
 
-    testType();
-    testMPI();
+    // testType();
+    // testMPI();
+    testGhost();
 
     ierr = MPI_Finalize();
     return 0;
@@ -81,7 +84,7 @@ void testType()
     rowBsiz[4] = 4, rowBsiz[11] = 5;
     DNDS::AccumulateRowSize(rowBsiz, *rowB);
 
-    DNDS::Array<DNDS::VarBatch<double>> ArrayRVB(DNDS::VarBatch<double>::Context(0,rowB), mpi);
+    DNDS::Array<DNDS::VarBatch<double>> ArrayRVB(DNDS::VarBatch<double>::Context(0, rowB), mpi);
 
     std::cout << "ArrayRVB bytes: " << ArrayRVB.sizeByte() << std::endl;
 
@@ -141,4 +144,85 @@ void testMPI()
             std::cout << buf[i] << '\t';
         std::cout << std::endl;
     }
+}
+
+void testGhost()
+{
+    DNDS::MPIInfo mpi;
+    mpi.setWorld();
+    if (mpi.size != 4)
+    {
+        std::cout << "Size not 4\n";
+        return;
+    }
+
+    int dsize, dstart, demandSize, demandStart;
+
+    switch (mpi.rank)
+    {
+    case 0:
+        dsize = 4, dstart = 0, demandSize = 2, demandStart = 7;
+        break;
+    case 1:
+        dsize = 5, dstart = 4, demandSize = 3, demandStart = 9;
+        break;
+    case 2:
+        dsize = 4, dstart = 9, demandSize = 1, demandStart = 15;
+        break;
+    case 3:
+        dsize = 5, dstart = 13, demandSize = 2, demandStart = 1;
+        break;
+    default:
+        return;
+        break;
+    }
+
+    DNDS::Array<DNDS::VReal> ArrayA(DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
+                                                         { return (i + 1) * sizeof(DNDS::real); },
+                                                         dsize),
+                                    mpi);
+    for (int i = 0; i < ArrayA.size(); i++)
+    {
+        auto instance = ArrayA[i];
+        for (int j = 0; j < instance.size(); j++)
+            instance[j] = dstart + i;
+    }
+    DNDS::tIndexVec PullDemand(demandSize);
+    for (int i = 0; i < PullDemand.size(); i++)
+        PullDemand[i] = demandStart + i;
+    if (mpi.rank == 3)
+        PullDemand[1] = 8;
+
+    ArrayA.createGhost(PullDemand);
+
+    ArrayA.initPersistentPull();
+    ArrayA.startPersistentPull();
+    ArrayA.waitPersistentPull();
+
+    std::cout << "Rank " << mpi.rank << " ";
+    std::cout << "Size Ghost " << ArrayA.sizeGhost() << " ::\t";
+    for (int i = 0; i < ArrayA.sizeGhost(); i++)
+    {
+        auto instance = ArrayA.indexGhostData(i);
+        std::cout << "Pack Size " << instance.size() << "::\t";
+        for (int j = 0; j < instance.size(); j++)
+        {
+            std::cout << instance[j] << "\t";
+            instance[j] *= -1;
+        }
+    }
+    std::cout << std::endl;
+
+    ArrayA.initPersistentPush();
+    ArrayA.startPersistentPush();
+    ArrayA.waitPersistentPush();
+
+    std::cout << "Rank " << mpi.rank << " ";
+    for (int i = 0; i < ArrayA.size(); i++)
+    {
+        auto instance = ArrayA[i];
+        for (int j = 0; j < instance.size(); j++)
+            std::cout << instance[j] << "\t";
+    }
+    std::cout << std::endl;
 }

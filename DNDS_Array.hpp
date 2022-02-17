@@ -70,6 +70,14 @@ namespace DNDS
             return T(data.data() + std::get<0>(indexInfo), std::get<1>(indexInfo), context, i);
         }
 
+        T indexGhostData(index i)
+        {
+            auto indexInfo = ghostIndexer[i];
+            assert(std::get<0>(indexInfo) + std::get<1>(indexInfo) <= dataGhost.size());
+            assert(std::get<0>(indexInfo) >= 0);
+            return T(dataGhost.data() + std::get<0>(indexInfo), std::get<1>(indexInfo), context, i);
+        }
+
         class Iterator
         {
             T instace;
@@ -124,6 +132,7 @@ namespace DNDS
         {
             // phase1.1: create localGlobal mapping (broadcast)
             pLGlobalMapping = std::make_shared<GlobalOffsetsMapping>();
+
             pLGlobalMapping->setMPIAlignBcast(mpi, size());
             pLGhostMapping = std::make_shared<OffsetAscendIndexMapping>((*pLGlobalMapping)(mpi.rank, 0), size());
 
@@ -137,6 +146,7 @@ namespace DNDS
                 pLGlobalMapping->search(i, rank, loc);
                 ghostSizes[rank]++;
             }
+
             pLGhostMapping->allocateGhostIndex(ghostSizes);
             pLGhostMapping->ghost() = std::forward<TPullSet>(pullingIndexGlobal);
             pLGhostMapping->sort();
@@ -155,6 +165,7 @@ namespace DNDS
             // phase2.1: build push sizes and push disps
             tMPI_intVec pushingSizes(pushingIndexGlobal.size());  // pushing sizes in bytes
             tMPI_AintVec pushingDisps(pushingIndexGlobal.size()); // pushing disps in bytes
+
             for (index i = 0; i < pushingIndexGlobal.size(); i++)
             {
                 MPI_int rank;
@@ -171,6 +182,12 @@ namespace DNDS
                                               pushIndexSizes, pushGlobalStart,
                                               ghostSizes, *pLGhostMapping, mpi);
 
+            // InsertCheck(mpi);
+            // std::cout << mpi.rank << " VEC ";
+            // PrintVec(pushingSizes, std::cout);
+            // std::cout << std::endl;
+            // InsertCheck(mpi);
+
             // phase3: create and register MPI types of pushing and pulling
             pPushTypeVec = std::make_shared<tMPI_typePairVec>(0);
             pPullTypeVec = std::make_shared<tMPI_typePairVec>(0);
@@ -182,7 +199,7 @@ namespace DNDS
                 {
                     MPI_Aint *pPushDisps = pushingDisps.data() + pushGlobalStart[r];
                     MPI_int *pPushSizes = pushingSizes.data() + pushGlobalStart[r];
-
+                    // std::cout <<mpi.rank<< " pushSlice " << pPushDisps[0] << outputDelim << pPushSizes[0] << std::endl;
                     MPI_Datatype dtype;
                     MPI_Type_create_hindexed(pushNumber, pPushSizes, pPushDisps, MPI_BYTE, &dtype);
                     MPI_Type_commit(&dtype);
@@ -190,62 +207,69 @@ namespace DNDS
                     // OPT: could use MPI_Type_create_hindexed_block to save some space
                 }
                 // pull
-                MPI_int pullDisp[1];
-                MPI_Aint pullBytes[1];
+                MPI_Aint pullDisp[1];
+                MPI_int pullBytes[1];
                 auto gRbyte = ghostIndexer(index(pLGhostMapping->gStarts()[r + 1]));
                 auto gLbyte = ghostIndexer(index(pLGhostMapping->gStarts()[r]));
-                pullBytes[0] = gRbyte - gLbyte;
-                pullDisp[1] = gLbyte; // warning: overflow here
+
+                pullBytes[0] = gRbyte - gLbyte; // warning: overflow here
+                pullDisp[0] = gLbyte; 
                 if (pullBytes[0] > 0)
                 {
                     MPI_Datatype dtype;
-                    MPI_Type_create_hindexed(1, pullDisp, pullBytes, MPI_BYTE, &dtype);
+                    MPI_Type_create_hindexed(1, pullBytes, pullDisp, MPI_BYTE, &dtype);
+                    // std::cout << mpi.rank << " pullSlice " << pullDisp[0] << outputDelim << pullBytes[0] << std::endl;
                     MPI_Type_commit(&dtype);
                     pPullTypeVec->push_back(std::make_pair(r, dtype));
                 }
             }
             pPullTypeVec->shrink_to_fit();
             pPushTypeVec->shrink_to_fit(); // shrink as was dynamically modified
-            auto nReqs = pPullTypeVec->size() + pPullTypeVec->size();
-            PullReqVec.resize(nReqs), PullStatVec.resize(nReqs);
-            PushReqVec.resize(nReqs), PushStatVec.resize(nReqs);
+            auto nReqs = pPullTypeVec->size() + pPushTypeVec->size();
+            PullReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PullStatVec.resize(nReqs);
+            PushReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PushStatVec.resize(nReqs);
 
-            dataGhost.resize(ghostIndexer.LengthByte());
+            dataGhost.resize(ghostIndexer.LengthByte(), 1);
+            // std::cout << "Resize Ghost" << dataGhost.size() << std::endl;
         }
 
         void initPersistentPush()
         {
-            for (auto ip = 0; ip < pPullTypeVec.size(); i++)
+            for (auto ip = 0; ip < pPullTypeVec->size(); ip++)
             {
                 auto dtypeInfo = (*pPullTypeVec)[ip];
                 MPI_int rankOther = dtypeInfo.first;
                 MPI_int tag = rankOther + mpi.rank;
                 MPI_Send_init(dataGhost.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PushReqVec.data() + ip);
             }
-            for (auto ip = 0; ip < pPushTypeVec.size(); i++)
+            for (auto ip = 0; ip < pPushTypeVec->size(); ip++)
             {
                 auto dtypeInfo = (*pPushTypeVec)[ip];
                 MPI_int rankOther = dtypeInfo.first;
                 MPI_int tag = rankOther + mpi.rank;
-                MPI_Recv_init(data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PushReqVec.data() + pPullTypeVec.size() + ip);
+                MPI_Recv_init(data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PushReqVec.data() + pPullTypeVec->size() + ip);
             }
         }
 
         void initPersistentPull()
         {
-            for (auto ip = 0; ip < pPullTypeVec.size(); i++)
+            for (auto ip = 0; ip < pPullTypeVec->size(); ip++)
             {
                 auto dtypeInfo = (*pPullTypeVec)[ip];
                 MPI_int rankOther = dtypeInfo.first;
                 MPI_int tag = rankOther + mpi.rank;
+                // std::cout << mpi.rank << " Recv " << rankOther << std::endl;
                 MPI_Recv_init(dataGhost.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PullReqVec.data() + ip);
+                // std::cout << *(real *)(dataGhost.data() + 8 * 0) << std::endl;
             }
-            for (auto ip = 0; ip < pPushTypeVec.size(); i++)
+            for (auto ip = 0; ip < pPushTypeVec->size(); ip++)
             {
                 auto dtypeInfo = (*pPushTypeVec)[ip];
                 MPI_int rankOther = dtypeInfo.first;
                 MPI_int tag = rankOther + mpi.rank;
-                MPI_Send_init(data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PullReqVec.data() + pPullTypeVec.size() + ip);
+                // std::cout << mpi.rank << " Send " << rankOther << std::endl;
+                MPI_Send_init(data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PullReqVec.data() + pPullTypeVec->size() + ip);
+                // std::cout << *(real *)(data.data() + 8 * 1) << std::endl;
             }
         }
 
@@ -254,7 +278,5 @@ namespace DNDS
 
         void waitPersistentPush() { MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data()); }
         void waitPersistentPull() { MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data()); }
-
-        
     };
 }

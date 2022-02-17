@@ -42,4 +42,10 @@ namespace DNDS
         }
     };
 
+    void InsertCheck(MPIInfo &mpi)
+    {
+        MPI_Barrier(mpi.comm);
+        std::cout << "=== CHECK RANK " << mpi.rank << " ===" << std::endl;
+        MPI_Barrier(mpi.comm);
+    }
 }

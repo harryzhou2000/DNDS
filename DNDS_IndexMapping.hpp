@@ -15,7 +15,7 @@ namespace DNDS
     // warning!! due to MPI restrictions data inside are 32-bit
     class OffsetAscendIndexMapping
     {
-        typedef MPI_int mapIndex; 
+        typedef MPI_int mapIndex;
         typedef std::vector<mapIndex> tMapIndexVec;
         index mainOffset;
         index mainSize;
@@ -51,7 +51,8 @@ namespace DNDS
 
         bool searchInMain(index globalQuery, index &val) const
         {
-            if (globalQuery >= mainOffset && globalQuery < mainSize)
+            // std::cout << mainOffset << mainSize << std::endl;
+            if (globalQuery >= mainOffset && globalQuery < mainSize + mainOffset)
             {
                 val = globalQuery - mainOffset;
                 return true;
@@ -121,21 +122,29 @@ namespace DNDS
 
             // tMPI_reqVec bcastReqs(mpi.size); // for Ibcast
 
-            for (MPI_int r = 0; r < mpi.rank; r++)
+            for (MPI_int r = 0; r < mpi.size; r++)
+            {
+                // std::cout << mpi.rank << '\t' << myLength << std::endl;
                 MPI_Bcast(RankLengths.data() + r, sizeof(index), MPI_BYTE, r, mpi.comm);
+            }
+
+            RankOffsets[0] = 0;
+            for (auto i = 0; i < RankLengths.size(); i++)
+                RankOffsets[i + 1] = RankOffsets[i] + RankLengths[i];
         }
 
         index operator()(MPI_int rank, index val)
         {
-            assert((rank >= 0 && rank < RankLengths.size()) &&
-                   (val >= 0 && val < RankOffsets[rank + 1] - RankOffsets[rank]));
+
+            assert((rank >= 0 && rank <= RankLengths.size()) &&
+                   (val >= 0 && val <= RankOffsets[rank + 1] - RankOffsets[rank]));
             return RankOffsets[rank] + val;
         }
 
         bool search(index globalQuery, MPI_int &rank, index &val) const
         {
             auto place = std::lower_bound(RankOffsets.begin(), RankOffsets.end(), globalQuery, std::less_equal<index>());
-            rank = place - RankOffsets.begin();
+            rank = place - 1  - RankOffsets.begin();
             if (rank < RankLengths.size())
             {
                 val = globalQuery - RankOffsets[rank];

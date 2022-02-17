@@ -145,6 +145,13 @@ namespace DNDS
                 return false;
         return true;
     }
+
+    template <class T>
+    void PrintVec(const std::vector<T> &dat, std::ostream &out)
+    {
+        for (auto i = 0; i < dat.size(); i++)
+            out << dat[i] << outputDelim;
+    }
 }
 
 /*
@@ -222,8 +229,8 @@ namespace DNDS
                 assert(i >= 0);
                 return indexModder(
                     std::make_tuple<index, index>(
-                        index((*pRowstart)[i]) * sizeof(T),
-                        index((*pRowstart)[i + 1] - (*pRowstart)[i]) * sizeof(T)),
+                        index((*pRowstart)[i]),
+                        index((*pRowstart)[i + 1] - (*pRowstart)[i])),
                     i);
             }
 
@@ -251,6 +258,7 @@ namespace DNDS
             {
                 assert(mpi.size == LGhostMapping.gStarts().size() - 1);
                 Length = LGhostMapping.gStarts()[LGhostMapping.gStarts().size() - 1];
+                // std::cout << LGhostMapping.gStarts().size() << std::endl;
                 pRowstart.reset();
                 pRowstart = std::make_shared<tIndexVec>(Length + 1);
 
@@ -262,6 +270,13 @@ namespace DNDS
                 (*pRowstart)[0] = 0;
                 for (index i = 0; i < Length; i++)
                     (*pRowstart)[i + 1] = (*pRowstart)[i] + indexModder[pullingSizes[i]];
+                    
+                // InsertCheck(mpi);
+                // std::cout << mpi.rank << " VEC ";
+                // PrintVec(pullingSizes, std::cout);
+                // std::cout << std::endl;
+                // InsertCheck(mpi);
+
                 // note that Rowstart and pullingSizes are in bytes
                 // pullingSizes is actual but Rowstart is before indexModder(), use indexModder[] to invert
             }
@@ -306,4 +321,13 @@ namespace DNDS
 
     template <class T, class IndexModder>
     const IndexModder VarBatch<T, IndexModder>::indexModder = IndexModder();
+}
+
+namespace DNDS
+{
+
+    typedef VarBatch<real> VReal;
+    typedef Batch<real, 1> Real1;
+    typedef Batch<real, 2> Real2;
+    typedef Batch<real, 3> Real3;
 }
