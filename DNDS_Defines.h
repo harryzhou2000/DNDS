@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 #include <tuple>
+#include <iostream>
 
 namespace DNDS
 {
@@ -18,7 +19,18 @@ namespace DNDS
     typedef std::vector<rowsize> tRowsizeVec;
     typedef std::vector<index> tIndexVec;
     typedef std::shared_ptr<tIndexVec> tpIndexVec;
-    
-    typedef std::tuple<index,index> indexerPair;
-    
+
+    typedef std::tuple<index, index> indexerPair;
+
 } // namespace DNDS
+
+namespace DNDS
+{
+    std::ostream *logStream;
+
+    bool useCout = true;
+
+    std::ostream &log() { return useCout ? std::cout : *logStream; }
+
+    void setLogStream(std::ostream *nstream) { useCout = false, logStream = nstream; }
+}

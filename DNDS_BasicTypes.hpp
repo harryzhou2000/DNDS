@@ -1,6 +1,8 @@
 #pragma once
 
 #include "DNDS_Defines.h"
+#include "DNDS_MPI.hpp"
+#include "DNDS_IndexMapping.hpp"
 
 #include <string>
 #include <iostream>
@@ -51,7 +53,25 @@ namespace DNDS
                 return std::make_tuple<index, index>(index(BsizeByte * i), index(BsizeByte));
             }
 
+            constexpr inline index operator()(index i)
+            {
+                assert(i <= Length);
+                assert(i >= 0);
+                return index(BsizeByte * i);
+            }
+
             constexpr inline int LengthByte() { return Length * BsizeByte; }
+
+            // LGhostMapping is actually const here
+            void buildAsGhostAlltoall(Indexer indexer, tMPI_intVec pushingSizes,
+                                      tMPI_intVec pushIndexSizes, tMPI_intVec pushGlobalStart,         // pushing side structure
+                                      tMPI_intVec ghostSizes, OffsetAscendIndexMapping &LGhostMapping, // pulling side structure
+                                      MPIInfo mpi)
+            {
+                assert(mpi.size == LGhostMapping.gStarts().size() - 1);
+                Length = LGhostMapping.gStarts()[LGhostMapping.gStarts().size() - 1];
+                // already know that all pushing sizes of all ranks are Bsize
+            }
         };
 
         Batch(uint8_t *dataPos, index size, const Context &context, index i)
@@ -104,12 +124,26 @@ namespace DNDS
 
 namespace DNDS
 {
-    void AccumulateRowSize(const tRowsizeVec &rowsizes, tIndexVec &rowstarts)
+    // Note that TtIndexVec being accumulated could overflow
+    template <class TtRowsizeVec, class TtIndexVec>
+    void AccumulateRowSize(const TtRowsizeVec &rowsizes, TtIndexVec &rowstarts)
     {
         rowstarts.resize(rowsizes.size() + 1);
         rowstarts[0] = 0;
         for (index i = 1; i < rowstarts.size(); i++)
             rowstarts[i] = rowstarts[i - 1] + rowsizes[i - 1];
+    }
+
+    template <class T>
+    bool checkUniformVector(const std::vector<T> &dat, T &value)
+    {
+        if (dat.size() == 0)
+            return false;
+        value = dat[0];
+        for (auto i = 1; i < dat.size(); i++)
+            if (dat[i] != value)
+                return false;
+        return true;
     }
 }
 
@@ -132,7 +166,10 @@ namespace DNDS
 
     struct IndexPairUniformFunc
     {
-        indexerPair operator()(indexerPair in) const { return in; }
+        index operator()(index size) const { return size; }                  // from stored to actual
+        indexerPair operator()(indexerPair in, index i) const { return in; } // from stored to actual
+        index operator[](index size) const { return size; }                  // from actual to stored
+        // size conversion must meed inverse constraints
     };
 
     template <class T, class IndexModder = IndexPairUniformFunc>
@@ -159,12 +196,11 @@ namespace DNDS
             template <class TtpRowstart>
             Context(int dummy, TtpRowstart &&npRowstart) : Length(npRowstart->size() - 1), pRowstart(std::forward<TtpRowstart>(npRowstart)) {}
 
-
             // rowSizes unit in bytes
             Context(const tRowsizFunc &rowSizes, index newLength) : Length(newLength)
             {
                 pRowstart.reset(); // abandon any hooked row info
-                pRowstart = std::make_shared<tIndexVec>(new tIndexVec(Length + 1));
+                pRowstart = std::make_shared<tIndexVec>(tIndexVec(Length + 1));
                 (*pRowstart)[0] = 0;
                 for (index i = 0; i < Length; i++)
                     (*pRowstart)[i + 1] = rowSizes(i) + (*pRowstart)[i];
@@ -187,10 +223,48 @@ namespace DNDS
                 return indexModder(
                     std::make_tuple<index, index>(
                         index((*pRowstart)[i]) * sizeof(T),
-                        index((*pRowstart)[i + 1] - (*pRowstart)[i]) * sizeof(T)));
+                        index((*pRowstart)[i + 1] - (*pRowstart)[i]) * sizeof(T)),
+                    i);
             }
 
-            constexpr inline int LengthByte() { return (*pRowstart)[Length] * sizeof(T); }
+            constexpr inline index operator()(index i)
+            {
+                assert(i <= Length);
+                assert(i >= 0);
+                return index((*pRowstart)[i]);
+            }
+
+            constexpr inline int LengthByte()
+            {
+                return std::get<0>(
+                    indexModder(
+                        std::make_tuple<index, index>(
+                            (*pRowstart)[Length] * sizeof(T), 0),
+                        Length));
+            }
+
+            // LGhostMapping is actually const here
+            void buildAsGhostAlltoall(Indexer indexer, tMPI_intVec pushingSizes,                       // pushingSizes in in bytes
+                                      tMPI_intVec pushIndexSizes, tMPI_intVec pushGlobalStart,         // pushing side structure
+                                      tMPI_intVec ghostSizes, OffsetAscendIndexMapping &LGhostMapping, // pulling side structure
+                                      MPIInfo mpi)
+            {
+                assert(mpi.size == LGhostMapping.gStarts().size() - 1);
+                Length = LGhostMapping.gStarts()[LGhostMapping.gStarts().size() - 1];
+                pRowstart.reset();
+                pRowstart = std::make_shared<tIndexVec>(Length + 1);
+
+                tMPI_intVec pullingSizes(Length);
+                MPI_Alltoallv(pushingSizes.data(), pushIndexSizes.data(), pushGlobalStart.data(), MPI_INT,
+                              pullingSizes.data(), ghostSizes.data(), LGhostMapping.gStarts().data(), MPI_INT,
+                              mpi.comm);
+
+                (*pRowstart)[0] = 0;
+                for (index i = 0; i < Length; i++)
+                    (*pRowstart)[i + 1] = (*pRowstart)[i] + indexModder[pullingSizes[i]];
+                // note that Rowstart and pullingSizes are in bytes
+                // pullingSizes is actual but Rowstart is before indexModder(), use indexModder[] to invert
+            }
         };
 
         VarBatch(uint8_t *dataPos, index nsize, const Context &context, index i)

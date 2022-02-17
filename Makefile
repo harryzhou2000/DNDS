@@ -7,7 +7,7 @@ LINK   =${MPILIB}
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe
 
-HEADERS=DNDS_Array.hpp DNDS_BasicTypes.hpp DNDS_Defines.h DNDS_IndexMapping.hpp DNDS_MPI.hpp
+HEADERS=$(wildcard *.hpp *.h)
 
 VPATH:=test
 
@@ -17,12 +17,11 @@ FLAGS=-g
 # FLAGS=-O3 -DNDEBUG
 
 
-
 all: ${SINGLE_TARGETS}
 
 
-%.exe: %.cpp
-	g++ -o $@ $^  ${INCLUDE} ${LINK} ${FLAGS}
+%.exe: %.cpp ${HEADERS}
+	g++ -o $@ $(filter %.cpp , $^)  ${INCLUDE} ${LINK} ${FLAGS}
 
 
 .PHONY: clean
