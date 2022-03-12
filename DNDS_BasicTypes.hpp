@@ -206,7 +206,7 @@ namespace DNDS
             // rowSizes unit in bytes
             Context(const tRowsizFunc &rowSizes, index newLength) : Length(newLength)
             {
-                pRowstart.reset(); // abandon any hooked row info
+                //pRowstart.reset(); // abandon any hooked row info
                 pRowstart = std::make_shared<tIndexVec>(tIndexVec(Length + 1));
                 (*pRowstart)[0] = 0;
                 for (index i = 0; i < Length; i++)

@@ -4,10 +4,12 @@
 #include "../DNDS_MPI.hpp"
 
 #include <iostream>
+#include <stdlib.h>
 
 void testType();
 void testMPI();
 void testGhost();
+void testGhostLarge();
 
 int main(int argc, char *argv[])
 {
@@ -16,7 +18,8 @@ int main(int argc, char *argv[])
 
     // testType();
     // testMPI();
-    testGhost();
+    // testGhost();
+    testGhostLarge();
 
     ierr = MPI_Finalize();
     return 0;
@@ -223,6 +226,67 @@ void testGhost()
         auto instance = ArrayA[i];
         for (int j = 0; j < instance.size(); j++)
             std::cout << instance[j] << "\t";
+    }
+    std::cout << std::endl;
+}
+
+void testGhostLarge()
+{
+    DNDS::MPIInfo mpi;
+    mpi.setWorld();
+
+    int dsize, dstart, demandSize, demandStart, dmax;
+
+    dsize = 1024 * 1024;
+    dstart = 1024 * 1024 * mpi.rank;
+    dmax = 1024 * 1024 * mpi.size;
+
+    DNDS::Array<DNDS::VReal> ArrayA(DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
+                                                         { return (i % 3 + 1) * sizeof(DNDS::real); },
+                                                         dsize),
+                                    mpi);
+    for (int i = 0; i < ArrayA.size(); i++)
+    {
+        auto instance = ArrayA[i];
+        for (int j = 0; j < instance.size(); j++)
+            instance[j] = dstart + i;
+    }
+
+    demandSize = 1024;
+    srand(mpi.rank);
+    DNDS::tIndexVec PullDemand(demandSize);
+    for (int i = 0; i < PullDemand.size(); i++)
+        PullDemand[i] = (RAND_MAX * rand() + rand()) % dmax;
+    std::sort(PullDemand.begin(), PullDemand.end());
+
+    ArrayA.createGhost(PullDemand);
+
+    ArrayA.initPersistentPull();
+
+    int N = 100;
+    MPI_Barrier(mpi.comm);
+    double t0 = MPI_Wtime();
+    for (int i = 0; i < N; i++)
+    {
+        ArrayA.startPersistentPull();
+        ArrayA.waitPersistentPull();
+    }
+    double t1 = MPI_Wtime();
+    MPI_Barrier(mpi.comm);
+    if (mpi.rank == 0)
+        std::cout << "Time Per Pull " << (t1 - t0) / N << std::endl;
+
+    if (mpi.rank == 0)
+    {
+        std::cout << "Rank " << mpi.rank << " ";
+        for (int i = 0; i < ArrayA.sizeGhost(); i++)
+        {
+            auto instance = ArrayA.indexGhostData(i);
+            std::cout << "PD=" << PullDemand[i] << "\t";
+            for (int j = 0; j < instance.size(); j++)
+                std::cout << instance[j] << "\t";
+            std::cout << '\n';
+        }
     }
     std::cout << std::endl;
 }

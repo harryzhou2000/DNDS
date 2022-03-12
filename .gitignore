@@ -1,2 +1,5 @@
 *.exe
 *.o
+html
+latex
+data

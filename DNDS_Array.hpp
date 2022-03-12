@@ -34,15 +34,13 @@ namespace DNDS
         tpLGlobalMapping pLGlobalMapping;
         tpLGhostMapping pLGhostMapping;
 
-        typedef std::vector<std::pair<MPI_int, MPI_Datatype>> tMPI_typePairVec;
-        typedef std::shared_ptr<tMPI_typePairVec> tpMPI_typePairVec;
         // pull means from other main to this ghost
         // records received datatype
-        tpMPI_typePairVec pPushTypeVec;
-        tpMPI_typePairVec pPullTypeVec;
+        tpMPITypePairHolder pPushTypeVec;
+        tpMPITypePairHolder pPullTypeVec;
 
-        tMPI_reqVec PushReqVec;
-        tMPI_reqVec PullReqVec;
+        MPIReqHolder PushReqVec;
+        MPIReqHolder PullReqVec;
         tMPI_statVec PushStatVec;
         tMPI_statVec PullStatVec;
 
@@ -125,8 +123,17 @@ namespace DNDS
         index sizeByte() { return indexer.LengthByte(); }           // in unit of bytes
         index sizeByteGhost() { return ghostIndexer.LengthByte(); } // in unit of bytes
 
+
+        
         // recommend: TPullSet == tIndexVec (& &&),
         // has to be able to be copied into or moved operator= int tIndexVec
+        /**
+         * \brief from a set of global pulling indexes, establish push and pull types, \a<d>
+         * establish ghost mapping and global mapping
+         * \pre has pPullTypeVec pPushTypeVec
+         * \post PushTypeVec established
+         * \a word
+         */
         template <class TPullSet>
         void createGhost(TPullSet &&pullingIndexGlobal)
         {
@@ -189,8 +196,8 @@ namespace DNDS
             // InsertCheck(mpi);
 
             // phase3: create and register MPI types of pushing and pulling
-            pPushTypeVec = std::make_shared<tMPI_typePairVec>(0);
-            pPullTypeVec = std::make_shared<tMPI_typePairVec>(0);
+            pPushTypeVec = std::make_shared<MPITypePairHolder>(0);
+            pPullTypeVec = std::make_shared<MPITypePairHolder>(0);
             for (MPI_int r = 0; r < mpi.size; r++)
             {
                 // push
@@ -213,7 +220,7 @@ namespace DNDS
                 auto gLbyte = ghostIndexer(index(pLGhostMapping->gStarts()[r]));
 
                 pullBytes[0] = gRbyte - gLbyte; // warning: overflow here
-                pullDisp[0] = gLbyte; 
+                pullDisp[0] = gLbyte;
                 if (pullBytes[0] > 0)
                 {
                     MPI_Datatype dtype;
@@ -225,16 +232,19 @@ namespace DNDS
             }
             pPullTypeVec->shrink_to_fit();
             pPushTypeVec->shrink_to_fit(); // shrink as was dynamically modified
-            auto nReqs = pPullTypeVec->size() + pPushTypeVec->size();
-            PullReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PullStatVec.resize(nReqs);
-            PushReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PushStatVec.resize(nReqs);
-
             dataGhost.resize(ghostIndexer.LengthByte(), 1);
             // std::cout << "Resize Ghost" << dataGhost.size() << std::endl;
         }
 
+        /**
+         * \brief when established push and pull types, init persistent-nonblocked-nonbuffered MPI reqs
+         * \pre has pPullTypeVec pPushTypeVec
+         * \post PushTypeVec established
+         */
         void initPersistentPush()
         {
+            auto nReqs = pPullTypeVec->size() + pPushTypeVec->size();
+            PushReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PushStatVec.resize(nReqs);
             for (auto ip = 0; ip < pPullTypeVec->size(); ip++)
             {
                 auto dtypeInfo = (*pPullTypeVec)[ip];
@@ -251,8 +261,16 @@ namespace DNDS
             }
         }
 
+        /**
+         * \brief when established push and pull types, init persistent-nonblocked-nonbuffered MPI reqs
+         * \pre has pPullTypeVec pPushTypeVec
+         * \post PullTypeVec established
+         */
         void initPersistentPull()
         {
+            auto nReqs = pPullTypeVec->size() + pPushTypeVec->size();
+            assert(nReqs > 0);
+            PullReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PullStatVec.resize(nReqs);
             for (auto ip = 0; ip < pPullTypeVec->size(); ip++)
             {
                 auto dtypeInfo = (*pPullTypeVec)[ip];
@@ -273,10 +291,10 @@ namespace DNDS
             }
         }
 
-        void startPersistentPush() { MPI_Startall(PushReqVec.size(), PushReqVec.data()); }
-        void startPersistentPull() { MPI_Startall(PullReqVec.size(), PullReqVec.data()); }
+        void startPersistentPush() { assert(PushReqVec.size() > 0), MPI_Startall(PushReqVec.size(), PushReqVec.data()); }
+        void startPersistentPull() { assert(PullReqVec.size() > 0), MPI_Startall(PullReqVec.size(), PullReqVec.data()); }
 
-        void waitPersistentPush() { MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data()); }
-        void waitPersistentPull() { MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data()); }
+        void waitPersistentPush() { assert(PushReqVec.size() > 0), MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data()); }
+        void waitPersistentPull() { assert(PullReqVec.size() > 0), MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data()); }
     };
 }

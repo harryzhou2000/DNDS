@@ -48,4 +48,29 @@ namespace DNDS
         std::cout << "=== CHECK RANK " << mpi.rank << " ===" << std::endl;
         MPI_Barrier(mpi.comm);
     }
+
+    typedef std::vector<std::pair<MPI_int, MPI_Datatype>> tMPI_typePairVec;
+    struct MPITypePairHolder : public tMPI_typePairVec
+    {
+        using tMPI_typePairVec::tMPI_typePairVec;
+        ~MPITypePairHolder()
+        {
+            for (auto &i : (*this))
+                if (i.first >= 0 && i.second != 0 && i.second != MPI_DATATYPE_NULL)
+                    MPI_Type_free(&i.second); //, std::cout << "Free Type" << std::endl;
+        }
+    };
+    typedef std::shared_ptr<MPITypePairHolder> tpMPITypePairHolder;
+
+    struct MPIReqHolder : public tMPI_reqVec
+    {
+        using tMPI_reqVec::tMPI_reqVec;
+        ~MPIReqHolder()
+        {
+            for (auto &i : (*this))
+                if (i != MPI_REQUEST_NULL)
+                    MPI_Request_free(&i); //, std::cout << "Free Req" << std::endl;
+        }
+    };
+
 }
