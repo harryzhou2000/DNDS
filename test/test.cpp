@@ -181,7 +181,7 @@ void testGhost()
     }
 
     DNDS::Array<DNDS::VReal> ArrayA(DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
-                                                         { return (i + 1) * sizeof(DNDS::real); },
+                                                         { return (i + 1); },
                                                          dsize),
                                     mpi);
     for (int i = 0; i < ArrayA.size(); i++)
@@ -194,9 +194,10 @@ void testGhost()
     for (int i = 0; i < PullDemand.size(); i++)
         PullDemand[i] = demandStart + i;
     if (mpi.rank == 3)
-        PullDemand[1] = 8;
+        PullDemand[1] = 14;
 
-    ArrayA.createGhost(PullDemand);
+    ArrayA.createGhostMapping(PullDemand);
+    ArrayA.createMPITypes();
 
     ArrayA.initPersistentPull();
     ArrayA.startPersistentPull();
@@ -242,7 +243,7 @@ void testGhostLarge()
     dmax = 1024 * 1024 * mpi.size;
 
     DNDS::Array<DNDS::VReal> ArrayA(DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
-                                                         { return (i % 3 + 1) * sizeof(DNDS::real); },
+                                                         { return (i % 3 + 1); },
                                                          dsize),
                                     mpi);
     for (int i = 0; i < ArrayA.size(); i++)
@@ -259,7 +260,8 @@ void testGhostLarge()
         PullDemand[i] = (RAND_MAX * rand() + rand()) % dmax;
     std::sort(PullDemand.begin(), PullDemand.end());
 
-    ArrayA.createGhost(PullDemand);
+    ArrayA.createGhostMapping(PullDemand);
+    ArrayA.createMPITypes();
 
     ArrayA.initPersistentPull();
 
@@ -282,7 +284,7 @@ void testGhostLarge()
         for (int i = 0; i < ArrayA.sizeGhost(); i++)
         {
             auto instance = ArrayA.indexGhostData(i);
-            std::cout << "PD=" << PullDemand[i] << "\t";
+            std::cout << "PD=" << ArrayA.pLGhostMapping->ghostIndex[i] << "\t";
             for (int j = 0; j < instance.size(); j++)
                 std::cout << instance[j] << "\t";
             std::cout << '\n';

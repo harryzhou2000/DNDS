@@ -12,6 +12,18 @@
 
 namespace DNDS
 {
+    struct ArrayCommStat
+    {
+        bool hasGlobalMapping = false;
+        bool hasGhostMapping = false;
+        bool hasGhostIndexer = false;
+        bool hasCommTypes = false;
+        bool hasPersistentPullReqs = false;
+        bool PersistentPullFinished = true;
+        bool hasPersistentPushReqs = false;
+        bool PersistentPushFinished = true;
+    };
+
     template <class T>
     class Array
     {
@@ -23,38 +35,109 @@ namespace DNDS
         MPIInfo mpi;
 
     public:
+        /******************************************************************************************************************************/
+        // basic aux info
         typedef typename T::Indexer tIndexer;
         typedef typename T::Context tContext;
         tContext context;
         tIndexer indexer;
-        tIndexer ghostIndexer;
+        
+        /******************************************************************************************************************************/
 
+        /******************************************************************************************************************************/
+        // *** NOTE: the comm info is only store once, for currently i only need one ghosting comm scheme per Array<T> ***
+        // ** comm aux info: ghost mapping **
         typedef std::shared_ptr<GlobalOffsetsMapping> tpLGlobalMapping;
         typedef std::shared_ptr<OffsetAscendIndexMapping> tpLGhostMapping;
         tpLGlobalMapping pLGlobalMapping;
         tpLGhostMapping pLGhostMapping;
 
+        // ** comm aux info: sparse byte structures **
+        tIndexer ghostIndexer;
         // pull means from other main to this ghost
         // records received datatype
         tpMPITypePairHolder pPushTypeVec;
         tpMPITypePairHolder pPullTypeVec;
 
+        // ** comm aux info: comm running structures **
         MPIReqHolder PushReqVec;
         MPIReqHolder PullReqVec;
         tMPI_statVec PushStatVec;
         tMPI_statVec PullStatVec;
+
+        // ** comm aux info: safe guard status **
+        ArrayCommStat commStat;
+        /******************************************************************************************************************************/
+
+        /******************************************************************************************************************************/
 
         static std::string PrintTypes()
         {
             return "Types: " + T::Indexer::Tname + ", " + T::Context::Tname;
         }
 
+        /******************************************************************************************************************************/
+        /**
+         * \brief construct array and its indexer via a new context
+         *
+         */
         template <class TtContext>
-        Array(TtContext &&newContext, const MPIInfo &nmpi) : context(std::forward<TtContext>(newContext)),
-                                                             indexer(context), ghostIndexer(indexer), mpi(nmpi)
+        Array(TtContext &&newContext, const MPIInfo &nmpi)
+            : context(std::forward<TtContext>(newContext)),
+              indexer(context), ghostIndexer(), mpi(nmpi)
+        {
+            data.resize(indexer.LengthByte());
+            // std::cout << "IndexerLengthByte " << indexer.LengthByte() << std::endl;
+            // ghostIndexer is initialized as empty
+        }
+        /******************************************************************************************************************************/
+
+        /******************************************************************************************************************************/
+        /**
+         *  \brief  copy constructor: similar with automatic, data is also copied, not copying any ReqVec or StatVec
+         *  \warning To do comm-s, must InitPersistent... -> start/wait
+         */
+        Array(const Array<T> &Rarray)
+            : data(Rarray.data),
+              dataGhost(Rarray.dataGhost),
+              mpi(Rarray.mpi),
+              context(Rarray.context),
+              indexer(Rarray.indexer),
+              pLGlobalMapping(Rarray.pLGlobalMapping),
+              pLGhostMapping(Rarray.pLGhostMapping),
+              ghostIndexer(Rarray.ghostIndexer),
+              pPushTypeVec(Rarray.pPushTypeVec),
+              pPullTypeVec(Rarray.pPullTypeVec)
+        {
+        }
+
+        /**
+         *  \brief  copyer, comm topology copied, not copying ghostIndexer, not copying any data, comm-type, ReqVec or StatVec
+         *  \warning To do comm-s, must createMPITypes -> InitPersistent... -> start/wait
+         */
+        template <class TtContext, class TR>
+        Array(TtContext &&newContext, const Array<TR> &Rarray)
+            : data(),
+              dataGhost(),
+              mpi(Rarray.mpi),
+              context(std::forward<TtContext>(newContext)),
+              indexer(context),
+              pLGlobalMapping(Rarray.pLGlobalMapping),
+              pLGhostMapping(Rarray.pLGhostMapping),
+              ghostIndexer(),
+              pPushTypeVec(),
+              pPullTypeVec()
         {
             data.resize(indexer.LengthByte());
         }
+        /******************************************************************************************************************************/
+
+        // template <class TtContext>
+        // Array(const Array<T> &R, TtContext &&newContext, const MPIInfo &nmpi)
+        //     : context(std::forward<TtContext>(newContext)),
+        //       indexer(context),
+        // {
+        // }
 
         ~Array()
         {
@@ -123,71 +206,65 @@ namespace DNDS
         index sizeByte() { return indexer.LengthByte(); }           // in unit of bytes
         index sizeByteGhost() { return ghostIndexer.LengthByte(); } // in unit of bytes
 
-
-        
+        /******************************************************************************************************************************/
         // recommend: TPullSet == tIndexVec (& &&),
-        // has to be able to be copied into or moved operator= int tIndexVec
+        // // has to be able to be copied into or moved operator= int tIndexVec
+        // has to be able to be range - iterated
         /**
-         * \brief from a set of global pulling indexes, establish push and pull types, \a<d>
-         * establish ghost mapping and global mapping
-         * \pre has pPullTypeVec pPushTypeVec
-         * \post PushTypeVec established
-         * \a word
+         * \brief from a set of global pulling indexes, create pLGlobalMapping pLGhostMapping
+         * \post pLGlobalMapping pLGhostMapping established
          */
         template <class TPullSet>
-        void createGhost(TPullSet &&pullingIndexGlobal)
+        void createGhostMapping(TPullSet &&pullingIndexGlobal)
         {
             // phase1.1: create localGlobal mapping (broadcast)
             pLGlobalMapping = std::make_shared<GlobalOffsetsMapping>();
-
             pLGlobalMapping->setMPIAlignBcast(mpi, size());
-            pLGhostMapping = std::make_shared<OffsetAscendIndexMapping>((*pLGlobalMapping)(mpi.rank, 0), size());
+            commStat.hasGlobalMapping = true;
 
             // phase1.2: count how many to pull and allocate the localGhost mapping, fill the mapping
             // counting could overflow
-            tMPI_intVec ghostSizes(mpi.size, 0LL); // == pulling sizes
-            for (auto i : pullingIndexGlobal)
-            {
-                MPI_int rank;
-                index loc;
-                pLGlobalMapping->search(i, rank, loc);
-                ghostSizes[rank]++;
-            }
+            // tMPI_intVec ghostSizes(mpi.size, 0); // == pulling sizes
+            pLGhostMapping = std::make_shared<OffsetAscendIndexMapping>((*pLGlobalMapping)(mpi.rank, 0), size(),
+                                                                        std::forward<TPullSet>(pullingIndexGlobal),
+                                                                        *pLGlobalMapping,
+                                                                        mpi);
+            commStat.hasGhostMapping = true;
+        }
+        /******************************************************************************************************************************/
 
-            pLGhostMapping->allocateGhostIndex(ghostSizes);
-            pLGhostMapping->ghost() = std::forward<TPullSet>(pullingIndexGlobal);
-            pLGhostMapping->sort();
-
-            // phase1.3: inform each rank which to pull while being informed of which to push
-            tMPI_intVec pushIndexSizes(mpi.size);
-            MPI_Alltoall(ghostSizes.data(), 1, MPI_INT, pushIndexSizes.data(), 1, MPI_INT, mpi.comm);
-            tMPI_intVec pushGlobalStart;
-            AccumulateRowSize(pushIndexSizes, pushGlobalStart);
-            tIndexVec pushingIndexGlobal(pushGlobalStart[pushGlobalStart.size() - 1]);
-
-            MPI_Alltoallv(pLGhostMapping->ghost().data(), ghostSizes.data(), pLGhostMapping->gStarts().data(), DNDS_MPI_INDEX,
-                          pushingIndexGlobal.data(), pushIndexSizes.data(), pushGlobalStart.data(), DNDS_MPI_INDEX,
-                          mpi.comm);
-
+        /******************************************************************************************************************************/
+        /**
+         * \brief get real element byte info into account, with ghost indexer and comm types built, need two mappings
+         * \pre has pLGlobalMapping pLGhostMapping
+         * \post ghostIndexer pPullTypeVec pPushTypeVec established
+         */
+        void createMPITypes()
+        {
+            assert(commStat.hasGlobalMapping && commStat.hasGhostMapping);
+            assert(pLGhostMapping.use_count() > 0 && pLGlobalMapping.use_count() > 0);
+            /*********************************************/ // starts to deal with actual byte sizes
             // phase2.1: build push sizes and push disps
-            tMPI_intVec pushingSizes(pushingIndexGlobal.size());  // pushing sizes in bytes
-            tMPI_AintVec pushingDisps(pushingIndexGlobal.size()); // pushing disps in bytes
+            tMPI_intVec pushingSizes(pLGhostMapping->pushingIndexGlobal.size());  // pushing sizes in bytes
+            tMPI_AintVec pushingDisps(pLGhostMapping->pushingIndexGlobal.size()); // pushing disps in bytes
 
-            for (index i = 0; i < pushingIndexGlobal.size(); i++)
+            for (index i = 0; i < pLGhostMapping->pushingIndexGlobal.size(); i++)
             {
                 MPI_int rank;
                 index loc;
-                bool found = pLGhostMapping->search(pushingIndexGlobal[i], rank, loc);
-                assert(found && rank == -1);
+                bool found = pLGhostMapping->search(pLGhostMapping->pushingIndexGlobal[i], rank, loc);
+                assert(found && rank == -1); // must be at local main
                 auto indexerRet = indexer[loc];
-                pushingDisps[i] = std::get<0>(indexerRet);
+                pushingDisps[i] = std::get<0>(indexerRet); // pushing disps are not contiguous
                 pushingSizes[i] = std::get<1>(indexerRet);
             }
 
             // phase2.2: be informed of pulled sub-indexer
-            ghostIndexer.buildAsGhostAlltoall(indexer, pushingSizes,
-                                              pushIndexSizes, pushGlobalStart,
-                                              ghostSizes, *pLGhostMapping, mpi);
+            // equals to: building pullingSizes and pullingDisps, bytes size and disps of ghost
+            ghostIndexer.buildAsGhostAlltoall(indexer, pushingSizes, *pLGhostMapping, mpi);
+            dataGhost.resize(ghostIndexer.LengthByte(), 1); // data section must correspond to indexer
+                                                            // std::cout << "Resize Ghost" << dataGhost.size() << std::endl;
+            commStat.hasGhostIndexer = true;
 
             // InsertCheck(mpi);
             // std::cout << mpi.rank << " VEC ";
@@ -201,11 +278,11 @@ namespace DNDS
             for (MPI_int r = 0; r < mpi.size; r++)
             {
                 // push
-                MPI_int pushNumber = pushIndexSizes[r];
+                MPI_int pushNumber = pLGhostMapping->pushIndexSizes[r];
                 if (pushNumber > 0)
                 {
-                    MPI_Aint *pPushDisps = pushingDisps.data() + pushGlobalStart[r];
-                    MPI_int *pPushSizes = pushingSizes.data() + pushGlobalStart[r];
+                    MPI_Aint *pPushDisps = pushingDisps.data() + pLGhostMapping->pushIndexStarts[r];
+                    MPI_int *pPushSizes = pushingSizes.data() + pLGhostMapping->pushIndexStarts[r];
                     // std::cout <<mpi.rank<< " pushSlice " << pPushDisps[0] << outputDelim << pPushSizes[0] << std::endl;
                     MPI_Datatype dtype;
                     MPI_Type_create_hindexed(pushNumber, pPushSizes, pPushDisps, MPI_BYTE, &dtype);
@@ -216,8 +293,8 @@ namespace DNDS
                 // pull
                 MPI_Aint pullDisp[1];
                 MPI_int pullBytes[1];
-                auto gRbyte = ghostIndexer(index(pLGhostMapping->gStarts()[r + 1]));
-                auto gLbyte = ghostIndexer(index(pLGhostMapping->gStarts()[r]));
+                auto gRbyte = ghostIndexer(index(pLGhostMapping->ghostStart[r + 1]));
+                auto gLbyte = ghostIndexer(index(pLGhostMapping->ghostStart[r]));
 
                 pullBytes[0] = gRbyte - gLbyte; // warning: overflow here
                 pullDisp[0] = gLbyte;
@@ -232,18 +309,22 @@ namespace DNDS
             }
             pPullTypeVec->shrink_to_fit();
             pPushTypeVec->shrink_to_fit(); // shrink as was dynamically modified
-            dataGhost.resize(ghostIndexer.LengthByte(), 1);
-            // std::cout << "Resize Ghost" << dataGhost.size() << std::endl;
+            commStat.hasCommTypes = true;
         }
+        /******************************************************************************************************************************/
 
+        /******************************************************************************************************************************/
         /**
          * \brief when established push and pull types, init persistent-nonblocked-nonbuffered MPI reqs
          * \pre has pPullTypeVec pPushTypeVec
-         * \post PushTypeVec established
+         * \post PushReqVec established
          */
         void initPersistentPush()
         {
+            assert(commStat.hasCommTypes);
+            assert(pPullTypeVec.use_count() > 0 && pPushTypeVec.use_count() > 0);
             auto nReqs = pPullTypeVec->size() + pPushTypeVec->size();
+            // assert(nReqs > 0);
             PushReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PushStatVec.resize(nReqs);
             for (auto ip = 0; ip < pPullTypeVec->size(); ip++)
             {
@@ -259,17 +340,22 @@ namespace DNDS
                 MPI_int tag = rankOther + mpi.rank;
                 MPI_Recv_init(data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PushReqVec.data() + pPullTypeVec->size() + ip);
             }
+            commStat.hasPersistentPushReqs = true;
         }
+        /******************************************************************************************************************************/
 
+        /******************************************************************************************************************************/
         /**
          * \brief when established push and pull types, init persistent-nonblocked-nonbuffered MPI reqs
          * \pre has pPullTypeVec pPushTypeVec
-         * \post PullTypeVec established
+         * \post PullReqVec established
          */
         void initPersistentPull()
         {
+            assert(commStat.hasCommTypes);
+            assert(pPullTypeVec.use_count() > 0 && pPushTypeVec.use_count() > 0);
             auto nReqs = pPullTypeVec->size() + pPushTypeVec->size();
-            assert(nReqs > 0);
+            // assert(nReqs > 0);
             PullReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PullStatVec.resize(nReqs);
             for (auto ip = 0; ip < pPullTypeVec->size(); ip++)
             {
@@ -289,12 +375,34 @@ namespace DNDS
                 MPI_Send_init(data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PullReqVec.data() + pPullTypeVec->size() + ip);
                 // std::cout << *(real *)(data.data() + 8 * 1) << std::endl;
             }
+            commStat.hasPersistentPullReqs = true;
+        }
+        /******************************************************************************************************************************/
+
+        void startPersistentPush()
+        {
+            assert(commStat.hasPersistentPushReqs && commStat.PersistentPushFinished);
+            MPI_Startall(PushReqVec.size(), PushReqVec.data());
+            commStat.PersistentPushFinished = false;
+        }
+        void startPersistentPull()
+        {
+            assert(commStat.hasPersistentPullReqs && commStat.PersistentPullFinished);
+            MPI_Startall(PullReqVec.size(), PullReqVec.data());
+            commStat.PersistentPullFinished = false;
         }
 
-        void startPersistentPush() { assert(PushReqVec.size() > 0), MPI_Startall(PushReqVec.size(), PushReqVec.data()); }
-        void startPersistentPull() { assert(PullReqVec.size() > 0), MPI_Startall(PullReqVec.size(), PullReqVec.data()); }
-
-        void waitPersistentPush() { assert(PushReqVec.size() > 0), MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data()); }
-        void waitPersistentPull() { assert(PullReqVec.size() > 0), MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data()); }
+        void waitPersistentPush()
+        {
+            assert(commStat.hasPersistentPushReqs && !commStat.PersistentPushFinished);
+            MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data());
+            commStat.PersistentPushFinished = true;
+        }
+        void waitPersistentPull()
+        {
+            assert(commStat.hasPersistentPullReqs && !commStat.PersistentPullFinished);
+            MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data());
+            commStat.PersistentPullFinished = true;
+        }
     };
 }

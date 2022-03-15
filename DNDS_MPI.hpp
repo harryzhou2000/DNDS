@@ -18,6 +18,9 @@ namespace DNDS
     typedef std::vector<MPI_Status> tMPI_statVec;
     typedef std::vector<MPI_Request> tMPI_reqVec;
 
+    /**
+     * \brief maps index or other DNDS types to MPI_Datatype ids
+     */
     template <class Tbasic>
     constexpr MPI_Datatype __DNDSToMPIType()
     {
@@ -49,7 +52,11 @@ namespace DNDS
         MPI_Barrier(mpi.comm);
     }
 
+    
     typedef std::vector<std::pair<MPI_int, MPI_Datatype>> tMPI_typePairVec;
+    /**
+     * \brief wrapper of tMPI_typePairVec
+     */
     struct MPITypePairHolder : public tMPI_typePairVec
     {
         using tMPI_typePairVec::tMPI_typePairVec;
@@ -60,8 +67,12 @@ namespace DNDS
                     MPI_Type_free(&i.second); //, std::cout << "Free Type" << std::endl;
         }
     };
-    typedef std::shared_ptr<MPITypePairHolder> tpMPITypePairHolder;
 
+
+    typedef std::shared_ptr<MPITypePairHolder> tpMPITypePairHolder;
+    /**
+     * \brief wrapper of tMPI_reqVec
+     */
     struct MPIReqHolder : public tMPI_reqVec
     {
         using tMPI_reqVec::tMPI_reqVec;

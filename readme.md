@@ -13,7 +13,7 @@ std::vector or vector wrapper instances: ...Vec
 
 ## Array
 
-Array is a distributed data structure holding contagiously arrayed data.
+Array is a distributed data structure holding contiguously arrayed data.
 
 It has template args:
 
@@ -22,9 +22,9 @@ It has template args:
 
 It holds member data:
 
-**data**, private, contagious set of bytes holding actual data;
+**data**, private, contiguous set of bytes holding actual data;
 
-**dataGhost**, private, contagious set of bytes holding data referencing from other processes;
+**dataGhost**, private, contiguous set of bytes holding data referencing from other processes;
 
 **mpi**, private, mpi communicator info
 

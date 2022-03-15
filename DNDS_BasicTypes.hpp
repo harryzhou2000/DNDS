@@ -43,33 +43,36 @@ namespace DNDS
             static std::string Tname;
 
             index Length;
-
+            Indexer() : Length(indexMin) {} // null constructor
             Indexer(const Context &context) : Length(context.Length) {}
 
-            constexpr inline std::tuple<index, index> operator[](index i)
+            constexpr inline std::tuple<index, index> operator[](index i) const
             {
                 assert(i < Length);
                 assert(i >= 0);
                 return std::make_tuple<index, index>(index(BsizeByte * i), index(BsizeByte));
             }
 
-            constexpr inline index operator()(index i)
+            constexpr inline index operator()(index i) const
             {
                 assert(i <= Length);
                 assert(i >= 0);
                 return index(BsizeByte * i);
             }
 
-            constexpr inline int LengthByte() { return Length * BsizeByte; }
+            constexpr inline int LengthByte() const { return Length * BsizeByte; }
 
             // LGhostMapping is actually const here
-            void buildAsGhostAlltoall(Indexer indexer, tMPI_intVec pushingSizes,
-                                      tMPI_intVec pushIndexSizes, tMPI_intVec pushGlobalStart,         // pushing side structure
-                                      tMPI_intVec ghostSizes, OffsetAscendIndexMapping &LGhostMapping, // pulling side structure
-                                      MPIInfo mpi)
+            void buildAsGhostAlltoall(const Indexer &indexer, const tMPI_intVec &pushingSizes, // pushingSizes in in bytes
+                                      OffsetAscendIndexMapping &LGhostMapping,                 // pulling side structure
+                                      const MPIInfo &mpi)
             {
-                assert(mpi.size == LGhostMapping.gStarts().size() - 1);
-                Length = LGhostMapping.gStarts()[LGhostMapping.gStarts().size() - 1];
+                for (auto i : pushingSizes)
+                {
+                    assert(Bsize == i);
+                }
+                assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
+                Length = LGhostMapping.ghostStart[LGhostMapping.ghostStart.size() - 1];
                 // already know that all pushing sizes of all ranks are Bsize
             }
         };
@@ -110,81 +113,29 @@ namespace DNDS
     std::string Batch<T, Bsize>::Context::Tname = Batch<T, Bsize>::Tname + " Context";
 }
 
-/*
-
-
-
-
-
-
-
-
-
-*/
-
-namespace DNDS
-{
-    // Note that TtIndexVec being accumulated could overflow
-    template <class TtRowsizeVec, class TtIndexVec>
-    void AccumulateRowSize(const TtRowsizeVec &rowsizes, TtIndexVec &rowstarts)
-    {
-        rowstarts.resize(rowsizes.size() + 1);
-        rowstarts[0] = 0;
-        for (index i = 1; i < rowstarts.size(); i++)
-            rowstarts[i] = rowstarts[i - 1] + rowsizes[i - 1];
-    }
-
-    template <class T>
-    bool checkUniformVector(const std::vector<T> &dat, T &value)
-    {
-        if (dat.size() == 0)
-            return false;
-        value = dat[0];
-        for (auto i = 1; i < dat.size(); i++)
-            if (dat[i] != value)
-                return false;
-        return true;
-    }
-
-    template <class T>
-    void PrintVec(const std::vector<T> &dat, std::ostream &out)
-    {
-        for (auto i = 0; i < dat.size(); i++)
-            out << dat[i] << outputDelim;
-    }
-}
-
-/*
-
-
-
-
-
-
-
-
-
-*/
-
 // A varied size of batch of Ts, DNDS component type
 namespace DNDS
 {
     typedef std::function<rowsize(index)> tRowsizFunc;
 
-    struct IndexPairUniformFunc
-    {
-        index operator()(index size) const { return size; }                  // from stored to actual
-        indexerPair operator()(indexerPair in, index i) const { return in; } // from stored to actual
-        index operator[](index size) const { return size; }                  // from actual to stored
-        // size conversion must meed inverse constraints
-    };
+    // struct IndexPairUniformFunc
+    // {
+    //     /// \arg size: size in bytes \return modified size in bytes
+    //     inline index operator()(index size) const { return size; }                  // from stored to actual
+    //     /// \arg in: (disp, size) in bytes, i: index in n-elements \return modified (disp, size) in bytes
+    //     inline indexerPair operator()(indexerPair in, index i) const { return in; }  // from stored to actual
+    //     /// \arg in: modified size in bytes \return size in bytes
+    //     inline index operator[](index size) const { return size; }                    // from actual to stored
+    //     // size conversion must meed inverse constraints
+    // };
 
-    template <class T, class IndexModder = IndexPairUniformFunc>
+    // template <class T, class IndexModder = IndexPairUniformFunc> //disabled the IndexModder paradigm
+    template <class T>
     class VarBatch
     {
         T *data;
         index _size; // in unit of # T instances
-        static const IndexModder indexModder;
+        // static const IndexModder indexModder; //disabled the IndexModder paradigm
 
     public:
         static std::string Tname;
@@ -203,14 +154,14 @@ namespace DNDS
             template <class TtpRowstart>
             Context(int dummy, TtpRowstart &&npRowstart) : Length(npRowstart->size() - 1), pRowstart(std::forward<TtpRowstart>(npRowstart)) {}
 
-            // rowSizes unit in bytes
+            // rowSizes unit in n-Ts!!!
             Context(const tRowsizFunc &rowSizes, index newLength) : Length(newLength)
             {
-                //pRowstart.reset(); // abandon any hooked row info
+                // pRowstart.reset(); // abandon any hooked row info
                 pRowstart = std::make_shared<tIndexVec>(tIndexVec(Length + 1));
                 (*pRowstart)[0] = 0;
                 for (index i = 0; i < Length; i++)
-                    (*pRowstart)[i + 1] = rowSizes(i) + (*pRowstart)[i];
+                    (*pRowstart)[i + 1] = rowSizes(i) * sizeof(T) + (*pRowstart)[i];
             }
         };
 
@@ -221,56 +172,69 @@ namespace DNDS
             index Length;
             tpRowstart pRowstart; // unit in bytes
 
+            Indexer() : Length(INT64_MIN) {} // null constructor
             Indexer(const Context &context) : Length(context.Length), pRowstart(context.pRowstart) {}
 
-            constexpr inline std::tuple<index, index> operator[](index i)
+            constexpr inline std::tuple<index, index> operator[](index i) const
             {
                 assert(i < Length);
                 assert(i >= 0);
-                return indexModder(
-                    std::make_tuple<index, index>(
-                        index((*pRowstart)[i]),
-                        index((*pRowstart)[i + 1] - (*pRowstart)[i])),
-                    i);
+                // return indexModder(
+                //     std::make_tuple<index, index>(
+                //         index((*pRowstart)[i]),
+                //         index((*pRowstart)[i + 1] - (*pRowstart)[i])),
+                //     i);                         //disabled the IndexModder paradigm
+                return std::make_tuple<index, index>(
+                    index((*pRowstart)[i]),
+                    index((*pRowstart)[i + 1] - (*pRowstart)[i]));
             }
 
-            constexpr inline index operator()(index i)
+            constexpr inline index operator()(index i) const
             {
                 assert(i <= Length);
                 assert(i >= 0);
+                //    return indexModder(
+                //     std::make_tuple<index, index>(
+                //         index((*pRowstart)[i]),
+                //         index((*pRowstart)[i + 1] - (*pRowstart)[i])),
+                //     i);                           //disabled the IndexModder paradigm
                 return index((*pRowstart)[i]);
             }
 
-            constexpr inline int LengthByte()
+            constexpr inline int LengthByte() const
             {
-                return std::get<0>(
-                    indexModder(
-                        std::make_tuple<index, index>(
-                            (*pRowstart)[Length] * sizeof(T), 0),
-                        Length));
+                // return std::get<0>(
+                //     indexModder(
+                //         std::make_tuple<index, index>(
+                //             (*pRowstart)[Length], 0),
+                //         Length));            //disabled the IndexModder paradigm
+                return (*pRowstart)[Length];
             }
 
             // LGhostMapping is actually const here
-            void buildAsGhostAlltoall(Indexer indexer, tMPI_intVec pushingSizes,                       // pushingSizes in in bytes
-                                      tMPI_intVec pushIndexSizes, tMPI_intVec pushGlobalStart,         // pushing side structure
-                                      tMPI_intVec ghostSizes, OffsetAscendIndexMapping &LGhostMapping, // pulling side structure
-                                      MPIInfo mpi)
+            void buildAsGhostAlltoall(const Indexer &indexer, const tMPI_intVec &pushingSizes, // pushingSizes in in bytes
+                                      OffsetAscendIndexMapping &LGhostMapping,                 // pulling side structure
+                                      const MPIInfo &mpi)
             {
-                assert(mpi.size == LGhostMapping.gStarts().size() - 1);
-                Length = LGhostMapping.gStarts()[LGhostMapping.gStarts().size() - 1];
+                assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
+                Length = LGhostMapping.ghostStart[LGhostMapping.ghostStart.size() - 1];
                 // std::cout << LGhostMapping.gStarts().size() << std::endl;
                 pRowstart.reset();
                 pRowstart = std::make_shared<tIndexVec>(Length + 1);
 
+                // obtain pulling sizes with pushing sizes
                 tMPI_intVec pullingSizes(Length);
-                MPI_Alltoallv(pushingSizes.data(), pushIndexSizes.data(), pushGlobalStart.data(), MPI_INT,
-                              pullingSizes.data(), ghostSizes.data(), LGhostMapping.gStarts().data(), MPI_INT,
+                MPI_Alltoallv(pushingSizes.data(), LGhostMapping.pushIndexSizes.data(), LGhostMapping.pushIndexStarts.data(), MPI_INT,
+                              pullingSizes.data(), LGhostMapping.ghostSizes.data(), LGhostMapping.ghostStart.data(), MPI_INT,
                               mpi.comm);
 
                 (*pRowstart)[0] = 0;
+                // for (index i = 0; i < Length; i++)
+                //     (*pRowstart)[i + 1] = (*pRowstart)[i] + indexModder[pullingSizes[i]];// disabled the IndexModder paradigm
                 for (index i = 0; i < Length; i++)
-                    (*pRowstart)[i + 1] = (*pRowstart)[i] + indexModder[pullingSizes[i]];
-                    
+                    (*pRowstart)[i + 1] = (*pRowstart)[i] + pullingSizes[i];
+                // is actually pulling disps, but is contiguous anyway
+
                 // InsertCheck(mpi);
                 // std::cout << mpi.rank << " VEC ";
                 // PrintVec(pullingSizes, std::cout);
@@ -310,17 +274,26 @@ namespace DNDS
         }
     };
 
-    template <class T, class IndexModder>
-    std::string VarBatch<T, IndexModder>::Tname = std::string(typeid(T).name()) + " VarBatch";
+    // template <class T, class IndexModder>
+    // std::string VarBatch<T, IndexModder>::Tname = std::string(typeid(T).name()) + " VarBatch";
 
-    template <class T, class IndexModder>
-    std::string VarBatch<T, IndexModder>::Indexer::Tname = VarBatch<T>::Tname + " Indexer";
+    // template <class T, class IndexModder>
+    // std::string VarBatch<T, IndexModder>::Indexer::Tname = VarBatch<T>::Tname + " Indexer";
 
-    template <class T, class IndexModder>
-    std::string VarBatch<T, IndexModder>::Context::Tname = VarBatch<T>::Tname + " Context";
+    // template <class T, class IndexModder>
+    // std::string VarBatch<T, IndexModder>::Context::Tname = VarBatch<T>::Tname + " Context";
 
-    template <class T, class IndexModder>
-    const IndexModder VarBatch<T, IndexModder>::indexModder = IndexModder();
+    // template <class T, class IndexModder>
+    // const IndexModder VarBatch<T, IndexModder>::indexModder = IndexModder(); // disabled the IndexModder paradigm
+
+    template <class T>
+    std::string VarBatch<T>::Tname = std::string(typeid(T).name()) + " VarBatch";
+
+    template <class T>
+    std::string VarBatch<T>::Indexer::Tname = VarBatch<T>::Tname + " Indexer";
+
+    template <class T>
+    std::string VarBatch<T>::Context::Tname = VarBatch<T>::Tname + " Context";
 }
 
 namespace DNDS
