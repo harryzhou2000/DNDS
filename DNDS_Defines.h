@@ -40,6 +40,8 @@ namespace DNDS
     void setLogStream(std::ostream *nstream) { useCout = false, logStream = nstream; }
 }
 
+
+
 /*
 
 

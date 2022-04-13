@@ -77,6 +77,13 @@
         "__tuple": "cpp",
         "__hash_table": "cpp",
         "__split_buffer": "cpp",
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "complex": "cpp",
+        "deque": "cpp",
+        "map": "cpp",
+        "queue": "cpp",
+        "set": "cpp",
+        "xtree": "cpp",
+        "__config": "cpp"
     }
 }
