@@ -15,7 +15,7 @@ CPC=mpicxx
 INCLUDE=${MPIINC} ${CGNSINC}
 LINK   =${MPILIB} ${CGNSLIB}
 
-SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe
+SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe
 
 HEADERS=$(wildcard *.hpp *.h)
 

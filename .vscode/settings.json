@@ -84,6 +84,25 @@
         "queue": "cpp",
         "set": "cpp",
         "xtree": "cpp",
-        "__config": "cpp"
+        "__config": "cpp",
+        "__functional_03": "cpp",
+        "__locale": "cpp",
+        "filesystem": "cpp",
+        "fstream": "cpp",
+        "iomanip": "cpp",
+        "stack": "cpp",
+        "regex": "cpp",
+        "strstream": "cpp",
+        "*.tcc": "cpp",
+        "condition_variable": "cpp",
+        "unordered_set": "cpp",
+        "memory_resource": "cpp",
+        "numeric": "cpp",
+        "random": "cpp",
+        "shared_mutex": "cpp",
+        "cfenv": "cpp",
+        "cinttypes": "cpp",
+        "typeindex": "cpp",
+        "variant": "cpp"
     }
 }
