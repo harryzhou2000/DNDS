@@ -157,6 +157,9 @@ namespace DNDS
 
          */
 
+        typedef Eigen::Vector3d tPoint;
+        typedef Eigen::Matrix3d tJacobi;
+
         static const int DNDS_ELEM_TYPE_NUM = 15;
         static const int DNDS_ELEM_MAX_FACE_NUM = 6;
         static const int DNDS_ELEM_MAX_FACENODE_NUM = 9;
@@ -166,8 +169,8 @@ namespace DNDS
         enum ElemType
         {
             UnknownElem = 0,
-            Line1 = 1,
-            Line2 = 8,
+            Line2 = 1,
+            Line3 = 8,
 
             Tri3 = 2,
             Tri6 = 9,
@@ -224,15 +227,15 @@ namespace DNDS
         static const ElemType FaceTypeList[DNDS_ELEM_TYPE_NUM][DNDS_ELEM_MAX_FACE_NUM] = {
             {UnknownElem},                                  // 0
             {UnknownElem, UnknownElem, UnknownElem},        // 1
-            {Line1, Line1, Line1, UnknownElem},             // 2
-            {Line1, Line1, Line1, Line1, UnknownElem},      // 3
+            {Line2, Line2, Line2, UnknownElem},             // 2
+            {Line2, Line2, Line2, Line2, UnknownElem},      // 3
             {Tri3, Tri3, Tri3, Tri3, UnknownElem},          // 4
             {Quad4, Quad4, Quad4, Quad4, Quad4, Quad4},     // 5
             {Tri3, Quad4, Quad4, Quad4, Tri3, UnknownElem}, // 6
             {Quad4, Tri3, Tri3, Tri3, Tri3, UnknownElem},   // 7
             {UnknownElem, UnknownElem, UnknownElem},        // 8
-            {Line2, Line2, Line2, UnknownElem},             // 9
-            {Line2, Line2, Line2, Line2, UnknownElem},      // 10
+            {Line3, Line3, Line3, UnknownElem},             // 9
+            {Line3, Line3, Line3, Line3, UnknownElem},      // 10
             {Tri6, Tri6, Tri6, Tri6, UnknownElem},          // 11
             {Quad9, Quad9, Quad9, Quad9, Quad9, Quad9},     // 12
             {Tri6, Quad9, Quad9, Quad9, Tri6, UnknownElem}, // 13
@@ -300,14 +303,14 @@ namespace DNDS
 
         static const int DimOrderListNVNNNF[DNDS_ELEM_TYPE_NUM][5] = {
             {-1, -1, -1, -1, -1}, // 0
-            {1, 1, 2, 2, 0},      // 1 Line1
+            {1, 1, 2, 2, 0},      // 1 Line2
             {2, 1, 3, 3, 3},      // 2 Tri3
             {2, 1, 4, 4, 4},      // 3 Quad4
             {3, 1, 4, 4, 4},      // 4 Tet4
             {3, 1, 8, 8, 6},      // 5 Hex8
             {3, 1, 6, 6, 5},      // 6 Prism6
             {3, 1, 5, 5, 5},      // 7 Pyramid5
-            {1, 2, 2, 3, 0},      // 8 Line2
+            {1, 2, 2, 3, 0},      // 8 Line3
             {2, 2, 3, 6, 3},      // 9 Tri6
             {2, 2, 4, 9, 4},      // 10 Quad9
             {3, 2, 4, 10, 4},     // 11 Tet10
@@ -446,6 +449,7 @@ namespace DNDS
             log() << "Error === getDiffOrderFromDiffSize got diffs size not good\n"
                   << std::endl;
             assert(false);
+            return -1;
         }
 
         typedef Eigen::Matrix<real, -1, -1, Eigen::RowMajor> tDiFj;
@@ -458,7 +462,7 @@ namespace DNDS
         {
             /// \brief NBuffer[elemType][iface+1 or 0 for volume][iInt][igaussPoint] = D_i(N_j)
             /// basically GetDiNj()'s buffer, for GetDiNj() only needs to buffer globally
-            static std::vector<std::vector<std::vector<tDiFj>>> NBuffer[DNDS_ELEM_TYPE_NUM];
+
             ElemType elemType = UnknownElem;
             ParamSpace paramSpace = UnknownPSpace;
             int dim = 0;
@@ -471,6 +475,7 @@ namespace DNDS
             const real *bufInt = nullptr;
 
         public:
+            static std::vector<std::vector<std::vector<tDiFj>>> NBuffer[DNDS_ELEM_TYPE_NUM];
             static inline void InitNBuffer() // TODO: main check
             {
                 for (int elemType = 0; elemType < DNDS_ELEM_TYPE_NUM; elemType++)
@@ -481,6 +486,8 @@ namespace DNDS
                     int Nnode = DimOrderListNVNNNF[elemType][3];
                     int Nface = DimOrderListNVNNNF[elemType][4];
                     auto paramSpace = paramSpaceList[elemType];
+                    if (Nface < 0 || paramSpaceNumIntScheme[paramSpace] <= 0) // latter condition means the element is not implemented with gauss int
+                        continue;
                     NBuffer[elemType].resize(Nface + 1);
 
                     // at vol gauss points
@@ -492,12 +499,8 @@ namespace DNDS
 
                         for (int ig = 0; ig < e.nIntPoint; ig++)
                         {
-                            Eigen::Vector3d p;
-                            int d;
-                            for (d = 0; d < e.dim; d++)
-                                p(d) = e.bufInt[d * e.nIntPoint + ig];
-                            for (; d < 3; d++)
-                                p(d) = 0.;
+                            tPoint p;
+                            e.GetIntPoint(ig, p);
                             NBuffer[elemType][0][iInt][ig].resize(ndiffSiz, Nnode);
                             e.GetDiNj(p, NBuffer[elemType][0][iInt][ig]);
                         }
@@ -515,16 +518,15 @@ namespace DNDS
                             NBuffer[elemType][iface + 1][iInt].resize(eff.nIntPoint);
                             for (int ig = 0; ig < eff.nIntPoint; ig++)
                             {
-                                Eigen::Vector3d p;
-                                int d;
-                                for (d = 0; d < eff.dim; d++)
-                                    p(d) = eff.bufInt[d * eff.nIntPoint + ig];
-                                for (; d < 3; d++)
-                                    p(d) = 0.;
-                                Eigen::Vector3d pc;
-                                NBuffer[elemType][iface + 1][iInt][ig].resize(ndiffSiz, eff.Nnode);
+                                tPoint p;
+                                eff.GetIntPoint(ig, p);
+                                tPoint pc;
+                                NBuffer[elemType][iface + 1][iInt][ig].resize(ndiffSiz, e.Nnode);
                                 e.FaceSpace2VolSpace(iface, p, pc);
-                                e.GetDiNj(pc, NBuffer[elemType][0][iInt][ig]);
+                                e.GetDiNj(pc, NBuffer[elemType][iface + 1][iInt][ig]);
+                                std::cout << "ELEMTYPE:" << eff.elemType << " " << e.elemType << " Face:" << iface << std::endl;
+                                std::cout << p.transpose() << std::endl;
+                                std::cout << pc.transpose() << std::endl;
                             }
                         }
                     }
@@ -560,17 +562,20 @@ namespace DNDS
                 return ElementManager(FaceTypeList[elemType][iface], faceiInt);
             }
 
-            /// \warning not implemented
-            template <class TP>
-            void GetIntPoint(int iGpoint, TP &p)
+            inline void GetIntPoint(int iGpoint, tPoint &p)
             {
+                int d;
+                for (d = 0; d < dim; d++)
+                    p[d] = bufInt[d * nIntPoint + iGpoint];
+                for (; d < 3; d++) // magical 3 is because the physical world mostly involves 3 spacial dims
+                    p[d] = 0.;
             }
 
             /// \brief convert point in certain STD face of the element to element space
             template <class TP>
             void FaceSpace2VolSpace(int iface, const TP &pface, TP &pvol, bool invert = false)
             {
-                assert(iface > 0 && iface < Nface);
+                assert(iface >= 0 && iface < Nface);
                 // // TODO: implement now
                 switch (paramSpace)
                 {
@@ -620,10 +625,10 @@ namespace DNDS
                             pvol[0] = 1, pvol[1] = pface[0], pvol[2] = 0.;
                             break;
                         case 2:
-                            pvol[0] = 1 - pface[0], pvol[1] = 1, pvol[2] = 0.;
+                            pvol[0] = -pface[0], pvol[1] = 1, pvol[2] = 0.;
                             break;
                         case 3:
-                            pvol[0] = 0, pvol[1] = 1 - pface[0], pvol[2] = 0.;
+                            pvol[0] = 0, pvol[1] = -pface[0], pvol[2] = 0.;
                             break;
                         default:
                             assert(false);
@@ -633,10 +638,10 @@ namespace DNDS
                         switch (iface)
                         {
                         case 0:
-                            pvol[0] = 1 - pface[0], pvol[1] = pvol[2] = 0.;
+                            pvol[0] = -pface[0], pvol[1] = pvol[2] = 0.;
                             break;
                         case 1:
-                            pvol[0] = 1, pvol[1] = 1 - pface[0], pvol[2] = 0.;
+                            pvol[0] = 1, pvol[1] = -pface[0], pvol[2] = 0.;
                             break;
                         case 2:
                             pvol[0] = pface[0], pvol[1] = 1, pvol[2] = 0.;
@@ -660,15 +665,35 @@ namespace DNDS
             /// \brief guassMAP[igaussPointInFace] = iguassPointInFaceSTD
             /// assumes faceNodes and faceSTDNodes represent same-place elements
             template <class TArray>
-            void FaceIGauss2STDMap(int iface, int NGface, const TArray &faceNodes, const TArray &faceSTDNodes, TArray &gaussMAP)
+            void FaceIGauss2STDMap(int iface, ElementManager &ef, const TArray &faceNodes, const TArray &faceSTDNodes, TArray &gaussMAP, bool invert = false)
             {
+                assert(iface < Nface && iface >= 0);
+                switch (elemType)
+                {
+                case ElemType::Tri3:
+                case ElemType::Tri6:
+                case ElemType::Quad4:
+                case ElemType::Quad9: // as planar faces always have line faces, cases are simple
+                    assert((faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1]) ||
+                           (faceNodes[0] == faceSTDNodes[1] && faceNodes[1] == faceSTDNodes[0]));
+                    if (faceNodes[0] == faceSTDNodes[0])
+                        for (int i = 0; i < ef.nIntPoint; i++)
+                            gaussMAP[i] = invert ? ef.nIntPoint - 1 - i : i;
+                    else
+                        for (int i = 0; i < ef.nIntPoint; i++)
+                            gaussMAP[i] = (!invert) ? ef.nIntPoint - 1 - i : i;
+                    break;
+                default:
+                    assert(false);
+                    break;
+                }
             }
 
             /// \brief returns faceSTD, should be norming out
             template <class TArray>
             void SubstractFaceNodes(int iface, const ElementManager &faceElem, const TArray &nodes, TArray &faceNodes)
             {
-                assert(iface < Nface);
+                assert(iface < Nface && iface >= 0);
                 for (int i = 0; i < faceElem.Nnode; i++)
                     faceNodes[i] = nodes[FaceNodeList[elemType][iface][i]];
             }
@@ -679,7 +704,7 @@ namespace DNDS
             /// \param p param coord of point
             /// \param DiNj = diff_i(N_j),  DiNj.rows() is also a input note that when j >= Nnode, the value
             /// returned is not filled
-            template <class TPoint>
+            template <class TPoint> // TPoint remains general now
             void GetDiNj(const TPoint &p, tDiFj &DiNj)
             {
                 int diffOrder = getDiffOrderFromDiffSize(DiNj.rows());
@@ -687,6 +712,31 @@ namespace DNDS
                 auto x = p[0], y = p[1], z = p[2]; // param space
                 switch (elemType)
                 {
+                case ElemType::Line2:
+                    switch (diffOrder)
+                    {
+                    case 3:
+                        for (int i = 0; i < 10; i++)
+                            DiNj(10 + i, 0) = DiNj(10 + i, 1) = 0.0;
+                    case 2:
+                        for (int i = 0; i < 6; i++)
+                            DiNj(4 + i, 0) = DiNj(4 + i, 1) = 0.0;
+                    case 1:
+                        DiNj(1, 0) = (-1) * 0.5;
+                        DiNj(1, 1) = (1) * 0.5;
+                        DiNj(2, 0) = 0;
+                        DiNj(2, 1) = 0;
+                        DiNj(3, 0) = 0;
+                        DiNj(3, 1) = 0;
+                    case 0:
+                        DiNj(0, 0) = (1 - x) * 0.5;
+                        DiNj(0, 1) = (1 + x) * 0.5;
+                        break;
+                    default:
+                        assert(false);
+                    }
+                    break;
+
                 case ElemType::Tri3:
                     switch (diffOrder)
                     {
@@ -721,10 +771,10 @@ namespace DNDS
                     {
                     case 3:
                         for (int i = 0; i < 10; i++)
-                            DiNj(10 + i, 0) = DiNj(10 + i, 1) = DiNj(10 + i, 2) = 0.0;
+                            DiNj(10 + i, 0) = DiNj(10 + i, 1) = DiNj(10 + i, 2) = DiNj(10 + i, 3) = 0.0;
                     case 2:
                         for (int i = 0; i < 6; i++)
-                            DiNj(4 + i, 0) = DiNj(4 + i, 1) = DiNj(4 + i, 2) = 0.0;
+                            DiNj(4 + i, 0) = DiNj(4 + i, 1) = DiNj(4 + i, 2) = DiNj(4 + i, 3) = 0.0;
                         DiNj(5, 0) = (-1) * (-1) * 0.25;
                         DiNj(5, 1) = (1) * (-1) * 0.25;
                         DiNj(5, 2) = (1) * (1) * 0.25;
@@ -753,7 +803,7 @@ namespace DNDS
                     }
                     break;
 
-                case ElemType::Tri6:
+                case ElemType::Line3:
                     switch (diffOrder)
                     {
                     case 3:
@@ -762,6 +812,38 @@ namespace DNDS
                     case 2:
                         for (int i = 0; i < 6; i++)
                             DiNj(4 + i, 0) = DiNj(4 + i, 1) = DiNj(4 + i, 2) = 0.0;
+                        DiNj(4, 0) = ((-1) * (-1) + (-1) * (-1)) * 0.5;
+                        DiNj(4, 1) = ((1) * (1) + (1) * (1)) * 0.5;
+                        DiNj(4, 2) = ((-1) * (1) + (-1) * (1)) * 1.0;
+                    case 1:
+                        DiNj(1, 0) = ((-1) * (0 - x) + (1 - x) * (-1)) * 0.5;
+                        DiNj(1, 1) = ((1) * (0 + x) + (1 + x) * (1)) * 0.5;
+                        DiNj(1, 2) = ((-1) * (1 + x) + (1 - x) * (1)) * 1.0;
+                        DiNj(2, 0) = 0;
+                        DiNj(2, 1) = 0;
+                        DiNj(2, 2) = 0;
+                        DiNj(3, 0) = 0;
+                        DiNj(3, 1) = 0;
+                        DiNj(3, 2) = 0;
+                    case 0:
+                        DiNj(0, 0) = (1 - x) * (0 - x) * 0.5;
+                        DiNj(0, 1) = (1 + x) * (0 + x) * 0.5;
+                        DiNj(0, 2) = (1 - x) * (1 + x) * 1.0;
+                        break;
+                    default:
+                        assert(false);
+                    }
+                    break;
+
+                case ElemType::Tri6:
+                    switch (diffOrder)
+                    {
+                    case 3:
+                        for (int i = 0; i < 10; i++)
+                            DiNj(10 + i, 0) = DiNj(10 + i, 1) = DiNj(10 + i, 2) = DiNj(10 + i, 3) = DiNj(10 + i, 4) = DiNj(10 + i, 5) = 0.0;
+                    case 2:
+                        for (int i = 0; i < 6; i++)
+                            DiNj(4 + i, 0) = DiNj(4 + i, 1) = DiNj(4 + i, 2) = DiNj(4 + i, 3) = DiNj(4 + i, 4) = DiNj(4 + i, 5) = 0.0;
                         DiNj(4, 0) = 2 * 1 + 2 * 1;
                         DiNj(4, 1) = 1 * 2 + 1 * 2;
                         DiNj(4, 2) = 0;
@@ -780,7 +862,6 @@ namespace DNDS
                         DiNj(7, 3) = 0;
                         DiNj(7, 4) = 0;
                         DiNj(7, 5) = -4 * 1 - 4 * 1;
-
                     case 1:
                         DiNj(1, 0) = 2 * (-1 + y + x) + (-1 + 2 * y + 2 * x) * 1;
                         DiNj(1, 1) = 1 * (-1 + 2 * x) + x * 2;
@@ -818,7 +899,9 @@ namespace DNDS
                     {
                     case 3:
                         for (int i = 0; i < 10; i++)
-                            DiNj(10 + i, 0) = DiNj(10 + i, 1) = DiNj(10 + i, 2) = 0.0;
+                            DiNj(10 + i, 0) = DiNj(10 + i, 1) = DiNj(10 + i, 2) =
+                                DiNj(10 + i, 3) = DiNj(10 + i, 4) = DiNj(10 + i, 5) =
+                                    DiNj(10 + i, 6) = DiNj(10 + i, 7) = DiNj(10 + i, 8) = 0.0;
                         DiNj(11, 0) = ((-1) * (-1) + (-1) * (-1)) * ((-1) * (1 - y) + (0 - y) * (-1)) * 0.25;
                         DiNj(11, 1) = ((1) * (1) + (1) * (1)) * ((-1) * (1 - y) + (0 - y) * (-1)) * 0.25;
                         DiNj(11, 2) = ((1) * (1) + (1) * (1)) * ((1) * (1 + y) + (0 + y) * (1)) * 0.25;
@@ -840,7 +923,9 @@ namespace DNDS
                         DiNj(13, 8) = ((-1) * (1 + x) + (1 - x) * (1)) * ((-1) * (1) + (-1) * (1)) * 1.00;
                     case 2:
                         for (int i = 0; i < 6; i++)
-                            DiNj(4 + i, 0) = DiNj(4 + i, 1) = DiNj(4 + i, 2) = 0.0;
+                            DiNj(4 + i, 0) = DiNj(4 + i, 1) = DiNj(4 + i, 2) =
+                                DiNj(4 + i, 3) = DiNj(4 + i, 4) = DiNj(4 + i, 5) =
+                                    DiNj(4 + i, 6) = DiNj(4 + i, 7) = DiNj(4 + i, 8) = 0.0;
                         DiNj(4, 0) = ((-1) * (-1) + (-1) * (-1)) * ((0 - y) * (1 - y)) * 0.25;
                         DiNj(4, 1) = ((1) * (1) + (1) * (1)) * ((0 - y) * (1 - y)) * 0.25;
                         DiNj(4, 2) = ((1) * (1) + (1) * (1)) * ((0 + y) * (1 + y)) * 0.25;
@@ -922,7 +1007,7 @@ namespace DNDS
 
             /**
              * @brief
-             * sum(f(iintpoint, intpointPparam, D_iN_j, Coords) * wi), is integration of param space, responsible of feeding it shape function, coords
+             * sum(f(iintpoint, intpointPparam, D_iN_j) * wi), is integration of param space, responsible of feeding it shape function, coords
              * int point location, intpoint index.
              *
              * e.g.
@@ -934,22 +1019,27 @@ namespace DNDS
              * the values of N, dNdxii... on gauss points should be stored, they are accessed by Intergration to calculate J (or J could be cached???),
              * and N, dNdxii stored on face gauss points should be accessed by face's Integration's f
              *
-             * \param f std::function<void(Tacc &, int, Tpoint &, tDiFj &, TMatrix &)>
+             * \param f likely std::function<void(Tacc &, int, Tpoint &, tDiFj &)>,
+             * accepts: (returned value to accumulate) (integration index in volume) (point in volume as param space) (DiNj for this volume at this point)
+             * f may need info from father volumes (eg: DiNj) or some coords, so do it by hand with lambda or functors
              */
-            template <class Tacc, class TMatrix, class Tpoint, class Tf>
-            void Integration(Tacc buf, Tf &&f, TMatrix &coords)
+            template <class Tacc, class Tf>
+            void Integration(Tacc &buf, Tf &&f)
             {
                 for (int i = 0; i < nIntPoint; i++)
                 {
                     Tacc acc;
-                    Tpoint p;
+                    tPoint p;
                     int d;
                     for (d = 0; d < dim; d++)
                         p(d) = bufInt[d * nIntPoint + i];
                     for (; d < 3; d++)
                         p(d) = 0.;
 
-                    f(acc, i, p, NBuffer[elemType][0][iInt][i], coords);
+                    f(acc, i, p, NBuffer[elemType][0][iInt][i]);
+                    // std::cout << acc << " " << bufInt[dim * nIntPoint + i] << std::endl;
+                    // std::cout << HammerTri7 << " " << bufInt << " " << dim << std::endl;
+                    // std::cout << "BUF " << buf << std::endl;
                     buf += acc * bufInt[dim * nIntPoint + i];
                 }
                 // switch (paramSpace)
@@ -1012,5 +1102,26 @@ namespace DNDS
             }
         };
 
+        std::vector<std::vector<std::vector<tDiFj>>> ElementManager::NBuffer[DNDS_ELEM_TYPE_NUM]; // is this init safe?
+    }
+}
+
+namespace DNDS
+{
+    namespace Elem
+    {
+        // Some utility functions
+
+        /**
+         * @brief obtain jacobi (dx_j/dxi_i)
+         * \param coords coords(all, i) = Vector({x,y,z}) for node i or for DiNj's N_i
+         *
+         * col major matrices preferred
+         */
+        template <class TMat>
+        tJacobi DiNj2Jacobi(const tDiFj &DiNj, const TMat &coords)
+        {
+            return DiNj({1, 2, 3}, Eigen::all) * coords.transpose();
+        }
     }
 }
