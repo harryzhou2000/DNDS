@@ -666,10 +666,11 @@ namespace DNDS
 
             /// \brief guassMAP[igaussPointInFace] = iguassPointInFaceSTD
             /// assumes faceNodes and faceSTDNodes represent same-place elements
-            template <class TArray>
-            void FaceIGauss2STDMap(int iface, ElementManager &ef, const TArray &faceNodes, const TArray &faceSTDNodes, TArray &gaussMAP, bool invert = false)
+            template <class TArray, class TArrayG>
+            void FaceIGauss2STDMap(int iface, ElementManager &ef, const TArray &faceNodes, const TArray &faceSTDNodes, TArrayG &gaussMAP, bool invert = false)
             {
                 assert(iface < Nface && iface >= 0);
+                assert(faceNodes.size() >= ef.getNVert() && faceSTDNodes.size() >= ef.getNVert() && gaussMAP.size() >= ef.nIntPoint);
                 switch (elemType)
                 {
                 case ElemType::Tri3:
@@ -692,7 +693,7 @@ namespace DNDS
             }
 
             /** \brief returns faceSTD in  faceNodes, should be norming out
-             * 
+             *
              * \param faceNodes returned value, face nodes
              * \param nodes my nodes
              * \param faceElem face elem returned by ObtainFace()
@@ -1115,6 +1116,25 @@ namespace DNDS
     }
 }
 
+/******************************************************************************************************************************/
+/**
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ * /
+/******************************************************************************************************************************/
+
 namespace DNDS
 {
     namespace Elem
@@ -1134,3 +1154,4 @@ namespace DNDS
         }
     }
 }
+

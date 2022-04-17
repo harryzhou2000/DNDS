@@ -2,6 +2,7 @@
 #include "../DNDS_Array.hpp"
 #include "../DNDS_BasicTypes.hpp"
 #include "../DNDS_MPI.hpp"
+#include "../DNDS_DerivedTypes.hpp"
 
 #include <iostream>
 #include <stdlib.h>
@@ -11,6 +12,7 @@ void testMPI();
 void testGhost();
 void testGhostLarge();
 void testGhostLarge_Cascade();
+void testPoint();
 
 int main(int argc, char *argv[])
 {
@@ -20,7 +22,8 @@ int main(int argc, char *argv[])
     // testType();
     // testMPI();
     // testGhost();
-    testGhostLarge_Cascade();
+    // testGhostLarge_Cascade();
+    testPoint();
 
     ierr = MPI_Finalize();
     return 0;
@@ -302,9 +305,9 @@ void testGhostLarge_Cascade()
 
     int dsize, dstart, demandSize, demandStart, dmax;
 
-    dsize = 1024 * 1024;
-    dstart = 1024 * 1024 * mpi.rank;
-    dmax = 1024 * 1024 * mpi.size;
+    dsize = 1024 * 1024 * 1;
+    dstart = 1024 * 1024 * 1 * mpi.rank;
+    dmax = 1024 * 1024 * 1 * mpi.size;
 
     DNDS::ArrayCascade<DNDS::VReal> ArrayA(
         DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
@@ -358,4 +361,48 @@ void testGhostLarge_Cascade()
         }
     }
     std::cout << std::endl;
+}
+
+void testPoint()
+{
+    DNDS::MPIInfo mpi;
+    mpi.setWorld();
+    DNDS::ArrayCascade<DNDS::Point3DBatch> ArrayP(DNDS::Point3DBatch::Context(150), mpi);
+    for (int i = 0; i < 150; i++)
+        ArrayP[i].p() << 1, 2, i;
+    for (int i = 0; i < 150; i++)
+        std::cout << ArrayP[i].p().transpose() << std::endl;
+
+    DNDS::ArrayCascade<DNDS::SmallMatricesBatch> ArrayM(
+        DNDS::SmallMatricesBatch::Context(
+            [&](DNDS::index i) -> DNDS::rowsize
+            {
+                int nmats = i % 3 + 1;
+                std::vector<int> matSizes(nmats * 2);
+                for (int i = 0; i < nmats; i++)
+                    matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 2;
+                return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+            },
+            150),
+        mpi);
+    for (int i = 0; i < 150; i++)
+    {
+        auto b = ArrayM[i];
+        ///
+        int nmats = i % 3 + 1;
+        std::vector<int> matSizes(nmats * 2);
+        for (int i = 0; i < nmats; i++)
+            matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 2;
+        ///
+        b.Initialize(nmats, matSizes);
+        for (int im = 0; im < b.getNMat(); im++)
+            b.m(im).setIdentity();
+    }
+    for (int i = 0; i < 150; i++)
+    {
+        auto b = ArrayM[i];
+        for (int im = 0; im < b.getNMat(); im++)
+            std::cout << "M\n"
+                      << b.m(im) << std::endl;
+    }
 }

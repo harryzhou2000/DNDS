@@ -86,7 +86,7 @@ namespace DNDS
             : context(std::forward<TtContext>(newContext)),
               indexer(context), ghostIndexer(), mpi(nmpi)
         {
-            data.resize(indexer.LengthByte());
+            data.resize(indexer.LengthByte(), 0);
             // std::cout << "IndexerLengthByte " << indexer.LengthByte() << std::endl;
             // ghostIndexer is initialized as empty
         }
@@ -128,7 +128,7 @@ namespace DNDS
               pPushTypeVec(),
               pPullTypeVec()
         {
-            data.resize(indexer.LengthByte());
+            data.resize(indexer.LengthByte(), 0);
         }
         /******************************************************************************************************************************/
 
@@ -264,7 +264,7 @@ namespace DNDS
             // phase2.2: be informed of pulled sub-indexer
             // equals to: building pullingSizes and pullingDisps, bytes size and disps of ghost
             ghostIndexer.buildAsGhostAlltoall(indexer, pushingSizes, *pLGhostMapping, mpi);
-            dataGhost.resize(ghostIndexer.LengthByte(), 1); // data section must correspond to indexer
+            dataGhost.resize(ghostIndexer.LengthByte(), 0); // data section must correspond to indexer
                                                             // std::cout << "Resize Ghost" << dataGhost.size() << std::endl;
             commStat.hasGhostIndexer = true;
 
@@ -476,7 +476,7 @@ namespace DNDS
             : context(std::forward<TtContext>(newContext)),
               indexer(context), mpi(nmpi)
         {
-            data.resize(indexer.LengthByte());
+            data.resize(indexer.LengthByte(), 0);
             // std::cout << "IndexerLengthByte " << indexer.LengthByte() << std::endl;
             // ghostIndexer is initialized as empty
         }
@@ -536,7 +536,7 @@ namespace DNDS
               pPushTypeVec(),
               pPullTypeVec()
         {
-            data.resize(indexer.LengthByte());
+            data.resize(indexer.LengthByte(), 0);
             if (nfather)
             {
                 father = nfather;
@@ -661,7 +661,7 @@ namespace DNDS
             // phase2.2: be informed of pulled sub-indexer
             // equals to: building pullingSizes and pullingDisps, bytes size and disps of ghost
             indexer.buildAsGhostAlltoall(indexer, pushingSizes, *pLGhostMapping, mpi); // cascade from father
-            data.resize(indexer.LengthByte(), 1);                                      // data section must correspond to indexer  // cascade from father
+            data.resize(indexer.LengthByte(), 0);                                      // data section must correspond to indexer  // cascade from father
                                                                                        // std::cout << "Resize Ghost" << dataGhost.size() << std::endl;
             commStat.hasGhostIndexer = true;                                           // note that "hasGhostIndexer" means I as son have indexer
 

@@ -23,6 +23,7 @@ namespace DNDS
     template <class T, uint32_t Bsize>
     class Batch
     {
+    protected:
         T *data;
 
     public:
@@ -137,6 +138,7 @@ namespace DNDS
     template <class T>
     class VarBatch
     {
+    protected:
         T *data;
         index _size; // in unit of # T instances
         // static const IndexModder indexModder; //disabled the IndexModder paradigm

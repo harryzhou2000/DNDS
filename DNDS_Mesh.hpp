@@ -2,12 +2,19 @@
 
 #include "DNDS_Defines.h"
 #include "DNDS_Elements.hpp"
+#include "DNDS_Array.hpp"
+
 #include <map>
 #include <algorithm>
 #include <fstream>
 #include <regex>
 #include <sstream>
 #include <iomanip>
+#include <metis.h>
+
+
+
+
 
 namespace DNDS
 {
@@ -48,7 +55,7 @@ namespace DNDS
         // std::vector<Elem::tPoint> readPhyGrps;
 
         std::vector<GmshElem> volElems;
-        std::vector<std::vector<index>> vol2face;
+        std::vector<std::vector<index>> vol2face; //could CSR
 
         std::vector<GmshElem> bndElems;
 
@@ -376,4 +383,37 @@ namespace DNDS
         }
     };
 
+}
+
+/******************************************************************************************************************************/
+/**
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ * /
+/******************************************************************************************************************************/
+
+namespace DNDS
+{
+    class CompactFacedMeshSerialRead
+    {
+        // std::map<index, GmshPhyGrp> phyGrps;
+        // std::vector<Elem::tPoint> points;
+        // std::vector<GmshElem> volElems;
+        // std::vector<GmshElem> 
+        ArrayCascade<VarBatch<index>> cell2node;
+        ArrayCascade<VarBatch<index>> cell2face;
+        ArrayCascade<Batch<index,2>>  face2cell; 
+    };
 }
