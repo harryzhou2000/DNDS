@@ -34,6 +34,7 @@ namespace DNDS
 
             index Length;
 
+            Context() : Length(indexMin){};
             Context(int nLength) : Length(nLength) {}
         };
 
@@ -46,6 +47,7 @@ namespace DNDS
             Indexer() : Length(indexMin) {} // null constructor
             Indexer(const Context &context) : Length(context.Length) {}
 
+            /// \brief returns start index and length in byte
             constexpr inline std::tuple<index, index> operator[](index i) const
             {
                 assert(i < Length);
@@ -53,6 +55,7 @@ namespace DNDS
                 return std::make_tuple<index, index>(index(BsizeByte * i), index(BsizeByte));
             }
 
+            /// \brief returns start index in byte
             constexpr inline index operator()(index i) const
             {
                 assert(i <= Length);
@@ -60,6 +63,7 @@ namespace DNDS
                 return index(BsizeByte * i);
             }
 
+            /// \brief returns the overall length in byte, allows past-the end input
             constexpr inline int LengthByte() const { return Length * BsizeByte; }
 
             // LGhostMapping is actually const here
@@ -149,6 +153,8 @@ namespace DNDS
             index Length;
             tpRowstart pRowstart; // unit in bytes
 
+            Context() : Length(indexMin){};
+
             // initializing using rowstart table unit in bytes
             // dummy int to not confuse with the moving constructor
             template <class TtpRowstart>
@@ -157,7 +163,7 @@ namespace DNDS
             // rowSizes unit in n-Ts!!!
             Context(const tRowsizFunc &rowSizes, index newLength) : Length(newLength)
             {
-                // pRowstart.reset(); // abandon any hooked row info
+                // pRowstart.reset(); // abandon any hooked row info // not necessary
                 pRowstart = std::make_shared<tIndexVec>(tIndexVec(Length + 1));
                 (*pRowstart)[0] = 0;
                 for (index i = 0; i < Length; i++)
@@ -175,6 +181,7 @@ namespace DNDS
             Indexer() : Length(INT64_MIN) {} // null constructor
             Indexer(const Context &context) : Length(context.Length), pRowstart(context.pRowstart) {}
 
+            /// \brief returns start index and length in byte
             constexpr inline std::tuple<index, index> operator[](index i) const
             {
                 assert(i < Length);
@@ -189,6 +196,7 @@ namespace DNDS
                     index((*pRowstart)[i + 1] - (*pRowstart)[i]));
             }
 
+            /// \brief returns start index in byte, allows past-the end input
             constexpr inline index operator()(index i) const
             {
                 assert(i <= Length);
@@ -271,7 +279,7 @@ namespace DNDS
             for (uint32_t i = 0; i < rb._size; i++)
                 out << rb.data[i] << outputDelim;
             return out;
-        }
+        } // a friend function can be defined within
     };
 
     // template <class T, class IndexModder>

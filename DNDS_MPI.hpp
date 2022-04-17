@@ -52,7 +52,6 @@ namespace DNDS
         MPI_Barrier(mpi.comm);
     }
 
-    
     typedef std::vector<std::pair<MPI_int, MPI_Datatype>> tMPI_typePairVec;
     /**
      * \brief wrapper of tMPI_typePairVec
@@ -68,7 +67,6 @@ namespace DNDS
         }
     };
 
-
     typedef std::shared_ptr<MPITypePairHolder> tpMPITypePairHolder;
     /**
      * \brief wrapper of tMPI_reqVec
@@ -81,6 +79,13 @@ namespace DNDS
             for (auto &i : (*this))
                 if (i != MPI_REQUEST_NULL)
                     MPI_Request_free(&i); //, std::cout << "Free Req" << std::endl;
+        }
+        void clear()
+        {
+            for (auto &i : (*this))
+                if (i != MPI_REQUEST_NULL)
+                    MPI_Request_free(&i); //, std::cout << "Free Req" << std::endl;
+            tMPI_reqVec::clear();
         }
     };
 

@@ -476,6 +476,7 @@ namespace DNDS
 
         public:
             static std::vector<std::vector<std::vector<tDiFj>>> NBuffer[DNDS_ELEM_TYPE_NUM];
+            static bool NBufferInit;
             static inline void InitNBuffer() // TODO: main check
             {
                 for (int elemType = 0; elemType < DNDS_ELEM_TYPE_NUM; elemType++)
@@ -524,13 +525,14 @@ namespace DNDS
                                 NBuffer[elemType][iface + 1][iInt][ig].resize(ndiffSiz, e.Nnode);
                                 e.FaceSpace2VolSpace(iface, p, pc);
                                 e.GetDiNj(pc, NBuffer[elemType][iface + 1][iInt][ig]);
-                                std::cout << "ELEMTYPE:" << eff.elemType << " " << e.elemType << " Face:" << iface << std::endl;
-                                std::cout << p.transpose() << std::endl;
-                                std::cout << pc.transpose() << std::endl;
+                                // std::cout << "ELEMTYPE:" << eff.elemType << " " << e.elemType << " Face:" << iface << std::endl;
+                                // std::cout << p.transpose() << std::endl;
+                                // std::cout << pc.transpose() << std::endl;
                             }
                         }
                     }
                 }
+                NBufferInit = true;
             }
 
             inline ElementManager(ElemType ntype, tIntScheme NIntSchemeIndex) { setType(ntype, NIntSchemeIndex); }
@@ -689,7 +691,12 @@ namespace DNDS
                 }
             }
 
-            /// \brief returns faceSTD, should be norming out
+            /** \brief returns faceSTD in  faceNodes, should be norming out
+             * 
+             * \param faceNodes returned value, face nodes
+             * \param nodes my nodes
+             * \param faceElem face elem returned by ObtainFace()
+             * */
             template <class TArray>
             void SubstractFaceNodes(int iface, const ElementManager &faceElem, const TArray &nodes, TArray &faceNodes)
             {
@@ -698,12 +705,13 @@ namespace DNDS
                     faceNodes[i] = nodes[FaceNodeList[elemType][iface][i]];
             }
 
-            /// \brief shape function evaluator
-            ///
-            /// this does not require concrete coords, but GetDiPhiJ could require
-            /// \param p param coord of point
-            /// \param DiNj = diff_i(N_j),  DiNj.rows() is also a input note that when j >= Nnode, the value
-            /// returned is not filled
+            /**
+             * \brief shape function evaluator
+             * this does not require concrete coords, but GetDiPhiJ could require
+             * \param p param coord of point
+             * \param DiNj = diff_i(N_j),  DiNj.rows() is also a input note that when j >= Nnode, the value
+             * returned is not filled
+             * */
             template <class TPoint> // TPoint remains general now
             void GetDiNj(const TPoint &p, tDiFj &DiNj)
             {
@@ -1103,6 +1111,7 @@ namespace DNDS
         };
 
         std::vector<std::vector<std::vector<tDiFj>>> ElementManager::NBuffer[DNDS_ELEM_TYPE_NUM]; // is this init safe?
+        bool ElementManager::NBufferInit = false;
     }
 }
 

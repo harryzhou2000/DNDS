@@ -10,6 +10,7 @@ void testType();
 void testMPI();
 void testGhost();
 void testGhostLarge();
+void testGhostLarge_Cascade();
 
 int main(int argc, char *argv[])
 {
@@ -19,7 +20,7 @@ int main(int argc, char *argv[])
     // testType();
     // testMPI();
     // testGhost();
-    testGhostLarge();
+    testGhostLarge_Cascade();
 
     ierr = MPI_Finalize();
     return 0;
@@ -27,7 +28,7 @@ int main(int argc, char *argv[])
 
 void testType()
 {
-    std::cout << DNDS::Array<DNDS::Batch<double, 2>>::PrintTypes() << std::endl;
+    std::cout << DNDS::ArraySingle<DNDS::Batch<double, 2>>::PrintTypes() << std::endl;
 
     // std::vector<int> siztest(1024 * 1024 * 128, -1);
     // std::cout << siztest[siztest.size() - 1] << std::endl;
@@ -49,7 +50,7 @@ void testType()
 
     long long testSiz = 1024 * 1024 * 3;
     const uint32_t bsize = 20;
-    DNDS::Array<DNDS::Batch<double, bsize>> ArrayRB(DNDS::Batch<double, bsize>::Context(testSiz), mpi);
+    DNDS::ArraySingle<DNDS::Batch<double, bsize>> ArrayRB(DNDS::Batch<double, bsize>::Context(testSiz), mpi);
     std::cout << ArrayRB.indexer.LengthByte() << std::endl
               //   << int(ArrayRB.data[160]) << std::endl
               << ArrayRB.indexer.Length << std::endl;
@@ -87,7 +88,7 @@ void testType()
     rowBsiz[4] = 4, rowBsiz[11] = 5;
     DNDS::AccumulateRowSize(rowBsiz, *rowB);
 
-    DNDS::Array<DNDS::VarBatch<double>> ArrayRVB(DNDS::VarBatch<double>::Context(0, rowB), mpi);
+    DNDS::ArraySingle<DNDS::VarBatch<double>> ArrayRVB(DNDS::VarBatch<double>::Context(0, rowB), mpi);
 
     std::cout << "ArrayRVB bytes: " << ArrayRVB.sizeByte() << std::endl;
 
@@ -180,10 +181,10 @@ void testGhost()
         break;
     }
 
-    DNDS::Array<DNDS::VReal> ArrayA(DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
-                                                         { return (i + 1); },
-                                                         dsize),
-                                    mpi);
+    DNDS::ArraySingle<DNDS::VReal> ArrayA(DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
+                                                               { return (i + 1); },
+                                                               dsize),
+                                          mpi);
     for (int i = 0; i < ArrayA.size(); i++)
     {
         auto instance = ArrayA[i];
@@ -242,10 +243,11 @@ void testGhostLarge()
     dstart = 1024 * 1024 * mpi.rank;
     dmax = 1024 * 1024 * mpi.size;
 
-    DNDS::Array<DNDS::VReal> ArrayA(DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
-                                                         { return (i % 3 + 1); },
-                                                         dsize),
-                                    mpi);
+    DNDS::ArraySingle<DNDS::VReal> ArrayA(
+        DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
+                             { return (i % 3 + 1); },
+                             dsize),
+        mpi);
     for (int i = 0; i < ArrayA.size(); i++)
     {
         auto instance = ArrayA[i];
@@ -257,7 +259,7 @@ void testGhostLarge()
     srand(mpi.rank);
     DNDS::tIndexVec PullDemand(demandSize);
     for (int i = 0; i < PullDemand.size(); i++)
-        PullDemand[i] = (RAND_MAX * rand() + rand()) % dmax;
+        PullDemand[i] = std::abs(RAND_MAX * rand() + rand()) % dmax;
     std::sort(PullDemand.begin(), PullDemand.end());
 
     ArrayA.createGhostMapping(PullDemand);
@@ -285,6 +287,71 @@ void testGhostLarge()
         {
             auto instance = ArrayA.indexGhostData(i);
             std::cout << "PD=" << ArrayA.pLGhostMapping->ghostIndex[i] << "\t";
+            for (int j = 0; j < instance.size(); j++)
+                std::cout << instance[j] << "\t";
+            std::cout << '\n';
+        }
+    }
+    std::cout << std::endl;
+}
+
+void testGhostLarge_Cascade()
+{
+    DNDS::MPIInfo mpi;
+    mpi.setWorld();
+
+    int dsize, dstart, demandSize, demandStart, dmax;
+
+    dsize = 1024 * 1024;
+    dstart = 1024 * 1024 * mpi.rank;
+    dmax = 1024 * 1024 * mpi.size;
+
+    DNDS::ArrayCascade<DNDS::VReal> ArrayA(
+        DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
+                             { return (i % 3 + 1); },
+                             dsize),
+        mpi);
+    for (int i = 0; i < ArrayA.size(); i++)
+    {
+        auto instance = ArrayA[i];
+        for (int j = 0; j < instance.size(); j++)
+            instance[j] = dstart + i;
+    }
+
+    demandSize = 1024;
+    srand(mpi.rank);
+    DNDS::tIndexVec PullDemand(demandSize);
+    for (int i = 0; i < PullDemand.size(); i++)
+        PullDemand[i] = std::abs(RAND_MAX * rand() + rand()) % dmax;
+    std::sort(PullDemand.begin(), PullDemand.end());
+
+    decltype(ArrayA) ArrayAGhost(&ArrayA);
+
+    ArrayAGhost.createGhostMapping(PullDemand);
+    ArrayAGhost.createMPITypes();
+
+    ArrayAGhost.initPersistentPull();
+
+    int N = 100;
+    MPI_Barrier(mpi.comm);
+    double t0 = MPI_Wtime();
+    for (int i = 0; i < N; i++)
+    {
+        ArrayAGhost.startPersistentPull();
+        ArrayAGhost.waitPersistentPull();
+    }
+    double t1 = MPI_Wtime();
+    MPI_Barrier(mpi.comm);
+    if (mpi.rank == 0)
+        std::cout << "Time Per Pull " << (t1 - t0) / N << std::endl;
+
+    if (mpi.rank == 0)
+    {
+        std::cout << "Rank " << mpi.rank << " ";
+        for (int i = 0; i < ArrayA.sizeGhost(); i++)
+        {
+            auto instance = ArrayA.indexGhostData(i);
+            std::cout << "PD=" << ArrayAGhost.pLGhostMapping->ghostIndex[i] << "\t";
             for (int j = 0; j < instance.size(); j++)
                 std::cout << instance[j] << "\t";
             std::cout << '\n';
