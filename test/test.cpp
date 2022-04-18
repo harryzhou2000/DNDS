@@ -367,7 +367,7 @@ void testPoint()
 {
     DNDS::MPIInfo mpi;
     mpi.setWorld();
-    DNDS::ArrayCascade<DNDS::Point3DBatch> ArrayP(DNDS::Point3DBatch::Context(150), mpi);
+    DNDS::ArrayCascade<DNDS::Vec3DBatch> ArrayP(DNDS::Vec3DBatch::Context(150), mpi);
     for (int i = 0; i < 150; i++)
         ArrayP[i].p() << 1, 2, i;
     for (int i = 0; i < 150; i++)
@@ -380,7 +380,7 @@ void testPoint()
                 int nmats = i % 3 + 1;
                 std::vector<int> matSizes(nmats * 2);
                 for (int i = 0; i < nmats; i++)
-                    matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 2;
+                    matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 12;
                 return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
             },
             150),
@@ -392,7 +392,7 @@ void testPoint()
         int nmats = i % 3 + 1;
         std::vector<int> matSizes(nmats * 2);
         for (int i = 0; i < nmats; i++)
-            matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 2;
+            matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 12;
         ///
         b.Initialize(nmats, matSizes);
         for (int im = 0; im < b.getNMat(); im++)

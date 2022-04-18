@@ -4,14 +4,39 @@
 // some dense eigen objects
 namespace DNDS
 {
-    class Point3DBatch : public Batch<real, 3>
+    template <uint32_t v_siz>
+    class VecStaticBatch : public Batch<real, v_siz>
     {
     public:
-        using Batch<real, 3>::Batch;
-
-        Eigen::Map<Eigen::Vector<real, 3>> p()
+        typedef Batch<real, v_siz> tBase;
+        using tBase::Batch;
+        Eigen::Map<Eigen::Vector<real, v_siz>> p()
         {
-            return Eigen::Map<Eigen::Vector3d>(data);
+            return Eigen::Map<Eigen::Vector<real, v_siz>>(tBase::data);
+        }
+    };
+    typedef VecStaticBatch<3> Vec3DBatch;
+
+    template <uint32_t row_siz, uint32_t col_siz>
+    class MatStaticBatch : public Batch<real, row_siz * col_siz>
+    {
+    public:
+        typedef Batch<real, row_siz * col_siz> tBase;
+        using tBase::Batch;
+        Eigen::Map<Eigen::Matrix<real, row_siz, col_siz>> m()
+        {
+            return Eigen::Map<Eigen::Matrix<real, row_siz, col_siz>>(tBase::data);
+        }
+    };
+    typedef MatStaticBatch<3, 3> Mat3DBatch;
+
+    class VarVector : public VarBatch<real>
+    {
+    public:
+        using VarBatch<real>::VarBatch;
+        Eigen::Map<Eigen::Vector<real, -1>> v()
+        {
+            return Eigen::Map<Eigen::Vector<real, -1>>(data, _size);
         }
     };
 

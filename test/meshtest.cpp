@@ -1,10 +1,27 @@
 #include "../DNDS_Mesh.hpp"
 
-int main()
+void testA();
+
+int main(int argc, char *argv[])
 {
+    int ierr;
+    ierr = MPI_Init(&argc, &argv);
+    testA();
+    ierr = MPI_Finalize();
+    return 0;
+}
+
+void testA()
+{
+    DNDS::MPIInfo mpi;
+    mpi.setWorld();
+
     DNDS::SerialGmshReader2d gmshReader2D;
     gmshReader2D.FileRead("data/mesh/CylinderBM_1.msh");
     gmshReader2D.InterpolateTopology();
     gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
-    return 0;
+
+    DNDS::CompactFacedMeshSerialRW mesh(gmshReader2D, mpi);
+
+    std::cout << "\n";
 }

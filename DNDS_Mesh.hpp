@@ -3,6 +3,7 @@
 #include "DNDS_Defines.h"
 #include "DNDS_Elements.hpp"
 #include "DNDS_Array.hpp"
+#include "DNDS_DerivedTypes.hpp"
 
 #include <map>
 #include <algorithm>
@@ -11,10 +12,6 @@
 #include <sstream>
 #include <iomanip>
 #include <metis.h>
-
-
-
-
 
 namespace DNDS
 {
@@ -55,7 +52,7 @@ namespace DNDS
         // std::vector<Elem::tPoint> readPhyGrps;
 
         std::vector<GmshElem> volElems;
-        std::vector<std::vector<index>> vol2face; //could CSR
+        std::vector<std::vector<index>> vol2face; // could CSR
 
         std::vector<GmshElem> bndElems;
 
@@ -281,12 +278,14 @@ namespace DNDS
                             assert(face2vol[f].second == -1);
                             face2vol[f].second = iv;
                             found = true;
+                            vol2face[iv][iface] = f;
                         }
                     if (!found)
                     {
                         faceElems.push_back(faceElem);
                         for (auto n : faceNodes)
                             node2face[n].push_back(faceElems.size() - 1);
+                        vol2face[iv][iface] = faceElems.size() - 1;
                         face2vol.push_back(std::make_pair(iv, index(-1)));
                     }
                 }
@@ -308,6 +307,8 @@ namespace DNDS
                 faceElems[ffound].phyGrp = i.phyGrp;
             }
             // std::vector<std::vector<index>> volAtNode;
+            faceElems.shrink_to_fit();
+            face2vol.shrink_to_fit();
         }
 
         inline void WriteMeshDebugTecASCII(const std::string &fname)
@@ -406,14 +407,127 @@ namespace DNDS
 
 namespace DNDS
 {
-    class CompactFacedMeshSerialRead
+    struct ElemAtrributes
     {
+        index iPhy;
+        Elem::ElemType type;
+        Elem::tIntScheme intScheme;
+    };
+
+    typedef ArrayCascade<VarBatch<index>> tAdjArrayCascade;
+    typedef ArrayCascade<Batch<index,2>> tAdjStatic2ArrayCascade;
+    typedef ArrayCascade<Batch<ElemAtrributes, 1>> tElemAtrArrayCascade;
+    typedef ArrayCascade<Vec3DBatch> tVec3DArrayCascade;
+
+    class CompactFacedMeshSerialRW
+    {
+        MPIInfo mpi;
         // std::map<index, GmshPhyGrp> phyGrps;
         // std::vector<Elem::tPoint> points;
         // std::vector<GmshElem> volElems;
-        // std::vector<GmshElem> 
-        ArrayCascade<VarBatch<index>> cell2node;
-        ArrayCascade<VarBatch<index>> cell2face;
-        ArrayCascade<Batch<index,2>>  face2cell; 
+        // std::vector<GmshElem>
+        std::shared_ptr<tAdjArrayCascade> cell2node;
+        std::shared_ptr<tAdjArrayCascade> cell2face;
+        std::shared_ptr<tElemAtrArrayCascade> cellAtr;
+
+        std::shared_ptr<tAdjArrayCascade> face2node;
+        std::shared_ptr<tAdjStatic2ArrayCascade> face2cell;
+        std::shared_ptr<tElemAtrArrayCascade> faceAtr;
+
+        std::shared_ptr<tVec3DArrayCascade> nodeCoords;
+
+    public:
+        CompactFacedMeshSerialRW(const SerialGmshReader2d &gmshReader, const MPIInfo &nmpi) : mpi(nmpi)
+        {
+            assert(gmshReader.vol2face.size() == gmshReader.volElems.size());
+
+            // copy cell2node
+            cell2node = std::make_shared<tAdjArrayCascade>(
+                tAdjArrayCascade::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        assert(gmshReader.volElems[i].nodeList.size() == Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNNode());
+                        return Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNNode();
+                    },
+                    gmshReader.volElems.size()),
+                mpi);
+            for (index iv = 0; iv < cell2node->size(); iv++)
+            {
+                auto e = (*cell2node)[iv];
+                for (rowsize in = 0; in < e.size(); in++)
+                    e[in] = gmshReader.volElems[iv].nodeList[in];
+            }
+
+            // copy face2node
+            face2node = std::make_shared<tAdjArrayCascade>(
+                tAdjArrayCascade::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        assert(gmshReader.faceElems[i].nodeList.size() == Elem::ElementManager(gmshReader.faceElems[i].elemType, 0).getNNode());
+                        return Elem::ElementManager(gmshReader.faceElems[i].elemType, 0).getNNode();
+                    },
+                    gmshReader.faceElems.size()),
+                mpi);
+            for (index iff = 0; iff < face2node->size(); iff++)
+            {
+                auto e = (*face2node)[iff];
+                for (rowsize in = 0; in < e.size(); in++)
+                    e[in] = gmshReader.faceElems[iff].nodeList[in];
+            }
+
+            // copy cell2face
+            cell2face = std::make_shared<tAdjArrayCascade>(
+                tAdjArrayCascade::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        assert(gmshReader.vol2face[i].size() == Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNFace());
+                        return gmshReader.vol2face[i].size();
+                    },
+                    gmshReader.vol2face.size()),
+                mpi);
+            for (index iv = 0; iv < cell2face->size(); iv++)
+            {
+                auto e = (*cell2face)[iv];
+                for (rowsize in = 0; in < e.size(); in++)
+                    e[in] = gmshReader.vol2face[iv][in];
+            }
+            assert(cell2face->size() == cell2node->size());
+
+            // copy face2cell
+            face2cell = std::make_shared<tAdjStatic2ArrayCascade>(
+                tAdjStatic2ArrayCascade::tContext(
+                    gmshReader.faceElems.size()),
+                mpi);
+            for (index iff = 0; iff < face2cell->size(); iff++)
+            {
+                auto e = (*face2cell)[iff];
+                e[0] = gmshReader.face2vol[iff].first;
+                e[1] = gmshReader.face2vol[iff].second;
+            }
+
+            // copy cell atr
+            cellAtr = std::make_shared<tElemAtrArrayCascade>(
+                tElemAtrArrayCascade::tContext(cell2face->size()),
+                mpi);
+            for (index iv = 0; iv < cellAtr->size(); iv++)
+            {
+                auto &e = (*cellAtr)[iv][0];
+                e.iPhy = gmshReader.volElems[iv].phyGrp;
+                e.type = gmshReader.volElems[iv].elemType;
+                e.intScheme = -1; // init value
+            }
+
+            // copy face atr
+            faceAtr = std::make_shared<tElemAtrArrayCascade>(
+                tElemAtrArrayCascade::tContext(face2cell->size()),
+                mpi);
+            for (index iff = 0; iff < face2cell->size(); iff++)
+            {
+                auto &e = (*faceAtr)[iff][0];
+                e.iPhy = gmshReader.faceElems[iff].phyGrp;
+                e.type = gmshReader.faceElems[iff].elemType;
+                e.intScheme = -1; // init value
+            }
+        }
     };
 }
