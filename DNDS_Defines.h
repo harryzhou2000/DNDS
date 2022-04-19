@@ -8,6 +8,7 @@
 #include <tuple>
 #include <iostream>
 #include <cmath>
+#include <iomanip>
 
 
 
@@ -78,11 +79,11 @@ namespace DNDS
         return true;
     }
 
-    template <class T>
+    template <class T, class TP = T>
     inline void PrintVec(const std::vector<T> &dat, std::ostream &out)
     {
         for (auto i = 0; i < dat.size(); i++)
-            out << dat[i] << outputDelim;
+            out << TP(dat[i]) << outputDelim;
     }
 }
 

@@ -74,7 +74,7 @@ namespace DNDS
             {
                 for (auto i : pushingSizes)
                 {
-                    assert(Bsize == i);
+                    assert(BsizeByte == i);
                 }
                 assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
                 Length = LGhostMapping.ghostStart[LGhostMapping.ghostStart.size() - 1];

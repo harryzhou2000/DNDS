@@ -17,11 +17,14 @@ void testA()
     mpi.setWorld();
 
     DNDS::SerialGmshReader2d gmshReader2D;
-    gmshReader2D.FileRead("data/mesh/CylinderBM_1.msh");
-    gmshReader2D.InterpolateTopology();
-    gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
-
+    if (mpi.rank == 0)
+    {
+        gmshReader2D.FileRead("data/mesh/CylinderBM_1.msh");
+        gmshReader2D.InterpolateTopology();
+        gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
+    }
     DNDS::CompactFacedMeshSerialRW mesh(gmshReader2D, mpi);
+    mesh.LogStatusSerialPart();
 
     std::cout << "\n";
 }

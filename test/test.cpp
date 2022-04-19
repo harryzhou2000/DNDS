@@ -3,6 +3,7 @@
 #include "../DNDS_BasicTypes.hpp"
 #include "../DNDS_MPI.hpp"
 #include "../DNDS_DerivedTypes.hpp"
+#include "../DNDS_Mesh.hpp"
 
 #include <iostream>
 #include <stdlib.h>
@@ -13,6 +14,7 @@ void testGhost();
 void testGhostLarge();
 void testGhostLarge_Cascade();
 void testPoint();
+void testAdj();
 
 int main(int argc, char *argv[])
 {
@@ -23,7 +25,8 @@ int main(int argc, char *argv[])
     // testMPI();
     // testGhost();
     // testGhostLarge_Cascade();
-    testPoint();
+    // testPoint();
+    testAdj();
 
     ierr = MPI_Finalize();
     return 0;
@@ -330,6 +333,7 @@ void testGhostLarge_Cascade()
 
     decltype(ArrayA) ArrayAGhost(&ArrayA);
 
+    ArrayAGhost.createGlobalMapping();
     ArrayAGhost.createGhostMapping(PullDemand);
     ArrayAGhost.createMPITypes();
 
@@ -405,4 +409,50 @@ void testPoint()
             std::cout << "M\n"
                       << b.m(im) << std::endl;
     }
+}
+
+void testAdj()
+{
+    DNDS::MPIInfo mpi;
+    mpi.setWorld();
+    auto p1 = std::make_shared<DNDS::tAdjStatic2ArrayCascade>(DNDS::tAdjStatic2ArrayCascade::tContext(4), mpi);
+    std::shared_ptr<DNDS::tAdjStatic2ArrayCascade> p2;
+    DNDS::forEachInArray(*p1, [&](DNDS::tAdjStatic2ArrayCascade::tComponent &e, DNDS::index i)
+                         { e[0] = 8 * mpi.rank + i * 2 + 0, e[1] = 8 * mpi.rank + i * 2 + 1; });
+    std::vector<int> partI, partJ;
+    if (mpi.rank % 2 == 0)
+    {
+        partI = std::vector<int>{0, 1, 0, 1};
+        partJ = std::vector<int>{0, 0, 0, 0, 1, 1, 1, 1};
+    }
+    else
+    {
+        partI = std::vector<int>{0, 0, 1, 1};
+        partJ = std::vector<int>{0, 0, 1, 1, 1, 1, 0, 0};
+    }
+    std::vector<DNDS::index> partIPush, partIPushStart;
+    std::vector<DNDS::index> partJS2G;
+
+    DNDS::Partition2LocalIdx(partI, partIPush, partIPushStart, mpi);
+    DNDS::Partition2Serial2Global(partJ, partJS2G, mpi, mpi.size);
+    DNDS::DistributeAdj(p1, p2, partIPush, partIPushStart, partJS2G, mpi);
+    auto p3 = std::make_shared<DNDS::tAdjStatic2ArrayCascade>(p2.get()); // p2->p3
+    p3->createGlobalMapping();
+    // InsertCheck(mpi);
+    // p2->LogStatus();
+    // exit(0);
+    MPISerialDo(mpi,
+                [&]
+                {
+                    std::cout << std::endl;
+                    std::cout << "Rank = " << mpi.rank << std::endl;
+                    std::cout << "Ref count: " << p1.use_count() << p2.use_count() << std::endl;
+                    DNDS::forEachInArray(*p2, [&](DNDS::tAdjStatic2ArrayCascade::tComponent &e, DNDS::index i)
+                                         { 
+                                             //std::cout<<i <<std::endl;
+                                             std::cout << p3->pLGlobalMapping->operator()(mpi.rank, i) << "===" << e[0] << ", " << e[1] << std::endl; });
+                });
+    // !note that global mapping of son is for father!!!!
+
+    // InsertCheck(mpi);
 }

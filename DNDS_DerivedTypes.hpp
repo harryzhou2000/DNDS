@@ -1,5 +1,20 @@
+#pragma once
 #include "DNDS_BasicTypes.hpp"
 #include "Eigen/Dense"
+
+// some degraded objects
+namespace DNDS
+{
+    class IndexOne : public Batch<index, 1>
+    {
+    public:
+        using Batch<index, 1>::Batch;
+        operator index &()
+        {
+            return Batch<index, 1>::operator[](0);
+        }
+    };
+}
 
 // some dense eigen objects
 namespace DNDS

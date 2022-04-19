@@ -105,6 +105,9 @@
         "typeindex": "cpp",
         "variant": "cpp",
         "__bit_reference": "cpp",
-        "__tree": "cpp"
+        "__tree": "cpp",
+        "codecvt": "cpp",
+        "numbers": "cpp",
+        "semaphore": "cpp"
     }
 }

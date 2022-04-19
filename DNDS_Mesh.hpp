@@ -15,6 +15,11 @@
 
 namespace DNDS
 {
+    const index FACE_2_VOL_EMPTY = INT64_MIN;
+}
+
+namespace DNDS
+{
     struct GmshElem
     {
         int phyGrp;
@@ -275,7 +280,7 @@ namespace DNDS
                     for (auto f : node2face[checkNode])
                         if (faceElems[f] == faceElem)
                         {
-                            assert(face2vol[f].second == -1);
+                            assert(face2vol[f].second == FACE_2_VOL_EMPTY);
                             face2vol[f].second = iv;
                             found = true;
                             vol2face[iv][iface] = f;
@@ -286,7 +291,7 @@ namespace DNDS
                         for (auto n : faceNodes)
                             node2face[n].push_back(faceElems.size() - 1);
                         vol2face[iv][iface] = faceElems.size() - 1;
-                        face2vol.push_back(std::make_pair(iv, index(-1)));
+                        face2vol.push_back(std::make_pair(iv, FACE_2_VOL_EMPTY));
                     }
                 }
             }
@@ -299,7 +304,7 @@ namespace DNDS
                 for (auto f : node2face[checkNode])
                     if (faceElems[f] == i)
                     {
-                        assert(face2vol[f].second == -1); // for must be a boundary
+                        assert(face2vol[f].second == FACE_2_VOL_EMPTY); // for must be a boundary
                         ffound = f;
                         found = true;
                     }
@@ -415,28 +420,170 @@ namespace DNDS
     };
 
     typedef ArrayCascade<VarBatch<index>> tAdjArrayCascade;
-    typedef ArrayCascade<Batch<index,2>> tAdjStatic2ArrayCascade;
+    typedef ArrayCascade<Batch<index, 2>> tAdjStatic2ArrayCascade;
     typedef ArrayCascade<Batch<ElemAtrributes, 1>> tElemAtrArrayCascade;
     typedef ArrayCascade<Vec3DBatch> tVec3DArrayCascade;
 
+    /**
+     * @brief convert arraySerialAdj's content to global (with partition J), then distribute it with partition I
+     *
+     */
+    template <class TAdjBatch>
+    void DistributeAdj(std::shared_ptr<ArrayCascade<TAdjBatch>> &arraySerialAdj,
+                       std::shared_ptr<ArrayCascade<TAdjBatch>> &arrayDistAdj,
+                       const std::vector<index> &partitionIPushLocal, const std::vector<index> &partitionIPushLocalStarts,
+                       const std::vector<index> &partitionJSerial2Global,
+                       const MPIInfo &mpi)
+    {
+        IndexArray JSG(IndexArray::tContext(partitionJSerial2Global.size()), mpi);
+        forEachInArray(
+            JSG, [&](IndexArray::tComponent &e, index i)
+            { e[0] = partitionJSerial2Global[i]; });
+        IndexArray JSGGhost(&JSG);
+        JSGGhost.createGlobalMapping();
+        std::vector<index> ghostJSerialQuery;
+        // InsertCheck(mpi);
+        // forEachInArray(
+        //     JSG, [&](IndexArray::tComponent &e, index i)
+        //     { std::cout << e[0]; });
+        // std::cout << std::endl;
+
+        // get ghost
+        index nGhost = 0;
+        forEachBasicInArray(
+            *arraySerialAdj,
+            [&](TAdjBatch &e, index i, index v, index j)
+            {
+                if (v == FACE_2_VOL_EMPTY)
+                    return;
+                MPI_int rank;
+                index val;
+                JSGGhost.pLGlobalMapping->search(v, rank, val);
+                if (rank != mpi.rank)
+                    nGhost++;
+            });
+        ghostJSerialQuery.reserve(nGhost);
+        forEachBasicInArray(
+            *arraySerialAdj,
+            [&](TAdjBatch &e, index i, index v, index j)
+            {
+                if (v == FACE_2_VOL_EMPTY)
+                    return;
+                MPI_int rank;
+                index val;
+                JSGGhost.pLGlobalMapping->search(v, rank, val);
+                if (rank != mpi.rank)
+                    ghostJSerialQuery.push_back(v);
+            });
+        PrintVec(ghostJSerialQuery, std::cout);
+        JSGGhost.createGhostMapping(ghostJSerialQuery);
+        // std::cout
+
+        JSGGhost.createMPITypes();
+        JSGGhost.initPersistentPull();
+        JSGGhost.startPersistentPull();
+        JSGGhost.waitPersistentPull();
+        JSGGhost.clearPersistentPull();
+        forEachBasicInArray(
+            *arraySerialAdj,
+            [&](TAdjBatch &e, index i, index &v, index j)
+            {
+                if (v == FACE_2_VOL_EMPTY)
+                    return;
+                MPI_int rank;
+                index val;
+                JSGGhost.pLGhostMapping->search(v, rank, val);
+                if (rank == -1)
+                    v = JSG[val];
+                else
+                    v = JSGGhost[val];
+                // std::cout << "nv" << v << " " << rank << std::endl;
+            });
+
+        // do distribution
+
+        arrayDistAdj = std::make_shared<ArrayCascade<TAdjBatch>>(arraySerialAdj.get()); // arraySerialAdj->arrayDistAdj
+        arrayDistAdj->createGlobalMapping();
+        arrayDistAdj->createGhostMapping(partitionIPushLocal, partitionIPushLocalStarts);
+
+        arrayDistAdj->createMPITypes();
+        // InsertCheck(mpi);
+        arrayDistAdj->initPersistentPull();
+        arrayDistAdj->startPersistentPull();
+        arrayDistAdj->waitPersistentPull();
+        arrayDistAdj->clearPersistentPull();
+        // InsertCheck(mpi);
+    }
+
+    template <class TPartitionIdx>
+    void Partition2Serial2Global(const std::vector<TPartitionIdx> &partition, std::vector<index> &serial2Global, const MPIInfo &mpi, MPI_int nPart)
+    {
+        serial2Global.resize(partition.size());
+        index iFill = 0;
+        /****************************************/
+        std::vector<index> numberAtLocal(nPart, 0);
+        for (auto r : partition)
+            numberAtLocal[r]++;
+        std::vector<index> numberTotal(nPart), numberPrev(nPart);
+        MPI_Allreduce(numberAtLocal.data(), numberTotal.data(), nPart, DNDS_MPI_INDEX, MPI_SUM, mpi.comm);
+        MPI_Scan(numberAtLocal.data(), numberPrev.data(), nPart, DNDS_MPI_INDEX, MPI_SUM, mpi.comm);
+        std::vector<index> numberTotalPlc(nPart + 1);
+        numberTotalPlc[0] = 0;
+        for (MPI_int r = 0; r < nPart; r++)
+            numberTotalPlc[r + 1] = numberTotalPlc[r] + numberTotal[r], numberPrev[r] -= numberAtLocal[r];
+        // 2 things here: accumulate total and substract local from prev
+        /****************************************/
+        numberAtLocal.assign(numberAtLocal.size(), 0);
+        for (auto r : partition)
+            serial2Global[iFill++] = (numberAtLocal[r]++) + numberTotalPlc[r] + numberPrev[r];
+    }
+
+    // for one-shot usage, partition data corresponds to mpi
+    template <class TPartitionIdx>
+    void Partition2LocalIdx(const std::vector<TPartitionIdx> &partition, std::vector<index> &localPush, std::vector<index> &localPushStart, const MPIInfo &mpi)
+    {
+        // localPushStart.resize(mpi.size);
+        std::vector<index> localPushSizes(mpi.size, 0);
+        for (auto r : partition)
+        {
+            localPushSizes[r]++;
+            assert(r < mpi.size);
+        }
+        AccumulateRowSize(localPushSizes, localPushStart);
+        localPush.resize(localPushStart[mpi.size]);
+        localPushSizes.assign(mpi.size, 0);
+        assert(partition.size() == localPush.size());
+        for (index i = 0; i < partition.size(); i++)
+            localPush[localPushStart[partition[i]] + (localPushSizes[partition[i]]++)] = i;
+    }
+
     class CompactFacedMeshSerialRW
     {
+    public:
         MPIInfo mpi;
         // std::map<index, GmshPhyGrp> phyGrps;
         // std::vector<Elem::tPoint> points;
         // std::vector<GmshElem> volElems;
         // std::vector<GmshElem>
-        std::shared_ptr<tAdjArrayCascade> cell2node;
-        std::shared_ptr<tAdjArrayCascade> cell2face;
+
+        std::shared_ptr<tAdjArrayCascade> cell2node; // serial node index
+        std::shared_ptr<tAdjArrayCascade> cell2face; // serial face index
         std::shared_ptr<tElemAtrArrayCascade> cellAtr;
 
-        std::shared_ptr<tAdjArrayCascade> face2node;
-        std::shared_ptr<tAdjStatic2ArrayCascade> face2cell;
+        std::shared_ptr<tAdjArrayCascade> face2node;              // serial node index
+        std::shared_ptr<tAdjStatic2ArrayCascade> face2cell;       // serial cell index
+        std::shared_ptr<tAdjStatic2ArrayCascade> face2cellGlobal; // global cell index
+        // ! currently only cell needs to be indexed explicitly in global order.
+        // ! for only cell data are currently run-time communicated
         std::shared_ptr<tElemAtrArrayCascade> faceAtr;
 
         std::shared_ptr<tVec3DArrayCascade> nodeCoords;
 
-    public:
+        std::vector<index> iCellsSerialDist;
+        std::shared_ptr<tAdjArrayCascade> cell2nodeSerialDist;
+        std::shared_ptr<tAdjArrayCascade> cell2nodeLocalDist;
+        std::shared_ptr<tAdjArrayCascade> cell2faceSerialDist; // serial face index
+
         CompactFacedMeshSerialRW(const SerialGmshReader2d &gmshReader, const MPIInfo &nmpi) : mpi(nmpi)
         {
             assert(gmshReader.vol2face.size() == gmshReader.volElems.size());
@@ -528,6 +675,149 @@ namespace DNDS
                 e.type = gmshReader.faceElems[iff].elemType;
                 e.intScheme = -1; // init value
             }
+
+            // copy points
+            nodeCoords = std::make_shared<tVec3DArrayCascade>(
+                tVec3DArrayCascade::tContext(gmshReader.readPoints.size()),
+                mpi);
+            for (index ip = 0; ip < nodeCoords->size(); ip++)
+                (*nodeCoords)[ip].p() = gmshReader.readPoints[ip];
+        }
+
+        void MetisSerialPartitionKWay(MPI_int oprank)
+        {
+
+            if (mpi.rank == oprank)
+            {
+                std::vector<index> cell2cellSiz(cell2node->size(), 0);
+                for (index iv = 0; iv < cell2face->size(); iv++)
+                {
+                    auto faceList = (*cell2face)[iv];
+                    for (index iff = 0; iff < faceList.size(); iff++)
+                        if ((*face2cell)[faceList[iff]][1] != FACE_2_VOL_EMPTY) // then face connects another cell
+                            cell2cellSiz[iv]++;
+                }
+                std::vector<idx_t> cell2cellStarts(cell2cellSiz.size() + 1);
+                cell2cellStarts[0] = 0;
+                for (index iv = 0; iv < cell2cellSiz.size(); iv++)
+                    cell2cellStarts[iv + 1] = cell2cellStarts[iv] + cell2cellSiz[iv];
+                std::vector<idx_t> cell2cell(cell2cellStarts[cell2cellSiz.size()]);
+
+                index icell2cellfill = 0;
+                for (index iv = 0; iv < cell2cellSiz.size(); iv++)
+                {
+                    auto faceList = (*cell2face)[iv];
+                    for (index iff = 0; iff < faceList.size(); iff++)
+                        if ((*face2cell)[faceList[iff]][1] != FACE_2_VOL_EMPTY) // then face connects another cell
+                            if ((*face2cell)[faceList[iff]][0] == iv)
+                                cell2cell[icell2cellfill++] = (*face2cell)[faceList[iff]][1];
+                            else
+                                cell2cell[icell2cellfill++] = (*face2cell)[faceList[iff]][0];
+                }
+                assert(icell2cellfill == cell2cell.size());
+
+                idx_t ncell = cell2cellSiz.size();
+                idx_t ncons = 1;
+                idx_t nparts = mpi.size;
+                idx_t options[METIS_NOPTIONS];
+                options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_CUT;
+                options[METIS_OPTION_CTYPE] = METIS_CTYPE_RM;
+                options[METIS_OPTION_IPTYPE] = METIS_IPTYPE_GROW;
+                options[METIS_OPTION_RTYPE] = METIS_RTYPE_FM;
+                options[METIS_OPTION_NO2HOP] = 0;
+                options[METIS_OPTION_NCUTS] = 1;
+                options[METIS_OPTION_NITER] = 10;
+                options[METIS_OPTION_UFACTOR] = 30;
+                options[METIS_OPTION_MINCONN] = 0;
+                options[METIS_OPTION_CONTIG] = 1; // ! forcing contigious partition now ? necessary?
+                options[METIS_OPTION_SEED] = 0;   // ! seeding 0 for determined result
+                options[METIS_OPTION_NUMBERING] = 0;
+                options[METIS_OPTION_DBGLVL] = METIS_DBG_TIME | METIS_DBG_INFO;
+
+                idx_t objval;
+                std::vector<idx_t> partition(cell2cellSiz.size());
+                std::vector<idx_t> iGlobal; // iGlobal[iCell_Serial] = iCell_Global
+                iGlobal.reserve(cell2cellSiz.size());
+
+                auto ret = METIS_PartGraphKway(&ncell, &ncons, cell2cellStarts.data(), cell2cell.data(), NULL, NULL, NULL, &nparts, NULL, NULL, options, &objval, partition.data());
+                if (ret != METIS_OK)
+                {
+                    log() << "METIS returned not OK: [" << ret << "]" << std::endl;
+                    assert(false);
+                }
+
+                // determine the global index
+                std::vector<index> nCells(mpi.size, 0);
+                for (auto i : partition)
+                    nCells[i]++;
+                std::vector<index> nCellsStart(mpi.size + 1, 0);
+                for (MPI_int i = 0; i < mpi.size; i++)
+                    nCellsStart[i + 1] = nCellsStart[i] + nCells[i];
+                nCells.assign(nCells.size(), 0);
+                for (auto i : partition)
+                    iGlobal.push_back((nCells[i]++) + nCellsStart[i]);
+
+                face2cellGlobal = std::make_shared<tAdjStatic2ArrayCascade>(*face2cell);
+                for (index i = 0; i < face2cell->size(); i++)
+                {
+                    (*face2cellGlobal)[i][0] = iGlobal[(*face2cell)[i][0]];
+                    (*face2cellGlobal)[i][1] = (*face2cell)[i][1] == FACE_2_VOL_EMPTY ? FACE_2_VOL_EMPTY : iGlobal[(*face2cell)[i][1]];
+                }
+
+                std::vector<std::vector<index>> iCellSerial; // ! note that only cells are uniquely partitioned here, nodes and faces are attached/not unique
+
+                iCellSerial.resize(mpi.size);
+                for (MPI_int r = 0; r < mpi.size; r++)
+                    iCellSerial[r].reserve(index(double(ncell) / double(nparts) * 1.1));
+                for (index iv = 0; iv < cell2cellSiz.size(); iv++)
+                    iCellSerial[partition[iv]].push_back(iv);
+                // for (MPI_int r = 0; r < mpi.size; r++) // not that necessary
+                //     iCellSerial[r].shrink_to_fit();
+                // for (MPI_int r =)
+            }
+        }
+
+        void LogStatusSerialPart()
+        {
+            MPI_Barrier(mpi.comm);
+            if (mpi.rank == 0)
+                log() << "CompactFacedMeshSerialRW::LogStatus() Synchronized\n"
+                      << std::endl;
+
+            if (mpi.rank == 0)
+                log() << "CompactFacedMeshSerialRW::cell2node\n";
+            if (cell2node)
+                cell2node->LogStatus();
+
+            if (mpi.rank == 0)
+                log() << "CompactFacedMeshSerialRW::cell2face\n";
+            if (cell2face)
+                cell2face->LogStatus();
+
+            if (mpi.rank == 0)
+                log() << "CompactFacedMeshSerialRW::cellAtr\n";
+            if (cellAtr)
+                cellAtr->LogStatus();
+
+            if (mpi.rank == 0)
+                log() << "CompactFacedMeshSerialRW::face2node\n";
+            if (face2node)
+                face2node->LogStatus();
+
+            if (mpi.rank == 0)
+                log() << "CompactFacedMeshSerialRW::face2cell\n";
+            if (face2cell)
+                face2cell->LogStatus();
+
+            if (mpi.rank == 0)
+                log() << "CompactFacedMeshSerialRW::faceAtr\n";
+            if (faceAtr)
+                faceAtr->LogStatus();
+
+            if (mpi.rank == 0)
+                log() << "CompactFacedMeshSerialRW::nodeCoords\n";
+            if (nodeCoords)
+                nodeCoords->LogStatus();
         }
     };
 }

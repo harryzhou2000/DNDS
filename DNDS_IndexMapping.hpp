@@ -39,9 +39,14 @@ namespace DNDS
         }
 
         ///\brief inputs local index, outputs global
-        index operator()(MPI_int rank, index val)
+        index operator()(MPI_int rank, index val) const
         {
-
+            // if (!((rank >= 0 && rank <= RankLengths.size()) &&
+            //       (val >= 0 && val <= RankOffsets[rank + 1] - RankOffsets[rank])))
+            // {
+            //     PrintVec(RankOffsets, std::cout);
+            //     std::cout << rank << " KK " << val << std::endl;
+            // }
             assert((rank >= 0 && rank <= RankLengths.size()) &&
                    (val >= 0 && val <= RankOffsets[rank + 1] - RankOffsets[rank]));
             return RankOffsets[rank] + val;
@@ -114,7 +119,7 @@ namespace DNDS
                 MPI_int rank;
                 index loc; // dummy here
                 LGlobalMapping.search(i, rank, loc);
-                // if (rank != mpi.rank)
+                // if (rank != mpi.rank) // must not exclude local ones for the sake of scatter/gather
                 ghostSizes[rank]++;
             }
 
@@ -143,7 +148,7 @@ namespace DNDS
                           pushingIndexGlobal.data(), pushIndexSizes.data(), pushIndexStarts.data(), DNDS_MPI_INDEX,
                           mpi.comm);
 
-            //stores pullingRequest
+            // stores pullingRequest
             pullingRequestLocal = std::forward<TpullSet>(pullingIndexGlobal);
             for (auto &i : pullingRequestLocal)
             {
@@ -153,6 +158,41 @@ namespace DNDS
                 if (rank != -1)
                     i = -(1 + ghostStart[rank] + loc);
             }
+        }
+
+        template <class TpushSet, class TpushStart>
+        OffsetAscendIndexMapping(index nmainOffset, index nmainSize,
+                                 TpushSet &&pushingIndexes, // which stores local index
+                                 TpushStart &&pushingStarts,
+                                 const GlobalOffsetsMapping &LGlobalMapping,
+                                 const MPIInfo &mpi)
+            : mainOffset(nmainOffset),
+              mainSize(nmainSize)
+        {
+            assert(pushingStarts.size() == mpi.size + 1 && pushingIndexes.size() == pushingStarts[mpi.size]);
+            pushIndexSizes.resize(mpi.size);
+            pushIndexStarts.resize(mpi.size + 1, 0);
+            for (index i = 0; i < mpi.size; i++)
+                pushIndexSizes[i] = pushingStarts[i + 1] - pushingStarts[i],
+                pushIndexStarts[i + 1] = pushingStarts[i + 1];
+            pushingIndexGlobal.resize(pushingIndexes.size());
+            std::forward<TpushStart>(pushingStarts); //! might delete
+            for (index i = 0; i < pushingIndexGlobal.size(); i++)
+                pushingIndexGlobal[i] = LGlobalMapping(mpi.rank, pushingIndexes[i]); // convert from local to global
+            std::forward<TpushSet>(pushingIndexes);                                  //! might delete
+
+            ghostSizes.assign(mpi.size, 0);
+            MPI_Alltoall(pushIndexSizes.data(), 1, MPI_INT, ghostSizes.data(), 1, MPI_INT, mpi.comm); // inverse to the normal pulling
+            ghostStart.resize(ghostSizes.size() + 1);
+            ghostStart[0] = 0;
+            for (index i = 0; i < ghostSizes.size(); i++)
+                ghostStart[i + 1] = ghostStart[i] + ghostSizes[i];
+            ghostIndex.resize(ghostStart[ghostSizes.size()]);
+            MPI_Alltoallv(pushingIndexGlobal.data(), pushIndexSizes.data(), pushIndexStarts.data(), DNDS_MPI_INDEX,
+                          ghostIndex.data(), ghostSizes.data(), ghostStart.data(), DNDS_MPI_INDEX,
+                          mpi.comm); // inverse to the normal pulling
+
+            // !doesn't store pullingRequest
         }
 
         // auto &ghost() { return ghostIndex; }

@@ -9,6 +9,7 @@
 #include "DNDS_MPI.hpp"
 #include "DNDS_IndexMapping.hpp"
 #include "DNDS_BasicTypes.hpp"
+#include "DNDS_DerivedTypes.hpp"
 
 namespace DNDS
 {
@@ -22,6 +23,12 @@ namespace DNDS
         bool PersistentPullFinished = true;
         bool hasPersistentPushReqs = false;
         bool PersistentPushFinished = true;
+        friend std::ostream &operator<<(std::ostream &out, const ArrayCommStat &a)
+        {
+            out << a.hasGlobalMapping << " " << a.hasGhostMapping << " " << a.hasGhostIndexer << " " << a.hasCommTypes << " "
+                << a.hasPersistentPullReqs << " " << a.PersistentPullFinished << " " << a.hasPersistentPushReqs << " " << a.PersistentPushFinished;
+            return out;
+        }
     };
 
     template <class T>
@@ -432,6 +439,7 @@ namespace DNDS
         // basic aux info
         typedef typename T::Indexer tIndexer;
         typedef typename T::Context tContext;
+        typedef T tComponent;
         tContext context;
         tIndexer indexer;
 
@@ -465,6 +473,8 @@ namespace DNDS
         {
             return "Types: " + T::Indexer::Tname + ", " + T::Context::Tname;
         }
+
+        const MPIInfo &getMPI() { return mpi; }
 
         /******************************************************************************************************************************/
         /**
@@ -517,6 +527,11 @@ namespace DNDS
                 father = nfather;
                 father->son = this;
             }
+            commStat = Rarray.commStat;
+            commStat.hasPersistentPushReqs = false;
+            commStat.PersistentPushFinished = true;
+            commStat.hasPersistentPullReqs = false;
+            commStat.PersistentPullFinished = true;
         }
 
         /**
@@ -542,6 +557,13 @@ namespace DNDS
                 father = nfather;
                 father->son = this;
             }
+            commStat = Rarray.commStat;
+            commStat.hasCommTypes = false;
+            commStat.hasGhostIndexer = false;
+            commStat.hasPersistentPushReqs = false;
+            commStat.PersistentPushFinished = true;
+            commStat.hasPersistentPullReqs = false;
+            commStat.PersistentPullFinished = true;
         }
         /******************************************************************************************************************************/
 
@@ -601,6 +623,12 @@ namespace DNDS
             return son->indexer.LengthByte();
         }
 
+        void SwitchSon(ArrayCascade<T> *nson)
+        {
+            assert(nson->father == this);
+            son = nson;
+        }
+
         // *** warning: cascade arrays' comm set sequence are for sons/ghosts side to execute***
         /******************************************************************************************************************************/
         // recommend: TPullSet == tIndexVec (& &&),
@@ -610,22 +638,45 @@ namespace DNDS
          * \brief from a set of global pulling indexes, create pLGlobalMapping pLGhostMapping
          * \post pLGlobalMapping pLGhostMapping established
          */
-        template <class TPullSet>
-        void createGhostMapping(TPullSet &&pullingIndexGlobal)
+
+        void createGlobalMapping()
         {
             assert(father); // has to be a son
             // phase1.1: create localGlobal mapping (broadcast)
             pLGlobalMapping = std::make_shared<GlobalOffsetsMapping>();
             pLGlobalMapping->setMPIAlignBcast(mpi, father->size()); // cascade from father
             commStat.hasGlobalMapping = true;
+        }
 
+        template <class TPullSet>
+        void createGhostMapping(TPullSet &&pullingIndexGlobal)
+        {
+            assert(father); // has to be a son
+            assert(commStat.hasGlobalMapping);
             // phase1.2: count how many to pull and allocate the localGhost mapping, fill the mapping
             // counting could overflow
             // tMPI_intVec ghostSizes(mpi.size, 0); // == pulling sizes
-            pLGhostMapping = std::make_shared<OffsetAscendIndexMapping>((*pLGlobalMapping)(mpi.rank, 0), father->size(),
-                                                                        std::forward<TPullSet>(pullingIndexGlobal),
-                                                                        *pLGlobalMapping,
-                                                                        mpi);
+            pLGhostMapping = std::make_shared<OffsetAscendIndexMapping>(
+                (*pLGlobalMapping)(mpi.rank, 0), father->size(),
+                std::forward<TPullSet>(pullingIndexGlobal),
+                *pLGlobalMapping,
+                mpi);
+            commStat.hasGhostMapping = true;
+        }
+
+        template <class TPushSet, class TPushStart>
+        void createGhostMapping(TPushSet &&pushingIndexLocal, TPushStart &&pushStarts)
+        {
+            assert(father); // has to be a son
+            assert(commStat.hasGlobalMapping);
+            // phase1.2: count how many to pull and allocate the localGhost mapping, fill the mapping
+            // counting could overflow
+            pLGhostMapping = std::make_shared<OffsetAscendIndexMapping>(
+                (*pLGlobalMapping)(mpi.rank, 0), father->size(),
+                std::forward<TPushSet>(pushingIndexLocal),
+                std::forward<TPushStart>(pushStarts),
+                *pLGlobalMapping,
+                mpi);
             commStat.hasGhostMapping = true;
         }
         /******************************************************************************************************************************/
@@ -638,6 +689,7 @@ namespace DNDS
          */
         void createMPITypes()
         {
+            assert(father);
             assert(commStat.hasGlobalMapping && commStat.hasGhostMapping);
             assert(pLGhostMapping.use_count() > 0 && pLGlobalMapping.use_count() > 0);
             /*********************************************/ // starts to deal with actual byte sizes
@@ -657,6 +709,8 @@ namespace DNDS
                 pushingDisps[i] = std::get<0>(indexerRet); // pushing disps are not contiguous
                 pushingSizes[i] = std::get<1>(indexerRet);
             }
+            // PrintVec(pushingSizes, std::cout);
+            // std::cout << std::endl;
 
             // phase2.2: be informed of pulled sub-indexer
             // equals to: building pullingSizes and pullingDisps, bytes size and disps of ghost
@@ -678,6 +732,7 @@ namespace DNDS
             {
                 // push
                 MPI_int pushNumber = pLGhostMapping->pushIndexSizes[r];
+                // std::cout << "PN" << pushNumber << std::endl;
                 if (pushNumber > 0)
                 {
                     MPI_Aint *pPushDisps = pushingDisps.data() + pLGhostMapping->pushIndexStarts[r];
@@ -709,6 +764,7 @@ namespace DNDS
             pPullTypeVec->shrink_to_fit();
             pPushTypeVec->shrink_to_fit(); // shrink as was dynamically modified
             commStat.hasCommTypes = true;
+            // std::cout << "NPull" << pPullTypeVec->size() << std::endl;
         }
         /******************************************************************************************************************************/
 
@@ -787,30 +843,143 @@ namespace DNDS
         void startPersistentPush()
         {
             assert(commStat.hasPersistentPushReqs && commStat.PersistentPushFinished);
-            MPI_Startall(PushReqVec.size(), PushReqVec.data());
+            if (PushReqVec.size())
+                MPI_Startall(PushReqVec.size(), PushReqVec.data());
             commStat.PersistentPushFinished = false;
         }
         void startPersistentPull()
         {
             assert(commStat.hasPersistentPullReqs && commStat.PersistentPullFinished);
-            MPI_Startall(PullReqVec.size(), PullReqVec.data());
+            if (PullReqVec.size())
+                MPI_Startall(PullReqVec.size(), PullReqVec.data());
             commStat.PersistentPullFinished = false;
         }
 
         void waitPersistentPush()
         {
             assert(commStat.hasPersistentPushReqs && !commStat.PersistentPushFinished);
-            MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data());
+            if (PushReqVec.size())
+                MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data());
             commStat.PersistentPushFinished = true;
         }
         void waitPersistentPull()
         {
             assert(commStat.hasPersistentPullReqs && !commStat.PersistentPullFinished);
-            MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data());
+            if (PullReqVec.size())
+                MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data());
             commStat.PersistentPullFinished = true;
         }
 
-        void clearPersistentPush() { PushReqVec.clear(); }
-        void clearPersistentPull() { PullReqVec.clear(); }
+        void clearPersistentPush()
+        {
+            PushReqVec.clear(); //stat vec is left untouched here
+            commStat.hasPersistentPushReqs = false;
+        }
+        void clearPersistentPull()
+        {
+            PullReqVec.clear();
+            commStat.hasPersistentPullReqs = false;
+        }
+
+        /**
+         * @brief should be barriered before hand
+         *
+         */
+        void LogStatus(bool printData0 = false)
+        {
+            if (mpi.rank == 0)
+            {
+                std::ios::fmtflags originalFlags(log().flags());
+                log() << "Comm [" << mpi.comm << "]; Rank [" << mpi.rank << "]; Size [" << size() << "]; Byte [" << sizeByte() << "];\n";
+                log() << "\t"
+                      << "This [" << this << "]; Father [" << father << "]; Son [" << son << "] \n";
+                log() << "\t"
+                      << "CommStat [" << commStat << "];\n";
+                if (printData0)
+                    PrintVec<uint8_t, index>(data, std::cout);
+                for (int r = 1; r < mpi.size; r++)
+                {
+                    index thatSizes[2];
+                    index ptrs[3];
+                    ArrayCommStat thatComm;
+                    MPI_Status stat;
+                    MPI_Recv(thatSizes, 2, DNDS_MPI_INDEX, r, r + 0 * mpi.size, mpi.comm, &stat);
+                    MPI_Recv(ptrs, 3, DNDS_MPI_INDEX, r, r + 1 * mpi.size, mpi.comm, &stat);
+                    MPI_Recv(&thatComm, sizeof(ArrayCommStat), MPI_BYTE, r, r + 3 * mpi.size, mpi.comm, &stat);
+
+                    log() << "Comm [" << mpi.comm << "]; Rank [" << r << "]; Size [" << thatSizes[0] << "]; Byte [" << thatSizes[1] << "];\n";
+                    log() << "\t"
+                          << "This [" << decltype(this)(ptrs[0]) << "]; Father [" << decltype(this)(ptrs[1]) << "]; Son [" << decltype(this)(ptrs[2]) << "] \n";
+                    log() << "\t"
+                          << "CommStat [" << thatComm << "];\n";
+                }
+                log() << std::endl;
+            }
+            else
+            {
+                index sizes[2];
+                index ptrs[3];
+                sizes[0] = size(), sizes[1] = sizeByte();
+                ptrs[0] = index(this), ptrs[1] = index(father), ptrs[2] = index(son);
+
+                MPI_Send(sizes, 2, DNDS_MPI_INDEX, 0, mpi.rank + 0 * mpi.size, mpi.comm);
+                MPI_Send(ptrs, 3, DNDS_MPI_INDEX, 0, mpi.rank + 1 * mpi.size, mpi.comm);
+                MPI_Send(&commStat, sizeof(ArrayCommStat), MPI_BYTE, 0, mpi.rank + 3 * mpi.size, mpi.comm);
+            }
+        }
     };
+}
+/*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*/
+namespace DNDS
+{
+    typedef ArrayCascade<IndexOne> IndexArray;
+
+    /**
+     * @brief f(T &element, index i)
+     *
+     */
+    template <class T, class Tf>
+    void forEachInArray(ArrayCascade<T> &arr, Tf &&f)
+    {
+        // if (arr.getMPI().rank == 3)
+        //     std::cout << "SDFS" << arr.size() << std::endl;
+        for (index i = 0; i < arr.size(); i++)
+        {
+            auto e = arr[i];
+            // std::cout << e[0] << std::endl;
+            f(e, i);
+            // std::cout << "<-" << e[1] << std::endl;
+        }
+    }
+
+    /**
+     * @brief f(T &element, index i, decltype(T[0]) &basic, index j)
+     *
+     */
+    template <class T, class Tf>
+    void forEachBasicInArray(ArrayCascade<T> &arr, Tf &&f)
+    {
+        for (index i = 0; i < arr.size(); i++)
+        {
+            auto e = arr[i];
+            for (index j = 0; j < e.size(); j++)
+                f(e, i, e[j], j);
+        }
+    }
 }

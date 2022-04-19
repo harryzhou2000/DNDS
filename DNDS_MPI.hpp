@@ -45,11 +45,22 @@ namespace DNDS
         }
     };
 
-    void InsertCheck(MPIInfo &mpi)
+    void InsertCheck(const MPIInfo &mpi)
     {
         MPI_Barrier(mpi.comm);
         std::cout << "=== CHECK RANK " << mpi.rank << " ===" << std::endl;
         MPI_Barrier(mpi.comm);
+    }
+
+    template <class F>
+    void MPISerialDo(const MPIInfo &mpi, F f)
+    {
+        for (MPI_int i = 0; i < mpi.size; i++)
+        {
+            MPI_Barrier(mpi.comm);
+            if (mpi.rank == i)
+                f();
+        }
     }
 
     typedef std::vector<std::pair<MPI_int, MPI_Datatype>> tMPI_typePairVec;
