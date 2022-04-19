@@ -24,7 +24,10 @@ void testA()
         gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
     }
     DNDS::CompactFacedMeshSerialRW mesh(gmshReader2D, mpi);
-    mesh.LogStatusSerialPart();
+    // mesh.LogStatusSerialPart();
+    mesh.MetisSerialPartitionKWay(0);
+
+    mesh.LogStatusDistPart();
 
     std::cout << "\n";
 }

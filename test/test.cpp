@@ -419,10 +419,13 @@ void testAdj()
     std::shared_ptr<DNDS::tAdjStatic2ArrayCascade> p2;
     DNDS::forEachInArray(*p1, [&](DNDS::tAdjStatic2ArrayCascade::tComponent &e, DNDS::index i)
                          { e[0] = 8 * mpi.rank + i * 2 + 0, e[1] = 8 * mpi.rank + i * 2 + 1; });
+    if (mpi.rank == 0)
+        (*p1)[0][0] = DNDS::FACE_2_VOL_EMPTY;
     std::vector<int> partI, partJ;
     if (mpi.rank % 2 == 0)
     {
         partI = std::vector<int>{0, 1, 0, 1};
+
         partJ = std::vector<int>{0, 0, 0, 0, 1, 1, 1, 1};
     }
     else
@@ -435,7 +438,9 @@ void testAdj()
 
     DNDS::Partition2LocalIdx(partI, partIPush, partIPushStart, mpi);
     DNDS::Partition2Serial2Global(partJ, partJS2G, mpi, mpi.size);
-    DNDS::DistributeAdj(p1, p2, partIPush, partIPushStart, partJS2G, mpi);
+    DNDS::ConvertAdjSerial2Global(p1, partJS2G, mpi);
+    DNDS::DistributeByPushLocal(p1, p2, partIPush, partIPushStart);
+
     auto p3 = std::make_shared<DNDS::tAdjStatic2ArrayCascade>(p2.get()); // p2->p3
     p3->createGlobalMapping();
     // InsertCheck(mpi);

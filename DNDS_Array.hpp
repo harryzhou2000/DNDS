@@ -629,6 +629,16 @@ namespace DNDS
             son = nson;
         }
 
+        void ForgetFather()
+        {
+            father = nullptr;
+            clearPersistentPull();
+            clearPersistentPush();
+            clearMPITypes();
+            clearGhostMapping();
+            clearGlobalMapping();
+        }
+
         // *** warning: cascade arrays' comm set sequence are for sons/ghosts side to execute***
         /******************************************************************************************************************************/
         // recommend: TPullSet == tIndexVec (& &&),
@@ -872,20 +882,45 @@ namespace DNDS
 
         void clearPersistentPush()
         {
-            PushReqVec.clear(); //stat vec is left untouched here
+            assert(commStat.PersistentPushFinished);
+            PushReqVec.clear(); // stat vec is left untouched here
             commStat.hasPersistentPushReqs = false;
         }
         void clearPersistentPull()
         {
+            assert(commStat.PersistentPullFinished);
             PullReqVec.clear();
             commStat.hasPersistentPullReqs = false;
+        }
+
+        void clearMPITypes()
+        {
+            assert(!commStat.hasPersistentPullReqs && !commStat.hasPersistentPushReqs);
+            pPullTypeVec.reset();
+            pPushTypeVec.reset();
+            commStat.hasCommTypes = false;
+        }
+
+        void clearGlobalMapping()
+        {
+            assert(!commStat.hasGhostMapping);
+            pLGlobalMapping.reset();
+            commStat.hasGlobalMapping = false;
+        }
+
+        void clearGhostMapping()
+        {
+            assert(!commStat.hasCommTypes);
+            pLGhostMapping.reset();
+            commStat.hasGhostMapping = false;
         }
 
         /**
          * @brief should be barriered before hand
          *
          */
-        void LogStatus(bool printData0 = false)
+        void
+        LogStatus(bool printData0 = false)
         {
             if (mpi.rank == 0)
             {

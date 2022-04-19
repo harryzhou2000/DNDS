@@ -13,7 +13,7 @@ CGNSLIB=-lcgns
 CPC=mpicxx
 
 INCLUDE=${MPIINC} ${CGNSINC}
-LINK   =${MPILIB} ${CGNSLIB}
+LINK   =${MPILIB} ${CGNSLIB} -lmetis
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe
 
