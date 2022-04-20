@@ -148,16 +148,16 @@ namespace DNDS
                           pushingIndexGlobal.data(), pushIndexSizes.data(), pushIndexStarts.data(), DNDS_MPI_INDEX,
                           mpi.comm);
 
-            // stores pullingRequest
-            pullingRequestLocal = std::forward<TpullSet>(pullingIndexGlobal);
-            for (auto &i : pullingRequestLocal)
-            {
-                MPI_int rank;
-                index loc; // dummy here
-                search(i, rank, loc);
-                if (rank != -1)
-                    i = -(1 + ghostStart[rank] + loc);
-            }
+            // stores pullingRequest // ! now cancelled
+            // pullingRequestLocal = std::forward<TpullSet>(pullingIndexGlobal);
+            // for (auto &i : pullingRequestLocal)
+            // {
+            //     MPI_int rank;
+            //     index loc; // dummy here
+            //     search(i, rank, loc);
+            //     if (rank != -1)
+            //         i = -(1 + ghostStart[rank] + loc);
+            // }
         }
 
         template <class TpushSet, class TpushStart>
@@ -241,7 +241,7 @@ namespace DNDS
             return false;
         }
 
-        /// \brief returns rank and place in ghost of rank, rank==-1 means main data
+        /// \brief returns rank and place in ghost array, rank==-1 means main data
         bool search(index globalQuery, MPI_int &rank, index &val) const
         {
             if (searchInMain(globalQuery, val))
@@ -252,12 +252,53 @@ namespace DNDS
             // warning! linear on num of ranks here
             for (rank = 0; rank < (ghostStart.size() - 1); rank++)
                 if (searchInGhost(globalQuery, rank, val))
+                {
+                    val += ghostStart[rank];
                     return true;
+                }
+            return false;
+        }
+
+        /// \brief returns rank and place in ghost array, rank==-1 means main data
+        /// returned val is used for pair indexing
+        bool search_indexAppend(index globalQuery, MPI_int &rank, index &val) const
+        {
+            if (searchInMain(globalQuery, val))
+            {
+                rank = -1;
+                return true;
+            }
+            // warning! linear on num of ranks here
+            for (rank = 0; rank < (ghostStart.size() - 1); rank++)
+                if (searchInGhost(globalQuery, rank, val))
+                {
+                    // std::cout << mainSize << std::endl;
+                    val += ghostStart[rank] + mainSize;
+                    return true;
+                }
+            return false;
+        }
+
+        /// \brief returns rank and place in ghost of rank, rank==-1 means main data
+        /// \warning search returns index that applies to local ghost array, this only goes for the ith of rank
+        bool search_indexRank(index globalQuery, MPI_int &rank, index &val) const
+        {
+            if (searchInMain(globalQuery, val))
+            {
+                rank = -1;
+                return true;
+            }
+            // warning! linear on num of ranks here
+            for (rank = 0; rank < (ghostStart.size() - 1); rank++)
+                if (searchInGhost(globalQuery, rank, val))
+                {
+                    return true;
+                }
             return false;
         }
 
         /// \brief if rank == -1, return the global index of local main data,
-        /// or else return the ghosted index of local ghost data.
+        /// or else return the ghosted global index of local ghost data.
         index operator()(MPI_int rank, index val)
         {
             if (rank == -1)

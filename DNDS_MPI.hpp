@@ -43,6 +43,11 @@ namespace DNDS
             ierr = MPI_Comm_rank(comm, &rank);
             ierr = MPI_Comm_size(comm, &size);
         }
+
+        bool operator==(const MPIInfo &r) const
+        {
+            return (comm == r.comm) && (rank == r.rank) && (size == r.size);
+        }
     };
 
     void InsertCheck(const MPIInfo &mpi)

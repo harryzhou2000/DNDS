@@ -4,6 +4,7 @@
 #include "DNDS_Elements.hpp"
 #include "DNDS_Array.hpp"
 #include "DNDS_DerivedTypes.hpp"
+#include "DNDS_DerivedArray.hpp"
 
 #include <map>
 #include <algorithm>
@@ -340,6 +341,7 @@ namespace DNDS
                 fout << p[0] << "\n";
             for (auto &p : readPoints)
                 fout << p[1] << "\n";
+            real vsum = 0.0;
             for (auto &i : volElems)
             {
                 Elem::ElementManager e(i.elemType, 0);
@@ -369,7 +371,9 @@ namespace DNDS
                                   assert(vinc > 0);
                               });
                 fout << v << "\n";
+                vsum += v;
             }
+            log() << "Sum Volume [" << vsum << "]" << std::endl;
             for (auto &i : volElems)
             {
                 Elem::ElementManager e(i.elemType, 0);
@@ -412,17 +416,6 @@ namespace DNDS
 
 namespace DNDS
 {
-    struct ElemAtrributes
-    {
-        index iPhy;
-        Elem::ElemType type;
-        Elem::tIntScheme intScheme;
-    };
-
-    typedef ArrayCascade<VarBatch<index>> tAdjArrayCascade;
-    typedef ArrayCascade<Batch<index, 2>> tAdjStatic2ArrayCascade;
-    typedef ArrayCascade<Batch<ElemAtrributes, 1>> tElemAtrArrayCascade;
-    typedef ArrayCascade<Vec3DBatch> tVec3DArrayCascade;
 
     /**
      * @brief convert arraySerialAdj's content to global (with partition J), then distribute it with partition I
@@ -478,10 +471,7 @@ namespace DNDS
         // std::cout
 
         JSGGhost.createMPITypes();
-        JSGGhost.initPersistentPull();
-        JSGGhost.startPersistentPull();
-        JSGGhost.waitPersistentPull();
-        JSGGhost.clearPersistentPull();
+        JSGGhost.pullOnce();
         forEachBasicInArray(
             *arraySerialAdj,
             [&](TAdjBatch &e, index i, index &v, index j)
@@ -509,10 +499,7 @@ namespace DNDS
         arrayDist->createGhostMapping(partitionIPushLocal, partitionIPushLocalStarts);
         arrayDist->createMPITypes();
         // InsertCheck(mpi);
-        arrayDist->initPersistentPull();
-        arrayDist->startPersistentPull();
-        arrayDist->waitPersistentPull();
-        arrayDist->clearPersistentPull();
+        arrayDist->pullOnce();
         // InsertCheck(mpi);
     }
 
@@ -557,6 +544,42 @@ namespace DNDS
         for (index i = 0; i < partition.size(); i++)
             localPush[localPushStart[partition[i]] + (localPushSizes[partition[i]]++)] = i;
     }
+}
+/*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*/
+
+namespace DNDS
+{
+
+    struct ElemAtrributes
+    {
+        index iPhy;
+        Elem::ElemType type;
+        Elem::tIntScheme intScheme;
+    };
+
+    typedef ArrayCascade<VarBatch<index>> tAdjArrayCascade;
+    typedef ArrayCascade<Batch<index, 2>> tAdjStatic2ArrayCascade;
+    typedef ArrayCascade<Batch<ElemAtrributes, 1>> tElemAtrArrayCascade;
+    typedef ArrayCascade<Vec3DBatch> tVec3DArrayCascade;
 
     class CompactFacedMeshSerialRW
     {
@@ -566,6 +589,9 @@ namespace DNDS
         // std::vector<Elem::tPoint> points;
         // std::vector<GmshElem> volElems;
         // std::vector<GmshElem>
+        index numCellGlobal;
+        index numFaceGlobal;
+        index numNodeGlobal;
 
         std::shared_ptr<tAdjArrayCascade> cell2node; // serial node index
         std::shared_ptr<tAdjArrayCascade> cell2face; // serial face index
@@ -592,6 +618,34 @@ namespace DNDS
         std::shared_ptr<tElemAtrArrayCascade> faceAtrDist;
 
         std::shared_ptr<tVec3DArrayCascade> nodeCoordsDist;
+
+        std::shared_ptr<GlobalOffsetsMapping> pCellGlobalMapping;
+        std::shared_ptr<GlobalOffsetsMapping> pFaceGlobalMapping;
+        std::shared_ptr<GlobalOffsetsMapping> pNodeGlobalMapping;
+        std::shared_ptr<OffsetAscendIndexMapping> pCellGhostMapping;
+        std::shared_ptr<OffsetAscendIndexMapping> pFaceGhostMapping;
+        std::shared_ptr<OffsetAscendIndexMapping> pNodeGhostMapping;
+
+        std::shared_ptr<tAdjArrayCascade> cell2nodeDistGhost;
+        std::shared_ptr<tAdjArrayCascade> cell2faceDistGhost;
+        std::shared_ptr<tElemAtrArrayCascade> cellAtrDistGhost;
+        std::shared_ptr<ArrayCascadePair<tAdjArrayCascade::tComponent>> cell2nodePair;
+        std::shared_ptr<ArrayCascadePair<tElemAtrArrayCascade::tComponent>> cellAtrPair;
+
+        std::shared_ptr<tAdjArrayCascade> face2nodeDistGhost;
+        std::shared_ptr<tAdjStatic2ArrayCascade> face2cellDistGhost;
+        std::shared_ptr<tElemAtrArrayCascade> faceAtrDistGhost;
+        std::shared_ptr<ArrayCascadePair<tAdjStatic2ArrayCascade::tComponent>> face2cellPair;
+        std::shared_ptr<ArrayCascadePair<tAdjArrayCascade::tComponent>> face2nodePair;
+        std::shared_ptr<ArrayCascadePair<tElemAtrArrayCascade::tComponent>> faceAtrPair;
+
+        std::shared_ptr<tVec3DArrayCascade> nodeCoordsDistGhost;
+        std::shared_ptr<ArrayCascadePair<tVec3DArrayCascade::tComponent>> nodeCoordsPair;
+
+        // std::shared_ptr<tAdjArrayCascade> cell2Localnode;
+        // std::shared_ptr<tAdjArrayCascade> cell2Localface;
+        // std::shared_ptr<tAdjStatic2ArrayCascade> face2Localcell;
+        // std::shared_ptr<tAdjArrayCascade> face2Localnode;
 
         CompactFacedMeshSerialRW(const SerialGmshReader2d &gmshReader, const MPIInfo &nmpi) : mpi(nmpi)
         {
@@ -691,13 +745,18 @@ namespace DNDS
                 mpi);
             for (index ip = 0; ip < nodeCoords->size(); ip++)
                 (*nodeCoords)[ip].p() = gmshReader.readPoints[ip];
+
+            numNodeGlobal = nodeCoords->obtainTotalSize();
+            numFaceGlobal = face2node->obtainTotalSize();
+            numCellGlobal = cell2node->obtainTotalSize();
         }
 
         void MetisSerialPartitionKWay(MPI_int oprank)
         {
-
             if (mpi.rank == oprank)
             {
+                /*******************************************************/
+                // derive cell2cell graph
                 std::vector<index> cell2cellSiz(cell2node->size(), 0);
                 for (index iv = 0; iv < cell2face->size(); iv++)
                 {
@@ -724,6 +783,7 @@ namespace DNDS
                                 cell2cell[icell2cellfill++] = (*face2cell)[faceList[iff]][0];
                 }
                 assert(icell2cellfill == cell2cell.size());
+                /*******************************************************/
 
                 idx_t ncell = cell2cellSiz.size();
                 idx_t ncons = 1;
@@ -741,10 +801,11 @@ namespace DNDS
                 options[METIS_OPTION_CONTIG] = 1; // ! forcing contigious partition now ? necessary?
                 options[METIS_OPTION_SEED] = 0;   // ! seeding 0 for determined result
                 options[METIS_OPTION_NUMBERING] = 0;
-                options[METIS_OPTION_DBGLVL] = METIS_DBG_TIME | METIS_DBG_INFO;
+                options[METIS_OPTION_DBGLVL] = METIS_DBG_TIME | METIS_DBG_IPART;
 
                 idx_t objval;
-                std::vector<idx_t> partition(cell2cellSiz.size());
+                std::vector<idx_t> partition;
+                partition.resize(cell2cellSiz.size());
                 std::vector<idx_t> iGlobal; // iGlobal[iCell_Serial] = iCell_Global
                 iGlobal.reserve(cell2cellSiz.size());
 
@@ -833,8 +894,467 @@ namespace DNDS
                 DistributeByPushLocal(pnface2node, face2nodeDist, localIdxFace, localIdxStartFace);
                 DistributeByPushLocal(faceAtr, faceAtrDist, localIdxFace, localIdxStartFace);
 
-                DistributeByPushLocal(nodeCoords, nodeCoordsDist, localIdxNode, localIdxStartNode);
+                DistributeByPushLocal(nodeCoords, nodeCoordsDist, localIdxNode, localIdxStartNode); // OPT could optimize the mapping sharing here
             }
+        }
+
+        void ClearSerial()
+        {
+            cell2face.reset();
+            cell2node.reset();
+            face2cell.reset();
+            face2node.reset();
+            cellAtr.reset();
+            faceAtr.reset();
+            nodeCoords.reset();
+
+            cell2faceDist->ForgetFather();
+            cell2nodeDist->ForgetFather();
+            face2cellDist->ForgetFather();
+            face2nodeDist->ForgetFather();
+            cellAtrDist->ForgetFather();
+            faceAtrDist->ForgetFather();
+            nodeCoordsDist->ForgetFather();
+        }
+
+        /**
+         * @brief builds serial: cell2node, nodeCoords and cellAtr
+         * all data serial output should borrow GGindexings from here
+         */
+        void BuildSerialOut(MPI_int oprank)
+        {
+            cell2node = std::make_shared<tAdjArrayCascade>(cell2nodeDist.get());
+            cellAtr = std::make_shared<tElemAtrArrayCascade>(cellAtrDist.get());
+            nodeCoords = std::make_shared<tVec3DArrayCascade>(nodeCoordsDist.get());
+            std::vector<index> serialPullCell;
+            std::vector<index> serialPullNode;
+            assert(cell2nodeDist->obtainTotalSize() == numCellGlobal);
+            if (mpi.rank == oprank)
+            {
+                serialPullCell.resize(numCellGlobal);
+                serialPullNode.resize(numNodeGlobal);
+                for (index i = 0; i < serialPullCell.size(); i++)
+                    serialPullCell[i] = i;
+                for (index i = 0; i < serialPullNode.size(); i++)
+                    serialPullNode[i] = i;
+            }
+            else
+            {
+            }
+            cell2node->createGlobalMapping();
+            cell2node->createGhostMapping(serialPullCell);
+            cell2node->createMPITypes();
+            cell2node->pullOnce();
+
+            cellAtr->BorrowGGIndexing(*cell2node);
+            cellAtr->createMPITypes();
+            cellAtr->pullOnce();
+
+            nodeCoords->createGlobalMapping();
+            nodeCoords->createGhostMapping(serialPullNode);
+            nodeCoords->createMPITypes();
+            nodeCoords->pullOnce();
+        }
+
+        /**
+         * @brief builds ghost for cell, then for coords
+         *
+         */
+        void BuildGhosts()
+        {
+            face2cellDistGhost = std::make_shared<tAdjStatic2ArrayCascade>(face2cellDist.get());
+            face2cellDistGhost->createGlobalMapping();
+            pFaceGlobalMapping = face2cellDistGhost->pLGlobalMapping;
+
+            // get ghost face set
+            index nghostFaces = 0;
+            forEachBasicInArray(
+                *cell2faceDist,
+                [&](tAdjArrayCascade::tComponent &c2f, index ic, index ifg, index icf)
+                {
+                    MPI_int rank;
+                    index val;
+                    bool found = pFaceGlobalMapping->search(ifg, rank, val);
+                    assert(found);
+                    if (rank != mpi.rank)
+                        nghostFaces++;
+                });
+            std::vector<index> ghostFaces;
+            ghostFaces.reserve(nghostFaces);
+            forEachBasicInArray(
+                *cell2faceDist,
+                [&](tAdjArrayCascade::tComponent &c2f, index ic, index ifg, index icf)
+                {
+                    MPI_int rank;
+                    index val;
+                    bool found = pFaceGlobalMapping->search(ifg, rank, val);
+                    assert(found);
+                    if (rank != mpi.rank)
+                        ghostFaces.push_back(ifg);
+                });
+
+            face2cellDistGhost->createGhostMapping(ghostFaces);
+            face2cellDistGhost->createMPITypes();
+            face2cellDistGhost->pullOnce();
+
+            pFaceGhostMapping = face2cellDistGhost->pLGhostMapping;
+            face2cellPair = std::make_shared<decltype(face2cellPair)::element_type>(*face2cellDist, *face2cellDistGhost);
+
+            face2nodeDistGhost = std::make_shared<tAdjArrayCascade>(face2nodeDist.get());
+            face2nodeDistGhost->BorrowGGIndexing(*face2cellDistGhost);
+            face2nodeDistGhost->createMPITypes();
+            face2nodeDistGhost->pullOnce();
+            face2nodePair = std::make_shared<decltype(face2nodePair)::element_type>(*face2nodeDist, *face2nodeDistGhost);
+
+            faceAtrDistGhost = std::make_shared<tElemAtrArrayCascade>(faceAtrDist.get());
+            faceAtrDistGhost->BorrowGGIndexing(*face2cellDistGhost);
+            faceAtrDistGhost->createMPITypes();
+            faceAtrDistGhost->pullOnce();
+            faceAtrPair = std::make_shared<decltype(faceAtrPair)::element_type>(*faceAtrDist, *faceAtrDistGhost);
+
+            cell2faceDistGhost = std::make_shared<tAdjArrayCascade>(cell2faceDist.get());
+            cell2faceDistGhost->createGlobalMapping();
+            pCellGlobalMapping = cell2faceDistGhost->pLGlobalMapping;
+
+            // get ghost cell set
+            index nghostCells = 0;
+            forEachInArray(
+                *cell2faceDist,
+                [&](tAdjArrayCascade::tComponent &c2f, index ic)
+                {
+                    for (int iff = 0; iff < c2f.size(); iff++)
+                    {
+                        MPI_int rank;
+                        index val;
+                        bool rt0 = pFaceGhostMapping->search_indexAppend(c2f[iff], rank, val);
+                        // if (mpi.rank == 0)
+                        //     std::cout << val << std::endl;
+                        assert(rt0);
+                        auto f2c = (*face2cellPair)[val];
+
+                        if (f2c[1] == FACE_2_VOL_EMPTY)
+                            continue;
+                        index icGlob = pCellGlobalMapping->operator()(mpi.rank, ic);
+                        index bCellGlob = f2c[0] == icGlob ? f2c[1] : f2c[0];
+
+                        bool rt = pCellGlobalMapping->search(bCellGlob, rank, val);
+                        assert(rt);
+                        if (rank != mpi.rank)
+                            nghostCells++;
+                    }
+                });
+
+            std::vector<index> ghostCells;
+            ghostCells.reserve(nghostCells);
+            forEachInArray(
+                *cell2faceDist,
+                [&](tAdjArrayCascade::tComponent &c2f, index ic)
+                {
+                    for (int iff = 0; iff < c2f.size(); iff++)
+                    {
+                        MPI_int rank;
+                        index val;
+                        bool rt0 = pFaceGhostMapping->search_indexAppend(c2f[iff], rank, val);
+                        assert(rt0);
+                        auto f2c = (*face2cellPair)[val];
+
+                        if (f2c[1] == FACE_2_VOL_EMPTY)
+                            continue;
+                        index icGlob = pCellGlobalMapping->operator()(mpi.rank, ic);
+                        index bCellGlob = f2c[0] == icGlob ? f2c[1] : f2c[0];
+
+                        bool rt = pCellGlobalMapping->search(bCellGlob, rank, val);
+                        assert(rt);
+                        if (rank != mpi.rank)
+                            ghostCells.push_back(bCellGlob);
+                    }
+                });
+
+            cell2faceDistGhost->createGhostMapping(ghostCells);
+            cell2faceDistGhost->createMPITypes();
+            cell2faceDistGhost->pullOnce(); //! cell2face's ghost is redundant here, as no ghost face is actually done
+            pCellGhostMapping = cell2faceDistGhost->pLGhostMapping;
+
+            cell2nodeDistGhost = std::make_shared<tAdjArrayCascade>(cell2nodeDist.get()); //!note: don't write as std::shared_ptr<>() which mistakes as a pointer sharing
+            cell2nodeDistGhost->BorrowGGIndexing(*cell2faceDistGhost);
+            cell2nodeDistGhost->createMPITypes();
+            cell2nodeDistGhost->pullOnce();
+            cell2nodePair = std::make_shared<decltype(cell2nodePair)::element_type>(*cell2nodeDist, *cell2nodeDistGhost);
+
+            cellAtrDistGhost = std::make_shared<tElemAtrArrayCascade>(cellAtrDist.get());
+            cellAtrDistGhost->BorrowGGIndexing(*cell2faceDistGhost);
+            cellAtrDistGhost->createMPITypes();
+            cellAtrDistGhost->pullOnce();
+            cellAtrPair = std::make_shared<decltype(cellAtrPair)::element_type>(*cellAtrDist, *cellAtrDistGhost);
+
+            nodeCoordsDistGhost = std::make_shared<tVec3DArrayCascade>(nodeCoordsDist.get());
+            nodeCoordsDistGhost->createGlobalMapping();
+            pNodeGlobalMapping = nodeCoordsDistGhost->pLGlobalMapping;
+
+            // get ghost node set
+            index nghostNode = 0;
+            forEachBasicInArrayPair(
+                *cell2nodePair,
+                [&](tAdjArrayCascade::tComponent &c2n, index ic, index in, index icn)
+                {
+                    MPI_int rank;
+                    index val;
+                    bool rt = pNodeGlobalMapping->search(in, rank, val);
+                    assert(rt);
+                    if (rank != mpi.rank)
+                        nghostNode++;
+                });
+            std::vector<index> ghostNodes;
+            ghostNodes.reserve(nghostNode);
+            forEachBasicInArrayPair(
+                *cell2nodePair,
+                [&](tAdjArrayCascade::tComponent &c2n, index ic, index in, index icn)
+                {
+                    MPI_int rank;
+                    index val;
+                    bool rt = pNodeGlobalMapping->search(in, rank, val);
+                    assert(rt);
+                    if (rank != mpi.rank)
+                        ghostNodes.push_back(in);
+                });
+            nodeCoordsDistGhost->createGhostMapping(ghostNodes);
+            nodeCoordsDistGhost->createMPITypes();
+            nodeCoordsDistGhost->pullOnce();
+            nodeCoordsPair = std::make_shared<decltype(nodeCoordsPair)::element_type>(*nodeCoordsDist, *nodeCoordsDistGhost);
+            pNodeGhostMapping = nodeCoordsDistGhost->pLGhostMapping;
+
+            // convert Adj arrays to point to local arrays
+            // cell2face only main part is converted , !! ghost part ignored
+            // cell2node all is converted
+
+            forEachBasicInArray(
+                *cell2faceDist,
+                [&](tAdjArrayCascade::tComponent &c2f, index ic, index &iff, index icf)
+                {
+                    MPI_int rank;
+                    index val;
+                    bool found = pFaceGhostMapping->search_indexAppend(iff, rank, val);
+                    assert(found); // every inner cell must have all faces in pair
+                    iff = val;     // global -> local_pair
+                });
+            forEachBasicInArrayPair(
+                *cell2nodePair,
+                [&](tAdjArrayCascade::tComponent &c2n, index ic, index &in, index icn)
+                {
+                    MPI_int rank;
+                    index val;
+                    bool found = pNodeGhostMapping->search_indexAppend(in, rank, val);
+                    assert(found); // every cell in cell pair must have all nodes in pair
+                    in = val;
+                });
+            forEachBasicInArrayPair(
+                *face2cellPair,
+                [&](tAdjStatic2ArrayCascade::tComponent &f2c, index iff, index &ic, index ifc)
+                {
+                    if (ic == FACE_2_VOL_EMPTY)
+                        return;
+                    MPI_int rank;
+                    index val;
+                    bool found = pCellGhostMapping->search_indexAppend(ic, rank, val);
+                    assert(found); // every face in adjacent set must have non empty adj cell in cell pair
+                    ic = val;
+                });
+            forEachBasicInArrayPair(
+                *face2nodePair,
+                [&](tAdjArrayCascade::tComponent &f2n, index iff, index &in, index ifn)
+                {
+                    MPI_int rank;
+                    index val;
+                    bool found = pNodeGhostMapping->search_indexAppend(in, rank, val);
+                    assert(found); // every face in adjacent set must have all nodes in pair
+                    in = val;
+                });
+
+            // now the mesh data:
+            //  cell2nodePair, cell2facePair, face2nodePair, face2cellPair, nodeCoordsPair
+        }
+
+        void PrintSerialPartPltASCIIDBG(const std::string &fname, MPI_int oprank) //! supports 2d here
+        {
+            if (mpi.rank != oprank)
+                return;
+
+            if (!Elem::ElementManager::NBufferInit)
+                Elem::ElementManager::InitNBuffer();
+            Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
+            Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_16;
+
+            std::ofstream fout(fname);
+            if (!fout)
+            {
+                log() << "Error: WriteMeshDebugTecASCII open \"" << fname << "\" failure" << std::endl;
+                assert(false);
+            }
+            fout << "VARIABLES = \"x\", \"y\", \"volume\", \"iPart\"\n" // 2d mesh so only x y
+                 << "Zone N =" << nodeCoords->size() << ","
+                 << " E = " << cell2node->size() << ","
+                 << "VARLOCATION=([1-2]=NODAL,[3-4]=CELLCENTERED)"
+                 << "\n,"
+                 << "DATAPACKING=BLOCK, ZONETYPE=FEQUADRILATERAL"
+                 << "\n";
+            fout << std::setprecision(16);
+            forEachInArray(
+                *nodeCoords,
+                [&](tVec3DArrayCascade::tComponent &e, index i)
+                {
+                    fout << e.p()(0) << "\n";
+                });
+            forEachInArray(
+                *nodeCoords,
+                [&](tVec3DArrayCascade::tComponent &e, index i)
+                {
+                    fout << e.p()(1) << "\n";
+                });
+            real vsum = 0.0;
+
+            forEachInArray(
+                *cell2node,
+                [&](tAdjArrayCascade::tComponent &c2n, index iv)
+                {
+                    auto atr = (*cellAtr)[iv][0];
+                    Elem::ElementManager elemMan(atr.type, 0);
+                    switch (elemMan.getPspace())
+                    {
+                    case Elem::ParamSpace::TriSpace:
+                        elemMan.setType(atr.type, schemeTri);
+                        break;
+                    case Elem::ParamSpace::QuadSpace:
+                        elemMan.setType(atr.type, schemeQuad);
+                        break;
+                    default:
+                        assert(false);
+                    }
+                    real v = 0.0;
+                    Eigen::MatrixXd coords(3, elemMan.getNNode());
+                    for (int in = 0; in < elemMan.getNNode(); in++)
+                        coords(Eigen::all, in) = (*nodeCoords)[c2n[in]].p(); // the coords data ordering is conforming with that of cell2node
+
+                    elemMan.Integration(
+                        v,
+                        [&](real &vinc, int m, DNDS::Elem::tPoint &p, DNDS::Elem::tDiFj &DiNj) -> void
+                        {
+                            vinc = DNDS::Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
+                            if (vinc < 0)
+                                log() << "Error: 2d vol orientation wrong or distorted" << std::endl;
+                            assert(vinc > 0);
+                        });
+                    fout << v << "\n";
+                    vsum += v;
+                });
+            log() << "Sum Volume [" << vsum << "]" << std::endl;
+            for (index iv = 0; iv < numCellGlobal; iv++)
+            {
+                MPI_int r;
+                index v;
+                cell2node->pLGlobalMapping->search(iv, r, v);
+                fout << r << "\n";
+            }
+
+            forEachInArray(
+                *cell2node,
+                [&](tAdjArrayCascade::tComponent &c2n, index iv)
+                {
+                    Elem::ElementManager elemMan((*cellAtr)[iv][0].type, 0);
+                    switch (elemMan.getPspace())
+                    {
+                    case Elem::ParamSpace::TriSpace:
+                        fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[2] + 1 << '\n';
+                        break;
+                    case Elem::ParamSpace::QuadSpace:
+                        fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[3] + 1 << '\n';
+                        break;
+                    default:
+                        assert(false);
+                    }
+                });
+            fout.close();
+        }
+
+        /**
+         * @brief names(idata) data(idata, ivolume)
+         *
+         */
+        template <class FNAMES, class FDATA>
+        void PrintSerialPartPltASCIIDataArray(const std::string &fname, MPI_int oprank,
+                                              int arraySiz,
+                                              FNAMES &&names,
+                                              FDATA &&data) //! supports 2d here
+        {
+            if (mpi.rank != oprank)
+                return;
+
+            if (!Elem::ElementManager::NBufferInit)
+                Elem::ElementManager::InitNBuffer();
+            Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
+            Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_16;
+
+            std::ofstream fout(fname);
+            if (!fout)
+            {
+                log() << "Error: WriteMeshDebugTecASCII open \"" << fname << "\" failure" << std::endl;
+                assert(false);
+            }
+            fout << "VARIABLES = \"x\", \"y\", \"iPart\"";
+            for (int idata = 0; idata < arraySiz; idata++)
+                fout << ", \"" << names(idata) << "\"";
+            fout << "\n" // 2d mesh so only x y
+                 << "Zone N =" << nodeCoords->size() << ","
+                 << " E = " << cell2node->size() << ","
+                 << "VARLOCATION=([1-2]=NODAL,[3-" << arraySiz + 3 << "]=CELLCENTERED)"
+                 << "\n,"
+                 << "DATAPACKING=BLOCK, ZONETYPE=FEQUADRILATERAL"
+                 << "\n";
+            fout << std::setprecision(16);
+            forEachInArray(
+                *nodeCoords,
+                [&](tVec3DArrayCascade::tComponent &e, index i)
+                {
+                    fout << e.p()(0) << "\n";
+                });
+            forEachInArray(
+                *nodeCoords,
+                [&](tVec3DArrayCascade::tComponent &e, index i)
+                {
+                    fout << e.p()(1) << "\n";
+                });
+            for (index iv = 0; iv < numCellGlobal; iv++)
+            {
+                MPI_int r;
+                index v;
+                cell2node->pLGlobalMapping->search(iv, r, v);
+                fout << r << "\n";
+            }
+            for (int idata = 0; idata < arraySiz; idata++)
+            {
+                for (index iv = 0; iv < numCellGlobal; iv++)
+                {
+                    fout << data(idata, iv) << "\n";
+                }
+            }
+
+            forEachInArray(
+                *cell2node,
+                [&](tAdjArrayCascade::tComponent &c2n, index iv)
+                {
+                    Elem::ElementManager elemMan((*cellAtr)[iv][0].type, 0);
+                    switch (elemMan.getPspace())
+                    {
+                    case Elem::ParamSpace::TriSpace:
+                        fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[2] + 1 << '\n';
+                        break;
+                    case Elem::ParamSpace::QuadSpace:
+                        fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[3] + 1 << '\n';
+                        break;
+                    default:
+                        assert(false);
+                    }
+                });
+            fout.close();
         }
 
         void LogStatusSerialPart()

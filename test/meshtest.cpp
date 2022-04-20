@@ -23,11 +23,40 @@ void testA()
         gmshReader2D.InterpolateTopology();
         gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
     }
-    DNDS::CompactFacedMeshSerialRW mesh(gmshReader2D, mpi);
+    DNDS::CompactFacedMeshSerialRW mesh(std::move(gmshReader2D), mpi);
     // mesh.LogStatusSerialPart();
     mesh.MetisSerialPartitionKWay(0);
 
-    mesh.LogStatusDistPart();
+    // mesh.LogStatusDistPart();
 
-    std::cout << "\n";
+    mesh.ClearSerial();
+    mesh.BuildSerialOut(0);
+    mesh.PrintSerialPartPltASCIIDBG("data/out/debugmeshSO.plt", 0);
+    mesh.BuildGhosts();
+
+    using namespace DNDS;
+    ArrayCascade<Real1> rk(Real1::Context(mesh.cell2faceDist->size()), mpi);
+    forEachInArray(rk, [&](Real1 &e, DNDS::index i)
+                   { e[0] = mpi.rank; });
+    ArrayCascade<Real1> rkGhost(&rk);
+    rkGhost.BorrowGGIndexing(*mesh.cell2faceDistGhost);
+    rkGhost.createMPITypes();
+    forEachInArray(rkGhost, [&](Real1 &e, DNDS::index i)
+                   { e[0] = mpi.rank; }); 
+    rkGhost.pushOnce();//so that difference between rk and rank shows the boundary cells of domains
+    ArrayCascade<Real1> rkSerial(&rk);
+    rkSerial.BorrowGGIndexing(*mesh.cell2node);
+    rkSerial.createMPITypes();
+    rkSerial.pullOnce();
+    mesh.PrintSerialPartPltASCIIDataArray(
+        "data/out/debugmeshSODist.plt", 0,
+        1,
+        [&](int i)
+        { return std::string("RKCell"); },
+        [&](int i, DNDS::index iv) -> real
+        {
+            return rkSerial[iv][0];
+        });
+
+    // std::cout << "\n";
 }

@@ -421,7 +421,7 @@ namespace DNDS
     class ArrayCascade
     {
 
-    private:
+    public:
         std::vector<uint8_t> data;
         // std::vector<uint8_t> dataGhost;
         MPIInfo mpi;
@@ -500,6 +500,7 @@ namespace DNDS
         ArrayCascade(ArrayCascade<T> *nfather) : mpi(nfather->mpi)
         {
             assert(nfather);
+            // std::cout << "Call pointer init " << nfather << std::endl;
             father = nfather;
             father->son = this;
         }
@@ -599,6 +600,7 @@ namespace DNDS
         }
 
         // use as father; use local index at ghost to get T data
+        // not recommended
         T indexGhostData(index i)
         {
             assert(son); // must have son
@@ -610,14 +612,14 @@ namespace DNDS
             return T(dataGhost.data() + std::get<0>(indexInfo), std::get<1>(indexInfo), context, i);
         }
 
-        index size() { return indexer.Length; } // in unit of T instances
-        index sizeGhost()                       // in unit of T instances
+        index size() const { return indexer.Length; } // in unit of T instances
+        index sizeGhost() const                       // in unit of T instances
         {
             assert(son); // must have son
             return son->indexer.Length;
         };
-        index sizeByte() { return indexer.LengthByte(); } // in unit of bytes
-        index sizeByteGhost()                             // in unit of bytes
+        index sizeByte() const { return indexer.LengthByte(); } // in unit of bytes
+        index sizeByteGhost() const                             // in unit of bytes
         {
             assert(son); // must have son
             return son->indexer.LengthByte();
@@ -639,6 +641,22 @@ namespace DNDS
             clearGlobalMapping();
         }
 
+        /**
+         * @brief think clear before using, using same comm topology
+         * \post a counted share of global and ghost mappings
+         */
+        template <class TR>
+        void BorrowGGIndexing(const ArrayCascade<TR> &Rarray)
+        {
+            // assert(father && Rarray.father); // Rarray's father is not visible...
+            // assert(father->obtainTotalSize() == Rarray.father->obtainTotalSize());
+            assert(Rarray.pLGhostMapping && Rarray.pLGlobalMapping);
+            assert(Rarray.commStat.hasGhostMapping && Rarray.commStat.hasGlobalMapping);
+            pLGhostMapping = Rarray.pLGhostMapping;
+            pLGlobalMapping = Rarray.pLGlobalMapping;
+            commStat.hasGhostMapping = commStat.hasGlobalMapping = true;
+        }
+
         // *** warning: cascade arrays' comm set sequence are for sons/ghosts side to execute***
         /******************************************************************************************************************************/
         // recommend: TPullSet == tIndexVec (& &&),
@@ -649,9 +667,9 @@ namespace DNDS
          * \post pLGlobalMapping pLGhostMapping established
          */
 
-        void createGlobalMapping()
+        void createGlobalMapping() // collective;
         {
-            assert(father); // has to be a son
+            assert(bool(father)); // has to be a son
             // phase1.1: create localGlobal mapping (broadcast)
             pLGlobalMapping = std::make_shared<GlobalOffsetsMapping>();
             pLGlobalMapping->setMPIAlignBcast(mpi, father->size()); // cascade from father
@@ -659,9 +677,9 @@ namespace DNDS
         }
 
         template <class TPullSet>
-        void createGhostMapping(TPullSet &&pullingIndexGlobal)
+        void createGhostMapping(TPullSet &&pullingIndexGlobal) // collective;
         {
-            assert(father); // has to be a son
+            assert(bool(father)); // has to be a son
             assert(commStat.hasGlobalMapping);
             // phase1.2: count how many to pull and allocate the localGhost mapping, fill the mapping
             // counting could overflow
@@ -675,9 +693,9 @@ namespace DNDS
         }
 
         template <class TPushSet, class TPushStart>
-        void createGhostMapping(TPushSet &&pushingIndexLocal, TPushStart &&pushStarts)
+        void createGhostMapping(TPushSet &&pushingIndexLocal, TPushStart &&pushStarts) // collective;
         {
-            assert(father); // has to be a son
+            assert(bool(father)); // has to be a son
             assert(commStat.hasGlobalMapping);
             // phase1.2: count how many to pull and allocate the localGhost mapping, fill the mapping
             // counting could overflow
@@ -697,9 +715,15 @@ namespace DNDS
          * \pre has pLGlobalMapping pLGhostMapping
          * \post my indexer pPullTypeVec pPushTypeVec established
          */
-        void createMPITypes()
+        void createMPITypes() // collective;
         {
-            assert(father);
+            if (!father)
+            {
+                std::cout << "\n\n\nRank " << mpi.rank << " \n"
+                          << father << std::endl;
+            }
+            assert(bool(father));
+
             assert(commStat.hasGlobalMapping && commStat.hasGhostMapping);
             assert(pLGhostMapping.use_count() > 0 && pLGlobalMapping.use_count() > 0);
             /*********************************************/ // starts to deal with actual byte sizes
@@ -785,7 +809,7 @@ namespace DNDS
          * \post PushReqVec established
          * \warning after init, raw buffers of data for both father and son/ghost should remain static
          */
-        void initPersistentPush()
+        void initPersistentPush() // collective;
         {
             assert(commStat.hasCommTypes);
             assert(pPullTypeVec.use_count() > 0 && pPushTypeVec.use_count() > 0);
@@ -819,7 +843,7 @@ namespace DNDS
          * \post PullReqVec established
          * \warning after init, raw buffers of data for both father and son/ghost should remain static
          */
-        void initPersistentPull()
+        void initPersistentPull() // collective;
         {
             assert(commStat.hasCommTypes);
             assert(pPullTypeVec.use_count() > 0 && pPushTypeVec.use_count() > 0);
@@ -830,7 +854,7 @@ namespace DNDS
             {
                 auto dtypeInfo = (*pPullTypeVec)[ip];
                 MPI_int rankOther = dtypeInfo.first;
-                MPI_int tag = rankOther + mpi.rank;
+                MPI_int tag = rankOther + mpi.rank; //! receives a lot of messages, this distinguishes them
                 // std::cout << mpi.rank << " Recv " << rankOther << std::endl;
                 MPI_Recv_init(data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PullReqVec.data() + ip);
                 // std::cout << *(real *)(dataGhost.data() + 8 * 0) << std::endl;
@@ -850,14 +874,14 @@ namespace DNDS
         }
         /******************************************************************************************************************************/
 
-        void startPersistentPush()
+        void startPersistentPush() // collective;
         {
             assert(commStat.hasPersistentPushReqs && commStat.PersistentPushFinished);
             if (PushReqVec.size())
                 MPI_Startall(PushReqVec.size(), PushReqVec.data());
             commStat.PersistentPushFinished = false;
         }
-        void startPersistentPull()
+        void startPersistentPull() // collective;
         {
             assert(commStat.hasPersistentPullReqs && commStat.PersistentPullFinished);
             if (PullReqVec.size())
@@ -865,14 +889,14 @@ namespace DNDS
             commStat.PersistentPullFinished = false;
         }
 
-        void waitPersistentPush()
+        void waitPersistentPush() // collective;
         {
             assert(commStat.hasPersistentPushReqs && !commStat.PersistentPushFinished);
             if (PushReqVec.size())
                 MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data());
             commStat.PersistentPushFinished = true;
         }
-        void waitPersistentPull()
+        void waitPersistentPull() // collective;
         {
             assert(commStat.hasPersistentPullReqs && !commStat.PersistentPullFinished);
             if (PullReqVec.size())
@@ -880,20 +904,20 @@ namespace DNDS
             commStat.PersistentPullFinished = true;
         }
 
-        void clearPersistentPush()
+        void clearPersistentPush() // collective;
         {
             assert(commStat.PersistentPushFinished);
             PushReqVec.clear(); // stat vec is left untouched here
             commStat.hasPersistentPushReqs = false;
         }
-        void clearPersistentPull()
+        void clearPersistentPull() // collective;
         {
             assert(commStat.PersistentPullFinished);
             PullReqVec.clear();
             commStat.hasPersistentPullReqs = false;
         }
 
-        void clearMPITypes()
+        void clearMPITypes() // collective;
         {
             assert(!commStat.hasPersistentPullReqs && !commStat.hasPersistentPushReqs);
             pPullTypeVec.reset();
@@ -901,26 +925,41 @@ namespace DNDS
             commStat.hasCommTypes = false;
         }
 
-        void clearGlobalMapping()
+        void clearGlobalMapping() // collective;
         {
             assert(!commStat.hasGhostMapping);
             pLGlobalMapping.reset();
             commStat.hasGlobalMapping = false;
         }
 
-        void clearGhostMapping()
+        void clearGhostMapping() // collective;
         {
             assert(!commStat.hasCommTypes);
             pLGhostMapping.reset();
             commStat.hasGhostMapping = false;
         }
 
+        void pullOnce() // collective;
+        {
+            initPersistentPull();
+            startPersistentPull();
+            waitPersistentPull();
+            clearPersistentPull();
+        }
+
+        void pushOnce() // collective;
+        {
+            initPersistentPush();
+            startPersistentPush();
+            waitPersistentPush();
+            clearPersistentPush();
+        }
+
         /**
-         * @brief should be barriered before hand
+         * @brief collective; should be logically barriered before hand
          *
          */
-        void
-        LogStatus(bool printData0 = false)
+        void LogStatus(bool printData0 = false)
         {
             if (mpi.rank == 0)
             {
@@ -961,6 +1000,29 @@ namespace DNDS
                 MPI_Send(ptrs, 3, DNDS_MPI_INDEX, 0, mpi.rank + 1 * mpi.size, mpi.comm);
                 MPI_Send(&commStat, sizeof(ArrayCommStat), MPI_BYTE, 0, mpi.rank + 3 * mpi.size, mpi.comm);
             }
+        }
+
+        /**
+         * @brief collective; get the total size & sizebyte
+         * should be logically barriered before hand
+         */
+        index obtainTotalSize() const
+        {
+            index siz = size();
+            index sizeSum;
+            MPI_Allreduce(&siz, &sizeSum, 1, DNDS_MPI_INDEX, MPI_SUM, mpi.comm);
+            return sizeSum;
+        }
+        /**
+         * @brief collective; get the total size & sizebyte
+         * should be logically barriered before hand
+         */
+        index obtainTotalSizeByte()
+        {
+            index siz = sizeByte();
+            index sizeSum;
+            MPI_Allreduce(&siz, &sizeSum, 1, DNDS_MPI_INDEX, MPI_SUM, mpi.comm);
+            return sizeSum;
         }
     };
 }
@@ -1017,4 +1079,5 @@ namespace DNDS
                 f(e, i, e[j], j);
         }
     }
+
 }
