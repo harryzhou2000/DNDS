@@ -439,6 +439,7 @@ namespace DNDS
         // basic aux info
         typedef typename T::Indexer tIndexer;
         typedef typename T::Context tContext;
+        typedef typename T::tElement tElement;
         typedef T tComponent;
         tContext context;
         tIndexer indexer;
@@ -487,8 +488,7 @@ namespace DNDS
               indexer(context), mpi(nmpi)
         {
             data.resize(indexer.LengthByte(), 0);
-            // std::cout << "IndexerLengthByte " << indexer.LengthByte() << std::endl;
-            // ghostIndexer is initialized as empty
+            initializeData();
         }
         /******************************************************************************************************************************/
 
@@ -535,8 +535,10 @@ namespace DNDS
             commStat.PersistentPullFinished = true;
         }
 
+    private:
         /**
-         *  \brief  copyer, comm topology copied, not copying ghostIndexer, not copying any data, comm-type, ReqVec or StatVec
+         *  \brief //!deprecated
+         *   copyer, comm topology copied, not copying ghostIndexer, not copying any data, comm-type, ReqVec or StatVec
          *  \warning To do comm-s, must createMPITypes -> InitPersistent... -> start/wait
          */
         template <class TtContext, class TR>
@@ -565,7 +567,10 @@ namespace DNDS
             commStat.PersistentPushFinished = true;
             commStat.hasPersistentPullReqs = false;
             commStat.PersistentPullFinished = true;
+            initializeData();
         }
+
+    public:
         /******************************************************************************************************************************/
 
         // template <class TtContext>
@@ -587,6 +592,21 @@ namespace DNDS
                 if (father->son == this)
                     father->son = nullptr;
                 father = nullptr;
+            }
+        }
+
+        void initializeData()
+        {
+            if (!context.needInitialize)
+                return;
+            for (index i = 0; i < size(); i++)
+            {
+                auto indexInfo = indexer[i];
+                assert(std::get<0>(indexInfo) + std::get<1>(indexInfo) <= data.size());
+                assert(std::get<0>(indexInfo) >= 0);
+                context.fInit((tElement *)(data.data() + std::get<0>(indexInfo)),
+                              std::get<1>(indexInfo),
+                              i);
             }
         }
 

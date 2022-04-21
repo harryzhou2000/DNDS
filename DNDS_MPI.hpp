@@ -50,11 +50,13 @@ namespace DNDS
         }
     };
 
-    void InsertCheck(const MPIInfo &mpi)
+    inline void InsertCheck(const MPIInfo &mpi, const std::string &info = "")
     {
+#ifndef NDEBUG
         MPI_Barrier(mpi.comm);
-        std::cout << "=== CHECK RANK " << mpi.rank << " ===" << std::endl;
+        std::cout << "=== CHECK \"" << info << "\"  RANK " << mpi.rank << " ===" << std::endl;
         MPI_Barrier(mpi.comm);
+#endif
     }
 
     template <class F>

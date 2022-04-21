@@ -1,4 +1,5 @@
 #include "../DNDS_Mesh.hpp"
+#include "../DNDS_VR.hpp"
 
 void testA();
 
@@ -57,6 +58,13 @@ void testA()
         {
             return rkSerial[iv][0];
         });
+
+    ImplicitFiniteVolume2D fv(&mesh);
+    VRFiniteVolume2D vfv(&mesh,&fv);
+    vfv.initIntScheme();
+    vfv.initMoment();
+    vfv.initBaseDiffCache();
+    
 
     // std::cout << "\n";
 }

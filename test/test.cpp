@@ -25,8 +25,8 @@ int main(int argc, char *argv[])
     // testMPI();
     // testGhost();
     // testGhostLarge_Cascade();
-    // testPoint();
-    testAdj();
+    testPoint();
+    // testAdj();
 
     ierr = MPI_Finalize();
     return 0;
@@ -385,10 +385,35 @@ void testPoint()
                 std::vector<int> matSizes(nmats * 2);
                 for (int i = 0; i < nmats; i++)
                     matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 12;
+
                 return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+            },
+            [&](uint8_t *data, DNDS::index siz, DNDS::index i)
+            {
+                int nmats = i % 3 + 1;
+                std::vector<int> matSizes(nmats * 2);
+                for (int i = 0; i < nmats; i++)
+                    matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 12;
+
+                DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
             },
             150),
         mpi);
+
+    // DNDS::ArrayCascade<DNDS::SmallMatricesBatch> Array1(
+    //     DNDS::SmallMatricesBatch::Context(
+    //         [&](DNDS::index i) -> DNDS::rowsize
+    //         {
+    //             int nmats = i % 3 + 1;
+    //             std::vector<int> matSizes(nmats * 2);
+    //             for (int i = 0; i < nmats; i++)
+    //                 matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 12;
+
+    //             return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+    //         },
+    //         150),
+    //     mpi); // can't call
+    
     for (int i = 0; i < 150; i++)
     {
         auto b = ArrayM[i];
@@ -398,7 +423,7 @@ void testPoint()
         for (int i = 0; i < nmats; i++)
             matSizes[i * 2 + 0] = matSizes[i * 2 + 1] = i + 12;
         ///
-        b.Initialize(nmats, matSizes);
+        // b.Initialize(nmats, matSizes);
         for (int im = 0; im < b.getNMat(); im++)
             b.m(im).setIdentity();
     }

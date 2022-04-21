@@ -64,4 +64,60 @@ namespace DNDS
         }
     }
 
+    template <class T>
+    struct ArrayCascadeLocal
+    {
+        typedef ArrayCascade<T> tArray;
+        typedef ArrayCascadePair<T> tPair;
+        std::shared_ptr<ArrayCascade<T>> dist;
+        std::shared_ptr<ArrayCascade<T>> ghost;
+        std::shared_ptr<ArrayCascadePair<T>> pair;
+
+        void Copy(ArrayCascadeLocal<T> &R)
+        {
+            dist = std::make_shared<ArrayCascade<T>>(R.dist);
+            ghost = std::make_shared<ArrayCascade<T>>(dist.get());
+            ghost->BorrowGGIndexing(*R.ghost);
+            ghost->createMPITypes();
+            MakePair();
+        }
+
+        template <class TR>
+        void CreateGhostCopyComm(ArrayCascadeLocal<TR> &R)
+        {
+            assert(dist);
+            ghost = std::make_shared<ArrayCascade<T>>(dist.get());
+            ghost->BorrowGGIndexing(*R.ghost);
+            ghost->createMPITypes();
+            MakePair();
+        }
+
+        void MakePair()
+        {
+            pair = std::make_shared<ArrayCascadePair<T>>(*dist, *ghost);
+        }
+
+        void PullOnce()
+        {
+            ghost->pullOnce();
+        }
+
+        void PushOnce()
+        {
+            ghost->pushOnce();
+        }
+
+        // index the pair
+        T operator[](index i)
+        {
+            assert(pair);
+            return pair->operator[](i);
+        }
+
+        index size() const
+        {
+            return pair->size();
+        }
+    };
+
 }

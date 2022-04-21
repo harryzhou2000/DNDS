@@ -339,7 +339,7 @@ namespace DNDS
                                               {1, 1, 1, 1}};
         static const real GaussQuad9[3][9] = {{-0.7745966692414833, 0, 0.7745966692414833, -0.7745966692414833, 0, 0.7745966692414833, -0.7745966692414833, 0, 0.7745966692414833},
                                               {-0.7745966692414833, -0.7745966692414833, -0.7745966692414833, 0, 0, 0, 0.7745966692414833, 0.7745966692414833, 0.7745966692414833},
-                                              {25. / 81., 40. / 81., 25. / 81., 40. / 81., 64. / 81., 40. / 9., 25. / 81., 40. / 81., 25. / 81.}};
+                                              {25. / 81., 40. / 81., 25. / 81., 40. / 81., 64. / 81., 40. / 81., 25. / 81., 40. / 81., 25. / 81.}};
 
         static const real GaussQuad16[3][16] = {{-0.861136311594054, -0.339981043584857, 0.339981043584856, 0.861136311594053,
                                                  -0.861136311594054, -0.339981043584857, 0.339981043584856, 0.861136311594053,
@@ -379,7 +379,7 @@ namespace DNDS
             {9. / 80., HammerTri7W1, HammerTri7W1, HammerTri7W1, HammerTri7W2, HammerTri7W2, HammerTri7W2},
         };
 
-        typedef uint8_t tIntScheme;
+        typedef int8_t tIntScheme;
         static const tIntScheme INT_SCHEME_LINE_1 = 0;
         static const tIntScheme INT_SCHEME_LINE_2 = 1;
         static const tIntScheme INT_SCHEME_LINE_3 = 2;
@@ -415,6 +415,7 @@ namespace DNDS
         /// including up to 3 orders or diffs
         static const int ndiff = 3;
         static const int ndiffSiz = 20;
+        static const int ndiffSiz2D = 10;
         static const int diffOperatorOrderList[ndiffSiz][3] = {
             {0, 0, 0}, // 00
             {1, 0, 0}, // 01 0
@@ -437,9 +438,52 @@ namespace DNDS
             {0, 1, 2}, // 18 122
             {0, 0, 3}, // 19 222
         };
+        static const int diffOperatorOrderList2D[ndiffSiz2D][3] = {
+            {0, 0, 0}, // 00 00
+            {1, 0, 0}, // 01 01 0
+            {0, 1, 0}, // 02 02 1
+            {2, 0, 0}, // 03 04 00
+            {1, 1, 0}, // 04 05 01
+            {0, 2, 0}, // 05 07 11
+            {3, 0, 0}, // 06 10 000
+            {2, 1, 0}, // 07 11 001
+            {1, 2, 0}, // 08 13 011
+            {0, 3, 0}, // 09 16 111
+        };
+        static const int factorials[ndiff + 2] = {
+            1, 1, 1 * 2, 1 * 2 * 3, 1 * 2 * 3 * 4};
+
+        static const int dFactorials[ndiff + 1][ndiff + 1] = {
+            {1, 0, 0, 0},
+            {1, 1, 0, 0},
+            {1, 2, 2, 0},
+            {1, 3, 6, 6}};
+
+        inline real iPow(int p, real x)
+        {
+            switch (p)
+            {
+            case 0:
+                return 1.;
+            case 1:
+                return x;
+            case 2:
+                return x * x;
+            case 3:
+                return x * x * x;
+            default:
+                return 1e300;
+                break;
+            }
+        }
+
+#define DNDS_DIFF3Dto2DMAP ({0, 1, 2, 4, 5, 7, 10, 11, 13, 16})
 
         static const int diffOperatorOrderRange[ndiff + 2] = {
             0, 1, 4, 10, 20};
+
+        static const int diffOperatorOrderRange2D[ndiff + 2] = {
+            0, 1, 3, 6, 10};
 
         inline int getDiffOrderFromDiffSize(int diffSize)
         {
@@ -543,20 +587,46 @@ namespace DNDS
             inline int getNFace() { return Nface; }
             inline int getNNode() { return Nnode; }
             inline int getNVert() { return Nvert; }
-            inline tIntScheme getIGauss() { return iInt; }
+            inline tIntScheme getIIntScheme() { return iInt; }
+            inline int getNInt() { return nIntPoint; }
+
             inline void setType(ElemType ntype, tIntScheme NIntSchemeIndex)
             {
                 elemType = ntype;
-                iInt = NIntSchemeIndex;
-                paramSpace = paramSpaceList[ntype];
-                nIntPoint = IntSchemeSize[paramSpace][iInt];
-                bufInt = IntSchemeBuffPos[paramSpace][iInt];
-                // assert(nIntPoint > 0 && iInt < 5 && iInt >= 0 && bufInt && bufInt[dim * nIntPoint - 1] > 0. && bufInt[dim * nIntPoint - 1] <= 4.);
                 dim = DimOrderListNVNNNF[ntype][0];
                 order = DimOrderListNVNNNF[ntype][1];
                 Nvert = DimOrderListNVNNNF[ntype][2];
                 Nnode = DimOrderListNVNNNF[ntype][3];
                 Nface = DimOrderListNVNNNF[ntype][4];
+                paramSpace = paramSpaceList[ntype];
+
+                if (NIntSchemeIndex < 0)
+                    NIntSchemeIndex = 0; // <- means doesn't matter which//! or could refuse to initialize int scheme
+                iInt = NIntSchemeIndex;
+                nIntPoint = IntSchemeSize[paramSpace][iInt];
+                bufInt = IntSchemeBuffPos[paramSpace][iInt];
+                // assert(nIntPoint > 0 && iInt < 5 && iInt >= 0 && bufInt && bufInt[dim * nIntPoint - 1] > 0. && bufInt[dim * nIntPoint - 1] <= 4.);
+            }
+            inline tPoint getCenterPParam()
+            {
+                switch (paramSpace)
+                {
+                case ParamSpace::LineSpace:
+                case ParamSpace::HexSpace:
+                case ParamSpace::QuadSpace:
+                    return tPoint{0, 0, 0};
+                case ParamSpace::TriSpace:
+                    return tPoint{1. / 3., 1. / 3., 0};
+                case ParamSpace::TetSpace:
+                    return tPoint{0.25, 0.25, 0.25};
+                case ParamSpace::PyramidSpace:
+                    return tPoint{0, 0, 0.25};
+                case ParamSpace::PrismSpace:
+                    return tPoint{1. / 3., 1. / 3., 0};
+                default:
+                    assert(false);
+                    break;
+                }
             }
             inline ElementManager ObtainFace(int iface, tIntScheme faceiInt)
             {
@@ -564,8 +634,10 @@ namespace DNDS
                 return ElementManager(FaceTypeList[elemType][iface], faceiInt);
             }
 
+            // returns param coord of int point
             inline void GetIntPoint(int iGpoint, tPoint &p)
             {
+                assert(iGpoint < nIntPoint);
                 int d;
                 for (d = 0; d < dim; d++)
                     p[d] = bufInt[d * nIntPoint + iGpoint];
@@ -664,6 +736,101 @@ namespace DNDS
                 }
             }
 
+            /// \brief convert point in certain face of the element to element space, as face is not standard need extra conversion
+            template <class TP, class TArray, class TArray2>
+            void FaceSpace2VolSpace(int iface, const TP &pface, TP &pvol, const TArray &faceNodes, const TArray2 &faceSTDNodes)
+            {
+                assert(iface >= 0 && iface < Nface);
+                // // TODO: implement now
+                switch (paramSpace)
+                {
+                case ParamSpace::TriSpace:
+                    assert((faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1]) ||
+                           (faceNodes[0] == faceSTDNodes[1] && faceNodes[1] == faceSTDNodes[0]));
+                    if (faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1])
+                        switch (iface)
+                        {
+                        case 0:
+                            pvol[0] = pface[0], pvol[1] = pvol[2] = 0.;
+                            break;
+                        case 1:
+                            pvol[0] = 1 - pface[0], pvol[1] = pface[0], pvol[2] = 0.;
+                            break;
+                        case 2:
+                            pvol[0] = 0, pvol[1] = 1 - pface[0], pvol[2] = 0.;
+                            break;
+                        default:
+                            assert(false);
+                            break;
+                        }
+                    else
+                        switch (iface)
+                        {
+                        case 0:
+                            pvol[0] = 1 - pface[0], pvol[1] = pvol[2] = 0.;
+                            break;
+                        case 1:
+                            pvol[0] = pface[0], pvol[1] = 1 - pface[0], pvol[2] = 0.;
+                            break;
+                        case 2:
+                            pvol[0] = 0, pvol[1] = pface[0], pvol[2] = 0.;
+                            break;
+                        default:
+                            assert(false);
+                            break;
+                        }
+                    break;
+
+                case ParamSpace::QuadSpace:
+                    assert((faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1]) ||
+                           (faceNodes[0] == faceSTDNodes[1] && faceNodes[1] == faceSTDNodes[0]));
+                    if (faceNodes[0] == faceSTDNodes[0])
+                        switch (iface)
+                        {
+                        case 0:
+                            pvol[0] = pface[0], pvol[1] = pvol[2] = 0.;
+                            break;
+                        case 1:
+                            pvol[0] = 1, pvol[1] = pface[0], pvol[2] = 0.;
+                            break;
+                        case 2:
+                            pvol[0] = -pface[0], pvol[1] = 1, pvol[2] = 0.;
+                            break;
+                        case 3:
+                            pvol[0] = 0, pvol[1] = -pface[0], pvol[2] = 0.;
+                            break;
+                        default:
+                            assert(false);
+                            break;
+                        }
+                    else
+                        switch (iface)
+                        {
+                        case 0:
+                            pvol[0] = -pface[0], pvol[1] = pvol[2] = 0.;
+                            break;
+                        case 1:
+                            pvol[0] = 1, pvol[1] = -pface[0], pvol[2] = 0.;
+                            break;
+                        case 2:
+                            pvol[0] = pface[0], pvol[1] = 1, pvol[2] = 0.;
+                            break;
+                        case 3:
+                            pvol[0] = 0, pvol[1] = pface[0], pvol[2] = 0.;
+                            break;
+                        default:
+                            assert(false);
+                            break;
+                        }
+                    break;
+                default:
+                    log() << "FaceSpace2VolSpace: space not supported!\n"
+                          << std::endl;
+                    assert(false);
+                    break;
+                }
+            }
+
             /// \brief guassMAP[igaussPointInFace] = iguassPointInFaceSTD
             /// assumes faceNodes and faceSTDNodes represent same-place elements
             template <class TArray, class TArrayG>
@@ -698,8 +865,8 @@ namespace DNDS
              * \param nodes my nodes
              * \param faceElem face elem returned by ObtainFace()
              * */
-            template <class TArray>
-            void SubstractFaceNodes(int iface, const ElementManager &faceElem, const TArray &nodes, TArray &faceNodes)
+            template <class TArray, class TArray2>
+            void SubstractFaceNodes(int iface, const ElementManager &faceElem, const TArray &nodes, TArray2 &faceNodes)
             {
                 assert(iface < Nface && iface >= 0);
                 for (int i = 0; i < faceElem.Nnode; i++)
@@ -713,8 +880,8 @@ namespace DNDS
              * \param DiNj = diff_i(N_j),  DiNj.rows() is also a input note that when j >= Nnode, the value
              * returned is not filled
              * */
-            template <class TPoint> // TPoint remains general now
-            void GetDiNj(const TPoint &p, tDiFj &DiNj)
+            template <class TPoint, class TDiFj> // TPoint remains general now
+            void GetDiNj(const TPoint &p, TDiFj &DiNj)
             {
                 int diffOrder = getDiffOrderFromDiffSize(DiNj.rows());
                 assert(DiNj.cols() >= Nnode);
@@ -1028,7 +1195,7 @@ namespace DNDS
              * the values of N, dNdxii... on gauss points should be stored, they are accessed by Intergration to calculate J (or J could be cached???),
              * and N, dNdxii stored on face gauss points should be accessed by face's Integration's f
              *
-             * \param f likely std::function<void(Tacc &, int, Tpoint &, tDiFj &)>,
+             * \param f likely std::function<void(Tacc & inc, int ig, Tpoint & pparam, tDiFj & DiFj)>,
              * accepts: (returned value to accumulate) (integration index in volume) (point in volume as param space) (DiNj for this volume at this point)
              * f may need info from father volumes (eg: DiNj) or some coords, so do it by hand with lambda or functors
              */
@@ -1152,6 +1319,24 @@ namespace DNDS
         {
             return DiNj({1, 2, 3}, Eigen::all) * coords.transpose();
         }
-    }
-}
 
+        tPoint Jacobi2LineNorm2D(const tJacobi &Jacobi)
+        {
+            assert(Jacobi(0, 2) == 0.0);
+            return tPoint{Jacobi(0, 1), -Jacobi(0, 0), 0.0};
+        }
+    }
+
+    bool CompareIndexVectors(std::vector<index> l, std::vector<index> r)
+    {
+        if (l.size() != r.size())
+            return false;
+        std::sort(l.begin(), l.end());
+        std::sort(r.begin(), r.end());
+        for (index i = 0; i < l.size(); i++)
+            if (l[i] != r[i])
+                return false;
+        return true;
+    }
+
+}

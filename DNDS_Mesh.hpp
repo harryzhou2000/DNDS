@@ -188,6 +188,7 @@ namespace DNDS
                                 break;
                             std::cmatch m;
                             auto ret = std::regex_search(line.c_str(), m, regPhyContent);
+                            std::cout << line << std::endl;
                             assert(ret);
 
                             index dim, iphy;
@@ -569,7 +570,7 @@ namespace DNDS
 namespace DNDS
 {
 
-    struct ElemAtrributes
+    struct ElemAttributes
     {
         index iPhy;
         Elem::ElemType type;
@@ -578,7 +579,7 @@ namespace DNDS
 
     typedef ArrayCascade<VarBatch<index>> tAdjArrayCascade;
     typedef ArrayCascade<Batch<index, 2>> tAdjStatic2ArrayCascade;
-    typedef ArrayCascade<Batch<ElemAtrributes, 1>> tElemAtrArrayCascade;
+    typedef ArrayCascade<Batch<ElemAttributes, 1>> tElemAtrArrayCascade;
     typedef ArrayCascade<Vec3DBatch> tVec3DArrayCascade;
 
     class CompactFacedMeshSerialRW
@@ -629,18 +630,28 @@ namespace DNDS
         std::shared_ptr<tAdjArrayCascade> cell2nodeDistGhost;
         std::shared_ptr<tAdjArrayCascade> cell2faceDistGhost;
         std::shared_ptr<tElemAtrArrayCascade> cellAtrDistGhost;
+        std::shared_ptr<ArrayCascadePair<tAdjArrayCascade::tComponent>> cell2facePair;
+        ArrayCascadeLocal<tAdjArrayCascade::tComponent> cell2faceLocal;
         std::shared_ptr<ArrayCascadePair<tAdjArrayCascade::tComponent>> cell2nodePair;
+        ArrayCascadeLocal<tAdjArrayCascade::tComponent> cell2nodeLocal;
         std::shared_ptr<ArrayCascadePair<tElemAtrArrayCascade::tComponent>> cellAtrPair;
+        ArrayCascadeLocal<tElemAtrArrayCascade::tComponent> cellAtrLocal;
 
         std::shared_ptr<tAdjArrayCascade> face2nodeDistGhost;
         std::shared_ptr<tAdjStatic2ArrayCascade> face2cellDistGhost;
         std::shared_ptr<tElemAtrArrayCascade> faceAtrDistGhost;
         std::shared_ptr<ArrayCascadePair<tAdjStatic2ArrayCascade::tComponent>> face2cellPair;
+        ArrayCascadeLocal<tAdjStatic2ArrayCascade::tComponent> face2cellLocal;
         std::shared_ptr<ArrayCascadePair<tAdjArrayCascade::tComponent>> face2nodePair;
+        ArrayCascadeLocal<tAdjArrayCascade::tComponent> face2nodeLocal;
         std::shared_ptr<ArrayCascadePair<tElemAtrArrayCascade::tComponent>> faceAtrPair;
+        ArrayCascadeLocal<tElemAtrArrayCascade::tComponent> faceAtrLocal;
 
         std::shared_ptr<tVec3DArrayCascade> nodeCoordsDistGhost;
         std::shared_ptr<ArrayCascadePair<tVec3DArrayCascade::tComponent>> nodeCoordsPair;
+        ArrayCascadeLocal<tVec3DArrayCascade::tComponent> nodeCoordsLocal;
+
+        ArrayCascadeLocal<tAdjStatic2ArrayCascade::tComponent> face2cellRefLocal;
 
         // std::shared_ptr<tAdjArrayCascade> cell2Localnode;
         // std::shared_ptr<tAdjArrayCascade> cell2Localface;
@@ -1074,8 +1085,9 @@ namespace DNDS
             cell2faceDistGhost->createMPITypes();
             cell2faceDistGhost->pullOnce(); //! cell2face's ghost is redundant here, as no ghost face is actually done
             pCellGhostMapping = cell2faceDistGhost->pLGhostMapping;
+            cell2facePair = std::make_shared<decltype(cell2facePair)::element_type>(*cell2faceDist, *cell2faceDistGhost);
 
-            cell2nodeDistGhost = std::make_shared<tAdjArrayCascade>(cell2nodeDist.get()); //!note: don't write as std::shared_ptr<>() which mistakes as a pointer sharing
+            cell2nodeDistGhost = std::make_shared<tAdjArrayCascade>(cell2nodeDist.get()); //! note: don't write as std::shared_ptr<>() which mistakes as a pointer sharing
             cell2nodeDistGhost->BorrowGGIndexing(*cell2faceDistGhost);
             cell2nodeDistGhost->createMPITypes();
             cell2nodeDistGhost->pullOnce();
@@ -1126,16 +1138,19 @@ namespace DNDS
             // convert Adj arrays to point to local arrays
             // cell2face only main part is converted , !! ghost part ignored
             // cell2node all is converted
+            // !all Adj after this should not be communicated
 
-            forEachBasicInArray(
-                *cell2faceDist,
+            forEachBasicInArrayPair(
+                *cell2facePair,
                 [&](tAdjArrayCascade::tComponent &c2f, index ic, index &iff, index icf)
                 {
                     MPI_int rank;
                     index val;
                     bool found = pFaceGhostMapping->search_indexAppend(iff, rank, val);
-                    assert(found); // every inner cell must have all faces in pair
-                    iff = val;     // global -> local_pair
+                    if (found)
+                        iff = val; // global -> local_pair
+                    else           // !else not local face, remains -1- global_face
+                        iff = -1 - iff;
                 });
             forEachBasicInArrayPair(
                 *cell2nodePair,
@@ -1151,6 +1166,8 @@ namespace DNDS
                 *face2cellPair,
                 [&](tAdjStatic2ArrayCascade::tComponent &f2c, index iff, index &ic, index ifc)
                 {
+                    // if (mpi.rank == 0)
+                    //     std::cout << ic << std::endl;
                     if (ic == FACE_2_VOL_EMPTY)
                         return;
                     MPI_int rank;
@@ -1171,8 +1188,100 @@ namespace DNDS
                 });
 
             // now the mesh data:
-            //  cell2nodePair, cell2facePair, face2nodePair, face2cellPair, nodeCoordsPair
+            //  cell2nodePair, cell2faceDist(not pair), face2nodePair, face2cellPair, , nodeCoordsPair, cellAtrPair, faceAtrPair
+
+            // convert to Local triplets to make copying convenient
+            cell2nodeLocal.dist = cell2nodeDist;
+            cell2nodeLocal.ghost = cell2nodeDistGhost;
+            cell2nodeLocal.pair = cell2nodePair;
+            cellAtrLocal.dist = cellAtrDist;
+            cellAtrLocal.ghost = cellAtrDistGhost;
+            cellAtrLocal.pair = cellAtrPair;
+            cell2faceLocal.dist = cell2faceDist;
+            cell2faceLocal.ghost = cell2faceDistGhost;
+            cell2faceLocal.pair = cell2facePair;
+
+            face2nodeLocal.dist = face2nodeDist;
+            face2nodeLocal.ghost = face2nodeDistGhost;
+            face2nodeLocal.pair = face2nodePair;
+            face2cellLocal.dist = face2cellDist;
+            face2cellLocal.ghost = face2cellDistGhost;
+            face2cellLocal.pair = face2cellPair;
+            faceAtrLocal.dist = faceAtrDist;
+            faceAtrLocal.ghost = faceAtrDistGhost;
+            faceAtrLocal.pair = faceAtrPair;
+
+            nodeCoordsLocal.dist = nodeCoordsDist;
+            nodeCoordsLocal.ghost = nodeCoordsDistGhost;
+            nodeCoordsLocal.pair = nodeCoordsPair;
+
+            // face2cellRefLocal
+            face2cellRefLocal.dist = std::make_shared<tAdjStatic2ArrayCascade>(tAdjStatic2ArrayCascade::tContext(face2cellLocal.dist->size()), mpi);
+            face2cellRefLocal.CreateGhostCopyComm(face2cellLocal);
+            // std::cout << "FUCKED" << face2cellRefLocal.pair->size() << std::endl;
+            forEachInArrayPair(
+                *face2cellRefLocal.pair,
+                [&](tAdjStatic2ArrayCascade::tComponent &f2cr, index iff)
+                {
+                    auto f2c = face2cellLocal[iff];
+                    // cell 0
+                    auto c2f = cell2faceLocal[f2c[0]];
+                    int ic2f;
+                    for (ic2f = 0; ic2f < c2f.size(); ic2f++)
+                        if (c2f[ic2f] == iff)
+                        {
+                            f2cr[0] = ic2f;
+                            break;
+                        }
+                    assert(ic2f < c2f.size());
+                    // cell 1
+                    if (f2c[1] == FACE_2_VOL_EMPTY)
+                        return;
+                    c2f = cell2faceLocal[f2c[1]];
+                    for (ic2f = 0; ic2f < c2f.size(); ic2f++)
+                        if (c2f[ic2f] == iff)
+                        {
+                            f2cr[1] = ic2f;
+                            break;
+                        }
+                    // std::cout << "R Cell = " << ic2f << std::endl;
+                    assert(ic2f < c2f.size());
+                });
         }
+
+        // c2n must be pointing to local
+        void LoadCoords(const tAdjArrayCascade::tComponent &c2n, Eigen::MatrixXd &coords)
+        {
+            coords.resize(3, c2n.size());
+            for (int in = 0; in < c2n.size(); in++)
+                coords(Eigen::all, in) = nodeCoordsLocal[c2n[in]].p();
+        }
+
+        void FacePParam2Cell(index iCell, index iF2C, index iFace, const tAdjArrayCascade::tComponent &f2n, Elem::ElementManager &eFace, const Elem::tPoint &pFace, Elem::tPoint &pCell)
+        {
+            Elem::ElementManager eCell(this->cellAtrLocal[iCell][0].type, 0); // int scheme is not relevant here
+            index iFaceAtCell = this->face2cellRefLocal[iFace][iF2C];
+            std::vector<index> fNodeSTD(eFace.getNNode());
+            eCell.SubstractFaceNodes(iFaceAtCell, eFace, this->cell2nodeLocal[iCell], fNodeSTD);
+            // if (mpi.rank == 0)
+            // {
+            //     std::cout << iCell << outputDelim << iFace << outputDelim;
+            //     PrintVec(fNodeSTD, std::cout);
+            //     std::cout << f2n << std::endl;
+            // }
+            eCell.FaceSpace2VolSpace(iFaceAtCell, pFace, pCell, f2n, fNodeSTD);
+        }
+
+        // struct CellIterContext
+        // {
+        //     index iCell; // local-ghost appended index
+        //     VarBatch<index> c2f;
+        //     VarBatch<index> c2n;
+        //     VarBatch<index> c2c;
+        //     Eigen::MatrixXd coords;
+        //     Batch<ElemAttributes, 1> atr;
+        //     Elem::ElementManager elemMan;
+        // };
 
         void PrintSerialPartPltASCIIDBG(const std::string &fname, MPI_int oprank) //! supports 2d here
         {

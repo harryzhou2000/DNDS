@@ -27,11 +27,15 @@ namespace DNDS
         T *data;
 
     public:
-        static std::string Tname;
+        static std::string Tname;                                    // array-component-must-have
+        typedef std::function<void(T *, index, index)> fInitializer; //(T* data, index size, index place)
+        typedef T tElement;                                          // array-component-must-have
 
         struct Context
         {
-            static std::string Tname;
+            static std::string Tname;    // array-component-must-have
+            bool needInitialize = false; // array-component-must-have
+            fInitializer fInit;          // array-component-must-have
 
             index Length;
 
@@ -82,6 +86,11 @@ namespace DNDS
             }
         };
 
+        Batch()
+        {
+            data = nullptr;
+        }
+
         Batch(uint8_t *dataPos, index size, const Context &context, index i)
         {
             ConstructOn(dataPos, size, context, i);
@@ -98,7 +107,13 @@ namespace DNDS
             return data[i];
         }
 
-        index size() { return Bsize; }
+        const T &operator[](uint32_t i) const
+        {
+            assert(i >= 0 && i < Bsize);
+            return data[i];
+        }
+
+        index size() const { return Bsize; }
 
         friend std::ostream &operator<<(std::ostream &out, const Batch &rb)
         {
@@ -144,13 +159,17 @@ namespace DNDS
         // static const IndexModder indexModder; //disabled the IndexModder paradigm
 
     public:
-        static std::string Tname;
+        static std::string Tname;                                    // array-component-must-have
+        typedef std::function<void(T *, index, index)> fInitializer; //(T* data, index size, index place)
+        typedef T tElement;                                          // array-component-must-have
 
         typedef tpIndexVec tpRowstart;
 
         struct Context
         {
-            static std::string Tname;
+            static std::string Tname;    // array-component-must-have
+            bool needInitialize = false; // array-component-must-have
+            fInitializer fInit;          // array-component-must-have
 
             index Length;
             tpRowstart pRowstart; // unit in bytes
@@ -164,6 +183,17 @@ namespace DNDS
 
             // rowSizes unit in n-Ts!!!
             Context(const tRowsizFunc &rowSizes, index newLength) : Length(newLength)
+            {
+                // pRowstart.reset(); // abandon any hooked row info // not necessary
+                pRowstart = std::make_shared<tIndexVec>(tIndexVec(Length + 1));
+                (*pRowstart)[0] = 0;
+                for (index i = 0; i < Length; i++)
+                    (*pRowstart)[i + 1] = rowSizes(i) * sizeof(T) + (*pRowstart)[i];
+            }
+
+            // rowSizes unit in n-Ts!!!
+            // if needs initialization
+            Context(const tRowsizFunc &rowSizes, const fInitializer &nfInit, index newLength) : Length(newLength), needInitialize(true), fInit(nfInit)
             {
                 // pRowstart.reset(); // abandon any hooked row info // not necessary
                 pRowstart = std::make_shared<tIndexVec>(tIndexVec(Length + 1));
@@ -261,6 +291,12 @@ namespace DNDS
             ConstructOn(dataPos, nsize, context, i);
         }
 
+        VarBatch()
+        {
+            data = nullptr;
+            _size = 0;
+        }
+
         // nsize is in unit of bytes
         inline void ConstructOn(uint8_t *dataPos, index nsize, const Context &context, index i)
         {
@@ -274,7 +310,13 @@ namespace DNDS
             return data[i];
         }
 
-        index size() { return _size; }
+        const T &operator[](uint32_t i) const
+        {
+            assert(i >= 0 && i < _size);
+            return data[i];
+        }
+
+        index size() const { return _size; }
 
         friend std::ostream &operator<<(std::ostream &out, const VarBatch &rb)
         {

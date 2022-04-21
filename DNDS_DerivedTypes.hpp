@@ -82,6 +82,21 @@ namespace DNDS
             return dataFieldSize + indexFieldSize;
         }
 
+        template <class TArray>
+        static void initializeData(uint8_t *data, tMatIndex nMats, const TArray &matRowsCols)
+        {
+            *((tMatIndex *)(data)) = nMats;
+            tMatIndex *nMij = (tMatIndex *)(data) + 1;
+            for (tMatIndex i = 0; i < nMats; i++)
+                nMij[i * 2 + 0] = matRowsCols[i * 2 + 0], nMij[i * 2 + 1] = matRowsCols[i * 2 + 1];
+        }
+
+        struct Context : public VarBatch<uint8_t>::Context
+        {
+            using VarBatch<uint8_t>::Context::Context;                      // completely inheriting the base context
+            Context(const tRowsizFunc &rowSizes, index newLength) = delete; // apart from the not-initializing constructor
+        };
+
         // using VarBatch<uint8_t>::VarBatch;
 
     private:
@@ -90,8 +105,8 @@ namespace DNDS
         std::vector<tMatIndex> matStarts; // in bytes
 
     public:
-        SmallMatricesBatch(uint8_t *dataPos, index nsize, const Context &context, index i)
-            : VarBatch<uint8_t>(dataPos, nsize, context, i) // must use base class construct on beforehand
+        SmallMatricesBatch(uint8_t *dataPos, index nsize, const Context &context, index i) // altering constructor
+            : VarBatch<uint8_t>(dataPos, nsize, context, i)                                // must use base class construct on beforehand
         {
             ConstructOn_Extra();
         }
@@ -108,7 +123,7 @@ namespace DNDS
             nMij = (tMatIndex *)(data) + 1;
             assert(nM >= 0 && nM < 1024); // magical constraint for the sake of performance
             matStarts.resize(nM);
-            if (nM == 0) // warning: currently depends on the initialized data == bit 0, should add dumb initializer option?
+            if (nM == 0) // !warning: currently depends on the initialized data == bit 0, should add dumb initializer option?
                 return;
             tMatIndex curPlc = (nM * 2 + 1) * __size_of_index_element;
             for (tMatIndex i = 0; i < nM; i++)
