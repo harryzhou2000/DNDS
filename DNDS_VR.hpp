@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DNDS_Mesh.hpp"
+#include "DNDS_HardEigen.h"
 
 namespace DNDS
 {
@@ -64,6 +65,17 @@ namespace DNDS
                     //     std::cout << "V " << v << std::endl;
                 });
         }
+
+        template <uint8_t vsize>
+        // static const int vsize = 1; // intellisense helper: give example...
+        void BuildMeanAndRec(ArrayCascadeLocal<VecStaticBatch<vsize>> &u)
+        {
+            index nCellDist = mesh->cell2nodeLocal.dist->size();
+            u.dist = std::make_shared<decltype(u.dist)::element_type>(
+                decltype(u.dist)::element_type::tComponent::Context(nCellDist), mpi);
+            u.CreateGhostCopyComm(mesh->cellAtrLocal);
+            u.InitPersistentPullClean();
+        }
     };
 
     class VRFiniteVolume2D
@@ -92,8 +104,8 @@ namespace DNDS
         std::vector<std::vector<Elem::tPoint>> faceNorms;
         std::vector<Eigen::VectorXd> faceWeights;
 
-        std::vector<Eigen::MatrixXd> vectorInvAb;              // invAb[i].m(0).row(icf) = the A^-1b of cell i's icf neighbour
-        std::vector<std::vector<Eigen::MatrixXd>> matrixInvAB; // matrixInvAB[i].m(icf + 1) = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
+        std::vector<Eigen::MatrixXd> vectorInvAb;              // invAb[i][icf] = the A^-1b of cell i's icf neighbour
+        std::vector<std::vector<Eigen::MatrixXd>> matrixInvAB; // matrixInvAB[i][icf + 1] = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
                                                                // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
 
         VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV) : mesh(nMesh), FV(nFV), mpi(nMesh->mpi)
@@ -471,15 +483,18 @@ namespace DNDS
                     auto eCell = Elem::ElementManager(cellAttribute.type, cellAttribute.intScheme);
                     assert(c2f.size() == eCell.getNFace());
                     matrixInvAB[iCell].resize(c2f.size() + 1);
+                    vectorInvAb[iCell].resize(c2f.size(), cellRecAttribute.NDOF - 1);
+                    vectorInvAb[iCell].setConstant(UnInitReal);
                     matrixInvAB[iCell][0].resize(cellRecAttribute.NDOF - 1, cellRecAttribute.NDOF - 1);
                     matrixInvAB[iCell][0].setZero();
 
+                    // get Aii
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
                     {
                         index iFace = c2f[ic2f];
                         auto f2c = (*mesh->face2cellPair)[iFace];
                         index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                        index iCellFace = f2c[0] == iCell ? 0 : 1;
+                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
                         auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
                         auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
                         Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
@@ -488,23 +503,118 @@ namespace DNDS
                             matrixInvAB[iCell][0],
                             [&](Eigen::MatrixXd &incA, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
                             {
-                                Eigen::MatrixXd &diffsI = faceDiBjGaussCache[iFace][ig * 2 + iCellFace];
+                                Eigen::MatrixXd &diffsI = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace];
                                 Eigen::MatrixXd incAFull;
                                 FFaceFunctional(diffsI, diffsI, faceWeights[iFace], incAFull);
                                 assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                                 incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
-                                incA *= faceNorms[iFace][ig].norm();
-                                std::cout << "DI " << std::endl;
-                                std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellFace] << std::endl;
+                                incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
+                                // std::cout << "DI " << std::endl;
+                                // std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellFace] << std::endl;
                             });
-                        if (mpi.rank == 0)
-                            std::cout << "FW " << iCell << "\n"
-                                      << faceWeights[iFace] << std::endl;
+                        // if (mpi.rank == 0)
+                        //     std::cout << "FW " << iCell << "\n"
+                        //               << faceWeights[iFace] << std::endl;
                     }
-                    if (mpi.rank == 0)
-                        std::cout << "A " << iCell << "\n"
-                                  << matrixInvAB[iCell][0] << std::endl;
+                    // if (mpi.rank == 0)
+                    //     std::cout << "A " << iCell << "\n"
+                    //               << matrixInvAB[iCell][0] << std::endl;
+
+                    Eigen::MatrixXd Ainv;
+                    HardEigen::EigenLeastSquareInverse(matrixInvAB[iCell][0], Ainv);
+
+                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
+                    {
+                        index iFace = c2f[ic2f];
+                        auto f2c = (*mesh->face2cellPair)[iFace];
+                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                        if (iCellOther == FACE_2_VOL_EMPTY)
+                            continue;
+                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                        auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
+                        Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+
+                        auto &cellAttributeOther = mesh->cellAtrLocal[iCellOther][0];
+                        auto &cellRecAttributeOther = cellRecAtrLocal[iCellOther][0];
+
+                        matrixInvAB[iCell][ic2f + 1].resize(cellRecAttribute.NDOF - 1, cellRecAttributeOther.NDOF - 1);
+                        matrixInvAB[iCell][ic2f + 1].setZero();
+
+                        eFace.Integration(
+                            matrixInvAB[iCell][ic2f + 1],
+                            [&](Eigen::MatrixXd &incB, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
+                            {
+                                Eigen::MatrixXd &diffsI = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace];
+                                Eigen::MatrixXd &diffsJ = faceDiBjGaussCache[iFace][ig * 2 + 1 - iCellAtFace];
+                                Eigen::MatrixXd incBFull;
+                                FFaceFunctional(diffsI, diffsJ, faceWeights[iFace], incBFull);
+                                assert(incBFull(Eigen::all, 0).norm() + incBFull(0, Eigen::all).norm() == 0);
+                                incB = incBFull.bottomRightCorner(incBFull.rows() - 1, incBFull.cols() - 1);
+                                incB *= faceNorms[iFace][ig].norm(); // note: don't forget the
+                                // std::cout << "DI " << std::endl;
+                                // std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellFace] << std::endl;
+                            });
+                        matrixInvAB[iCell][ic2f + 1] = Ainv * matrixInvAB[iCell][ic2f + 1];
+
+                        Eigen::RowVectorXd row(vectorInvAb[iCell].cols());
+                        row.setZero();
+                        eFace.Integration(
+                            row,
+                            [&](Eigen::RowVectorXd &incb, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
+                            {
+                                Eigen::MatrixXd &diffsI = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace];
+                                Eigen::MatrixXd incbFull;
+                                FFaceFunctional(Eigen::MatrixXd::Ones(1, 1), diffsI({0}, Eigen::all), faceWeights[iFace]({0}), incbFull);
+                                // std::cout << incbFull(0, 0) << " " << incbFull.size() << incb.size() << std::endl;
+                                assert(incbFull(0, 0) == 0);
+                                incb = incbFull.rightCols(incbFull.size() - 1);
+                                incb *= faceNorms[iFace][ig].norm(); // note: don't forget the
+                                // std::cout << "DI " << std::endl;
+                                // std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellFace] << std::endl;
+                            });
+                        vectorInvAb[iCell].row(ic2f) = row;
+                    }
+                    vectorInvAb[iCell] = vectorInvAb[iCell] * Ainv.transpose(); // must be outside the loop as it operates all rows at once
+                    // std::cout << "bMat " << std::endl;
+                    // std::cout << vectorInvAb[iCell] << std::endl;
+                    matrixInvAB[iCell][0] = Ainv; // converts to Ainv instead of A
                 });
+        }
+
+        template <uint8_t vsize>
+        // static const int vsize = 1; // intellisense helper: give example...
+        void BuildMeanAndRec(ArrayCascadeLocal<SemiVarMatrix<vsize>> &uR)
+        {
+            index nCellDist = mesh->cell2nodeLocal.dist->size();
+
+            uR.dist = std::make_shared<decltype(uR.dist)::element_type>(
+                decltype(uR.dist)::element_type::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        return vsize * (cellRecAtrLocal[i][0].NDOF - 1); // note - 1!!
+                    },
+                    nCellDist),
+                mpi);
+            uR.CreateGhostCopyComm(mesh->cellAtrLocal);
+            uR.InitPersistentPullClean();
+        }
+
+        /**
+         * @brief
+         * \pre u need to StartPersistentPullClean()
+         * \post u,uR need to WaitPersistentPullClean();
+         */
+        void BuildMeanAndRec(ArrayCascadeLocal<SemiVarMatrix<vsize>> &u, ArrayCascadeLocal<SemiVarMatrix<vsize>> &uR)
+        {
+            u.WaitPersistentPullClean();
+            uR.WaitPersistentPullClean();
+            // * u/uR.dist critical region START
+            
+
+            // * u/uR.dist critical region END
+            u.StartPersistentPullClean();
+            uR.StartPersistentPullClean();
         }
     };
 }

@@ -1290,9 +1290,6 @@ namespace DNDS
                 // }
             }
         };
-
-        std::vector<std::vector<std::vector<tDiFj>>> ElementManager::NBuffer[DNDS_ELEM_TYPE_NUM]; // is this init safe?
-        bool ElementManager::NBufferInit = false;
     }
 }
 
@@ -1333,14 +1330,14 @@ namespace DNDS
             return DiNj({1, 2, 3}, Eigen::all) * coords.transpose();
         }
 
-        tPoint Jacobi2LineNorm2D(const tJacobi &Jacobi)
+        inline tPoint Jacobi2LineNorm2D(const tJacobi &Jacobi)
         {
             assert(Jacobi(0, 2) == 0.0);
             return tPoint{Jacobi(0, 1), -Jacobi(0, 0), 0.0};
         }
     }
 
-    bool CompareIndexVectors(std::vector<index> l, std::vector<index> r)
+    inline bool CompareIndexVectors(std::vector<index> l, std::vector<index> r)
     {
         if (l.size() != r.size())
             return false;

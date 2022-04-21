@@ -107,6 +107,14 @@ namespace DNDS
             ghost->pushOnce();
         }
 
+        void InitPersistentPullClean() { ghost->initPersistentPull(); }
+
+        void StartPersistentPullClean() { ghost->startPersistentPull(); }
+
+        void WaitPersistentPullClean() { ghost->waitPersistentPull(); }
+
+        void ClearPersistentPullClean() { ghost->clearPersistentPull(); }
+
         // index the pair
         T operator[](index i)
         {

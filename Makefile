@@ -17,26 +17,46 @@ LINK   =${MPILIB} ${CGNSLIB} -lmetis
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe
 
+PREBUILD=DNDS_Defines.o DNDS_Elements_Prebuild.o
+PREBUILD_DEP:=$(PREBUILD:.o=.d)
+
+PREBUILD_FAST=DNDS_Mesh_Prebuild.o DNDS_HardEigen.o
+PREBUILD_FAST_DEP:=$(PREBUILD:.o=.d)
+
 HEADERS=$(wildcard *.hpp *.h)
-
-VPATH:=test
-
-
 
 FLAGS=-g
 # FLAGS=-O2
 # FLAGS=-O3 -DNDEBUG
 
+FLAGS_FAST=-O3
+
+
+-include $(PREBUILD_FAST_DEP)
+-include $(PREBUILD_DEP)
+
+$(PREBUILD):%.o: %.cpp 
+# mind that only first input is compiled for other dependencies are included files
+# mind that -MMD instead of -MM to actually compile it
+	$(CPC) $< -c -o $@ $(FLAGS) -MMD 
+
+$(PREBUILD_FAST):%.o: %.cpp 
+# mind that only first input is compiled for other dependencies are included files
+# mind that -MMD instead of -MM to actually compile it
+	$(CPC) $< -c -o $@ $(FLAGS_FAST)  $(FPFLAGS) -MMD 
+
+.PRECIOUS: %.o ## don't rm the immediate .o s!!
+
 
 all: ${SINGLE_TARGETS}
 
-
-%.exe: %.cpp ${HEADERS}
-	${CPC} -o $@ $(filter %.cpp , $^)  ${INCLUDE} ${LINK} ${FLAGS}
+VPATH:=test
+%.exe: %.cpp ${HEADERS} ${PREBUILD} ${PREBUILD_FAST}
+	${CPC} -o $@ $(filter %.cpp , $^) ${PREBUILD} ${PREBUILD_FAST}  ${INCLUDE} ${LINK} ${FLAGS}
 
 
 .PHONY: clean
 
 clean:
-	rm -f *.exe
+	rm -f *.exe *.o
 	rm -f test/*.exe

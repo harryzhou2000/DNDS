@@ -1,5 +1,6 @@
 #include "../DNDS_Mesh.hpp"
 #include "../DNDS_VR.hpp"
+#include "../DNDS_Mesh_Prebuild.h"
 
 void testA();
 
@@ -14,44 +15,46 @@ int main(int argc, char *argv[])
 
 void testA()
 {
+    using namespace DNDS;
     DNDS::MPIInfo mpi;
     mpi.setWorld();
 
-    DNDS::SerialGmshReader2d gmshReader2D;
-    if (mpi.rank == 0)
-    {
-        gmshReader2D.FileRead("data/mesh/in.msh");
-        // gmshReader2D.FileRead("data/mesh/NACA0012_WIDE_H3_O2.msh");
-        gmshReader2D.InterpolateTopology();
-        gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
-    }
-    DNDS::CompactFacedMeshSerialRW mesh((gmshReader2D), mpi);
-    std::move(gmshReader2D);
-    // mesh.LogStatusSerialPart();
-    mesh.MetisSerialPartitionKWay(0);
+    // DNDS::SerialGmshReader2d gmshReader2D;
+    // if (mpi.rank == 0)
+    // {
+    //     gmshReader2D.FileRead("data/mesh/in.msh");
+    //     // gmshReader2D.FileRead("data/mesh/NACA0012_WIDE_H3_O2.msh");
+    //     gmshReader2D.InterpolateTopology();
+    //     gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
+    // }
+    // DNDS::CompactFacedMeshSerialRW mesh((gmshReader2D), mpi);
+    // std::move(gmshReader2D);
+    // // mesh.LogStatusSerialPart();
+    // mesh.MetisSerialPartitionKWay(0);
 
-    // mesh.LogStatusDistPart();
+    // // mesh.LogStatusDistPart();
 
-    mesh.ClearSerial();
-    mesh.BuildSerialOut(0);
-    mesh.PrintSerialPartPltASCIIDBG("data/out/debugmeshSO.plt", 0);
-    mesh.BuildGhosts();
+    // mesh.ClearSerial();
+    // mesh.BuildSerialOut(0);
+    // mesh.PrintSerialPartPltASCIIDBG("data/out/debugmeshSO.plt", 0);
+    // mesh.BuildGhosts();
+    CompactFacedMeshSerialRW *mesh;
+    CompactFacedMeshSerialRWBuild(mpi, "data/mesh/in.msh", "data/out/debugmeshSO.plt", &mesh);
 
-    using namespace DNDS;
-    ArrayCascade<Real1> rk(Real1::Context(mesh.cell2faceDist->size()), mpi);
+    ArrayCascade<Real1> rk(Real1::Context(mesh->cell2faceDist->size()), mpi);
     forEachInArray(rk, [&](Real1 &e, DNDS::index i)
                    { e[0] = mpi.rank; });
     ArrayCascade<Real1> rkGhost(&rk);
-    rkGhost.BorrowGGIndexing(*mesh.cell2faceDistGhost);
+    rkGhost.BorrowGGIndexing(*mesh->cell2faceDistGhost);
     rkGhost.createMPITypes();
     forEachInArray(rkGhost, [&](Real1 &e, DNDS::index i)
                    { e[0] = mpi.rank; });
     rkGhost.pushOnce(); // so that difference between rk and rank shows the boundary cells of domains
     ArrayCascade<Real1> rkSerial(&rk);
-    rkSerial.BorrowGGIndexing(*mesh.cell2node);
+    rkSerial.BorrowGGIndexing(*mesh->cell2node);
     rkSerial.createMPITypes();
     rkSerial.pullOnce();
-    mesh.PrintSerialPartPltASCIIDataArray(
+    mesh->PrintSerialPartPltASCIIDataArray(
         "data/out/debugmeshSODist.plt", 0,
         1,
         [&](int i)
@@ -61,8 +64,8 @@ void testA()
             return rkSerial[iv][0];
         });
 
-    ImplicitFiniteVolume2D fv(&mesh);
-    VRFiniteVolume2D vfv(&mesh, &fv);
+    ImplicitFiniteVolume2D fv(mesh);
+    VRFiniteVolume2D vfv(mesh, &fv);
     vfv.initIntScheme();
     vfv.initMoment();
     vfv.initBaseDiffCache();

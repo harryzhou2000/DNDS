@@ -999,6 +999,7 @@ namespace DNDS
          */
         void BuildGhosts()
         {
+            // InsertCheck(mpi, "CompaceFaceMeshSerialRW BuildGhosts Start");
             face2cellDistGhost = std::make_shared<tAdjStatic2ArrayCascade>(face2cellDist.get());
             face2cellDistGhost->createGlobalMapping();
             pFaceGlobalMapping = face2cellDistGhost->pLGlobalMapping;
@@ -1029,7 +1030,7 @@ namespace DNDS
                     if (rank != mpi.rank)
                         ghostFaces.push_back(ifg);
                 });
-
+            // InsertCheck(mpi, "CompaceFaceMeshSerialRW BuildGhosts D0");
             face2cellDistGhost->createGhostMapping(ghostFaces);
             face2cellDistGhost->createMPITypes();
             face2cellDistGhost->pullOnce();
@@ -1080,7 +1081,7 @@ namespace DNDS
                             nghostCells++;
                     }
                 });
-
+            // InsertCheck(mpi, "CompaceFaceMeshSerialRW BuildGhosts D1");
             std::vector<index> ghostCells;
             ghostCells.reserve(nghostCells);
             forEachInArray(
@@ -1128,7 +1129,7 @@ namespace DNDS
             nodeCoordsDistGhost = std::make_shared<tVec3DArrayCascade>(nodeCoordsDist.get());
             nodeCoordsDistGhost->createGlobalMapping();
             pNodeGlobalMapping = nodeCoordsDistGhost->pLGlobalMapping;
-
+            // InsertCheck(mpi, "CompaceFaceMeshSerialRW BuildGhosts D2");
             // get ghost node set
             index nghostNode = 0;
             forEachBasicInArrayPair(
@@ -1160,7 +1161,7 @@ namespace DNDS
             nodeCoordsDistGhost->pullOnce();
             nodeCoordsPair = std::make_shared<decltype(nodeCoordsPair)::element_type>(*nodeCoordsDist, *nodeCoordsDistGhost);
             pNodeGhostMapping = nodeCoordsDistGhost->pLGhostMapping;
-
+            // InsertCheck(mpi, "CompaceFaceMeshSerialRW BuildGhosts D3");
             // convert Adj arrays to point to local arrays
             // cell2face only main part is converted , !! ghost part ignored
             // cell2node all is converted
@@ -1273,6 +1274,7 @@ namespace DNDS
                     // std::cout << "R Cell = " << ic2f << std::endl;
                     assert(ic2f < c2f.size());
                 });
+            // InsertCheck(mpi, "CompaceFaceMeshSerialRW BuildGhosts End");
         }
 
         // c2n must be pointing to local

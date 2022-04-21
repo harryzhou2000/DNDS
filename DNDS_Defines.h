@@ -10,15 +10,13 @@
 #include <cmath>
 #include <iomanip>
 
-
-
 namespace DNDS
 {
     typedef double real;
     typedef int64_t index;
     typedef int16_t rowsize;
 
-    const char *outputDelim = "\t";
+    static const char *outputDelim = "\t";
 
     typedef std::vector<rowsize> tRowsizeVec;
     typedef std::vector<index> tIndexVec;
@@ -28,20 +26,20 @@ namespace DNDS
 
     const index indexMin = INT64_MIN;
 
+    const real UnInitReal = std::acos(-1) * 1e300;
+
 } // namespace DNDS
 
 namespace DNDS
 {
-    std::ostream *logStream;
+    extern std::ostream *logStream;
 
-    bool useCout = true;
+    extern bool useCout;
 
-    std::ostream &log() { return useCout ? std::cout : *logStream; }
+    std::ostream &log();
 
-    void setLogStream(std::ostream *nstream) { useCout = false, logStream = nstream; }
+    void setLogStream(std::ostream *nstream);
 }
-
-
 
 /*
 
