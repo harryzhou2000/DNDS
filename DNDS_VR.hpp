@@ -4,6 +4,7 @@
 
 namespace DNDS
 {
+
     struct RecAtr
     {
         uint8_t NDOF = -1;
@@ -89,10 +90,11 @@ namespace DNDS
         std::vector<Eigen::VectorXd> baseMoments;                                     // full dofs, like baseMoment[i].v()(0) == 1
         std::vector<Elem::tPoint> cellCenters;
         std::vector<std::vector<Elem::tPoint>> faceNorms;
+        std::vector<Eigen::VectorXd> faceWeights;
 
-        ArrayCascadeLocal<SmallMatricesBatch> vectorInvAb; // invAb[i].m(0).row(icf) = the A^-1b of cell i's icf neighbour
-        ArrayCascadeLocal<SmallMatricesBatch> matrixInvAB; // matrixInvAB[i].m(icf + 1) = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
-                                                           // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
+        std::vector<Eigen::MatrixXd> vectorInvAb;              // invAb[i].m(0).row(icf) = the A^-1b of cell i's icf neighbour
+        std::vector<std::vector<Eigen::MatrixXd>> matrixInvAB; // matrixInvAB[i].m(icf + 1) = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
+                                                               // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
 
         VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV) : mesh(nMesh), FV(nFV), mpi(nMesh->mpi)
         {
@@ -113,9 +115,10 @@ namespace DNDS
         inline static Elem::tPoint CoordMinMaxScale(const Eigen::MatrixXd &coords)
         {
             return Elem::tPoint{
-                coords(0, Eigen::all).maxCoeff() - coords(0, Eigen::all).minCoeff(),
-                coords(1, Eigen::all).maxCoeff() - coords(1, Eigen::all).minCoeff(),
-                coords(2, Eigen::all).maxCoeff() - coords(2, Eigen::all).minCoeff()};
+                       coords(0, Eigen::all).maxCoeff() - coords(0, Eigen::all).minCoeff(),
+                       coords(1, Eigen::all).maxCoeff() - coords(1, Eigen::all).minCoeff(),
+                       coords(2, Eigen::all).maxCoeff() - coords(2, Eigen::all).minCoeff()} *
+                   0.5;
         }
 
         static void FDiffBaseValue(Elem::ElementManager &cElem,
@@ -135,17 +138,26 @@ namespace DNDS
             pPhysicsCScaled(2) = 0.; // for 2d volumes
             for (int idiff = 0; idiff < DiBj.rows(); idiff++)
                 for (int ibase = 0; ibase < DiBj.cols(); ibase++)
-                    DiBj(idiff, ibase) = FPolynomial3D(
-                        Elem::diffOperatorOrderList2D[ibase][0],
-                        Elem::diffOperatorOrderList2D[ibase][1],
-                        Elem::diffOperatorOrderList2D[ibase][2],
-                        Elem::diffOperatorOrderList2D[idiff][0],
-                        Elem::diffOperatorOrderList2D[idiff][1],
-                        Elem::diffOperatorOrderList2D[idiff][2],
-                        pPhysicsCScaled(0), pPhysicsCScaled(1), pPhysicsCScaled(2));
+                {
+                    int px = Elem::diffOperatorOrderList2D[ibase][0];
+                    int py = Elem::diffOperatorOrderList2D[ibase][1];
+                    int pz = Elem::diffOperatorOrderList2D[ibase][2];
+                    int ndy = Elem::diffOperatorOrderList2D[idiff][1];
+                    int ndz = Elem::diffOperatorOrderList2D[idiff][2];
+                    int ndx = Elem::diffOperatorOrderList2D[idiff][0];
+                    DiBj(idiff, ibase) = FPolynomial3D(px, py, pz, ndx, ndy, ndz,
+                                                       pPhysicsCScaled(0), pPhysicsCScaled(1), pPhysicsCScaled(2)) /
+                                         (std::pow(simpleScale(0), ndx) * std::pow(simpleScale(1), ndy) * std::pow(simpleScale(2), ndz));
+                }
             // std::cout << DiBj << std::endl;
             // exit(-1);
             DiBj(0, Eigen::all) -= baseMoment.transpose();
+        }
+
+        static void FFaceFunctional(const Eigen::MatrixXd &DiffI, const Eigen::MatrixXd &DiffJ, const Eigen::VectorXd &Weights, Eigen::MatrixXd &Conj)
+        {
+            assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
+            Conj = DiffI.transpose() * Weights.asDiagonal() * Weights.asDiagonal() * DiffJ;
         }
 
         // derive intscheme, ndof ,ndiff in rec attributes
@@ -298,6 +310,7 @@ namespace DNDS
             faceDiBjCenterCache.resize(nlocalFaces);
             faceDiBjGaussCache.resize(nlocalFaces);
             faceNorms.resize(nlocalFaces);
+            faceWeights.resize(nlocalFaces);
             forEachInArrayPair(
                 *mesh->face2cellLocal.pair,
                 [&](tAdjStatic2ArrayCascade::tComponent &f2c, index iFace)
@@ -401,6 +414,43 @@ namespace DNDS
                                            baseMoments[iCell], faceDiBjGaussCache[iFace][ig * 2 + 1]);
                         }
                     }
+                    // Do weights!!
+                    // if (f2c[1] == FACE_2_VOL_EMPTY)
+                    //     std::cout << faceAtr.iPhy << std::endl;
+                    faceWeights[iFace].resize(faceRecAtr.NDIFF);
+                    Elem::tPoint delta;
+                    if (f2c[1] != FACE_2_VOL_EMPTY)
+                    {
+                        delta = cellCenters[f2c[1]] - cellCenters[f2c[0]];
+                        faceWeights[iFace].setConstant(1.0);
+                    }
+                    else if (faceAtr.iPhy == BoundaryType::Wall)
+                    {
+                        faceWeights[iFace].setConstant(0.0);
+                        faceWeights[iFace][0] = 4.0;
+                        // delta = (faceCoords(Eigen::all, 0) + faceCoords(Eigen::all, 1)) * 0.5 - cellCenters[f2c[0]];
+                        delta = pFace - cellCenters[f2c[0]];
+                        delta *= 2.0;
+                    }
+                    else if (faceAtr.iPhy == BoundaryType::Farfield)
+                    {
+                        faceWeights[iFace].setConstant(0.0);
+                        faceWeights[iFace][0] = 1.0;
+                        delta = pFace - cellCenters[f2c[0]];
+                    }
+                    else
+                    {
+                        log() << faceAtr.iPhy << std::endl;
+                        assert(false);
+                    }
+                    for (int idiff = 0; idiff < faceRecAtr.NDIFF; idiff++)
+                    {
+                        int ndx = Elem::diffOperatorOrderList2D[idiff][0];
+                        int ndy = Elem::diffOperatorOrderList2D[idiff][1];
+                        faceWeights[iFace][idiff] *= std::pow(delta[0], ndx) *
+                                                     std::pow(delta[1], ndy) *
+                                                     real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
+                    }
                 });
 
             InsertCheck(mpi, "initBaseDiffCache Ended");
@@ -408,21 +458,52 @@ namespace DNDS
 
         void initReconstructionMatVec()
         {
+            vectorInvAb.resize(mesh->cell2faceLocal.dist->size());
+            matrixInvAB.resize(mesh->cell2faceLocal.dist->size());
 
             // for each inner cell (ghost cell no need)
             forEachInArray(
                 *mesh->cell2faceLocal.dist,
                 [&](tAdjArrayCascade::tComponent &c2f, index iCell)
                 {
-                    auto &cellAttribute = mesh->cellAtr->operator[](iCell)[0];
+                    auto &cellAttribute = mesh->cellAtrLocal[iCell][0];
+                    auto &cellRecAttribute = cellRecAtrLocal[iCell][0];
                     auto eCell = Elem::ElementManager(cellAttribute.type, cellAttribute.intScheme);
                     assert(c2f.size() == eCell.getNFace());
+                    matrixInvAB[iCell].resize(c2f.size() + 1);
+                    matrixInvAB[iCell][0].resize(cellRecAttribute.NDOF - 1, cellRecAttribute.NDOF - 1);
+                    matrixInvAB[iCell][0].setZero();
+
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
                     {
                         index iFace = c2f[ic2f];
                         auto f2c = (*mesh->face2cellPair)[iFace];
                         index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                        index iCellFace = f2c[0] == iCell ? 0 : 1;
+                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                        auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
+                        Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+
+                        eFace.Integration(
+                            matrixInvAB[iCell][0],
+                            [&](Eigen::MatrixXd &incA, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
+                            {
+                                Eigen::MatrixXd &diffsI = faceDiBjGaussCache[iFace][ig * 2 + iCellFace];
+                                Eigen::MatrixXd incAFull;
+                                FFaceFunctional(diffsI, diffsI, faceWeights[iFace], incAFull);
+                                assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
+                                incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
+                                incA *= faceNorms[iFace][ig].norm();
+                                std::cout << "DI " << std::endl;
+                                std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellFace] << std::endl;
+                            });
+                        if (mpi.rank == 0)
+                            std::cout << "FW " << iCell << "\n"
+                                      << faceWeights[iFace] << std::endl;
                     }
+                    if (mpi.rank == 0)
+                        std::cout << "A " << iCell << "\n"
+                                  << matrixInvAB[iCell][0] << std::endl;
                 });
         }
     };

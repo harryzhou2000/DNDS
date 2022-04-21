@@ -450,8 +450,23 @@ namespace DNDS
             {1, 2, 0}, // 08 13 011
             {0, 3, 0}, // 09 16 111
         };
-        static const int factorials[ndiff + 2] = {
-            1, 1, 1 * 2, 1 * 2 * 3, 1 * 2 * 3 * 4};
+
+#define DNDS_DIFF3Dto2DMAP ({0, 1, 2, 4, 5, 7, 10, 11, 13, 16})
+
+        static const int factorials[ndiff * 3 + 1] = {
+            1,
+            1,
+            1 * 2,
+            1 * 2 * 3,
+            1 * 2 * 3 * 4,
+            1 * 2 * 3 * 4 * 5,
+            1 * 2 * 3 * 4 * 5 * 6,
+            1 * 2 * 3 * 4 * 5 * 6 * 7,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8,
+            1 * 2 * 3 * 4 * 5 * 6 * 7 * 8 * 9,
+        };
+        static const int diffNCombs2D[ndiffSiz2D]{
+            1, 1, 1, 1, 2, 1, 1, 3, 3, 1};
 
         static const int dFactorials[ndiff + 1][ndiff + 1] = {
             {1, 0, 0, 0},
@@ -476,8 +491,6 @@ namespace DNDS
                 break;
             }
         }
-
-#define DNDS_DIFF3Dto2DMAP ({0, 1, 2, 4, 5, 7, 10, 11, 13, 16})
 
         static const int diffOperatorOrderRange[ndiff + 2] = {
             0, 1, 4, 10, 20};
@@ -625,7 +638,7 @@ namespace DNDS
                     return tPoint{1. / 3., 1. / 3., 0};
                 default:
                     assert(false);
-                    break;
+                    return tPoint{1e100, 1e100, 1e100};
                 }
             }
             inline ElementManager ObtainFace(int iface, tIntScheme faceiInt)
@@ -693,7 +706,7 @@ namespace DNDS
                         switch (iface)
                         {
                         case 0:
-                            pvol[0] = pface[0], pvol[1] = pvol[2] = 0.;
+                            pvol[0] = pface[0], pvol[1] = -1, pvol[2] = 0.;
                             break;
                         case 1:
                             pvol[0] = 1, pvol[1] = pface[0], pvol[2] = 0.;
@@ -702,7 +715,7 @@ namespace DNDS
                             pvol[0] = -pface[0], pvol[1] = 1, pvol[2] = 0.;
                             break;
                         case 3:
-                            pvol[0] = 0, pvol[1] = -pface[0], pvol[2] = 0.;
+                            pvol[0] = -1, pvol[1] = -pface[0], pvol[2] = 0.;
                             break;
                         default:
                             assert(false);
@@ -712,7 +725,7 @@ namespace DNDS
                         switch (iface)
                         {
                         case 0:
-                            pvol[0] = -pface[0], pvol[1] = pvol[2] = 0.;
+                            pvol[0] = -pface[0], pvol[1] = -1, pvol[2] = 0.;
                             break;
                         case 1:
                             pvol[0] = 1, pvol[1] = -pface[0], pvol[2] = 0.;
@@ -721,7 +734,7 @@ namespace DNDS
                             pvol[0] = pface[0], pvol[1] = 1, pvol[2] = 0.;
                             break;
                         case 3:
-                            pvol[0] = 0, pvol[1] = pface[0], pvol[2] = 0.;
+                            pvol[0] = -1, pvol[1] = pface[0], pvol[2] = 0.;
                             break;
                         default:
                             assert(false);
@@ -788,7 +801,7 @@ namespace DNDS
                         switch (iface)
                         {
                         case 0:
-                            pvol[0] = pface[0], pvol[1] = pvol[2] = 0.;
+                            pvol[0] = pface[0], pvol[1] = -1, pvol[2] = 0.;
                             break;
                         case 1:
                             pvol[0] = 1, pvol[1] = pface[0], pvol[2] = 0.;
@@ -797,7 +810,7 @@ namespace DNDS
                             pvol[0] = -pface[0], pvol[1] = 1, pvol[2] = 0.;
                             break;
                         case 3:
-                            pvol[0] = 0, pvol[1] = -pface[0], pvol[2] = 0.;
+                            pvol[0] = -1, pvol[1] = -pface[0], pvol[2] = 0.;
                             break;
                         default:
                             assert(false);
@@ -807,7 +820,7 @@ namespace DNDS
                         switch (iface)
                         {
                         case 0:
-                            pvol[0] = -pface[0], pvol[1] = pvol[2] = 0.;
+                            pvol[0] = -pface[0], pvol[1] = -1, pvol[2] = 0.;
                             break;
                         case 1:
                             pvol[0] = 1, pvol[1] = -pface[0], pvol[2] = 0.;
@@ -816,7 +829,7 @@ namespace DNDS
                             pvol[0] = pface[0], pvol[1] = 1, pvol[2] = 0.;
                             break;
                         case 3:
-                            pvol[0] = 0, pvol[1] = pface[0], pvol[2] = 0.;
+                            pvol[0] = -1, pvol[1] = pface[0], pvol[2] = 0.;
                             break;
                         default:
                             assert(false);

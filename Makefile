@@ -24,6 +24,7 @@ VPATH:=test
 
 
 FLAGS=-g
+# FLAGS=-O2
 # FLAGS=-O3 -DNDEBUG
 
 

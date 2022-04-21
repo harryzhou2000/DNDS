@@ -17,6 +17,15 @@
 namespace DNDS
 {
     const index FACE_2_VOL_EMPTY = INT64_MIN;
+
+    enum BoundaryType
+    {
+        Inner = -1,
+        Unknown = 0,
+        Wall = 1,
+        Farfield = 2,
+
+    };
 }
 
 namespace DNDS
@@ -312,6 +321,7 @@ namespace DNDS
                     }
                 assert(found);
                 faceElems[ffound].phyGrp = i.phyGrp;
+                // std::cout << faceElems[ffound].phyGrp << std::endl;
             }
             // std::vector<std::vector<index>> volAtNode;
             faceElems.shrink_to_fit();
@@ -658,7 +668,7 @@ namespace DNDS
         // std::shared_ptr<tAdjStatic2ArrayCascade> face2Localcell;
         // std::shared_ptr<tAdjArrayCascade> face2Localnode;
 
-        CompactFacedMeshSerialRW(const SerialGmshReader2d &gmshReader, const MPIInfo &nmpi) : mpi(nmpi)
+        CompactFacedMeshSerialRW(SerialGmshReader2d &gmshReader, const MPIInfo &nmpi) : mpi(nmpi)
         {
             assert(gmshReader.vol2face.size() == gmshReader.volElems.size());
 
@@ -745,9 +755,20 @@ namespace DNDS
             for (index iff = 0; iff < face2cell->size(); iff++)
             {
                 auto &e = (*faceAtr)[iff][0];
-                e.iPhy = gmshReader.faceElems[iff].phyGrp;
+                if (gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name == "bc-1")
+                    e.iPhy = index(BoundaryType::Wall);
+                else if (gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name == "bc-2")
+                    e.iPhy = index(BoundaryType::Farfield);
+                else if (gmshReader.faceElems[iff].phyGrp == -1)
+                    e.iPhy = index(BoundaryType::Inner);
+                else
+                {
+                    std::cout << gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name << std::endl;
+                    assert(false);
+                }
                 e.type = gmshReader.faceElems[iff].elemType;
                 e.intScheme = -1; // init value
+                // std::cout << e.iPhy << std::endl;
             }
 
             // copy points
@@ -820,12 +841,17 @@ namespace DNDS
                 std::vector<idx_t> iGlobal; // iGlobal[iCell_Serial] = iCell_Global
                 iGlobal.reserve(cell2cellSiz.size());
 
-                auto ret = METIS_PartGraphKway(&ncell, &ncons, cell2cellStarts.data(), cell2cell.data(), NULL, NULL, NULL, &nparts, NULL, NULL, options, &objval, partition.data());
-                if (ret != METIS_OK)
+                if (nparts > 1)
                 {
-                    log() << "METIS returned not OK: [" << ret << "]" << std::endl;
-                    assert(false);
+                    int ret = METIS_PartGraphKway(&ncell, &ncons, cell2cellStarts.data(), cell2cell.data(), NULL, NULL, NULL, &nparts, NULL, NULL, options, &objval, partition.data());
+                    if (ret != METIS_OK)
+                    {
+                        log() << "METIS returned not OK: [" << ret << "]" << std::endl;
+                        assert(false);
+                    }
                 }
+                else
+                    partition.assign(partition.size(), 0);
 
                 std::vector<idx_t> partitionFace(face2cell->size());
                 std::vector<idx_t> partitionNode(nodeCoords->size());
