@@ -28,6 +28,8 @@ namespace DNDS
 
     const real UnInitReal = std::acos(-1) * 1e300;
 
+    const real pi = std::acos(-1);
+
 } // namespace DNDS
 
 namespace DNDS

@@ -15,12 +15,13 @@ CPC=mpicxx
 INCLUDE=${MPIINC} ${CGNSINC}
 LINK   =${MPILIB} ${CGNSLIB} -lmetis
 
-SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe
+SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe test/staticReconstructionTest.exe\
 
-PREBUILD=DNDS_Defines.o DNDS_Elements_Prebuild.o
+
+PREBUILD=DNDS_Defines.o DNDS_Elements.o
 PREBUILD_DEP:=$(PREBUILD:.o=.d)
 
-PREBUILD_FAST=DNDS_Mesh_Prebuild.o DNDS_HardEigen.o
+PREBUILD_FAST=DNDS_Mesh.o DNDS_HardEigen.o
 PREBUILD_FAST_DEP:=$(PREBUILD:.o=.d)
 
 HEADERS=$(wildcard *.hpp *.h)
@@ -58,5 +59,5 @@ VPATH:=test
 .PHONY: clean
 
 clean:
-	rm -f *.exe *.o
+	rm -f *.exe *.o *.d
 	rm -f test/*.exe

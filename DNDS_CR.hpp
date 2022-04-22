@@ -28,7 +28,7 @@ namespace DNDS
         void initReconstructionMatVec()
         {
 
-            InsertCheck(mpi, "initReconstructionMatVec _ CR");
+            // InsertCheck(mpi, "initReconstructionMatVec _ CR");
 
             vectorInvAb = std::make_shared<decltype(vectorInvAb)::element_type>(mesh->cell2faceLocal.dist->size());
             // matrixInvAB = std::make_shared<decltype(matrixInvAB)::element_type>(mesh->cell2faceLocal.dist->size());
@@ -45,7 +45,7 @@ namespace DNDS
                     assert(c2f.size() == eCell.getNFace());
                     (*vectorInvAb)[iCell].resize(cellRecAttribute.NDOF - 1, cellRecAttribute.NDOF - 1);
                     (*vectorInvAb)[iCell].setZero(); //! which stores AiiCR
-                    InsertCheck(mpi, "initReconstructionMatVec _ CR B2");
+                    // InsertCheck(mpi, "initReconstructionMatVec _ CR B2");
                     // get Aii
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
                     {
@@ -56,7 +56,7 @@ namespace DNDS
                         auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
                         auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
                         Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
-                        InsertCheck(mpi, "initReconstructionMatVec _ CR B3");
+                        // InsertCheck(mpi, "initReconstructionMatVec _ CR B3");
                         eFace.Integration(
                             (*vectorInvAb)[iCell],
                             [&](Eigen::MatrixXd &incA, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
@@ -75,7 +75,7 @@ namespace DNDS
                     HardEigen::EigenLeastSquareInverse((*vectorInvAb)[iCell], Ainv);
                     (*vectorInvAb)[iCell] = Ainv;
                 });
-            InsertCheck(mpi, "initReconstructionMatVec _ CR END");
+            // InsertCheck(mpi, "initReconstructionMatVec _ CR END");
         }
 
         template <uint32_t vsize>
