@@ -55,14 +55,15 @@ namespace DNDS
         }
     };
 
-    template <uint8_t vsize>
+    // mat size of var * vsize
+    template <uint32_t vsize>
     class SemiVarMatrix : public VarBatch<real>
     {
     public:
         using VarBatch<real>::VarBatch;
         Eigen::Map<Eigen::Matrix<real, -1, -1, Eigen::ColMajor>> m()
         {
-            return Eigen::Map<Eigen::Matrix<real, -1, -1, Eigen::ColMajor>>(data, _size, _size / vsize);
+            return Eigen::Map<Eigen::Matrix<real, -1, -1, Eigen::ColMajor>>(data, _size/vsize, vsize);
         }
     };
 

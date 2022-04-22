@@ -1,5 +1,6 @@
 #include "../DNDS_Mesh.hpp"
 #include "../DNDS_VR.hpp"
+#include "../DNDS_CR.hpp"
 #include "../DNDS_Mesh_Prebuild.h"
 
 void testA();
@@ -66,10 +67,79 @@ void testA()
 
     ImplicitFiniteVolume2D fv(mesh);
     VRFiniteVolume2D vfv(mesh, &fv);
+
     vfv.initIntScheme();
     vfv.initMoment();
     vfv.initBaseDiffCache();
     vfv.initReconstructionMatVec();
+
+    CRFiniteVolume2D cfv(vfv); //! mind the order!
+    cfv.initReconstructionMatVec();
+
+    ArrayCascadeLocal<VecStaticBatch<1u>> u;
+    ArrayCascadeLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
+    fv.BuildMean(u);
+    vfv.BuildRec(uRec);
+    InsertCheck(mpi, "B1");
+    uRecNew.Copy(uRec);
+    InsertCheck(mpi, "C0");
+    cfv.BuildRec(uRecCR);
+    InsertCheck(mpi, "C1");
+
+    forEachInArrayPair(
+        *u.pair,
+        [&](decltype(u.dist)::element_type::tComponent &e, DNDS::index iCell)
+        {
+            auto c2n = mesh->cell2nodeLocal[iCell];
+            Eigen::MatrixXd coords;
+            mesh->LoadCoords(c2n, coords);
+            Elem::ElementManager eCell(mesh->cellAtrLocal[iCell][0].type, vfv.cellRecAtrLocal[iCell][0].intScheme);
+            double um = 0;
+            eCell.Integration(
+                um,
+                [&](double &inc, int ng, Elem::tPoint &p, Elem::tDiFj &DiNj)
+                {
+                    Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
+                    // inc = pPhysics[1] * (1 - pPhysics[1]) * pPhysics[0] * (1 - pPhysics[0]) * 4
+                    inc = pPhysics[1] * (1 - pPhysics[1]) * 10;
+                    inc = pPhysics[1] * pPhysics[1] * 10;
+                    inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
+                });
+            um /= fv.volumeLocal[iCell];
+
+            e.p()(0) = um;
+            real ytest = vfv.cellCenters[iCell](1);
+            // e.p()(0) = ytest * (1 - ytest) * 4;
+            // e.p()(1) = ytest * 4;
+            // std::cout << "UM" << vfv.cellCenters[iCell] << std::endl;
+        });
+    forEachInArray(
+        *uRec.dist,
+        [&](decltype(uRec.dist)::element_type::tComponent &e, DNDS::index iCell)
+        {
+            e.m().setZero();
+        });
+
+    u.InitPersistentPullClean();
+    uRec.InitPersistentPullClean();
+
+    for (int i = 0; i < 1000; i++)
+    {
+        u.StartPersistentPullClean();
+        uRec.StartPersistentPullClean();
+        u.WaitPersistentPullClean();
+        uRec.WaitPersistentPullClean();
+
+        vfv.ReconstructionJacobiStep(u, uRec, uRecNew);
+    }
+
+    cfv.Reconstruction(u, uRec, uRecCR);
+    for (int i = 0; i < u.dist->size(); i++)
+    {
+        std::cout << "REC: \n"
+                  << uRecCR[i].m().transpose() << std::endl
+                  << uRec[i].m().transpose() << std::endl;
+    }
 
     // std::cout << "\n";
 }

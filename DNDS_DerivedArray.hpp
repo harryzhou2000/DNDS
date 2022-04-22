@@ -12,7 +12,7 @@ namespace DNDS
         ArrayCascade<T> &arrGhost;
 
         template <class Tarr>
-        ArrayCascadePair(Tarr &&nArr, Tarr &&nArrGhost) : arr(std::forward<Tarr>(nArr)), arrGhost(std::forward<Tarr>(nArrGhost)){};
+        ArrayCascadePair(Tarr &&nArr, Tarr &&nArrGhost) : arr(std::forward<Tarr>(nArr)), arrGhost(std::forward<Tarr>(nArrGhost)) { assert(arrGhost.father == &arr); }
 
         T operator[](index i)
         {
@@ -73,12 +73,15 @@ namespace DNDS
         std::shared_ptr<ArrayCascade<T>> ghost;
         std::shared_ptr<ArrayCascadePair<T>> pair;
 
+
+// ArrayCascadeLocal
+
         void Copy(ArrayCascadeLocal<T> &R)
         {
-            dist = std::make_shared<ArrayCascade<T>>(R.dist);
-            ghost = std::make_shared<ArrayCascade<T>>(dist.get());
-            ghost->BorrowGGIndexing(*R.ghost);
-            ghost->createMPITypes();
+            dist = std::make_shared<ArrayCascade<T>>(*R.dist);
+            ghost = std::make_shared<ArrayCascade<T>>(*R.ghost, dist.get());
+            // ghost->BorrowGGIndexing(*R.ghost);
+            // ghost->createMPITypes();
             MakePair();
         }
 
