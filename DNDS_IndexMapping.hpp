@@ -60,6 +60,8 @@ namespace DNDS
             //                 Rank = {0,1,2,3,4,5,6}
             // query 5 should be rank 7, which is out-of bound, returns false
             // query 4 should be rank 5, query 3 should be rank 3, query 2 should be rank 1
+            if (RankOffsets.size() == 0) // in case the communicator is of size 0 ??
+                return false;
             auto place = std::lower_bound(RankOffsets.begin(), RankOffsets.end(), globalQuery, std::less_equal<index>());
             rank = place - 1 - RankOffsets.begin();
             if (rank < RankLengths.size() && rank >= 0)
@@ -226,14 +228,16 @@ namespace DNDS
             return false;
         }
 
+        // returns place relative to ghostStart[rank]
         bool searchInGhost(index globalQuery, MPI_int rank, index &val) const
         {
             assert((rank >= 0 && rank < ghostStart.size() - 1));
-            auto place = std::lower_bound(
-                ghostIndex.begin() + ghostStart[rank],
-                ghostIndex.begin() + ghostStart[rank + 1],
-                globalQuery);
-            if (*place == globalQuery)
+            if ((ghostStart[rank + 1] - ghostStart[rank]) == 0)
+                return false; // size = 0 could result in seg error doing search
+            auto start = ghostIndex.begin() + ghostStart[rank];
+            auto end = ghostIndex.begin() + ghostStart[rank + 1];
+            auto place = std::lower_bound(start, end, globalQuery);
+            if (place != end && *place == globalQuery) // dereferencing end could result in seg error
             {
                 val = place - (ghostIndex.begin() + ghostStart[rank]);
                 return true;

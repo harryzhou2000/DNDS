@@ -54,13 +54,15 @@ namespace DNDS
     {
 #ifndef NDEBUG
         MPI_Barrier(mpi.comm);
-        std::cout << "=== CHECK \"" << info << "\"  RANK " << mpi.rank << " ===" << std::endl;
+        std::cout << "=== CHECK \"" << info << "\"  RANK " << mpi.rank << " ==="
+                  << " @  FName: " << __FUNCTION__
+                  << " @  Place: " << __FILE__ << ":" << __LINE__ << std::endl;
         MPI_Barrier(mpi.comm);
 #endif
     }
 
     template <class F>
-    void MPISerialDo(const MPIInfo &mpi, F f)
+    inline void MPISerialDo(const MPIInfo &mpi, F f)
     {
         for (MPI_int i = 0; i < mpi.size; i++)
         {
@@ -107,4 +109,62 @@ namespace DNDS
         }
     };
 
+}
+
+namespace DNDS
+{
+    namespace Debug
+    {
+
+#include <iostream>
+#if defined(linux) || defined(_UNIX)
+#include <sys/ptrace.h>
+#include <unistd.h>
+#endif
+#if defined(_WIN32) || defined(__WINDOWS_)
+#include <Windows.h>
+#include <process.h>
+#endif
+        inline bool IsDebugged()
+        {
+
+#if defined(linux) || defined(_UNIX)
+            return false;
+#endif
+#if defined(_WIN32) || defined(__WINDOWS_)
+            return IsDebuggerPresent();
+#endif
+        }
+
+        inline void MPIDebugHold(const MPIInfo &mpi)
+        {
+#if defined(linux) || defined(_UNIX)
+            MPISerialDo(mpi, [&]
+                        { log() << "Rank " << mpi.rank << " PID: " << getpid() << std::endl; });
+#endif
+#if defined(_WIN32) || defined(__WINDOWS_)
+            MPISerialDo(mpi, [&]
+                        { log() << "Rank " << mpi.rank << " PID: " << _getpid() << std::endl; });
+#endif
+            int holdFlag = 1;
+            while (holdFlag)
+            {
+                for (MPI_int ir = 0; ir < mpi.size; ir++)
+                {
+                    int newDebugFlag;
+                    if (mpi.rank == ir)
+                    {
+                        newDebugFlag = int(IsDebugged());
+                        MPI_Bcast(&newDebugFlag, 1, MPI_INT, ir, mpi.comm);
+                    }
+                    else
+                        MPI_Bcast(&newDebugFlag, 1, MPI_INT, ir, mpi.comm);
+
+                    // std::cout << "DBG " << newDebugFlag;
+                    if (newDebugFlag)
+                        holdFlag = 0;
+                }
+            }
+        }
+    }
 }

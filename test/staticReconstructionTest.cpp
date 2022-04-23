@@ -7,6 +7,7 @@ int main(int argn, char *argv[])
     using namespace DNDS;
     DNDS::MPIInfo mpi;
     mpi.setWorld();
+    // Debug::MPIDebugHold(mpi);
 
     auto fDiffs = [](Elem::tPoint p) -> Eigen::VectorXd
     {
@@ -29,11 +30,15 @@ int main(int argn, char *argv[])
         "data/mesh/Uniform/UniformB2.msh",
         "data/mesh/Uniform/UniformB3.msh",
     };
-    for (auto &mName : meshNames)
+    std::vector<Eigen::VectorXd> norms;
+    norms.resize(meshNames.size() * 3);
+
+    for (int iCase = 0; iCase < meshNames.size(); iCase++)
     {
+        auto &mName = meshNames[iCase];
         CompactFacedMeshSerialRW *mesh;
         CompactFacedMeshSerialRWBuild(mpi, mName, "data/out/debugmeshSO.plt", &mesh);
-
+        // InsertCheck(mpi, "AfterRead1");
         ImplicitFiniteVolume2D fv(mesh);
         VRFiniteVolume2D vfv(mesh, &fv);
 
@@ -81,7 +86,7 @@ int main(int argn, char *argv[])
 
         u.InitPersistentPullClean();
         uRec.InitPersistentPullClean();
-
+        // InsertCheck(mpi, "BeforeRec");
         for (int i = 0; i < 1000; i++)
         {
             u.StartPersistentPullClean();
@@ -90,11 +95,13 @@ int main(int argn, char *argv[])
             uRec.WaitPersistentPullClean();
             vfv.ReconstructionJacobiStep(u, uRec, uRecNew);
         }
+
         cfv.Reconstruction(u, uRec, uRecCR);
         Eigen::VectorXd norm1(6);
         Eigen::VectorXd norm2(6);
         Eigen::VectorXd normInf(6);
         norm1.setZero(), norm2.setZero(), normInf.setZero();
+        // InsertCheck(mpi, "AfterRec");
         for (int iCell = 0; iCell < u.dist->size(); iCell++)
         {
             auto c2n = mesh->cell2nodeLocal[iCell];
@@ -136,21 +143,33 @@ int main(int argn, char *argv[])
         // Eigen::VectorXd norm1R(6);
         // Eigen::VectorXd norm2R(6);
         // Eigen::VectorXd normInfR(6);
-        std::vector<double> norm1R;
-        std::vector<double> norm2R;
-        std::vector<double> normInfR;
-        norm1R.resize(6), norm2R.resize(6), normInfR.resize(6);
-        MPI_Reduce(norm1.data(), norm1R.data(), 6, MPI_DOUBLE, MPI_SUM, 0, mpi.comm);
-        MPI_Reduce(norm2.data(), norm2R.data(), 6, MPI_DOUBLE, MPI_SUM, 0, mpi.comm);
-        MPI_Reduce(normInf.data(), normInfR.data(), 6, MPI_DOUBLE, MPI_SUM, 0, mpi.comm);
+        // std::vector<double> norm1R;
+        // std::vector<double> norm2R;
+        // std::vector<double> normInfR;
+        // norm1R.resize(6), norm2R.resize(6), normInfR.resize(6);
+        norms[iCase * 3 + 0].resize(6);
+        norms[iCase * 3 + 1].resize(6);
+        norms[iCase * 3 + 2].resize(6);
+        MPI_Reduce(norm1.data(), norms[iCase * 3 + 0].data(), 6, MPI_DOUBLE, MPI_SUM, 0, mpi.comm);
+        MPI_Reduce(norm2.data(), norms[iCase * 3 + 1].data(), 6, MPI_DOUBLE, MPI_SUM, 0, mpi.comm);
+        MPI_Reduce(normInf.data(), norms[iCase * 3 + 2].data(), 6, MPI_DOUBLE, MPI_SUM, 0, mpi.comm);
 
+        std::move(*mesh);
+    }
+
+    for (int iCase = 0; iCase < meshNames.size(); iCase++)
+    {
+        auto &mName = meshNames[iCase];
         if (mpi.rank == 0)
         {
             std::cout << "=== === === === === === === === === === === === === === === === === === ===" << std::endl;
             std::cout << "Name: " << mName
-                      << "  \nnorm1 " << norm1R[0] << norm1R[1] << norm1R[2]
-                      << "  \nnorm2 " << norm2R[0] << norm2R[1] << norm2R[2]
-                      << "  \nnormInf " << normInfR[0] << normInfR[1] << normInfR[2] << std::endl;
+                      //   << "  \nnorm1 " << norm1R[0] << norm1R[1] << norm1R[2]
+                      //   << "  \nnorm2 " << norm2R[0] << norm2R[1] << norm2R[2]
+                      //   << "  \nnormInf " << normInfR[0] << normInfR[1] << normInfR[2] << std::endl;
+                      << "  \nnorm1 " << norms[iCase * 3 + 0].transpose()
+                      << "  \nnorm2 " << norms[iCase * 3 + 1].transpose()
+                      << "  \nnormInf " << norms[iCase * 3 + 2].transpose() << std::endl;
             std::cout << "=== === === === === === === === === === === === === === === === === === ===" << std::endl
                       << std::endl
                       << std::endl;
