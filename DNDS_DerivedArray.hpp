@@ -64,6 +64,11 @@ namespace DNDS
         }
     }
 
+}
+
+namespace DNDS
+{
+
     template <class T>
     struct ArrayCascadeLocal
     {
@@ -73,8 +78,7 @@ namespace DNDS
         std::shared_ptr<ArrayCascade<T>> ghost;
         std::shared_ptr<ArrayCascadePair<T>> pair;
 
-
-// ArrayCascadeLocal
+        // ArrayCascadeLocal
 
         void Copy(ArrayCascadeLocal<T> &R)
         {
@@ -97,16 +101,19 @@ namespace DNDS
 
         void MakePair()
         {
+            assert(dist && ghost);
             pair = std::make_shared<ArrayCascadePair<T>>(*dist, *ghost);
         }
 
         void PullOnce()
         {
+            assert(pair && dist && ghost);
             ghost->pullOnce();
         }
 
         void PushOnce()
         {
+            assert(pair && dist && ghost);
             ghost->pushOnce();
         }
 
@@ -121,14 +128,97 @@ namespace DNDS
         // index the pair
         T operator[](index i)
         {
-            assert(pair);
+            assert(pair && dist && ghost);
             return pair->operator[](i);
         }
 
         index size() const
         {
+            assert(pair && dist && ghost);
             return pair->size();
         }
     };
 
+}
+
+namespace DNDS
+{
+    template <uint32_t vsize>
+    class ArrayDOF : public ArrayCascadeLocal<VecStaticBatch<vsize>>
+    {
+    public:
+        typedef ArrayCascadeLocal<VecStaticBatch<vsize>> base;
+        using ArrayCascadeLocal<VecStaticBatch<vsize>>::ArrayCascadeLocal;
+        ArrayDOF() {}
+        ArrayDOF(index distSize, const MPIInfo &mpi)
+        {
+            base::dist = std::make_shared<ArrayCascade<VecStaticBatch<vsize>>>(
+                typename VecStaticBatch<vsize>::Context(distSize), mpi);
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p().setZero(); });
+        }
+
+        void resize(index nsize)
+        {
+            assert(base::dist);
+            MPIInfo mpi = base::dist->getMPI();
+            base::dist = std::make_shared<ArrayCascade<VecStaticBatch<vsize>>>(
+                typename VecStaticBatch<vsize>::Context(nsize), mpi);
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p().setZero(); });
+        }
+
+        void resize(index nsize, const MPIInfo &mpi)
+        {
+            base::dist = std::make_shared<ArrayCascade<VecStaticBatch<vsize>>>(
+                typename VecStaticBatch<vsize>::Context(nsize), mpi);
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p().setZero(); });
+        }
+
+        void setConstant(real v)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p().setConstant(v); });
+        }
+
+        void operator=(const ArrayDOF<vsize> &R)
+        {
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p() = (*R.dist)[i].p(); });
+        }
+
+        void operator+=(const ArrayDOF<vsize> &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p() += (*R.dist)[i].p(); });
+        }
+
+        void operator*=(real r)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p() *= r; });
+        }
+
+        template <class VR>
+        void operator*=(const VR &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p() *= R[i]; });
+        }
+
+        // const Eigen::Map<Eigen::Vector<real, vsize>> &operator[](index i)
+        // {
+        //     return base::operator[](i).p();
+        // }
+
+        Eigen::Map<Eigen::Vector<real, vsize>> operator[](index i)
+        {
+            return base::operator[](i).p();
+        }
+    };
 }

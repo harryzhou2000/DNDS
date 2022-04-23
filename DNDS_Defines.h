@@ -26,7 +26,10 @@ namespace DNDS
 
     const index indexMin = INT64_MIN;
 
-    const real UnInitReal = std::acos(-1) * 1e300;
+    const real UnInitReal = std::acos(-1) * 1e299;
+
+    const real veryLargeReal = 3e300;
+    const real largeReal = 3e100;
 
     const real pi = std::acos(-1);
 

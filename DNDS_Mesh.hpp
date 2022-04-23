@@ -1586,5 +1586,5 @@ namespace DNDS
 namespace DNDS
 {
     void CompactFacedMeshSerialRWBuild(MPIInfo mpi, const std::string &gmshFile, const std::string &distDebugFile,
-                                       CompactFacedMeshSerialRW **mesh);
+                                       std::shared_ptr<CompactFacedMeshSerialRW> &mesh);
 }

@@ -3,7 +3,7 @@
 namespace DNDS
 {
     void CompactFacedMeshSerialRWBuild(MPIInfo mpi, const std::string &gmshFile, const std::string &distDebugFile,
-                                       CompactFacedMeshSerialRW **mesh)
+                                       std::shared_ptr<CompactFacedMeshSerialRW> &mesh)
     {
         DNDS::SerialGmshReader2d gmshReader2D;
         if (mpi.rank == 0)
@@ -13,16 +13,16 @@ namespace DNDS
             gmshReader2D.InterpolateTopology();
             // gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
         }
-        *mesh = new CompactFacedMeshSerialRW(gmshReader2D, mpi);
+        mesh = std::make_shared<CompactFacedMeshSerialRW>(gmshReader2D, mpi);
         std::move(gmshReader2D);
         // mesh.LogStatusSerialPart();
-        (*mesh)->MetisSerialPartitionKWay(0);
+        (mesh)->MetisSerialPartitionKWay(0);
         // mesh.LogStatusDistPart();
-        (*mesh)->ClearSerial();
-        (*mesh)->BuildSerialOut(0);
-        (*mesh)->PrintSerialPartPltASCIIDBG(distDebugFile, 0);
+        (mesh)->ClearSerial();
+        (mesh)->BuildSerialOut(0);
+        (mesh)->PrintSerialPartPltASCIIDBG(distDebugFile, 0);
         // InsertCheck(mpi, "PB1");
-        (*mesh)->BuildGhosts();
+        (mesh)->BuildGhosts();
         // InsertCheck(mpi, "PBEND");
     }
 }

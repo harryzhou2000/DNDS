@@ -2,6 +2,7 @@
 
 #include <mpi.h>
 #include <vector>
+#include <fstream>
 #include "DNDS_Defines.h"
 
 namespace DNDS
@@ -22,13 +23,21 @@ namespace DNDS
      * \brief maps index or other DNDS types to MPI_Datatype ids
      */
     template <class Tbasic>
-    constexpr MPI_Datatype __DNDSToMPIType()
+    constexpr MPI_Datatype __DNDSToMPITypeInt()
     {
         static_assert(sizeof(Tbasic) == 8 || sizeof(Tbasic) == 4, "DNDS::Tbasic is not right size");
         return sizeof(Tbasic) == 8 ? MPI_INT64_T : (sizeof(Tbasic) == 4 ? MPI_INT32_T : MPI_DATATYPE_NULL);
     }
 
-    const MPI_Datatype DNDS_MPI_INDEX = __DNDSToMPIType<index>();
+    template <class Tbasic>
+    constexpr MPI_Datatype __DNDSToMPITypeFloat()
+    {
+        static_assert(sizeof(Tbasic) == 8 || sizeof(Tbasic) == 4, "DNDS::Tbasic is not right size");
+        return sizeof(Tbasic) == 8 ? MPI_REAL8 : (sizeof(Tbasic) == 4 ? MPI_REAL4 : MPI_DATATYPE_NULL);
+    }
+
+    const MPI_Datatype DNDS_MPI_INDEX = __DNDSToMPITypeInt<index>();
+    const MPI_Datatype DNDS_MPI_REAL = __DNDSToMPITypeFloat<real>();
 
     struct MPIInfo
     {
@@ -50,13 +59,14 @@ namespace DNDS
         }
     };
 
-    inline void InsertCheck(const MPIInfo &mpi, const std::string &info = "")
+    inline void InsertCheck(const MPIInfo &mpi, const std::string &info = "",
+                            const std::string &FUNCTION = __FUNCTION__, const std::string &FILE = __FILE__, int LINE = __LINE__)
     {
 #ifndef NDEBUG
         MPI_Barrier(mpi.comm);
         std::cout << "=== CHECK \"" << info << "\"  RANK " << mpi.rank << " ==="
-                  << " @  FName: " << __FUNCTION__
-                  << " @  Place: " << __FILE__ << ":" << __LINE__ << std::endl;
+                  << " @  FName: " << FUNCTION
+                  << " @  Place: " << FILE << ":" << LINE << std::endl;
         MPI_Barrier(mpi.comm);
 #endif
     }
@@ -115,56 +125,7 @@ namespace DNDS
 {
     namespace Debug
     {
-
-#include <iostream>
-#if defined(linux) || defined(_UNIX)
-#include <sys/ptrace.h>
-#include <unistd.h>
-#endif
-#if defined(_WIN32) || defined(__WINDOWS_)
-#include <Windows.h>
-#include <process.h>
-#endif
-        inline bool IsDebugged()
-        {
-
-#if defined(linux) || defined(_UNIX)
-            return false;
-#endif
-#if defined(_WIN32) || defined(__WINDOWS_)
-            return IsDebuggerPresent();
-#endif
-        }
-
-        inline void MPIDebugHold(const MPIInfo &mpi)
-        {
-#if defined(linux) || defined(_UNIX)
-            MPISerialDo(mpi, [&]
-                        { log() << "Rank " << mpi.rank << " PID: " << getpid() << std::endl; });
-#endif
-#if defined(_WIN32) || defined(__WINDOWS_)
-            MPISerialDo(mpi, [&]
-                        { log() << "Rank " << mpi.rank << " PID: " << _getpid() << std::endl; });
-#endif
-            int holdFlag = 1;
-            while (holdFlag)
-            {
-                for (MPI_int ir = 0; ir < mpi.size; ir++)
-                {
-                    int newDebugFlag;
-                    if (mpi.rank == ir)
-                    {
-                        newDebugFlag = int(IsDebugged());
-                        MPI_Bcast(&newDebugFlag, 1, MPI_INT, ir, mpi.comm);
-                    }
-                    else
-                        MPI_Bcast(&newDebugFlag, 1, MPI_INT, ir, mpi.comm);
-
-                    // std::cout << "DBG " << newDebugFlag;
-                    if (newDebugFlag)
-                        holdFlag = 0;
-                }
-            }
-        }
+        bool IsDebugged();
+        void MPIDebugHold(const MPIInfo &mpi);
     }
 }

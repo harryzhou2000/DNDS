@@ -1,6 +1,6 @@
 #include "../DNDS_Mesh.hpp"
-#include "../DNDS_VR.hpp"
-#include "../DNDS_CR.hpp"
+#include "../DNDS_FV_VR.hpp"
+#include "../DNDS_FV_CR.hpp"
 
 void testA();
 
@@ -79,11 +79,11 @@ void testA()
     ArrayCascadeLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
     fv.BuildMean(u);
     vfv.BuildRec(uRec);
-    InsertCheck(mpi, "B1");
+    // InsertCheck(mpi, "B1", __FUNCTION__, __FILE__, __LINE__);
     uRecNew.Copy(uRec);
-    InsertCheck(mpi, "C0");
+    // InsertCheck(mpi, "C0", __FUNCTION__, __FILE__, __LINE__);
     cfv.BuildRec(uRecCR);
-    InsertCheck(mpi, "C1");
+    // InsertCheck(mpi, "C1", __FUNCTION__, __FILE__, __LINE__);
 
     forEachInArrayPair(
         *u.pair,
@@ -122,7 +122,7 @@ void testA()
     u.InitPersistentPullClean();
     uRec.InitPersistentPullClean();
 
-    for (int i = 0; i < 1000; i++)
+    for (int i = 0; i < 100; i++)
     {
         u.StartPersistentPullClean();
         uRec.StartPersistentPullClean();

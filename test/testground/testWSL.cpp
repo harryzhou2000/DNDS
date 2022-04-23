@@ -1,7 +1,11 @@
 
 #include <iostream>
+#include <fstream>
+#include <string>
 #if defined(linux) || defined(_UNIX)
 #include <signal.h>
+#include <unistd.h>
+#include <sys/file.h>
 static int debugger_present = -1;
 static void sigtrap_handler(int signum)
 {
@@ -15,17 +19,33 @@ static void sigtrap_handler(int signum)
 
 bool IsDebugged()
 {
-
-#if defined(linux) || defined(_UNIX)
-   
     
-    if (-1 == debugger_present)
+#if defined(linux) || defined(_UNIX)
+
+    // if (-1 == debugger_present)
+    // {
+    //     debugger_present = 1;
+    //     signal(SIGTRAP, sigtrap_handler);
+    //     raise(SIGTRAP);
+    // }
+    // return debugger_present;
+    // int ret = close(3);
+    // return ret == 0;
+    std::ifstream fin("/proc/self/status");
+    std::string buf;
+    int tpid;
+    while (!fin.eof())
     {
-        debugger_present = 1;
-        signal(SIGTRAP, sigtrap_handler);
-        raise(SIGTRAP);
+        fin >> buf;
+        if (buf == "TracerPid:")
+        {
+            fin >> tpid;
+            exit;
+        }
     }
-    return debugger_present;
+    fin.close();
+    return tpid != 0;
+
 #endif
 #if defined(_WIN32) || defined(__WINDOWS_)
     return IsDebuggerPresent();
@@ -34,6 +54,6 @@ bool IsDebugged()
 
 int main()
 {
-    std::cout << IsDebugged() << std::endl;
+    std::cout << "IsDebugged " << IsDebugged() << std::endl;
     return 0;
 }

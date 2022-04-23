@@ -1,5 +1,5 @@
-#include "../DNDS_VR.hpp"
-#include "../DNDS_CR.hpp"
+#include "../DNDS_FV_VR.hpp"
+#include "../DNDS_FV_CR.hpp"
 
 int main(int argn, char *argv[])
 {
@@ -36,11 +36,11 @@ int main(int argn, char *argv[])
     for (int iCase = 0; iCase < meshNames.size(); iCase++)
     {
         auto &mName = meshNames[iCase];
-        CompactFacedMeshSerialRW *mesh;
-        CompactFacedMeshSerialRWBuild(mpi, mName, "data/out/debugmeshSO.plt", &mesh);
+        std::shared_ptr<CompactFacedMeshSerialRW> mesh;
+        CompactFacedMeshSerialRWBuild(mpi, mName, "data/out/debugmeshSO.plt", mesh);
         // InsertCheck(mpi, "AfterRead1");
-        ImplicitFiniteVolume2D fv(mesh);
-        VRFiniteVolume2D vfv(mesh, &fv);
+        ImplicitFiniteVolume2D fv(mesh.get());
+        VRFiniteVolume2D vfv(mesh.get(), &fv);
 
         vfv.initIntScheme();
         vfv.initMoment();
@@ -87,7 +87,8 @@ int main(int argn, char *argv[])
         u.InitPersistentPullClean();
         uRec.InitPersistentPullClean();
         // InsertCheck(mpi, "BeforeRec");
-        for (int i = 0; i < 1000; i++)
+        double tstart = MPI_Wtime();
+        for (int i = 0; i < 500; i++)
         {
             u.StartPersistentPullClean();
             uRec.StartPersistentPullClean();
@@ -95,6 +96,8 @@ int main(int argn, char *argv[])
             uRec.WaitPersistentPullClean();
             vfv.ReconstructionJacobiStep(u, uRec, uRecNew);
         }
+        if (mpi.rank == 0)
+            std::cout << "=== Rec time: " << MPI_Wtime() - tstart << std::endl;
 
         cfv.Reconstruction(u, uRec, uRecCR);
         Eigen::VectorXd norm1(6);
@@ -137,7 +140,6 @@ int main(int argn, char *argv[])
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().pow(2).matrix();
                     inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
-                    normInf = (vReal - rec.topRows(6)).array().abs().max(normInf.array());
                 });
         }
         // Eigen::VectorXd norm1R(6);
@@ -152,9 +154,13 @@ int main(int argn, char *argv[])
         norms[iCase * 3 + 2].resize(6);
         MPI_Reduce(norm1.data(), norms[iCase * 3 + 0].data(), 6, MPI_DOUBLE, MPI_SUM, 0, mpi.comm);
         MPI_Reduce(norm2.data(), norms[iCase * 3 + 1].data(), 6, MPI_DOUBLE, MPI_SUM, 0, mpi.comm);
-        MPI_Reduce(normInf.data(), norms[iCase * 3 + 2].data(), 6, MPI_DOUBLE, MPI_SUM, 0, mpi.comm);
+        MPI_Reduce(normInf.data(), norms[iCase * 3 + 2].data(), 6, MPI_DOUBLE, MPI_MAX, 0, mpi.comm);
 
         std::move(*mesh);
+        // if (mpi.rank == mpi.size - 1)
+        // {
+        //     std::cout << uRec[0].m() << std::endl;
+        // }
     }
 
     for (int iCase = 0; iCase < meshNames.size(); iCase++)
