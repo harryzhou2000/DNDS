@@ -708,94 +708,108 @@ namespace DNDS
                                       ArrayCascadeLocal<SemiVarMatrix<vsize>> &uRec,
                                       ArrayCascadeLocal<SemiVarMatrix<vsize>> &uRecNewBuf)
         {
-            // InsertCheck(mpi, "ReconstructionJacobiStep Start");
-            forEachInArray(
-                *uRec.dist,
-                [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
-                {
-                    real relax = cellRecAtrLocal[iCell][0].relax;
-                    auto c2f = mesh->cell2faceLocal[iCell];
-                    uRecNewBuf[iCell].m() = (1 - relax) * uRec[iCell].m();
-                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
-                    {
-                        // this is a repeated code block START
-                        index iFace = c2f[ic2f];
-                        auto f2c = (*mesh->face2cellPair)[iFace];
-                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
-                        auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
-                        Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
-                        Eigen::MatrixXd BCCorrection;
-                        BCCorrection.resizeLike(uRec[iCell].m());
-                        // this is a repeated code block END
 
-                        if (iCellOther != FACE_2_VOL_EMPTY)
+            static int icount = 0;
+
+            // InsertCheck(mpi, "ReconstructionJacobiStep Start");
+            // forEachInArray(
+            //     *uRec.dist,
+            //     [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
+            for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
+            {
+                auto &uRecE = uRec[iCell];
+                real relax = cellRecAtrLocal[iCell][0].relax;
+                auto &c2f = mesh->cell2faceLocal[iCell];
+                uRecNewBuf[iCell].m() = (1 - relax) * uRec[iCell].m();
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    // this is a repeated code block START
+                    index iFace = c2f[ic2f];
+                    auto& f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                    auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
+                    Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+                    Eigen::MatrixXd BCCorrection;
+                    BCCorrection.resizeLike(uRec[iCell].m());
+                    // this is a repeated code block END
+
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        uRecNewBuf[iCell].m() +=
+                            relax * (((*matrixInvAB)[iCell][ic2f + 1] * uRec[iCellOther].m()) +
+                                     ((u[iCellOther].p() - u[iCell].p()) * (*vectorInvAb)[iCell].row(ic2f)).transpose());
+
+                        // InsertCheck(mpi, "ReconstructionJacobiStep AD1");
+                    }
+                    else
+                    {
+                        if (faceAttribute.iPhy == BoundaryType::Wall)
+                        {
+                            Eigen::Vector<real, vsize> uBV;
+                            uBV.setZero();
+                            // Eigen::MatrixXd fc;
+                            // mesh->LoadCoords(mesh->face2nodeLocal[iFace], fc);
+                            // real ytest = (fc(1, 0) + fc(1, 1)) * 0.5;
+                            // uBV.setConstant(ytest * 4);
+                            // Eigen::MatrixXd uRecBV;
+                            uRecNewBuf[iCell].m() +=
+                                relax * (((uBV - u[iCell].p()) * (*vectorInvAb)[iCell].row(ic2f)).transpose());
+
+                            // eFace.Integration(
+                            //     BCCorrection,
+                            //     [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
+                            //     {
+                            //         auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
+
+                            //         Eigen::MatrixXd rowUD = (uBV - uRec[iCell].p()).transpose();
+                            //         Eigen::MatrixXd rowDiffI = diffI.row(0);
+                            //         FFaceFunctional(rowDiffI, rowUD, faceWeights[iFace]({0}), corInc);
+                            //         corInc *= faceNorms[iFace][ig].norm();
+                            //     });
+                        }
+                        else if (faceAttribute.iPhy == BoundaryType::Farfield)
                         {
                             uRecNewBuf[iCell].m() +=
-                                relax * (((*matrixInvAB)[iCell][ic2f + 1] * uRec[iCellOther].m()) +
-                                         ((u[iCellOther].p() - u[iCell].p()) * (*vectorInvAb)[iCell].row(ic2f)).transpose());
-
-                            // InsertCheck(mpi, "ReconstructionJacobiStep AD1");
+                                relax * (((*matrixInvAB)[iCell][ic2f + 1] * uRec[iCell].m()));
                         }
                         else
                         {
-                            if (faceAttribute.iPhy == BoundaryType::Wall)
-                            {
-                                Eigen::Vector<real, vsize> uBV;
-                                uBV.setZero();
-                                // Eigen::MatrixXd fc;
-                                // mesh->LoadCoords(mesh->face2nodeLocal[iFace], fc);
-                                // real ytest = (fc(1, 0) + fc(1, 1)) * 0.5;
-                                // uBV.setConstant(ytest * 4);
-                                // Eigen::MatrixXd uRecBV;
-                                uRecNewBuf[iCell].m() +=
-                                    relax * (((uBV - u[iCell].p()) * (*vectorInvAb)[iCell].row(ic2f)).transpose());
-
-                                // eFace.Integration(
-                                //     BCCorrection,
-                                //     [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
-                                //     {
-                                //         auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
-
-                                //         Eigen::MatrixXd rowUD = (uBV - uRec[iCell].p()).transpose();
-                                //         Eigen::MatrixXd rowDiffI = diffI.row(0);
-                                //         FFaceFunctional(rowDiffI, rowUD, faceWeights[iFace]({0}), corInc);
-                                //         corInc *= faceNorms[iFace][ig].norm();
-                                //     });
-                            }
-                            else if (faceAttribute.iPhy == BoundaryType::Farfield)
-                            {
-                                uRecNewBuf[iCell].m() +=
-                                    relax * (((*matrixInvAB)[iCell][ic2f + 1] * uRec[iCell].m()));
-                            }
-                            else
-                            {
-                                assert(false);
-                            }
+                            assert(false);
                         }
                     }
-                    // std::cout << "DIFF " << iCell << "\n"
-                    //           << uRecNewBuf[iCell].m() << std::endl;
-                });
+                }
+                if (icount == 1)
+                {
+                    std::cout << "DIFF " << iCell << "\n"
+                              << uRecNewBuf[iCell].m() << std::endl;
+                    // exit(0);
+                }
+            }
+            // );
 
             real vall;
             real nall;
-            forEachInArray(
-                *uRec.dist,
-                [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
-                {
-                    nall += (uRecE.m() - uRecNewBuf[iCell].m()).squaredNorm();
-                    vall += 1;
-                    // std::cout << "INC:\n";
-                    // std::cout << uRecE.m() << std::endl;
-                    uRecE.m() = uRecNewBuf[iCell].m();
-                    // std::cout << uRecE.m() << std::endl;
-                });
+            // forEachInArray(
+            //     *uRec.dist,
+            //     [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
+            for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
+            {
+                auto &uRecE = uRec[iCell];
+                nall += (uRecE.m() - uRecNewBuf[iCell].m()).squaredNorm();
+                vall += 1;
+                // std::cout << "INC:\n";
+                // std::cout << uRecE.m() << std::endl;
+                uRecE.m() = uRecNewBuf[iCell].m();
+                // std::cout << uRecE.m() << std::endl;
+            }
+            // );
             // // std::cout << "NEW\n"
             // //           << uRecNewBuf[0] << std::endl;
             real res = nall / vall;
             // std::cout << "RES " << res << std::endl;
+            icount++;
         }
 
         void ReconstructionJacobiStep(ArrayCascadeLocal<VecStaticBatch<1>> &u,

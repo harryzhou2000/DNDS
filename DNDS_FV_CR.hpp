@@ -84,92 +84,96 @@ namespace DNDS
                             ArrayCascadeLocal<SemiVarMatrix<vsize>> &uRec, ArrayCascadeLocal<SemiVarMatrix<vsize>> &uRecCR)
         {
             // InsertCheck(mpi, "ReconstructionJacobiStep Start");
-            forEachInArray(
-                *uRec.dist,
-                [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
+            // forEachInArray(
+            //     *uRec.dist,
+            //     [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
+            //     {
+            for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
+            {
+                auto &uRecE = uRec[iCell];
+                auto &cellRA = cellRecAtrLocal[iCell][0];
+                real relax = cellRA.relax;
+                auto c2f = mesh->cell2faceLocal[iCell];
+                int NDOFCell = cellRA.NDOF;
+                Eigen::VectorXd bi(NDOFCell - 1);
+                bi.setZero();
+
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                 {
-                    auto &cellRA = cellRecAtrLocal[iCell][0];
-                    real relax = cellRA.relax;
-                    auto c2f = mesh->cell2faceLocal[iCell];
-                    int NDOFCell = cellRA.NDOF;
-                    Eigen::VectorXd bi(NDOFCell - 1);
-                    bi.setZero();
+                    // this is a repeated code block START
+                    index iFace = c2f[ic2f];
+                    auto f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                    auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
+                    Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+                    Eigen::MatrixXd fcoords;
+                    mesh->LoadCoords(mesh->face2nodeLocal[iFace], fcoords);
+                    // Elem::tPoint faceL = fcoords(Eigen::all, 1) - fcoords(Eigen::all, 0);
+                    // Elem::tPoint faceN{faceL(1), -faceL(0), 0.0}; // 2-d specific //pointing from left to right
+                    Elem::tPoint faceN = faceNormCenter[iFace];
 
-                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                    Elem::tPoint gradL{0, 0, 0};
+                    gradL({0, 1}) = iCellAtFace ? faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(NDOFCell - 1) * uRec[iCell].m()
+                                                : faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(NDOFCell - 1) * uRec[iCell].m();
+
+                    if (iCellOther != FACE_2_VOL_EMPTY)
                     {
-                        // this is a repeated code block START
-                        index iFace = c2f[ic2f];
-                        auto f2c = (*mesh->face2cellPair)[iFace];
-                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
-                        auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
-                        Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
-                        Eigen::MatrixXd fcoords;
-                        mesh->LoadCoords(mesh->face2nodeLocal[iFace], fcoords);
-                        // Elem::tPoint faceL = fcoords(Eigen::all, 1) - fcoords(Eigen::all, 0);
-                        // Elem::tPoint faceN{faceL(1), -faceL(0), 0.0}; // 2-d specific //pointing from left to right
-                        Elem::tPoint faceN = faceNormCenter[iFace];
+                        auto &cellRAOther = cellRecAtrLocal[iCellOther][0];
 
-                        Elem::tPoint gradL{0, 0, 0};
-                        gradL({0, 1}) = iCellAtFace ? faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(NDOFCell - 1) * uRec[iCell].m()
-                                                    : faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(NDOFCell - 1) * uRec[iCell].m();
-
-                        if (iCellOther != FACE_2_VOL_EMPTY)
-                        {
-                            auto &cellRAOther = cellRecAtrLocal[iCellOther][0];
-
-                            Elem::tPoint gradR{0, 0, 0}; // ! 2d here!!
-                            gradR({0, 1}) = iCellAtFace ? faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellRAOther.NDOF - 1) * uRec[iCellOther].m()
-                                                        : faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellRAOther.NDOF - 1) * uRec[iCellOther].m();
-                            Elem::tPoint convVelocity = 0.5 * (gradL + gradR);
-                            real signLR = ((convVelocity.dot(faceN) > 0) == (iCellAtFace == 0)) ? 1.0 : -1.0;
-                            eFace.Integration(
-                                bi,
-                                [&](Eigen::VectorXd &biInc, int ig, Elem::tPoint pParam, Elem::tDiFj &DiNj)
-                                {
-                                    Eigen::MatrixXd FFace;
-                                    if (signLR > 0)
-                                        FFace = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(NDOFCell - 1) * uRec[iCell].m();
-                                    else
-                                        FFace = faceDiBjGaussCache[iFace][ig * 2 + 1 - iCellAtFace].row(0).rightCols(NDOFCell - 1) * uRec[iCellOther].m() + u[iCellOther].p() - u[iCell].p();
-                                    //! don't forget the mean value between them
-                                    biInc = (faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(NDOFCell - 1).transpose()) *
-                                            FFace * std::pow((*faceWeights)[iFace][0], 2);
-                                    biInc *= faceNorms[iFace][ig].norm();
-                                });
-                        }
-                        else
-                        {
-                            eFace.Integration(
-                                bi,
-                                [&](Eigen::VectorXd &biInc, int ig, Elem::tPoint pParam, Elem::tDiFj &DiNj)
-                                {
-                                    Eigen::MatrixXd FFace;
-                                    if (faceAttribute.iPhy == BoundaryType::Wall)
-                                    {
-                                        FFace.resizeLike(faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellRA.NDOF - 1) * uRec[iCell].m());
-                                        FFace.setZero();
-                                    }
-                                    else if (faceAttribute.iPhy == BoundaryType::Farfield)
-                                    {
-                                        FFace = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellRA.NDOF - 1) * uRec[iCell].m();
-                                    }
-                                    else
-                                    {
-                                        assert(false);
-                                    }
-                                    biInc = (faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellRA.NDOF - 1).transpose()) *
-                                            FFace * std::pow((*faceWeights)[iFace][0], 2);
-                                    biInc *= faceNorms[iFace][ig].norm();
-                                });
-                        }
+                        Elem::tPoint gradR{0, 0, 0}; // ! 2d here!!
+                        gradR({0, 1}) = iCellAtFace ? faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellRAOther.NDOF - 1) * uRec[iCellOther].m()
+                                                    : faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellRAOther.NDOF - 1) * uRec[iCellOther].m();
+                        Elem::tPoint convVelocity = 0.5 * (gradL + gradR);
+                        real signLR = ((convVelocity.dot(faceN) > 0) == (iCellAtFace == 0)) ? 1.0 : -1.0;
+                        eFace.Integration(
+                            bi,
+                            [&](Eigen::VectorXd &biInc, int ig, Elem::tPoint pParam, Elem::tDiFj &DiNj)
+                            {
+                                Eigen::MatrixXd FFace;
+                                if (signLR > 0)
+                                    FFace = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(NDOFCell - 1) * uRec[iCell].m();
+                                else
+                                    FFace = faceDiBjGaussCache[iFace][ig * 2 + 1 - iCellAtFace].row(0).rightCols(NDOFCell - 1) * uRec[iCellOther].m() + u[iCellOther].p() - u[iCell].p();
+                                //! don't forget the mean value between them
+                                biInc = (faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(NDOFCell - 1).transpose()) *
+                                        FFace * std::pow((*faceWeights)[iFace][0], 2);
+                                biInc *= faceNorms[iFace][ig].norm();
+                            });
                     }
+                    else
+                    {
+                        eFace.Integration(
+                            bi,
+                            [&](Eigen::VectorXd &biInc, int ig, Elem::tPoint pParam, Elem::tDiFj &DiNj)
+                            {
+                                Eigen::MatrixXd FFace;
+                                if (faceAttribute.iPhy == BoundaryType::Wall)
+                                {
+                                    FFace.resizeLike(faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellRA.NDOF - 1) * uRec[iCell].m());
+                                    FFace.setZero();
+                                }
+                                else if (faceAttribute.iPhy == BoundaryType::Farfield)
+                                {
+                                    FFace = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellRA.NDOF - 1) * uRec[iCell].m();
+                                }
+                                else
+                                {
+                                    assert(false);
+                                }
+                                biInc = (faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellRA.NDOF - 1).transpose()) *
+                                        FFace * std::pow((*faceWeights)[iFace][0], 2);
+                                biInc *= faceNorms[iFace][ig].norm();
+                            });
+                    }
+                }
 
-                    uRecCR[iCell].m() = (*vectorInvAb)[iCell] * bi;
-                    // std::cout << "DIFF\n"
-                    //           << uRecNewBuf[iCell].m() << std::endl;
-                });
+                uRecCR[iCell].m() = (*vectorInvAb)[iCell] * bi;
+                // std::cout << "DIFF\n"
+                //           << uRecNewBuf[iCell].m() << std::endl;
+            }
+            // );
         }
 
         void Initialization();

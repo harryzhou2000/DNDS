@@ -7,25 +7,47 @@ namespace DNDS
     template <class T>
     class ArrayCascadePair
     {
+        bool connected = false;
+
     public:
         ArrayCascade<T> &arr;
         ArrayCascade<T> &arrGhost;
 
-        template <class Tarr>
-        ArrayCascadePair(Tarr &&nArr, Tarr &&nArrGhost) : arr(std::forward<Tarr>(nArr)), arrGhost(std::forward<Tarr>(nArrGhost)) { assert(arrGhost.father == &arr); }
+        std::vector<T> tPrebuild;
 
-        T operator[](index i)
+        template <class Tarr>
+        ArrayCascadePair(Tarr &&nArr, Tarr &&nArrGhost) : arr(std::forward<Tarr>(nArr)), arrGhost(std::forward<Tarr>(nArrGhost))
+        {
+            assert(arrGhost.father == &arr);
+            arr.connectWith(arrGhost);
+            connected = true;
+            tPrebuild.resize(size());
+            for (index i = 0; i < tPrebuild.size(); i++)
+            {
+                if (i >= arr.size())
+                    tPrebuild[i] = arrGhost[i - arr.size()];
+                else
+                    tPrebuild[i] = arr[i];
+            }
+        }
+
+        T& operator[](index i)
         {
             assert(i >= 0 && i < size());
-            if (i >= arr.size())
-                return arrGhost[i - arr.size()];
-            return arr[i];
+            // if (i >= arr.size())
+            //     return arrGhost[i - arr.size()];
+            // return arr[i];
+            return tPrebuild[i];
         }
 
         index size() const
         {
             return arr.size() + arrGhost.size();
         }
+
+        // void connectPair()
+        // {
+        // }
     };
 }
 
@@ -126,10 +148,13 @@ namespace DNDS
         void ClearPersistentPullClean() { ghost->clearPersistentPull(); }
 
         // index the pair
-        T operator[](index i)
+        inline T& operator[](index i)
         {
             assert(pair && dist && ghost);
+            // if (i >= 0)
             return pair->operator[](i);
+            // else
+            //     return pair->operator[](1);
         }
 
         index size() const

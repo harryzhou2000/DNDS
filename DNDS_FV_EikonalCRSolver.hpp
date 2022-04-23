@@ -56,6 +56,8 @@ namespace DNDS
                 for (auto &i : dt)
                     i = dtMin;
             }
+            // if (uRec.dist->getMPI().rank == 0)
+            // log() << "dt: " << dtMin << std::endl;
         }
 
         /**
@@ -122,6 +124,10 @@ namespace DNDS
                 rhs[f2c[0]](0) += flux / fv->volumeLocal[f2c[0]];
                 if (f2c[1] != FACE_2_VOL_EMPTY)
                     rhs[f2c[1]](0) -= flux / fv->volumeLocal[f2c[0]];
+            }
+            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+            {
+                rhs[iCell](0) = std::min(std::max(rhs[iCell](0), -0.1), 0.1);
             }
         }
 
@@ -190,8 +196,6 @@ namespace DNDS
             outSerial->initPersistentPull();
         }
 
-        
-
         void RunExplicitSSPRK4()
         {
             ODE::ExplicitSSPRK4LocalDt<decltype(u)> ode(
@@ -207,21 +211,35 @@ namespace DNDS
             u.InitPersistentPullClean();
             uRec.StartPersistentPullClean();
             u.StartPersistentPullClean();
-
-            for (int step = 1; step <= 10; step++)
+            double tstart = MPI_Wtime();
+            double trec{0}, treccr{0}, tcomm{0}, trhs{0};
+            for (int step = 1; step <= 500; step++)
             {
                 ode.Step(
                     u,
                     [&](ArrayDOF<1u> &crhs, ArrayDOF<1u> &cx)
                     {
+                        double tstartB = MPI_Wtime();
                         uRec.WaitPersistentPullClean();
                         u.WaitPersistentPullClean();
+                        tcomm += MPI_Wtime() - tstartB;
+
+                        double tstartA = MPI_Wtime();
                         vfv->ReconstructionJacobiStep(cx, uRec, uRecNew);
+                        trec += MPI_Wtime() - tstartA;
+
+                        double tstartD = MPI_Wtime();
                         cfv->Reconstruction(cx, uRec, uRecCR);
+                        treccr += MPI_Wtime() - tstartD;
+
+                        double tstartC = MPI_Wtime();
                         uRec.StartPersistentPullClean();
                         u.StartPersistentPullClean();
+                        tcomm += MPI_Wtime() - tstartC;
 
+                        double tstartE = MPI_Wtime();
                         eval.EvaluateRHS(crhs, cx, uRec, uRecCR);
+                        trhs += MPI_Wtime() - tstartE;
                     },
                     [&](std::vector<real> &dt)
                     {
@@ -229,12 +247,19 @@ namespace DNDS
                     });
                 real res;
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
-                if (mpi.rank == 0)
-                    log() << "=== Step [" << step << "]   "
-                          << "res [" << res << "]" << std::endl;
-                PrintData("data/out/debugData_" + std::to_string(step) +".plt");
+
+                if (step % 100 == 0)
+                {
+                    double telapsed = MPI_Wtime() - tstart;
+                    if (mpi.rank == 0)
+                        log() << "=== Step [" << step << "]   "
+                              << "res [" << res << "]   Time [" << telapsed << "]   recTime[" << trec << "]   reccrTime[" << treccr
+                              << "]   rhsTime[" << trhs << "]   commTime[" << tcomm << "]  " << std::endl;
+                    PrintData("data/out/debugData_" + std::to_string(step) + ".plt");
+                    tstart = MPI_Wtime();
+                    trec = tcomm = treccr = trhs = 0.;
+                }
             }
-            
 
             uRec.WaitPersistentPullClean();
             u.WaitPersistentPullClean();
@@ -245,9 +270,9 @@ namespace DNDS
             for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
                 Eigen::MatrixXd recval = vfv->cellDiBjCenterCache[iCell]({0, 1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
-                (*outDist)[iCell][0] = recval(0);
+                (*outDist)[iCell][0] = recval(0) + u[iCell](0);
                 (*outDist)[iCell][1] = recval(1);
-                (*outDist)[iCell][1] = recval(2);
+                (*outDist)[iCell][2] = recval(2);
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();

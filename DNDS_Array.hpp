@@ -13,6 +13,96 @@
 
 namespace DNDS
 {
+
+    namespace ArrayInternal
+    {
+        template <typename T>
+        class ArrayDataContainer
+        {
+            T *_data = nullptr;
+            index _size = 0;
+            bool _own = true;
+
+        public:
+            ArrayDataContainer() {}
+
+            ArrayDataContainer(const ArrayDataContainer &R)
+            {
+                resize(R.size());
+                for (index i = 0; i < R.size(); i++)
+                    _data[i] = R._data[i];
+            }
+            ArrayDataContainer(ArrayDataContainer &&R)
+            {
+                if (_data && _own)
+                    delete[] _data;
+                _data = R._data;
+                R._data = nullptr;
+                R._size = 0;
+            }
+            ~ArrayDataContainer()
+            {
+                if (_data && _own)
+                    delete[] _data;
+                _data = nullptr;
+                _size = 0;
+            }
+            void operator=(const ArrayDataContainer &R)
+            {
+                resize(R.size());
+                for (index i = 0; i < R.size(); i++)
+                    _data[i] = R._data[i];
+            }
+            void operator=(ArrayDataContainer &&R)
+            {
+                if (_data && _own)
+                    delete[] _data;
+                _data = R._data;
+                R._data = nullptr;
+            }
+            void connectWith(ArrayDataContainer &R)
+            {
+                index sumSize = size() + R.size();
+                uint8_t* _data_old = _data;
+                uint8_t* _Rdata_old = R._data;
+                if (sumSize)
+                    _data = new T[sumSize];
+                R._data = _data + size();
+                R._own = false;
+                for(index i = 0; i<size(); i++)
+                    _data[i] = _data_old[i];
+                for(index i = 0; i<R.size(); i++)
+                    R._data[i] = _Rdata_old[i];
+
+                delete[] _data_old;
+                delete[] _Rdata_old;
+            }
+
+            void resize(index nsize, T fill = 0)
+            {
+                _own = true;
+                if (_data && _own)
+                    delete[] _data;
+                if (nsize)
+                    _data = new T[nsize];
+                _size = nsize;
+                for (index i = 0; i < _size; i++)
+                    _data[i] = fill;
+            }
+            index size() const
+            {
+                return _size;
+            }
+            T *data() const
+            {
+                return _data;
+            }
+        };
+    }
+}
+
+namespace DNDS
+{
     struct ArrayCommStat
     {
         bool hasGlobalMapping = false;
@@ -421,8 +511,9 @@ namespace DNDS
     class ArrayCascade
     {
 
-    public:
-        std::vector<uint8_t> data;
+    private:
+        // std::vector<uint8_t> data;
+        ArrayInternal::ArrayDataContainer<uint8_t> data;
         // std::vector<uint8_t> dataGhost;
         MPIInfo mpi;
 
@@ -610,8 +701,14 @@ namespace DNDS
             }
         }
 
+        void connectWith(ArrayCascade<T> &other)
+        {
+            data.connectWith(other.data);
+        }
+
         // use local index to get T data
-        T operator[](index i)
+        T
+        operator[](index i)
         {
             auto indexInfo = indexer[i];
             assert(std::get<0>(indexInfo) + std::get<1>(indexInfo) <= data.size());
@@ -989,8 +1086,8 @@ namespace DNDS
                       << "This [" << this << "]; Father [" << father << "]; Son [" << son << "] \n";
                 log() << "\t"
                       << "CommStat [" << commStat << "];\n";
-                if (printData0)
-                    PrintVec<uint8_t, index>(data, std::cout);
+                // if (printData0)
+                //     PrintVec<uint8_t, index>(data, std::cout);
                 for (int r = 1; r < mpi.size; r++)
                 {
                     index thatSizes[2];

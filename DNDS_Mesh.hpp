@@ -1037,18 +1037,21 @@ namespace DNDS
 
             pFaceGhostMapping = face2cellDistGhost->pLGhostMapping;
             face2cellPair = std::make_shared<decltype(face2cellPair)::element_type>(*face2cellDist, *face2cellDistGhost);
+            // face2cellPair->connectPair();
 
             face2nodeDistGhost = std::make_shared<tAdjArrayCascade>(face2nodeDist.get());
             face2nodeDistGhost->BorrowGGIndexing(*face2cellDistGhost);
             face2nodeDistGhost->createMPITypes();
             face2nodeDistGhost->pullOnce();
             face2nodePair = std::make_shared<decltype(face2nodePair)::element_type>(*face2nodeDist, *face2nodeDistGhost);
+            // face2nodePair->connectPair();
 
             faceAtrDistGhost = std::make_shared<tElemAtrArrayCascade>(faceAtrDist.get());
             faceAtrDistGhost->BorrowGGIndexing(*face2cellDistGhost);
             faceAtrDistGhost->createMPITypes();
             faceAtrDistGhost->pullOnce();
             faceAtrPair = std::make_shared<decltype(faceAtrPair)::element_type>(*faceAtrDist, *faceAtrDistGhost);
+            // faceAtrPair->connectPair();
 
             cell2faceDistGhost = std::make_shared<tAdjArrayCascade>(cell2faceDist.get());
             cell2faceDistGhost->createGlobalMapping();
@@ -1113,22 +1116,26 @@ namespace DNDS
             cell2faceDistGhost->pullOnce(); //! cell2face's ghost is redundant here, as no ghost face is actually done
             pCellGhostMapping = cell2faceDistGhost->pLGhostMapping;
             cell2facePair = std::make_shared<decltype(cell2facePair)::element_type>(*cell2faceDist, *cell2faceDistGhost);
+            // cell2facePair->connectPair();
 
             cell2nodeDistGhost = std::make_shared<tAdjArrayCascade>(cell2nodeDist.get()); //! note: don't write as std::shared_ptr<>() which mistakes as a pointer sharing
             cell2nodeDistGhost->BorrowGGIndexing(*cell2faceDistGhost);
             cell2nodeDistGhost->createMPITypes();
             cell2nodeDistGhost->pullOnce();
             cell2nodePair = std::make_shared<decltype(cell2nodePair)::element_type>(*cell2nodeDist, *cell2nodeDistGhost);
+            // cell2nodePair->connectPair();
 
             cellAtrDistGhost = std::make_shared<tElemAtrArrayCascade>(cellAtrDist.get());
             cellAtrDistGhost->BorrowGGIndexing(*cell2faceDistGhost);
             cellAtrDistGhost->createMPITypes();
             cellAtrDistGhost->pullOnce();
             cellAtrPair = std::make_shared<decltype(cellAtrPair)::element_type>(*cellAtrDist, *cellAtrDistGhost);
+            // cellAtrPair->connectPair();
 
             nodeCoordsDistGhost = std::make_shared<tVec3DArrayCascade>(nodeCoordsDist.get());
             nodeCoordsDistGhost->createGlobalMapping();
             pNodeGlobalMapping = nodeCoordsDistGhost->pLGlobalMapping;
+            
             // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts D2");
             // get ghost node set
             index nghostNode = 0;
@@ -1160,6 +1167,7 @@ namespace DNDS
             nodeCoordsDistGhost->createMPITypes();
             nodeCoordsDistGhost->pullOnce();
             nodeCoordsPair = std::make_shared<decltype(nodeCoordsPair)::element_type>(*nodeCoordsDist, *nodeCoordsDistGhost);
+            // nodeCoordsPair->connectPair();
             pNodeGhostMapping = nodeCoordsDistGhost->pLGhostMapping;
             // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts D3");
             // convert Adj arrays to point to local arrays
@@ -1242,9 +1250,12 @@ namespace DNDS
             nodeCoordsLocal.dist = nodeCoordsDist;
             nodeCoordsLocal.ghost = nodeCoordsDistGhost;
             nodeCoordsLocal.pair = nodeCoordsPair;
-            // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts D10");
-            // face2cellRefLocal
-            face2cellRefLocal.dist = std::make_shared<tAdjStatic2ArrayCascade>(tAdjStatic2ArrayCascade::tContext(face2cellLocal.dist->size()), mpi);
+            
+
+
+                // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts D10");
+                // face2cellRefLocal
+                face2cellRefLocal.dist = std::make_shared<tAdjStatic2ArrayCascade>(tAdjStatic2ArrayCascade::tContext(face2cellLocal.dist->size()), mpi);
             face2cellRefLocal.CreateGhostCopyComm(face2cellLocal);
             // std::cout << "FUCKED" << face2cellRefLocal.pair->size() << std::endl;
             forEachInArrayPair(
