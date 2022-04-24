@@ -511,7 +511,7 @@ namespace DNDS
     class ArrayCascade
     {
 
-    private:
+    public:
         // std::vector<uint8_t> data;
         ArrayInternal::ArrayDataContainer<uint8_t> data;
         // std::vector<uint8_t> dataGhost;

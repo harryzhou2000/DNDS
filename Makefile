@@ -4,16 +4,22 @@
 # CGNSINC=-I "E:\projects\tools\CGNS-4.2.0\build\include"
 # CGNSLIB=-L "E:\projects\tools\CGNS-4.2.0\build\lib" -lcgns
 # CPC=g++
-
+CPC=mpicxx
 
 MPIINC=
 MPILIB=
 CGNSINC=
 CGNSLIB=-lcgns
-CPC=mpicxx
 
-INCLUDE=${MPIINC} ${CGNSINC}
-LINK   =${MPILIB} ${CGNSLIB} -lmetis
+PYTHON_CFLAGS=$(/usr/bin/python3-config  --cflags)
+PYTHON_LDFLAGS=$(/usr/bin/python3-config  --ldflags)
+
+
+INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS}
+LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis
+
+CXX_COMPILE_FLAGS=${INCLUDE}
+CXX_LINK_FLAGS=${LINK}
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe test/staticReconstructionTest.exe\
 test/eikonal.exe
@@ -29,10 +35,12 @@ HEADERS=$(wildcard *.hpp *.h)
 
 FLAGS=-g
 # FLAGS=-O2
-FLAGS=-O3 -DNDEBUG
+FLAGS=-g -O2
+# FLAGS=-O3 -DNDEBUG
 
 FLAGS_FAST=-g
-FLAGS_FAST=-O3 -DNDEBUG
+FLAGS_FAST=-g -O3
+# FLAGS_FAST=-O3 -DNDEBUG
 
 
 -include $(PREBUILD_FAST_DEP)
@@ -41,12 +49,12 @@ FLAGS_FAST=-O3 -DNDEBUG
 $(PREBUILD):%.o: %.cpp 
 # mind that only first input is compiled for other dependencies are included files
 # mind that -MMD instead of -MM to actually compile it
-	$(CPC) $< -c -o $@ $(FLAGS) -MMD 
+	$(CPC) $< -c -o $@ $(FLAGS) $(CXX_COMPILE_FLAGS) -MMD 
 
 $(PREBUILD_FAST):%.o: %.cpp 
 # mind that only first input is compiled for other dependencies are included files
 # mind that -MMD instead of -MM to actually compile it
-	$(CPC) $< -c -o $@ $(FLAGS_FAST)  $(FPFLAGS) -MMD 
+	$(CPC) $< -c -o $@ $(FLAGS_FAST)  $(CXX_COMPILE_FLAGS)  -MMD 
 
 .PRECIOUS: %.o ## don't rm the immediate .o s!!
 

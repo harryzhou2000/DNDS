@@ -248,7 +248,7 @@ namespace DNDS
                 real res;
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
 
-                if (step % 100 == 0)
+                if (step % 10 == 0)
                 {
                     double telapsed = MPI_Wtime() - tstart;
                     if (mpi.rank == 0)
