@@ -26,8 +26,8 @@ namespace DNDS
         {
             if (!Elem::ElementManager::NBufferInit)
                 Elem::ElementManager::InitNBuffer(); //! do not asuume it't been initialized
-            Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
-            Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_16;
+            Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_4;
+            Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_9;
             Elem::tIntScheme schemeLine = Elem::INT_SCHEME_LINE_5;
             volumeLocal.resize(mesh->cell2nodeLocal.size());
             faceArea.resize(mesh->face2nodeLocal.size());
@@ -156,7 +156,8 @@ namespace DNDS
         inline static real FPolynomial3D(int px, int py, int pz, int dx, int dy, int dz, real x, real y, real z)
         {
             int c = Elem::dFactorials[px][dx] * Elem::dFactorials[py][dy] * Elem::dFactorials[pz][dz];
-            return c ? c * Elem::iPow(px - dx, x) * Elem::iPow(py - dy, y) * Elem::iPow(pz - dz, z) : 0.;
+            // return c ? c * Elem::iPow(px - dx, x) * Elem::iPow(py - dy, y) * Elem::iPow(pz - dz, z) : 0.;
+            return c ? c * std::pow(x, px - dx) * std::pow(y, py - dy) * std::pow(z, pz - dz) : 0.;
         }
 
         inline static Elem::tPoint CoordMinMaxScale(const Eigen::MatrixXd &coords)
@@ -177,11 +178,18 @@ namespace DNDS
                                    const Eigen::VectorXd &baseMoment,
                                    Eigen::MatrixXd &DiBj) // for 2d polynomials here
         {
+            // static int i = 0;
+            // if (i == 9)
+            //     exit(0);
             assert(coords.cols() == cElem.getNNode() && DiNj.cols() == cElem.getNNode());
             Elem::tPoint pParamC = pParam - cElem.getCenterPParam();
             Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
             Elem::tPoint pPhysicsC = pPhysics - cPhysics;
             Elem::tPoint pPhysicsCScaled = (pPhysicsC.array() / simpleScale.array()).matrix();
+            // std::cout << "CHECK FDBV" << std::endl;
+            // std::cout << pPhysicsC << std::endl;
+            // std::cout << pPhysicsCScaled << std::endl;
+            // std::cout << simpleScale << std::endl;
             pPhysicsCScaled(2) = 0.; // for 2d volumes
             for (int idiff = 0; idiff < DiBj.rows(); idiff++)
                 for (int ibase = 0; ibase < DiBj.cols(); ibase++)
@@ -189,28 +197,31 @@ namespace DNDS
                     int px = Elem::diffOperatorOrderList2D[ibase][0];
                     int py = Elem::diffOperatorOrderList2D[ibase][1];
                     int pz = Elem::diffOperatorOrderList2D[ibase][2];
+                    int ndx = Elem::diffOperatorOrderList2D[idiff][0];
                     int ndy = Elem::diffOperatorOrderList2D[idiff][1];
                     int ndz = Elem::diffOperatorOrderList2D[idiff][2];
-                    int ndx = Elem::diffOperatorOrderList2D[idiff][0];
                     DiBj(idiff, ibase) = FPolynomial3D(px, py, pz, ndx, ndy, ndz,
                                                        pPhysicsCScaled(0), pPhysicsCScaled(1), pPhysicsCScaled(2)) /
-                                         (std::pow(simpleScale(0), ndx) * std::pow(simpleScale(1), ndy) * std::pow(simpleScale(2), ndz));
+                                         (std::pow(simpleScale(0), ndx) * std::pow(simpleScale(1), ndy) * std::pow(1, ndz));
                 }
+            // std::cout << "XXXXXXX\n"
+            //           << cPhysics << std::endl
+            //           << pPhysicsC << std::endl;
             // std::cout << DiBj << std::endl;
-            // exit(-1);
             DiBj(0, Eigen::all) -= baseMoment.transpose();
+            // i++;
         }
 
         static void FFaceFunctional(const Eigen::MatrixXd &DiffI, const Eigen::MatrixXd &DiffJ, const Eigen::VectorXd &Weights, Eigen::MatrixXd &Conj)
         {
             assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
-            // Conj = DiffI.transpose() * Weights.asDiagonal() * Weights.asDiagonal() * DiffJ;
-            Conj.resize(DiffI.cols(), DiffJ.cols());
-            Conj.setZero();
-            for (int i = 0; i < DiffI.cols(); i++)
-                for (int j = 0; j < DiffJ.cols(); j++)
-                    for (int k = 0; k < DiffI.rows(); k++)
-                        Conj(i, j) += DiffI(k, i) * DiffJ(k, j) * Weights(k) * Weights(k);
+            Conj = DiffI.transpose() * Weights.asDiagonal() * Weights.asDiagonal() * DiffJ;
+            // Conj.resize(DiffI.cols(), DiffJ.cols());
+            // Conj.setZero();
+            // for (int i = 0; i < DiffI.cols(); i++)
+            //     for (int j = 0; j < DiffJ.cols(); j++)
+            //         for (int k = 0; k < DiffI.rows(); k++)
+            //             Conj(i, j) += DiffI(k, i) * DiffJ(k, j) * Weights(k) * Weights(k);
         }
 
         // derive intscheme, ndof ,ndiff in rec attributes
@@ -295,27 +306,6 @@ namespace DNDS
                     cellCenters[iCell] = coords * DiNj(0, Eigen::all).transpose(); // center point derived
                     // InsertCheck(mpi, "Do1End");
                     Elem::tPoint sScale = CoordMinMaxScale(coords);
-                    Eigen::MatrixXd BjBuffer(1, cellRecAtr.NDOF);
-                    BjBuffer.setZero();
-                    eCell.Integration(
-                        BjBuffer,
-                        [&](Eigen::MatrixXd &incBj, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
-                        {
-                            // InsertCheck(mpi, "Do2");
-                            incBj.resize(1, cellRecAtr.NDOF);
-                            // InsertCheck(mpi, "Do2End");
-                            FDiffBaseValue(eCell, coords, iDiNj,
-                                           ip, cellCenters[iCell], sScale,
-                                           Eigen::VectorXd::Zero(cellRecAtr.NDOF),
-                                           incBj);
-                            Elem::tJacobi Jacobi = Elem::DiNj2Jacobi(iDiNj, coords);
-                            incBj *= Jacobi({0, 1}, {0, 1}).determinant();
-                            // std::cout << "IncBj 0 " << incBj(0, 0) << std::endl;
-                        });
-                    // std::cout << "BjBuffer0 " << BjBuffer(0, 0) << std::endl;
-                    baseMoments[iCell] = (BjBuffer / FV->volumeLocal[iCell]).transpose();
-                    // std::cout << "BM0 " << 1 - baseMoments[iCell](0) << std::endl; //should better be machine eps
-                    baseMoments[iCell](0) = 1.; // just for binary accuracy
 
                     cellBaries[iCell].setZero();
                     eCell.Integration(
@@ -327,6 +317,35 @@ namespace DNDS
                             incC *= Jacobi({0, 1}, {0, 1}).determinant();
                         });
                     cellBaries[iCell] /= FV->volumeLocal[iCell];
+                    // std::cout << cellBaries[iCell] << std::endl;
+                    // exit(0);
+
+                    Eigen::MatrixXd BjBuffer(1, cellRecAtr.NDOF);
+                    BjBuffer.setZero();
+                    eCell.Integration(
+                        BjBuffer,
+                        [&](Eigen::MatrixXd &incBj, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
+                        {
+                            // InsertCheck(mpi, "Do2");
+                            incBj.resize(1, cellRecAtr.NDOF);
+                            // InsertCheck(mpi, "Do2End");
+                            FDiffBaseValue(eCell, coords, iDiNj,
+                                           ip, cellBaries[iCell], sScale,
+                                           Eigen::VectorXd::Zero(cellRecAtr.NDOF),
+                                           incBj);
+                            Elem::tJacobi Jacobi = Elem::DiNj2Jacobi(iDiNj, coords);
+                            incBj *= Jacobi({0, 1}, {0, 1}).determinant();
+                            // std::cout << "JACOBI " << Jacobi({0, 1}, {0, 1}).determinant() * 4 << std::endl;
+                            // std::cout << "INC " << incBj(1) * 4 << std::endl;
+                            // std::cout << "IncBj 0 " << incBj(0, 0) << std::endl;
+                        });
+                    // std::cout << "BjBuffer0 " << BjBuffer(0, 0) << std::endl;
+                    baseMoments[iCell] = (BjBuffer / FV->volumeLocal[iCell]).transpose();
+                    // std::cout << "MOMENT\n"
+                    //           << baseMoments[iCell] << std::endl;
+                    // std::cout << "V " << FV->volumeLocal[iCell] << std::endl;
+                    // std::cout << "BM0 " << 1 - baseMoments[iCell](0) << std::endl; //should better be machine eps
+                    baseMoments[iCell](0) = 1.; // just for binary accuracy
                 });
             // InsertCheck(mpi, "InitMomentEnd");
         }
@@ -354,7 +373,7 @@ namespace DNDS
                     eCell.GetDiNj(p, DiNj); // N_cache not using
                     Elem::tPoint sScale = CoordMinMaxScale(coords);
                     FDiffBaseValue(eCell, coords, DiNj,
-                                   p, cellCenters[iCell], sScale,
+                                   p, cellBaries[iCell], sScale,
                                    baseMoments[iCell],
                                    cellDiBjCenterCache[iCell]);
 
@@ -367,13 +386,14 @@ namespace DNDS
                         cellDiBjGaussCache[iCell][ig].resize(cellRecAtr.NDIFF, cellRecAtr.NDOF);
                         eCell.GetDiNj(p, DiNj); // N_cache not using
                         FDiffBaseValue(eCell, coords, DiNj,
-                                       p, cellCenters[iCell], sScale,
+                                       p, cellBaries[iCell], sScale,
                                        baseMoments[iCell],
                                        cellDiBjGaussCache[iCell][ig]);
                         cellGaussJacobiDets[iCell][ig] = Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
                     }
                 });
             // InsertCheck(mpi, "initBaseDiffCache Cell Ended");
+
             // face part: sides
             index nlocalFaces = mesh->face2nodeLocal.size();
             faceDiBjCenterCache.resize(nlocalFaces);
@@ -434,7 +454,7 @@ namespace DNDS
                     Elem::tDiFj cellDiNj(4, eCell.getNNode());
                     eCell.GetDiNj(pCell, cellDiNj);
                     FDiffBaseValue(eCell, cellCoordsL, cellDiNj,
-                                   pCell, cellCenters[iCell], sScaleL,
+                                   pCell, cellBaries[iCell], sScaleL,
                                    baseMoments[iCell], faceDiBjCenterCache[iFace].first);
 
                     if (f2c[1] != FACE_2_VOL_EMPTY)
@@ -450,7 +470,7 @@ namespace DNDS
                         Elem::tDiFj cellDiNj(4, eCell.getNNode());
                         eCell.GetDiNj(pCell, cellDiNj);
                         FDiffBaseValue(eCell, cellCoordsR, cellDiNj,
-                                       pCell, cellCenters[iCell], sScaleR,
+                                       pCell, cellBaries[iCell], sScaleR,
                                        baseMoments[iCell], faceDiBjCenterCache[iFace].second);
                     }
 
@@ -473,8 +493,9 @@ namespace DNDS
                         Elem::tDiFj cellDiNj(4, eCell.getNNode());
                         eCell.GetDiNj(pCell, cellDiNj);
                         FDiffBaseValue(eCell, cellCoordsL, cellDiNj,
-                                       pCell, cellCenters[iCell], sScaleL,
+                                       pCell, cellBaries[iCell], sScaleL,
                                        baseMoments[iCell], faceDiBjGaussCache[iFace][ig * 2 + 0]);
+                        // std::cout << "GP" << cellCoordsL * cellDiNj(0, Eigen::all).transpose() << std::endl;
                         // InsertCheck(mpi, "DOAEND");
                         if (f2c[1] != FACE_2_VOL_EMPTY)
                         {
@@ -487,10 +508,12 @@ namespace DNDS
                             Elem::tDiFj cellDiNj(4, eCell.getNNode());
                             eCell.GetDiNj(pCell, cellDiNj);
                             FDiffBaseValue(eCell, cellCoordsR, cellDiNj,
-                                           pCell, cellCenters[iCell], sScaleR,
+                                           pCell, cellBaries[iCell], sScaleR,
                                            baseMoments[iCell], faceDiBjGaussCache[iFace][ig * 2 + 1]);
                         }
                     }
+                    // exit(0);
+
                     // Do weights!!
                     // if (f2c[1] == FACE_2_VOL_EMPTY)
                     //     std::cout << faceAtr.iPhy << std::endl;
@@ -498,22 +521,22 @@ namespace DNDS
                     Elem::tPoint delta;
                     if (f2c[1] != FACE_2_VOL_EMPTY)
                     {
-                        delta = cellCenters[f2c[1]] - cellCenters[f2c[0]];
+                        delta = cellBaries[f2c[1]] - cellBaries[f2c[0]];
                         (*faceWeights)[iFace].setConstant(1.0);
                     }
                     else if (faceAtr.iPhy == BoundaryType::Wall)
                     {
                         (*faceWeights)[iFace].setConstant(0.0);
-                        (*faceWeights)[iFace][0] = 2.0;
+                        (*faceWeights)[iFace][0] = 1.0;
                         // delta = (faceCoords(Eigen::all, 0) + faceCoords(Eigen::all, 1)) * 0.5 - cellCenters[f2c[0]];
-                        delta = pFace - cellCenters[f2c[0]];
-                        delta *= 2.0;
+                        delta = pFace - cellBaries[f2c[0]];
+                        delta *= 1.0;
                     }
                     else if (faceAtr.iPhy == BoundaryType::Farfield)
                     {
                         (*faceWeights)[iFace].setConstant(0.0);
                         (*faceWeights)[iFace][0] = 1.0;
-                        delta = pFace - cellCenters[f2c[0]];
+                        delta = pFace - cellBaries[f2c[0]];
                     }
                     else
                     {
@@ -558,7 +581,7 @@ namespace DNDS
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
                     {
                         index iFace = c2f[ic2f];
-                        auto f2c = (*mesh->face2cellPair)[iFace];
+                        auto f2c = mesh->face2cellLocal[iFace];
                         index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                         index iCellAtFace = f2c[0] == iCell ? 0 : 1;
                         auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
@@ -576,18 +599,21 @@ namespace DNDS
                                 incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                 incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
                                 // std::cout << "DI " << std::endl;
-                                // std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellFace] << std::endl;
+                                // std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace] << std::endl;
                             });
                         // if (mpi.rank == 0)
-                        //     std::cout << "FW " << iCell << "\n"
-                        //               << faceWeights[iFace] << std::endl;
+                        // std::cout << "FW " << iCell << "\n"
+                        //           << (*faceWeights)[iFace] << std::endl;
                     }
                     // if (mpi.rank == 0)
-                    //     std::cout << "A " << iCell << "\n"
-                    //               << matrixInvAB[iCell][0] << std::endl;
+                    // std::cout << "MOMENT" << baseMoments[iCell] << std::endl;
+                    // std::cout << "A " << iCell << "\n"
+                    //           << (*matrixInvAB)[iCell][0] << std::endl;
 
                     Eigen::MatrixXd Ainv;
                     HardEigen::EigenLeastSquareInverse((*matrixInvAB)[iCell][0], Ainv);
+
+                    
 
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
                     {
@@ -620,6 +646,7 @@ namespace DNDS
                                     // std::cout << "DI " << std::endl;
                                     // std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellFace] << std::endl;
                                 });
+                            // std::cout << "Bij " << (*matrixInvAB)[iCell][ic2f + 1] << std::endl;
                             (*matrixInvAB)[iCell][ic2f + 1] = Ainv * (*matrixInvAB)[iCell][ic2f + 1];
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Wall)
@@ -672,6 +699,9 @@ namespace DNDS
                             (*vectorInvAb)[iCell].row(ic2f) = row;
                         }
                     }
+                    // std::cout << "Ainv " << iCell << "\n"
+                    //           << Ainv << std::endl;
+                    // exit(0);
                     (*vectorInvAb)[iCell] = (*vectorInvAb)[iCell] * Ainv.transpose(); // must be outside the loop as it operates all rows at once
                     // std::cout << "bMat " << std::endl;
                     // std::cout << vectorInvAb[iCell] << std::endl;
@@ -721,11 +751,17 @@ namespace DNDS
                 real relax = cellRecAtrLocal[iCell][0].relax;
                 auto &c2f = mesh->cell2faceLocal[iCell];
                 uRecNewBuf[iCell].m() = (1 - relax) * uRec[iCell].m();
+
+                Eigen::MatrixXd coords;
+                mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
+                // std::cout << "COORDS" << coords << std::endl;
+                // std::cout << (*matrixInvAB)[iCell][0] << std::endl
+                //           << std::endl;
                 for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                 {
                     // this is a repeated code block START
                     index iFace = c2f[ic2f];
-                    auto& f2c = (*mesh->face2cellPair)[iFace];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
                     index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                     index iCellAtFace = f2c[0] == iCell ? 0 : 1;
                     auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
@@ -740,7 +776,7 @@ namespace DNDS
                         uRecNewBuf[iCell].m() +=
                             relax * (((*matrixInvAB)[iCell][ic2f + 1] * uRec[iCellOther].m()) +
                                      ((u[iCellOther].p() - u[iCell].p()) * (*vectorInvAb)[iCell].row(ic2f)).transpose());
-
+                        // std::cout << "MIABInner" << (*matrixInvAB)[iCell][ic2f + 1] << std::endl;
                         // InsertCheck(mpi, "ReconstructionJacobiStep AD1");
                     }
                     else
@@ -780,10 +816,11 @@ namespace DNDS
                         }
                     }
                 }
+                // exit(0);
                 if (icount == 1)
                 {
-                    std::cout << "DIFF " << iCell << "\n"
-                              << uRecNewBuf[iCell].m() << std::endl;
+                    // std::cout << "DIFF " << iCell << "\n"
+                    //           << uRecNewBuf[iCell].m() << std::endl;
                     // exit(0);
                 }
             }

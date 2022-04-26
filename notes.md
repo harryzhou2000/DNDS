@@ -28,6 +28,12 @@ future features:
 - tecplot binary io support
 - in-time visualization?...
 
+# 2022-4-27
+of the errors/incompatibilities:
+    could be in VR/CR implementation (losing items, mixing u-rec and u-mean, matrix misuse)
+    could be in weights difference or RHS implementation
+    one was in hardeigen, which is Singular value filtering ???(do without?)
+
 
 
 

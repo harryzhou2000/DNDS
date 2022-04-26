@@ -3,13 +3,14 @@
 #include "DNDS_FV_VR.hpp"
 #include "DNDS_FV_CR.hpp"
 #include "DNDS_ODE.hpp"
+#include "DNDS_Scripting.hpp"
 
 namespace DNDS
 {
     class EikonalEvaluator
     {
     public:
-        int kAv = 4;
+        int kAv = 4; //! change when order is changed!!
         CompactFacedMeshSerialRW *mesh;
         ImplicitFiniteVolume2D *fv;
         VRFiniteVolume2D *vfv;
@@ -38,9 +39,9 @@ namespace DNDS
                 Elem::tPoint gradL{0, 0, 0}, gradR{0, 0, 0};
                 gradL({0, 1}) = vfv->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(vfv->faceDiBjCenterCache[iFace].first.cols() - 1) * uRec[iCellL].m();
                 if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
-                    gradR({0, 1}) = vfv->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(vfv->faceDiBjCenterCache[iFace].first.cols() - 1) * uRec[f2c[1]].m();
+                    gradR({0, 1}) = vfv->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(vfv->faceDiBjCenterCache[iFace].second.cols() - 1) * uRec[f2c[1]].m();
                 Elem::tPoint grad = (gradL + gradR) * 0.5;
-                real lamFace = std::abs(grad.dot(unitNorm)) * fv->faceArea[iFace];
+                real lamFace = (std::abs(grad.dot(unitNorm)) + 1) * fv->faceArea[iFace];
                 lambdaCell[iCellL] += lamFace;
                 if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
                     lambdaCell[f2c[1]] += lamFace;
@@ -48,13 +49,17 @@ namespace DNDS
             real dtMin = veryLargeReal;
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
+                // std::cout << fv->volumeLocal[iCell] << " " << (lambdaCell[iCell]) << " " << CFL << std::endl;
+                // exit(0);
                 dt[iCell] = std::min(CFL * fv->volumeLocal[iCell] / (lambdaCell[iCell] + 1e-10), MaxDt);
                 dtMin = std::min(dtMin, dt[iCell]);
             }
+            real dtMinall;
+            MPI_Allreduce(&dtMin, &dtMinall, 1, DNDS_MPI_REAL, MPI_MIN, uRec.dist->getMPI().comm);
             if (!UseLocaldt)
             {
                 for (auto &i : dt)
-                    i = dtMin;
+                    i = dtMinall;
             }
             // if (uRec.dist->getMPI().rank == 0)
             // log() << "dt: " << dtMin << std::endl;
@@ -80,10 +85,12 @@ namespace DNDS
                         Elem::tPoint vrGrad{0, 0, 0}, crGrad{0, 0, 0};
                         vrGrad({0, 1}) = vfv->cellDiBjGaussCache[iCell][ig]({1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
                         crGrad({0, 1}) = cfv->cellDiBjGaussCache[iCell][ig]({1, 2}, Eigen::all).rightCols(uRecCR[iCell].m().rows()) * uRecCR[iCell].m();
-                        inc = 1 - std::abs(vrGrad.dot(crGrad));
+                        inc = 1 - std::fabs(vrGrad.dot(crGrad));
                         inc *= vfv->cellGaussJacobiDets[iCell][ig];
                     });
                 rhs[iCell](0) = rhsValue / fv->volumeLocal[iCell];
+                // std::cout << rhs[iCell](0) <<std::endl;
+                // exit(0);
             }
 
             for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
@@ -98,7 +105,7 @@ namespace DNDS
                 if (f2c[1] != FACE_2_VOL_EMPTY)
                     dist = (vfv->cellCenters[f2c[0]] - vfv->cellCenters[f2c[1]]).norm();
                 else
-                    dist = (vfv->faceCenters[iFace] - vfv->cellCenters[f2c[0]]).norm() * 2;
+                    dist = (vfv->faceCenters[iFace] - vfv->cellCenters[f2c[0]]).norm() * 0;
                 eFace.Integration(
                     flux,
                     [&](real &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
@@ -117,17 +124,18 @@ namespace DNDS
                         if (visEta < 1. / 5. / (kAv * kAv))
                             visEta = 0.;
                         real visGam = 0.5;
+                        visEta *= 0.2;
 
-                        finc = dist * visEta * visGam * unitNorm.dot(gradC);
+                        finc = visEta * visGam * (dist * unitNorm.dot(gradC) + (uRecValR(0) - uRecValL(0)) * 0.5);
                         finc *= vfv->faceNorms[iFace][ig].norm(); // don't forget this
                     });
                 rhs[f2c[0]](0) += flux / fv->volumeLocal[f2c[0]];
                 if (f2c[1] != FACE_2_VOL_EMPTY)
-                    rhs[f2c[1]](0) -= flux / fv->volumeLocal[f2c[0]];
+                    rhs[f2c[1]](0) -= flux / fv->volumeLocal[f2c[1]];
             }
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
-                rhs[iCell](0) = std::min(std::max(rhs[iCell](0), -0.1), 0.1);
+                rhs[iCell](0) = std::min(std::max(rhs[iCell](0), -1e10), 1e10);
             }
         }
 
@@ -171,9 +179,43 @@ namespace DNDS
         {
         }
 
-        void ReadMeshAndInitialize(const std::string &mName)
+        struct Configuration
         {
-            CompactFacedMeshSerialRWBuild(mpi, mName, "data/out/debugmeshSO.plt", mesh);
+            int nTimeStep = 1000;
+            int nConsoleCheck = 10;
+            int nDataOut = 50;
+            real CFL = 0.5;
+            std::string mName = "data/mesh/NACA0012_WIDE_H3.msh";
+            std::string outPltName = "data/out/debugData_";
+        } config;
+
+        void ConfigureFromJson(const std::string &jsonName)
+        {
+            rapidjson::Document doc;
+            JSON::ReadFile(jsonName, doc);
+            config.nTimeStep = doc["nTimeStep"].GetInt();
+            if (mpi.rank == 0)
+                log() << "JSON: nTimeStep = " << config.nTimeStep << std::endl;
+            config.nConsoleCheck = doc["nConsoleCheck"].GetInt();
+            if (mpi.rank == 0)
+                log() << "JSON: nConsoleCheck = " << config.nConsoleCheck << std::endl;
+            config.nDataOut = doc["nDataOut"].GetInt();
+            if (mpi.rank == 0)
+                log() << "JSON: nDataOut = " << config.nDataOut << std::endl;
+            config.CFL = doc["CFL"].GetDouble();
+            if (mpi.rank == 0)
+                log() << "JSON: CFL = " << config.CFL << std::endl;
+            config.mName = doc["meshFile"].GetString();
+            if (mpi.rank == 0)
+                log() << "JSON: meshFile = " << config.mName << std::endl;
+            config.outPltName = doc["outPltName"].GetString();
+            if (mpi.rank == 0)
+                log() << "JSON: outPltName = " << config.outPltName << std::endl;
+        }
+
+        void ReadMeshAndInitialize()
+        {
+            CompactFacedMeshSerialRWBuild(mpi, config.mName, "data/out/debugmeshSO.plt", mesh);
             fv = std::make_shared<ImplicitFiniteVolume2D>(mesh.get());
             vfv = std::make_shared<VRFiniteVolume2D>(mesh.get(), fv.get());
             vfv->Initialization();
@@ -206,21 +248,21 @@ namespace DNDS
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                 });
             EikonalEvaluator eval(mesh.get(), fv.get(), vfv.get(), cfv.get());
-            real CFL = 0.1;
             uRec.InitPersistentPullClean();
             u.InitPersistentPullClean();
-            uRec.StartPersistentPullClean();
-            u.StartPersistentPullClean();
+            // u.StartPersistentPullClean();
             double tstart = MPI_Wtime();
             double trec{0}, treccr{0}, tcomm{0}, trhs{0};
-            for (int step = 1; step <= 500; step++)
+            for (int step = 1; step <= config.nTimeStep; step++)
             {
                 ode.Step(
                     u,
                     [&](ArrayDOF<1u> &crhs, ArrayDOF<1u> &cx)
                     {
+                        double tstartC = MPI_Wtime();
+                        u.StartPersistentPullClean();
+                        tcomm += MPI_Wtime() - tstartC;
                         double tstartB = MPI_Wtime();
-                        uRec.WaitPersistentPullClean();
                         u.WaitPersistentPullClean();
                         tcomm += MPI_Wtime() - tstartB;
 
@@ -228,14 +270,17 @@ namespace DNDS
                         vfv->ReconstructionJacobiStep(cx, uRec, uRecNew);
                         trec += MPI_Wtime() - tstartA;
 
+                        double tstartF = MPI_Wtime();
+                        uRec.StartPersistentPullClean();
+                        tcomm += MPI_Wtime() - tstartF;
+
+                        double tstartG = MPI_Wtime();
+                        uRec.WaitPersistentPullClean();
+                        tcomm += MPI_Wtime() - tstartG;
+
                         double tstartD = MPI_Wtime();
                         cfv->Reconstruction(cx, uRec, uRecCR);
                         treccr += MPI_Wtime() - tstartD;
-
-                        double tstartC = MPI_Wtime();
-                        uRec.StartPersistentPullClean();
-                        u.StartPersistentPullClean();
-                        tcomm += MPI_Wtime() - tstartC;
 
                         double tstartE = MPI_Wtime();
                         eval.EvaluateRHS(crhs, cx, uRec, uRecCR);
@@ -243,29 +288,46 @@ namespace DNDS
                     },
                     [&](std::vector<real> &dt)
                     {
-                        eval.EvaluateDt(dt, uRec, CFL, 0.1);
+                        double tstartC = MPI_Wtime(); //! this also need to update!
+                        u.StartPersistentPullClean();
+                        tcomm += MPI_Wtime() - tstartC;
+                        double tstartB = MPI_Wtime();
+                        u.WaitPersistentPullClean();
+                        tcomm += MPI_Wtime() - tstartB;
+
+                        double tstartF = MPI_Wtime();
+                        uRec.StartPersistentPullClean();
+                        tcomm += MPI_Wtime() - tstartF;
+                        double tstartG = MPI_Wtime();
+                        uRec.WaitPersistentPullClean();
+                        tcomm += MPI_Wtime() - tstartG;
+
+                        eval.EvaluateDt(dt, uRec, config.CFL, 1e100, true);
                     });
                 real res;
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
 
-                if (step % 10 == 0)
+                if (step % config.nConsoleCheck == 0)
                 {
                     double telapsed = MPI_Wtime() - tstart;
                     if (mpi.rank == 0)
                         log() << "=== Step [" << step << "]   "
                               << "res [" << res << "]   Time [" << telapsed << "]   recTime[" << trec << "]   reccrTime[" << treccr
                               << "]   rhsTime[" << trhs << "]   commTime[" << tcomm << "]  " << std::endl;
-                    PrintData("data/out/debugData_" + std::to_string(step) + ".plt");
                     tstart = MPI_Wtime();
                     trec = tcomm = treccr = trhs = 0.;
                 }
+                if (step % config.nDataOut == 0)
+                {
+                    PrintData(config.outPltName + std::to_string(step) + ".plt", ode);
+                }
             }
 
-            uRec.WaitPersistentPullClean();
-            u.WaitPersistentPullClean();
+            // u.WaitPersistentPullClean();
         }
 
-        void PrintData(const std::string &fname)
+        template <typename tODE>
+        void PrintData(const std::string &fname, tODE &ode)
         {
             for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
@@ -273,6 +335,7 @@ namespace DNDS
                 (*outDist)[iCell][0] = recval(0) + u[iCell](0);
                 (*outDist)[iCell][1] = recval(1);
                 (*outDist)[iCell][2] = recval(2);
+                // (*outDist)[iCell][2] = ;
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();

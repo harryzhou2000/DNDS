@@ -1008,14 +1008,16 @@ namespace DNDS
 
         void waitPersistentPush() // collective;
         {
-            assert(commStat.hasPersistentPushReqs && !commStat.PersistentPushFinished);
+            // assert(commStat.hasPersistentPushReqs && !commStat.PersistentPushFinished);
+            assert(commStat.hasPersistentPushReqs);
             if (PushReqVec.size())
                 MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data());
             commStat.PersistentPushFinished = true;
         }
         void waitPersistentPull() // collective;
         {
-            assert(commStat.hasPersistentPullReqs && !commStat.PersistentPullFinished);
+            // assert(commStat.hasPersistentPullReqs && !commStat.PersistentPullFinished);
+            assert(commStat.hasPersistentPullReqs);
             if (PullReqVec.size())
                 MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data());
             commStat.PersistentPullFinished = true;

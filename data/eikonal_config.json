@@ -1,0 +1,8 @@
+{
+    "nTimeStep": 2000,
+    "nConsoleCheck": 10,
+    "nDataOut": 50,
+    "CFL": 0.5,
+    "meshFile": "data/mesh/NACA0012_WIDE_H3_O2.msh",
+    "outPltName": "data/out/debugData_"
+}

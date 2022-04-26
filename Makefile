@@ -16,7 +16,7 @@ PYTHON_LDFLAGS=$(/usr/bin/python3-config  --ldflags)
 
 
 INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS}
-LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis
+LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis -llapacke -lopenblas
 
 CXX_COMPILE_FLAGS=${INCLUDE}
 CXX_LINK_FLAGS=${LINK}
@@ -36,7 +36,7 @@ HEADERS=$(wildcard *.hpp *.h)
 FLAGS=-g
 # FLAGS=-O2
 FLAGS=-g -O2
-# FLAGS=-O3 -DNDEBUG
+FLAGS=-O3 -DNDEBUG
 
 FLAGS_FAST=-g
 FLAGS_FAST=-g -O3

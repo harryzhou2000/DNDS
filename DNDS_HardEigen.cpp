@@ -1,13 +1,24 @@
 #include "DNDS_HardEigen.h"
+#include <iostream>
 
 namespace DNDS
 {
     namespace HardEigen
     {
+
+// #define EIGEN_USE_LAPACKE
         void EigenLeastSquareInverse(const Eigen::MatrixXd &A, Eigen::MatrixXd &AI)
         {
-            auto SVDResult = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
-            AI = SVDResult.solve(Eigen::MatrixXd::Identity(A.rows(), A.rows()));
+            static const double sVmin = 1e-12;
+            // auto SVDResult = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+            auto SVDResult = A.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
+            // AI = SVDResult.solve(Eigen::MatrixXd::Identity(A.rows(), A.rows()));
+            auto sVs = SVDResult.singularValues();
+            for (auto &i : sVs)
+                if (std::fabs(i) > sVmin)//!note this filtering!
+                    i = 1. / i;
+            AI = SVDResult.matrixV() * sVs.asDiagonal() * SVDResult.matrixU().transpose();
+            // std::cout << AI * A << std::endl;
         }
     }
 }

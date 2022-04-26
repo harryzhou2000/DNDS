@@ -8,7 +8,10 @@ int main(int argc, char *argv[])
     mpi.setWorld();
     {
         EikonalCRSolver solver(mpi);
-        solver.ReadMeshAndInitialize("data/mesh/Uniform/UniformD100.msh");
+        solver.ConfigureFromJson("data/eikonal_config.json");
+        // solver.ReadMeshAndInitialize("data/mesh/Uniform/UniformD100.msh");
+        solver.ReadMeshAndInitialize();
+        // solver.ReadMeshAndInitialize("data/mesh/NACA0012_WIDE_H3_Closed.msh");
         solver.RunExplicitSSPRK4();
     }
     MPI_Finalize();
