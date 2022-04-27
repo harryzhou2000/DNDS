@@ -1,3 +1,7 @@
+export OMPI_CXX=clang++
+# export OMPI_CXX=g++
+
+first: what
 
 # MPIINC=-I "C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
 # MPILIB=-L "C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" -lmsmpi
@@ -18,7 +22,7 @@ PYTHON_LDFLAGS=$(/usr/bin/python3-config  --ldflags)
 INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS}
 LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis -llapacke -lopenblas
 
-CXX_COMPILE_FLAGS=${INCLUDE}
+CXX_COMPILE_FLAGS=${INCLUDE} -std=c++14 -Wall -Wno-comment -Wno-unused-variable -Wno-sign-compare -Wno-unused-but-set-variable
 CXX_LINK_FLAGS=${LINK}
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe test/staticReconstructionTest.exe\
@@ -32,6 +36,8 @@ PREBUILD_FAST=DNDS_Mesh.o DNDS_HardEigen.o DNDS_FV_VR.o DNDS_FV_CR.o
 PREBUILD_FAST_DEP:=$(PREBUILD_FAST:.o=.d)
 
 HEADERS=$(wildcard *.hpp *.h)
+
+
 
 FLAGS=-g
 # FLAGS=-O2
@@ -56,17 +62,21 @@ $(PREBUILD_FAST):%.o: %.cpp
 # mind that -MMD instead of -MM to actually compile it
 	$(CPC) $< -c -o $@ $(FLAGS_FAST)  $(CXX_COMPILE_FLAGS)  -MMD 
 
+all: ${SINGLE_TARGETS}
+
+what:
+	echo `mpicxx --showme`
+	echo ${SINGLE_TARGETS}
+
 .PRECIOUS: %.o ## don't rm the immediate .o s!!
 
 
-all: ${SINGLE_TARGETS}
 
 VPATH:=test
 %.exe: %.cpp ${HEADERS} ${PREBUILD} ${PREBUILD_FAST}
-	${CPC} -o $@ $(filter %.cpp , $^) ${PREBUILD} ${PREBUILD_FAST}  ${INCLUDE} ${LINK} ${FLAGS}
+	${CPC} -o $@ $(filter %.cpp , $^) ${PREBUILD} ${PREBUILD_FAST} $(FLAGS) $(CXX_COMPILE_FLAGS) $(CXX_LINK_FLAGS)
 
-
-.PHONY: clean
+.PHONY: clean first
 
 clean:
 	rm -f *.exe *.o *.d

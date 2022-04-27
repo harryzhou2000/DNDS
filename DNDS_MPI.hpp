@@ -60,7 +60,7 @@ namespace DNDS
     };
 
     inline void InsertCheck(const MPIInfo &mpi, const std::string &info = "",
-                            const std::string &FUNCTION = __FUNCTION__, const std::string &FILE = __FILE__, int LINE = __LINE__)
+                            const std::string &FUNCTION = "", const std::string &FILE = "", int LINE = -1)
     {
 #ifndef NDEBUG
         MPI_Barrier(mpi.comm);

@@ -41,16 +41,16 @@ void testA()
     CompactFacedMeshSerialRW *mesh;
     CompactFacedMeshSerialRWBuild(mpi, "data/mesh/in.msh", "data/out/debugmeshSO.plt", &mesh);
 
-    ArrayCascade<Real1> rk(Real1::Context(mesh->cell2faceDist->size()), mpi);
+    Array<Real1> rk(Real1::Context(mesh->cell2faceDist->size()), mpi);
     forEachInArray(rk, [&](Real1 &e, DNDS::index i)
                    { e[0] = mpi.rank; });
-    ArrayCascade<Real1> rkGhost(&rk);
+    Array<Real1> rkGhost(&rk);
     rkGhost.BorrowGGIndexing(*mesh->cell2faceDistGhost);
     rkGhost.createMPITypes();
     forEachInArray(rkGhost, [&](Real1 &e, DNDS::index i)
                    { e[0] = mpi.rank; });
     rkGhost.pushOnce(); // so that difference between rk and rank shows the boundary cells of domains
-    ArrayCascade<Real1> rkSerial(&rk);
+    Array<Real1> rkSerial(&rk);
     rkSerial.BorrowGGIndexing(*mesh->cell2node);
     rkSerial.createMPITypes();
     rkSerial.pullOnce();
@@ -75,8 +75,8 @@ void testA()
     CRFiniteVolume2D cfv(vfv); //! mind the order!
     cfv.initReconstructionMatVec();
 
-    ArrayCascadeLocal<VecStaticBatch<1u>> u;
-    ArrayCascadeLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
+    ArrayLocal<VecStaticBatch<1u>> u;
+    ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
     fv.BuildMean(u);
     vfv.BuildRec(uRec);
     // InsertCheck(mpi, "B1", __FUNCTION__, __FILE__, __LINE__);

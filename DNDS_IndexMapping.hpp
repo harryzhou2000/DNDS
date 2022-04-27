@@ -118,8 +118,8 @@ namespace DNDS
             ghostSizes.assign(mpi.size, 0);
             for (auto i : pullingIndexGlobal)
             {
-                MPI_int rank;
-                index loc; // dummy here
+                MPI_int rank = -1;
+                index loc = -1; // dummy here
                 LGlobalMapping.search(i, rank, loc);
                 // if (rank != mpi.rank) // must not exclude local ones for the sake of scatter/gather
                 ghostSizes[rank]++;
@@ -127,7 +127,7 @@ namespace DNDS
 
             ghostStart.resize(ghostSizes.size() + 1);
             ghostStart[0] = 0;
-            for (index i = 0; i < ghostSizes.size(); i++)
+            for (typename decltype(ghostSizes)::size_type i = 0; i < ghostSizes.size(); i++)
                 ghostStart[i + 1] = ghostStart[i] + ghostSizes[i];
             ghostIndex.reserve(ghostStart[ghostSizes.size()]);
             for (auto i : pullingIndexGlobal)
@@ -174,12 +174,12 @@ namespace DNDS
             assert(pushingStarts.size() == mpi.size + 1 && pushingIndexes.size() == pushingStarts[mpi.size]);
             pushIndexSizes.resize(mpi.size);
             pushIndexStarts.resize(mpi.size + 1, 0);
-            for (index i = 0; i < mpi.size; i++)
+            for (int i = 0; i < mpi.size; i++)
                 pushIndexSizes[i] = pushingStarts[i + 1] - pushingStarts[i],
                 pushIndexStarts[i + 1] = pushingStarts[i + 1];
             pushingIndexGlobal.resize(pushingIndexes.size());
             std::forward<TpushStart>(pushingStarts); //! might delete
-            for (index i = 0; i < pushingIndexGlobal.size(); i++)
+            for (size_t i = 0; i < pushingIndexGlobal.size(); i++)
                 pushingIndexGlobal[i] = LGlobalMapping(mpi.rank, pushingIndexes[i]); // convert from local to global
             std::forward<TpushSet>(pushingIndexes);                                  //! might delete
 
@@ -187,7 +187,7 @@ namespace DNDS
             MPI_Alltoall(pushIndexSizes.data(), 1, MPI_INT, ghostSizes.data(), 1, MPI_INT, mpi.comm); // inverse to the normal pulling
             ghostStart.resize(ghostSizes.size() + 1);
             ghostStart[0] = 0;
-            for (index i = 0; i < ghostSizes.size(); i++)
+            for (size_t i = 0; i < ghostSizes.size(); i++)
                 ghostStart[i + 1] = ghostStart[i] + ghostSizes[i];
             ghostIndex.resize(ghostStart[ghostSizes.size()]);
             MPI_Alltoallv(pushingIndexGlobal.data(), pushIndexSizes.data(), pushIndexStarts.data(), DNDS_MPI_INDEX,

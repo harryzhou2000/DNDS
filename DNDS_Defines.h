@@ -66,7 +66,7 @@ namespace DNDS
     {
         rowstarts.resize(rowsizes.size() + 1);
         rowstarts[0] = 0;
-        for (index i = 1; i < rowstarts.size(); i++)
+        for (typename TtIndexVec::size_type i = 1; i < rowstarts.size(); i++)
             rowstarts[i] = rowstarts[i - 1] + rowsizes[i - 1];
     }
 

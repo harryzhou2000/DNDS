@@ -95,6 +95,7 @@ namespace DNDS
                 std::string line;
                 std::getline(fin, line);
                 if (line[0] == '$')
+                {
                     if (std::regex_search(line.c_str(), regComments))
                     {
                         while (!fin.eof())
@@ -217,6 +218,7 @@ namespace DNDS
                             assert(false);
                         }
                     }
+                }
             }
 
             fin.close();
@@ -433,7 +435,7 @@ namespace DNDS
      *
      */
     template <class TAdjBatch>
-    void ConvertAdjSerial2Global(std::shared_ptr<ArrayCascade<TAdjBatch>> &arraySerialAdj,
+    void ConvertAdjSerial2Global(std::shared_ptr<Array<TAdjBatch>> &arraySerialAdj,
                                  const std::vector<index> &partitionJSerial2Global,
                                  const MPIInfo &mpi)
     {
@@ -458,8 +460,8 @@ namespace DNDS
             {
                 if (v == FACE_2_VOL_EMPTY)
                     return;
-                MPI_int rank;
-                index val;
+                MPI_int rank = -1;
+                index val = -1;
                 JSGGhost.pLGlobalMapping->search(v, rank, val);
                 if (rank != mpi.rank)
                     nGhost++;
@@ -471,8 +473,8 @@ namespace DNDS
             {
                 if (v == FACE_2_VOL_EMPTY)
                     return;
-                MPI_int rank;
-                index val;
+                MPI_int rank = -1;
+                index val = -1;
                 JSGGhost.pLGlobalMapping->search(v, rank, val);
                 if (rank != mpi.rank)
                     ghostJSerialQuery.push_back(v);
@@ -489,8 +491,8 @@ namespace DNDS
             {
                 if (v == FACE_2_VOL_EMPTY)
                     return;
-                MPI_int rank;
-                index val;
+                MPI_int rank = -1;
+                index val = -1;
                 JSGGhost.pLGhostMapping->search(v, rank, val);
                 if (rank == -1)
                     v = JSG[val];
@@ -501,11 +503,11 @@ namespace DNDS
     }
 
     template <class TComp>
-    void DistributeByPushLocal(std::shared_ptr<ArrayCascade<TComp>> &arraySerial,
-                               std::shared_ptr<ArrayCascade<TComp>> &arrayDist,
+    void DistributeByPushLocal(std::shared_ptr<Array<TComp>> &arraySerial,
+                               std::shared_ptr<Array<TComp>> &arrayDist,
                                const std::vector<index> &partitionIPushLocal, const std::vector<index> &partitionIPushLocalStarts)
     {
-        arrayDist = std::make_shared<ArrayCascade<TComp>>(arraySerial.get()); // arraySerialAdj->arrayDistAdj
+        arrayDist = std::make_shared<Array<TComp>>(arraySerial.get()); // arraySerialAdj->arrayDistAdj
         arrayDist->createGlobalMapping();
         arrayDist->createGhostMapping(partitionIPushLocal, partitionIPushLocalStarts);
         arrayDist->createMPITypes();
@@ -587,10 +589,10 @@ namespace DNDS
         Elem::tIntScheme intScheme;
     };
 
-    typedef ArrayCascade<VarBatch<index>> tAdjArrayCascade;
-    typedef ArrayCascade<Batch<index, 2>> tAdjStatic2ArrayCascade;
-    typedef ArrayCascade<Batch<ElemAttributes, 1>> tElemAtrArrayCascade;
-    typedef ArrayCascade<Vec3DBatch> tVec3DArrayCascade;
+    typedef Array<VarBatch<index>> tAdjArray;
+    typedef Array<Batch<index, 2>> tAdjStatic2Array;
+    typedef Array<Batch<ElemAttributes, 1>> tElemAtrArray;
+    typedef Array<Vec3DBatch> tVec3DArray;
 
     class CompactFacedMeshSerialRW
     {
@@ -604,31 +606,31 @@ namespace DNDS
         index numFaceGlobal;
         index numNodeGlobal;
 
-        std::shared_ptr<tAdjArrayCascade> cell2node; // serial node index
-        std::shared_ptr<tAdjArrayCascade> cell2face; // serial face index
-        std::shared_ptr<tElemAtrArrayCascade> cellAtr;
+        std::shared_ptr<tAdjArray> cell2node; // serial node index
+        std::shared_ptr<tAdjArray> cell2face; // serial face index
+        std::shared_ptr<tElemAtrArray> cellAtr;
 
-        std::shared_ptr<tAdjArrayCascade> face2node;        // serial node index
-        std::shared_ptr<tAdjStatic2ArrayCascade> face2cell; // serial cell index
-        std::shared_ptr<tElemAtrArrayCascade> faceAtr;
+        std::shared_ptr<tAdjArray> face2node;        // serial node index
+        std::shared_ptr<tAdjStatic2Array> face2cell; // serial cell index
+        std::shared_ptr<tElemAtrArray> faceAtr;
 
-        // std::shared_ptr<tAdjStatic2ArrayCascade> face2cellGlobal; // global cell index
+        // std::shared_ptr<tAdjStatic2Array> face2cellGlobal; // global cell index
         // // ! currently only cell needs to be indexed explicitly in global order.
         // // ! for only cell data are currently run-time communicated
 
-        std::shared_ptr<tVec3DArrayCascade> nodeCoords;
+        std::shared_ptr<tVec3DArray> nodeCoords;
 
         // std::vector<index> iCellsSerialDist;
 
-        std::shared_ptr<tAdjArrayCascade> cell2nodeDist;
-        std::shared_ptr<tAdjArrayCascade> cell2faceDist;
-        std::shared_ptr<tElemAtrArrayCascade> cellAtrDist;
+        std::shared_ptr<tAdjArray> cell2nodeDist;
+        std::shared_ptr<tAdjArray> cell2faceDist;
+        std::shared_ptr<tElemAtrArray> cellAtrDist;
 
-        std::shared_ptr<tAdjArrayCascade> face2nodeDist;
-        std::shared_ptr<tAdjStatic2ArrayCascade> face2cellDist;
-        std::shared_ptr<tElemAtrArrayCascade> faceAtrDist;
+        std::shared_ptr<tAdjArray> face2nodeDist;
+        std::shared_ptr<tAdjStatic2Array> face2cellDist;
+        std::shared_ptr<tElemAtrArray> faceAtrDist;
 
-        std::shared_ptr<tVec3DArrayCascade> nodeCoordsDist;
+        std::shared_ptr<tVec3DArray> nodeCoordsDist;
 
         std::shared_ptr<GlobalOffsetsMapping> pCellGlobalMapping;
         std::shared_ptr<GlobalOffsetsMapping> pFaceGlobalMapping;
@@ -637,44 +639,44 @@ namespace DNDS
         std::shared_ptr<OffsetAscendIndexMapping> pFaceGhostMapping;
         std::shared_ptr<OffsetAscendIndexMapping> pNodeGhostMapping;
 
-        std::shared_ptr<tAdjArrayCascade> cell2nodeDistGhost;
-        std::shared_ptr<tAdjArrayCascade> cell2faceDistGhost;
-        std::shared_ptr<tElemAtrArrayCascade> cellAtrDistGhost;
-        std::shared_ptr<ArrayCascadePair<tAdjArrayCascade::tComponent>> cell2facePair;
-        ArrayCascadeLocal<tAdjArrayCascade::tComponent> cell2faceLocal;
-        std::shared_ptr<ArrayCascadePair<tAdjArrayCascade::tComponent>> cell2nodePair;
-        ArrayCascadeLocal<tAdjArrayCascade::tComponent> cell2nodeLocal;
-        std::shared_ptr<ArrayCascadePair<tElemAtrArrayCascade::tComponent>> cellAtrPair;
-        ArrayCascadeLocal<tElemAtrArrayCascade::tComponent> cellAtrLocal;
+        std::shared_ptr<tAdjArray> cell2nodeDistGhost;
+        std::shared_ptr<tAdjArray> cell2faceDistGhost;
+        std::shared_ptr<tElemAtrArray> cellAtrDistGhost;
+        std::shared_ptr<ArrayPair<tAdjArray::tComponent>> cell2facePair;
+        ArrayLocal<tAdjArray::tComponent> cell2faceLocal;
+        std::shared_ptr<ArrayPair<tAdjArray::tComponent>> cell2nodePair;
+        ArrayLocal<tAdjArray::tComponent> cell2nodeLocal;
+        std::shared_ptr<ArrayPair<tElemAtrArray::tComponent>> cellAtrPair;
+        ArrayLocal<tElemAtrArray::tComponent> cellAtrLocal;
 
-        std::shared_ptr<tAdjArrayCascade> face2nodeDistGhost;
-        std::shared_ptr<tAdjStatic2ArrayCascade> face2cellDistGhost;
-        std::shared_ptr<tElemAtrArrayCascade> faceAtrDistGhost;
-        std::shared_ptr<ArrayCascadePair<tAdjStatic2ArrayCascade::tComponent>> face2cellPair;
-        ArrayCascadeLocal<tAdjStatic2ArrayCascade::tComponent> face2cellLocal;
-        std::shared_ptr<ArrayCascadePair<tAdjArrayCascade::tComponent>> face2nodePair;
-        ArrayCascadeLocal<tAdjArrayCascade::tComponent> face2nodeLocal;
-        std::shared_ptr<ArrayCascadePair<tElemAtrArrayCascade::tComponent>> faceAtrPair;
-        ArrayCascadeLocal<tElemAtrArrayCascade::tComponent> faceAtrLocal;
+        std::shared_ptr<tAdjArray> face2nodeDistGhost;
+        std::shared_ptr<tAdjStatic2Array> face2cellDistGhost;
+        std::shared_ptr<tElemAtrArray> faceAtrDistGhost;
+        std::shared_ptr<ArrayPair<tAdjStatic2Array::tComponent>> face2cellPair;
+        ArrayLocal<tAdjStatic2Array::tComponent> face2cellLocal;
+        std::shared_ptr<ArrayPair<tAdjArray::tComponent>> face2nodePair;
+        ArrayLocal<tAdjArray::tComponent> face2nodeLocal;
+        std::shared_ptr<ArrayPair<tElemAtrArray::tComponent>> faceAtrPair;
+        ArrayLocal<tElemAtrArray::tComponent> faceAtrLocal;
 
-        std::shared_ptr<tVec3DArrayCascade> nodeCoordsDistGhost;
-        std::shared_ptr<ArrayCascadePair<tVec3DArrayCascade::tComponent>> nodeCoordsPair;
-        ArrayCascadeLocal<tVec3DArrayCascade::tComponent> nodeCoordsLocal;
+        std::shared_ptr<tVec3DArray> nodeCoordsDistGhost;
+        std::shared_ptr<ArrayPair<tVec3DArray::tComponent>> nodeCoordsPair;
+        ArrayLocal<tVec3DArray::tComponent> nodeCoordsLocal;
 
-        ArrayCascadeLocal<tAdjStatic2ArrayCascade::tComponent> face2cellRefLocal;
+        ArrayLocal<tAdjStatic2Array::tComponent> face2cellRefLocal;
 
-        // std::shared_ptr<tAdjArrayCascade> cell2Localnode;
-        // std::shared_ptr<tAdjArrayCascade> cell2Localface;
-        // std::shared_ptr<tAdjStatic2ArrayCascade> face2Localcell;
-        // std::shared_ptr<tAdjArrayCascade> face2Localnode;
+        // std::shared_ptr<tAdjArray> cell2Localnode;
+        // std::shared_ptr<tAdjArray> cell2Localface;
+        // std::shared_ptr<tAdjStatic2Array> face2Localcell;
+        // std::shared_ptr<tAdjArray> face2Localnode;
 
         CompactFacedMeshSerialRW(SerialGmshReader2d &gmshReader, const MPIInfo &nmpi) : mpi(nmpi)
         {
             assert(gmshReader.vol2face.size() == gmshReader.volElems.size());
 
             // copy cell2node
-            cell2node = std::make_shared<tAdjArrayCascade>(
-                tAdjArrayCascade::tContext(
+            cell2node = std::make_shared<tAdjArray>(
+                tAdjArray::tContext(
                     [&](index i) -> rowsize
                     {
                         assert(gmshReader.volElems[i].nodeList.size() == Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNNode());
@@ -690,8 +692,8 @@ namespace DNDS
             }
 
             // copy face2node
-            face2node = std::make_shared<tAdjArrayCascade>(
-                tAdjArrayCascade::tContext(
+            face2node = std::make_shared<tAdjArray>(
+                tAdjArray::tContext(
                     [&](index i) -> rowsize
                     {
                         assert(gmshReader.faceElems[i].nodeList.size() == Elem::ElementManager(gmshReader.faceElems[i].elemType, 0).getNNode());
@@ -707,8 +709,8 @@ namespace DNDS
             }
 
             // copy cell2face
-            cell2face = std::make_shared<tAdjArrayCascade>(
-                tAdjArrayCascade::tContext(
+            cell2face = std::make_shared<tAdjArray>(
+                tAdjArray::tContext(
                     [&](index i) -> rowsize
                     {
                         assert(gmshReader.vol2face[i].size() == Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNFace());
@@ -725,8 +727,8 @@ namespace DNDS
             assert(cell2face->size() == cell2node->size());
 
             // copy face2cell
-            face2cell = std::make_shared<tAdjStatic2ArrayCascade>(
-                tAdjStatic2ArrayCascade::tContext(
+            face2cell = std::make_shared<tAdjStatic2Array>(
+                tAdjStatic2Array::tContext(
                     gmshReader.faceElems.size()),
                 mpi);
             for (index iff = 0; iff < face2cell->size(); iff++)
@@ -737,8 +739,8 @@ namespace DNDS
             }
 
             // copy cell atr
-            cellAtr = std::make_shared<tElemAtrArrayCascade>(
-                tElemAtrArrayCascade::tContext(cell2face->size()),
+            cellAtr = std::make_shared<tElemAtrArray>(
+                tElemAtrArray::tContext(cell2face->size()),
                 mpi);
             for (index iv = 0; iv < cellAtr->size(); iv++)
             {
@@ -749,8 +751,8 @@ namespace DNDS
             }
 
             // copy face atr
-            faceAtr = std::make_shared<tElemAtrArrayCascade>(
-                tElemAtrArrayCascade::tContext(face2cell->size()),
+            faceAtr = std::make_shared<tElemAtrArray>(
+                tElemAtrArray::tContext(face2cell->size()),
                 mpi);
             for (index iff = 0; iff < face2cell->size(); iff++)
             {
@@ -772,8 +774,8 @@ namespace DNDS
             }
 
             // copy points
-            nodeCoords = std::make_shared<tVec3DArrayCascade>(
-                tVec3DArrayCascade::tContext(gmshReader.readPoints.size()),
+            nodeCoords = std::make_shared<tVec3DArray>(
+                tVec3DArray::tContext(gmshReader.readPoints.size()),
                 mpi);
             for (index ip = 0; ip < nodeCoords->size(); ip++)
                 (*nodeCoords)[ip].p() = gmshReader.readPoints[ip];
@@ -809,10 +811,12 @@ namespace DNDS
                     auto faceList = (*cell2face)[iv];
                     for (index iff = 0; iff < faceList.size(); iff++)
                         if ((*face2cell)[faceList[iff]][1] != FACE_2_VOL_EMPTY) // then face connects another cell
+                        {
                             if ((*face2cell)[faceList[iff]][0] == iv)
                                 cell2cell[icell2cellfill++] = (*face2cell)[faceList[iff]][1];
                             else
                                 cell2cell[icell2cellfill++] = (*face2cell)[faceList[iff]][0];
+                        }
                 }
                 assert(icell2cellfill == cell2cell.size());
                 /*******************************************************/
@@ -857,13 +861,13 @@ namespace DNDS
                 std::vector<idx_t> partitionNode(nodeCoords->size());
                 forEachBasicInArray(
                     *cell2face,
-                    [&](tAdjArrayCascade::tComponent &e, index i, index v, index j)
+                    [&](tAdjArray::tComponent &e, index i, index v, index j)
                     {
                         partitionFace[v] = partition[i];
                     });
                 forEachBasicInArray(
                     *cell2node,
-                    [&](tAdjArrayCascade::tComponent &e, index i, index v, index j)
+                    [&](tAdjArray::tComponent &e, index i, index v, index j)
                     {
                         partitionNode[v] = partition[i];
                     });
@@ -877,10 +881,10 @@ namespace DNDS
                 Partition2Serial2Global(partitionNode, SGNode, mpi, mpi.size);
                 Partition2Serial2Global(partitionFace, SGFace, mpi, mpi.size);
 
-                auto pncell2face = std::make_shared<tAdjArrayCascade>(*cell2face);
-                auto pncell2node = std::make_shared<tAdjArrayCascade>(*cell2node);
-                auto pnface2cell = std::make_shared<tAdjStatic2ArrayCascade>(*face2cell);
-                auto pnface2node = std::make_shared<tAdjArrayCascade>(*face2node);
+                auto pncell2face = std::make_shared<tAdjArray>(*cell2face);
+                auto pncell2node = std::make_shared<tAdjArray>(*cell2node);
+                auto pnface2cell = std::make_shared<tAdjStatic2Array>(*face2cell);
+                auto pnface2node = std::make_shared<tAdjArray>(*face2node);
 
                 ConvertAdjSerial2Global(pncell2face, SGFace, mpi);
                 ConvertAdjSerial2Global(pncell2node, SGNode, mpi);
@@ -913,10 +917,10 @@ namespace DNDS
                 Partition2Serial2Global(partitionNode, SGNode, mpi, mpi.size);
                 Partition2Serial2Global(partitionFace, SGFace, mpi, mpi.size);
 
-                auto pncell2face = std::make_shared<tAdjArrayCascade>(*cell2face);
-                auto pncell2node = std::make_shared<tAdjArrayCascade>(*cell2node);
-                auto pnface2cell = std::make_shared<tAdjStatic2ArrayCascade>(*face2cell);
-                auto pnface2node = std::make_shared<tAdjArrayCascade>(*face2node);
+                auto pncell2face = std::make_shared<tAdjArray>(*cell2face);
+                auto pncell2node = std::make_shared<tAdjArray>(*cell2node);
+                auto pnface2cell = std::make_shared<tAdjStatic2Array>(*face2cell);
+                auto pnface2node = std::make_shared<tAdjArray>(*face2node);
 
                 ConvertAdjSerial2Global(pncell2face, SGFace, mpi);
                 ConvertAdjSerial2Global(pncell2node, SGNode, mpi);
@@ -960,9 +964,9 @@ namespace DNDS
          */
         void BuildSerialOut(MPI_int oprank)
         {
-            cell2node = std::make_shared<tAdjArrayCascade>(cell2nodeDist.get());
-            cellAtr = std::make_shared<tElemAtrArrayCascade>(cellAtrDist.get());
-            nodeCoords = std::make_shared<tVec3DArrayCascade>(nodeCoordsDist.get());
+            cell2node = std::make_shared<tAdjArray>(cell2nodeDist.get());
+            cellAtr = std::make_shared<tElemAtrArray>(cellAtrDist.get());
+            nodeCoords = std::make_shared<tVec3DArray>(nodeCoordsDist.get());
             std::vector<index> serialPullCell;
             std::vector<index> serialPullNode;
             assert(cell2nodeDist->obtainTotalSize() == numCellGlobal);
@@ -1000,7 +1004,7 @@ namespace DNDS
         void BuildGhosts()
         {
             // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts Start");
-            face2cellDistGhost = std::make_shared<tAdjStatic2ArrayCascade>(face2cellDist.get());
+            face2cellDistGhost = std::make_shared<tAdjStatic2Array>(face2cellDist.get());
             face2cellDistGhost->createGlobalMapping();
             pFaceGlobalMapping = face2cellDistGhost->pLGlobalMapping;
 
@@ -1008,7 +1012,7 @@ namespace DNDS
             index nghostFaces = 0;
             forEachBasicInArray(
                 *cell2faceDist,
-                [&](tAdjArrayCascade::tComponent &c2f, index ic, index ifg, index icf)
+                [&](tAdjArray::tComponent &c2f, index ic, index ifg, index icf)
                 {
                     MPI_int rank;
                     index val;
@@ -1021,7 +1025,7 @@ namespace DNDS
             ghostFaces.reserve(nghostFaces);
             forEachBasicInArray(
                 *cell2faceDist,
-                [&](tAdjArrayCascade::tComponent &c2f, index ic, index ifg, index icf)
+                [&](tAdjArray::tComponent &c2f, index ic, index ifg, index icf)
                 {
                     MPI_int rank;
                     index val;
@@ -1039,21 +1043,21 @@ namespace DNDS
             face2cellPair = std::make_shared<decltype(face2cellPair)::element_type>(*face2cellDist, *face2cellDistGhost);
             // face2cellPair->connectPair();
 
-            face2nodeDistGhost = std::make_shared<tAdjArrayCascade>(face2nodeDist.get());
+            face2nodeDistGhost = std::make_shared<tAdjArray>(face2nodeDist.get());
             face2nodeDistGhost->BorrowGGIndexing(*face2cellDistGhost);
             face2nodeDistGhost->createMPITypes();
             face2nodeDistGhost->pullOnce();
             face2nodePair = std::make_shared<decltype(face2nodePair)::element_type>(*face2nodeDist, *face2nodeDistGhost);
             // face2nodePair->connectPair();
 
-            faceAtrDistGhost = std::make_shared<tElemAtrArrayCascade>(faceAtrDist.get());
+            faceAtrDistGhost = std::make_shared<tElemAtrArray>(faceAtrDist.get());
             faceAtrDistGhost->BorrowGGIndexing(*face2cellDistGhost);
             faceAtrDistGhost->createMPITypes();
             faceAtrDistGhost->pullOnce();
             faceAtrPair = std::make_shared<decltype(faceAtrPair)::element_type>(*faceAtrDist, *faceAtrDistGhost);
             // faceAtrPair->connectPair();
 
-            cell2faceDistGhost = std::make_shared<tAdjArrayCascade>(cell2faceDist.get());
+            cell2faceDistGhost = std::make_shared<tAdjArray>(cell2faceDist.get());
             cell2faceDistGhost->createGlobalMapping();
             pCellGlobalMapping = cell2faceDistGhost->pLGlobalMapping;
 
@@ -1061,7 +1065,7 @@ namespace DNDS
             index nghostCells = 0;
             forEachInArray(
                 *cell2faceDist,
-                [&](tAdjArrayCascade::tComponent &c2f, index ic)
+                [&](tAdjArray::tComponent &c2f, index ic)
                 {
                     for (int iff = 0; iff < c2f.size(); iff++)
                     {
@@ -1089,7 +1093,7 @@ namespace DNDS
             ghostCells.reserve(nghostCells);
             forEachInArray(
                 *cell2faceDist,
-                [&](tAdjArrayCascade::tComponent &c2f, index ic)
+                [&](tAdjArray::tComponent &c2f, index ic)
                 {
                     for (int iff = 0; iff < c2f.size(); iff++)
                     {
@@ -1118,30 +1122,30 @@ namespace DNDS
             cell2facePair = std::make_shared<decltype(cell2facePair)::element_type>(*cell2faceDist, *cell2faceDistGhost);
             // cell2facePair->connectPair();
 
-            cell2nodeDistGhost = std::make_shared<tAdjArrayCascade>(cell2nodeDist.get()); //! note: don't write as std::shared_ptr<>() which mistakes as a pointer sharing
+            cell2nodeDistGhost = std::make_shared<tAdjArray>(cell2nodeDist.get()); //! note: don't write as std::shared_ptr<>() which mistakes as a pointer sharing
             cell2nodeDistGhost->BorrowGGIndexing(*cell2faceDistGhost);
             cell2nodeDistGhost->createMPITypes();
             cell2nodeDistGhost->pullOnce();
             cell2nodePair = std::make_shared<decltype(cell2nodePair)::element_type>(*cell2nodeDist, *cell2nodeDistGhost);
             // cell2nodePair->connectPair();
 
-            cellAtrDistGhost = std::make_shared<tElemAtrArrayCascade>(cellAtrDist.get());
+            cellAtrDistGhost = std::make_shared<tElemAtrArray>(cellAtrDist.get());
             cellAtrDistGhost->BorrowGGIndexing(*cell2faceDistGhost);
             cellAtrDistGhost->createMPITypes();
             cellAtrDistGhost->pullOnce();
             cellAtrPair = std::make_shared<decltype(cellAtrPair)::element_type>(*cellAtrDist, *cellAtrDistGhost);
             // cellAtrPair->connectPair();
 
-            nodeCoordsDistGhost = std::make_shared<tVec3DArrayCascade>(nodeCoordsDist.get());
+            nodeCoordsDistGhost = std::make_shared<tVec3DArray>(nodeCoordsDist.get());
             nodeCoordsDistGhost->createGlobalMapping();
             pNodeGlobalMapping = nodeCoordsDistGhost->pLGlobalMapping;
-            
+
             // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts D2");
             // get ghost node set
             index nghostNode = 0;
             forEachBasicInArrayPair(
                 *cell2nodePair,
-                [&](tAdjArrayCascade::tComponent &c2n, index ic, index in, index icn)
+                [&](tAdjArray::tComponent &c2n, index ic, index in, index icn)
                 {
                     MPI_int rank;
                     index val;
@@ -1154,7 +1158,7 @@ namespace DNDS
             ghostNodes.reserve(nghostNode);
             forEachBasicInArrayPair(
                 *cell2nodePair,
-                [&](tAdjArrayCascade::tComponent &c2n, index ic, index in, index icn)
+                [&](tAdjArray::tComponent &c2n, index ic, index in, index icn)
                 {
                     MPI_int rank;
                     index val;
@@ -1177,7 +1181,7 @@ namespace DNDS
 
             forEachBasicInArrayPair(
                 *cell2facePair,
-                [&](tAdjArrayCascade::tComponent &c2f, index ic, index &iff, index icf)
+                [&](tAdjArray::tComponent &c2f, index ic, index &iff, index icf)
                 {
                     MPI_int rank;
                     index val;
@@ -1189,7 +1193,7 @@ namespace DNDS
                 });
             forEachBasicInArrayPair(
                 *cell2nodePair,
-                [&](tAdjArrayCascade::tComponent &c2n, index ic, index &in, index icn)
+                [&](tAdjArray::tComponent &c2n, index ic, index &in, index icn)
                 {
                     MPI_int rank;
                     index val;
@@ -1199,7 +1203,7 @@ namespace DNDS
                 });
             forEachBasicInArrayPair(
                 *face2cellPair,
-                [&](tAdjStatic2ArrayCascade::tComponent &f2c, index iff, index &ic, index ifc)
+                [&](tAdjStatic2Array::tComponent &f2c, index iff, index &ic, index ifc)
                 {
                     // if (mpi.rank == 0)
                     //     std::cout << ic << std::endl;
@@ -1213,7 +1217,7 @@ namespace DNDS
                 });
             forEachBasicInArrayPair(
                 *face2nodePair,
-                [&](tAdjArrayCascade::tComponent &f2n, index iff, index &in, index ifn)
+                [&](tAdjArray::tComponent &f2n, index iff, index &in, index ifn)
                 {
                     MPI_int rank;
                     index val;
@@ -1250,17 +1254,15 @@ namespace DNDS
             nodeCoordsLocal.dist = nodeCoordsDist;
             nodeCoordsLocal.ghost = nodeCoordsDistGhost;
             nodeCoordsLocal.pair = nodeCoordsPair;
-            
 
-
-                // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts D10");
-                // face2cellRefLocal
-                face2cellRefLocal.dist = std::make_shared<tAdjStatic2ArrayCascade>(tAdjStatic2ArrayCascade::tContext(face2cellLocal.dist->size()), mpi);
+            // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts D10");
+            // face2cellRefLocal
+            face2cellRefLocal.dist = std::make_shared<tAdjStatic2Array>(tAdjStatic2Array::tContext(face2cellLocal.dist->size()), mpi);
             face2cellRefLocal.CreateGhostCopyComm(face2cellLocal);
             // std::cout << "FUCKED" << face2cellRefLocal.pair->size() << std::endl;
             forEachInArrayPair(
                 *face2cellRefLocal.pair,
-                [&](tAdjStatic2ArrayCascade::tComponent &f2cr, index iff)
+                [&](tAdjStatic2Array::tComponent &f2cr, index iff)
                 {
                     auto f2c = face2cellLocal[iff];
                     // cell 0
@@ -1290,14 +1292,14 @@ namespace DNDS
         }
 
         // c2n must be pointing to local
-        void LoadCoords(const tAdjArrayCascade::tComponent &c2n, Eigen::MatrixXd &coords)
+        void LoadCoords(const tAdjArray::tComponent &c2n, Eigen::MatrixXd &coords)
         {
             coords.resize(3, c2n.size());
             for (int in = 0; in < c2n.size(); in++)
                 coords(Eigen::all, in) = nodeCoordsLocal[c2n[in]].p();
         }
 
-        void FacePParam2Cell(index iCell, index iF2C, index iFace, const tAdjArrayCascade::tComponent &f2n, Elem::ElementManager &eFace, const Elem::tPoint &pFace, Elem::tPoint &pCell)
+        void FacePParam2Cell(index iCell, index iF2C, index iFace, const tAdjArray::tComponent &f2n, Elem::ElementManager &eFace, const Elem::tPoint &pFace, Elem::tPoint &pCell)
         {
             Elem::ElementManager eCell(this->cellAtrLocal[iCell][0].type, 0); // int scheme is not relevant here
             index iFaceAtCell = this->face2cellRefLocal[iFace][iF2C];
@@ -1349,13 +1351,13 @@ namespace DNDS
             fout << std::setprecision(16);
             forEachInArray(
                 *nodeCoords,
-                [&](tVec3DArrayCascade::tComponent &e, index i)
+                [&](tVec3DArray::tComponent &e, index i)
                 {
                     fout << e.p()(0) << "\n";
                 });
             forEachInArray(
                 *nodeCoords,
-                [&](tVec3DArrayCascade::tComponent &e, index i)
+                [&](tVec3DArray::tComponent &e, index i)
                 {
                     fout << e.p()(1) << "\n";
                 });
@@ -1363,7 +1365,7 @@ namespace DNDS
 
             forEachInArray(
                 *cell2node,
-                [&](tAdjArrayCascade::tComponent &c2n, index iv)
+                [&](tAdjArray::tComponent &c2n, index iv)
                 {
                     auto atr = (*cellAtr)[iv][0];
                     Elem::ElementManager elemMan(atr.type, 0);
@@ -1398,15 +1400,15 @@ namespace DNDS
             log() << "Sum Volume [" << vsum << "]" << std::endl;
             for (index iv = 0; iv < numCellGlobal; iv++)
             {
-                MPI_int r;
-                index v;
+                MPI_int r = -100;
+                index v = -101;
                 cell2node->pLGlobalMapping->search(iv, r, v);
                 fout << r << "\n";
             }
 
             forEachInArray(
                 *cell2node,
-                [&](tAdjArrayCascade::tComponent &c2n, index iv)
+                [&](tAdjArray::tComponent &c2n, index iv)
                 {
                     Elem::ElementManager elemMan((*cellAtr)[iv][0].type, 0);
                     switch (elemMan.getPspace())
@@ -1439,8 +1441,8 @@ namespace DNDS
 
             if (!Elem::ElementManager::NBufferInit)
                 Elem::ElementManager::InitNBuffer();
-            Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
-            Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_16;
+            // Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
+            // Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_16;
 
             std::ofstream fout(fname);
             if (!fout)
@@ -1461,20 +1463,20 @@ namespace DNDS
             fout << std::setprecision(16);
             forEachInArray(
                 *nodeCoords,
-                [&](tVec3DArrayCascade::tComponent &e, index i)
+                [&](tVec3DArray::tComponent &e, index i)
                 {
                     fout << e.p()(0) << "\n";
                 });
             forEachInArray(
                 *nodeCoords,
-                [&](tVec3DArrayCascade::tComponent &e, index i)
+                [&](tVec3DArray::tComponent &e, index i)
                 {
                     fout << e.p()(1) << "\n";
                 });
             for (index iv = 0; iv < numCellGlobal; iv++)
             {
-                MPI_int r;
-                index v;
+                MPI_int r = -1;
+                index v = -1;
                 cell2node->pLGlobalMapping->search(iv, r, v);
                 fout << r << "\n";
             }
@@ -1488,7 +1490,7 @@ namespace DNDS
 
             forEachInArray(
                 *cell2node,
-                [&](tAdjArrayCascade::tComponent &c2n, index iv)
+                [&](tAdjArray::tComponent &c2n, index iv)
                 {
                     Elem::ElementManager elemMan((*cellAtr)[iv][0].type, 0);
                     switch (elemMan.getPspace())

@@ -538,9 +538,9 @@ namespace DNDS
             {
                 for (int elemType = 0; elemType < DNDS_ELEM_TYPE_NUM; elemType++)
                 {
-                    int dim = DimOrderListNVNNNF[elemType][0];
-                    int order = DimOrderListNVNNNF[elemType][1];
-                    int Nvert = DimOrderListNVNNNF[elemType][2];
+                    // int dim = DimOrderListNVNNNF[elemType][0];
+                    // int order = DimOrderListNVNNNF[elemType][1];
+                    // int Nvert = DimOrderListNVNNNF[elemType][2];
                     int Nnode = DimOrderListNVNNNF[elemType][3];
                     int Nface = DimOrderListNVNNNF[elemType][4];
                     auto paramSpace = paramSpaceList[elemType];
@@ -898,7 +898,7 @@ namespace DNDS
             {
                 int diffOrder = getDiffOrderFromDiffSize(DiNj.rows());
                 assert(DiNj.cols() >= Nnode);
-                auto x = p[0], y = p[1], z = p[2]; // param space
+                auto x = p[0], y = p[1];//, z = p[2]; // param space
                 switch (elemType)
                 {
                 case ElemType::Line2:

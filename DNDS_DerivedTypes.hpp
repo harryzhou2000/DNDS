@@ -24,7 +24,7 @@ namespace DNDS
     {
     public:
         typedef Batch<real, v_siz> tBase;
-        using tBase::Batch;
+        using  Batch<real, v_siz>::Batch;
         Eigen::Map<Eigen::Vector<real, v_siz>> p()
         {
             return Eigen::Map<Eigen::Vector<real, v_siz>>(tBase::data);

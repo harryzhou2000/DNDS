@@ -26,7 +26,7 @@ namespace DNDS
             // lambdaFace.resize(mesh->face2nodeLocal.size());
         }
 
-        void EvaluateDt(std::vector<real> &dt, ArrayCascadeLocal<SemiVarMatrix<1>> &uRec, real CFL, real MaxDt = 1, bool UseLocaldt = false)
+        void EvaluateDt(std::vector<real> &dt, ArrayLocal<SemiVarMatrix<1>> &uRec, real CFL, real MaxDt = 1, bool UseLocaldt = false)
         {
             for (auto &i : lambdaCell)
                 i = 0.0;
@@ -70,7 +70,7 @@ namespace DNDS
          * \param rhs overwritten;
          *
          */
-        void EvaluateRHS(ArrayDOF<1u> &rhs, ArrayDOF<1u> &u, ArrayCascadeLocal<SemiVarMatrix<1u>> uRec, ArrayCascadeLocal<SemiVarMatrix<1u>> uRecCR)
+        void EvaluateRHS(ArrayDOF<1u> &rhs, ArrayDOF<1u> &u, ArrayLocal<SemiVarMatrix<1u>> uRec, ArrayLocal<SemiVarMatrix<1u>> uRecCR)
         {
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
@@ -154,7 +154,7 @@ namespace DNDS
             {
                 real resc = 0;
                 for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
-                    resc += std::max(std::fabs(rhs[iCell](0)), res), P;
+                    resc += std::max(std::fabs(rhs[iCell](0)), res);
                 MPI_Allreduce(&resc, &res, 1, DNDS_MPI_REAL, MPI_MAX, rhs.dist->getMPI().comm);
             }
         }
@@ -169,10 +169,10 @@ namespace DNDS
         std::shared_ptr<CRFiniteVolume2D> cfv;
 
         ArrayDOF<1u> u;
-        ArrayCascadeLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
+        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
 
-        std::shared_ptr<ArrayCascade<VecStaticBatch<3>>> outDist;
-        std::shared_ptr<ArrayCascade<VecStaticBatch<3>>> outSerial;
+        std::shared_ptr<Array<VecStaticBatch<3>>> outDist;
+        std::shared_ptr<Array<VecStaticBatch<3>>> outSerial;
 
     public:
         EikonalCRSolver(const MPIInfo &nmpi) : mpi(nmpi)

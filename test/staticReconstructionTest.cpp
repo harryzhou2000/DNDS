@@ -50,8 +50,8 @@ int main(int argn, char *argv[])
         CRFiniteVolume2D cfv(vfv); //! mind the order!
         cfv.initReconstructionMatVec();
 
-        ArrayCascadeLocal<VecStaticBatch<1u>> u;
-        ArrayCascadeLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
+        ArrayLocal<VecStaticBatch<1u>> u;
+        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
         fv.BuildMean(u);
         vfv.BuildRec(uRec);
         uRecNew.Copy(uRec);
