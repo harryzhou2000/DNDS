@@ -9,4 +9,5 @@ log.txt
 *.lnk
 Eigen
 rapidjson
+fmt
 perf.data*
