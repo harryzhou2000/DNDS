@@ -139,7 +139,7 @@ namespace DNDS
         std::vector<Elem::tPoint> faceNormCenter;
         std::shared_ptr<std::vector<Eigen::VectorXd>> faceWeights;
 
-                std::shared_ptr<std::vector<Eigen::MatrixXd>> vectorInvAb;              // invAb[i][icf] = the A^-1b of cell i's icf neighbour
+        std::shared_ptr<std::vector<Eigen::MatrixXd>> vectorInvAb;              // invAb[i][icf] = the A^-1b of cell i's icf neighbour
         std::shared_ptr<std::vector<std::vector<Eigen::MatrixXd>>> matrixInvAB; // matrixInvAB[i][icf + 1] = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
                                                                                 // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
 

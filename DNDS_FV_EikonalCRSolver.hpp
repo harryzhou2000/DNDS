@@ -4,23 +4,25 @@
 #include "DNDS_FV_CR.hpp"
 #include "DNDS_ODE.hpp"
 #include "DNDS_Scripting.hpp"
+#include <iomanip>
 
 namespace DNDS
 {
     class EikonalEvaluator
     {
-    public:
-        int kAv = 4; //! change when order is changed!!
-        CompactFacedMeshSerialRW *mesh;
-        ImplicitFiniteVolume2D *fv;
-        VRFiniteVolume2D *vfv;
-        CRFiniteVolume2D *cfv;
 
+        int kAv = 4; //! change when order is changed!!
+        CompactFacedMeshSerialRW *mesh = nullptr;
+        ImplicitFiniteVolume2D *fv = nullptr;
+        VRFiniteVolume2D *vfv = nullptr;
+        CRFiniteVolume2D *cfv = nullptr;
+
+    public:
         std::vector<real> lambdaCell;
         // std::vector<real> lambdaFace;
 
         EikonalEvaluator(CompactFacedMeshSerialRW *Nmesh, ImplicitFiniteVolume2D *Nfv, VRFiniteVolume2D *Nvfv, CRFiniteVolume2D *Ncfv)
-            : mesh(Nmesh), fv(Nfv), vfv(Nvfv), cfv(Ncfv)
+            : kAv(vfv->P_ORDER + 1), mesh(Nmesh), fv(Nfv), vfv(Nvfv), cfv(Ncfv)
         {
             lambdaCell.resize(mesh->cell2nodeLocal.size()); // but only dist part are used, ghost part to not judge for it in facial iter
             // lambdaFace.resize(mesh->face2nodeLocal.size());
@@ -70,7 +72,7 @@ namespace DNDS
          * \param rhs overwritten;
          *
          */
-        void EvaluateRHS(ArrayDOF<1u> &rhs, ArrayDOF<1u> &u, ArrayLocal<SemiVarMatrix<1u>> uRec, ArrayLocal<SemiVarMatrix<1u>> uRecCR)
+        void EvaluateRHS(ArrayDOF<1u> &rhs, ArrayDOF<1u> &u, ArrayLocal<SemiVarMatrix<1u>> &uRec, ArrayLocal<SemiVarMatrix<1u>> &uRecCR)
         {
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
@@ -160,6 +162,98 @@ namespace DNDS
         }
     };
 
+    class EikonalErrorEvaluator
+    {
+        CompactFacedMeshSerialRW *mesh = nullptr;
+        ImplicitFiniteVolume2D *fv = nullptr;
+        VRFiniteVolume2D *vfv = nullptr;
+        real MaxD = 0;
+
+    public:
+        std::vector<real> sResult;
+        EikonalErrorEvaluator(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFv, VRFiniteVolume2D *nVfv, real nMaxD)
+            : mesh(nMesh), fv(nFv), vfv(nVfv), MaxD(nMaxD)
+        {
+            MPIInfo mpi = mesh->mpi;
+            sResult.resize(mesh->cell2nodeLocal.dist->size());
+
+            index nBCPoint = 0;
+            for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
+                if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall)
+                {
+                    Elem::ElementManager eFace(mesh->faceAtrLocal[iFace][0].type, vfv->faceRecAtrLocal[iFace][0].intScheme);
+                    nBCPoint += eFace.getNInt();
+                }
+            Array<VecStaticBatch<6>> BCPointDist(VecStaticBatch<6>::Context(nBCPoint), mpi);
+            index iFill = 0;
+            for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
+                if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall)
+                {
+                    Elem::ElementManager eFace(mesh->faceAtrLocal[iFace][0].type, vfv->faceRecAtrLocal[iFace][0].intScheme);
+                    Eigen::MatrixXd coords;
+                    mesh->LoadCoords(mesh->face2nodeLocal[iFace], coords);
+                    for (int ig = 0; ig < eFace.getNInt(); ig++)
+                    {
+                        Elem::tPoint pp;
+                        eFace.GetIntPoint(ig, pp);
+                        Elem::tDiFj DiNj(1, eFace.getNNode());
+                        eFace.GetDiNj(pp, DiNj);
+                        Elem::tPoint pPhyG = coords * DiNj.transpose();
+                        BCPointDist[iFill].p()({0, 1, 2}) = pPhyG;
+                        BCPointDist[iFill].p()({3, 4, 5}) = vfv->faceNorms[iFace][ig].normalized();
+                        iFill++;
+                    }
+                }
+            Array<VecStaticBatch<6>> BCPointFull(&BCPointDist);
+            BCPointFull.createGlobalMapping();
+            std::vector<index> fullPull(BCPointFull.pLGlobalMapping->globalSize());
+            for (index i = 0; i < fullPull.size(); i++)
+                fullPull[i] = i;
+            BCPointFull.createGhostMapping(fullPull);
+            BCPointFull.createMPITypes();
+            BCPointFull.pullOnce();
+
+            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+            {
+                Elem::tPoint &pC = vfv->cellCenters[iCell];
+                index imin = -1;
+                real distMin = veryLargeReal;
+                for (index isearch = 0; isearch < BCPointFull.size(); isearch++)
+                {
+                    real cdist = (BCPointFull[isearch].p()({0, 1, 2}) - pC).norm();
+                    if (cdist < distMin)
+                    {
+                        distMin = cdist;
+                        imin = isearch;
+                    }
+                }
+                sResult[iCell] = std::fabs((BCPointFull[imin].p()({0, 1, 2}) - pC).dot(BCPointFull[imin].p()({3, 4, 5})));
+                // sResult[iCell] = distMin;
+            }
+        }
+
+        void EvaluateError(real &err, ArrayDOF<1u> &u, ArrayLocal<SemiVarMatrix<1u>> &uRec)
+        {
+            auto mpi = uRec.dist->getMPI();
+            real volD = 0.0;
+            real errD = 0.0;
+            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+            {
+                if (sResult[iCell] < MaxD)
+                {
+                    Eigen::MatrixXd recval = vfv->cellDiBjCenterCache[iCell]({0}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
+                    real diff = (recval(0) + u[iCell](0)) - sResult[iCell];
+                    errD += std::fabs(diff) / sResult[iCell];
+                    volD += 1.;
+                }
+            }
+            real vol;
+            MPI_Allreduce(&volD, &vol, 1, DNDS_MPI_REAL, MPI_SUM, mpi.comm);
+            MPI_Allreduce(&errD, &err, 1, DNDS_MPI_REAL, MPI_SUM, mpi.comm);
+            err /= vol;
+        }
+    };
+
     class EikonalCRSolver
     {
         MPIInfo mpi;
@@ -167,12 +261,14 @@ namespace DNDS
         std::shared_ptr<ImplicitFiniteVolume2D> fv;
         std::shared_ptr<VRFiniteVolume2D> vfv;
         std::shared_ptr<CRFiniteVolume2D> cfv;
+        std::shared_ptr<EikonalErrorEvaluator> err;
 
         ArrayDOF<1u> u;
         ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
 
-        std::shared_ptr<Array<VecStaticBatch<3>>> outDist;
-        std::shared_ptr<Array<VecStaticBatch<3>>> outSerial;
+        static const int nOUTS = 4;
+        std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outDist;
+        std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outSerial;
 
     public:
         EikonalCRSolver(const MPIInfo &nmpi) : mpi(nmpi)
@@ -187,30 +283,47 @@ namespace DNDS
             real CFL = 0.5;
             std::string mName = "data/mesh/NACA0012_WIDE_H3.msh";
             std::string outPltName = "data/out/debugData_";
+            real err_dMax = 0.1;
+
+            real res_base = 0;
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
         {
             rapidjson::Document doc;
             JSON::ReadFile(jsonName, doc);
+
             config.nTimeStep = doc["nTimeStep"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nTimeStep = " << config.nTimeStep << std::endl;
+
             config.nConsoleCheck = doc["nConsoleCheck"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nConsoleCheck = " << config.nConsoleCheck << std::endl;
+
             config.nDataOut = doc["nDataOut"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nDataOut = " << config.nDataOut << std::endl;
+
             config.CFL = doc["CFL"].GetDouble();
             if (mpi.rank == 0)
                 log() << "JSON: CFL = " << config.CFL << std::endl;
+
             config.mName = doc["meshFile"].GetString();
             if (mpi.rank == 0)
                 log() << "JSON: meshFile = " << config.mName << std::endl;
+
             config.outPltName = doc["outPltName"].GetString();
             if (mpi.rank == 0)
                 log() << "JSON: outPltName = " << config.outPltName << std::endl;
+
+            config.err_dMax = doc["err_dMax"].GetDouble();
+            if (mpi.rank == 0)
+                log() << "JSON: err_dMax = " << config.err_dMax << std::endl;
+
+            config.res_base = doc["res_base"].GetDouble();
+            if (mpi.rank == 0)
+                log() << "JSON: res_base = " << config.res_base << std::endl;
         }
 
         void ReadMeshAndInitialize()
@@ -236,6 +349,8 @@ namespace DNDS
             outSerial->BorrowGGIndexing(*mesh->cell2node);
             outSerial->createMPITypes();
             outSerial->initPersistentPull();
+
+            err = std::make_shared<EikonalErrorEvaluator>(mesh.get(), fv.get(), vfv.get(), config.err_dMax);
         }
 
         void RunExplicitSSPRK4()
@@ -253,6 +368,8 @@ namespace DNDS
             // u.StartPersistentPullClean();
             double tstart = MPI_Wtime();
             double trec{0}, treccr{0}, tcomm{0}, trhs{0};
+            int stepCount = 0;
+            real resBaseC = config.res_base;
             for (int step = 1; step <= config.nTimeStep; step++)
             {
                 ode.Step(
@@ -306,14 +423,27 @@ namespace DNDS
                     });
                 real res;
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
+                if (stepCount == 0 && resBaseC == 0)
+                    resBaseC = res;
+
+                real error;
+                err->EvaluateError(error, u, uRec);
 
                 if (step % config.nConsoleCheck == 0)
                 {
                     double telapsed = MPI_Wtime() - tstart;
                     if (mpi.rank == 0)
-                        log() << "=== Step [" << step << "]   "
-                              << "res [" << res << "]   Time [" << telapsed << "]   recTime[" << trec << "]   reccrTime[" << treccr
-                              << "]   rhsTime[" << trhs << "]   commTime[" << tcomm << "]  " << std::endl;
+                    {
+                        auto fmt = log().flags();
+                        log() << std::setprecision(6) << std::scientific
+                              << "=== Step [" << step << "]   "
+                              << "res \033[91m[" << res / resBaseC << "]\033[39m   "
+                              << "err \033[93m[" << error << "]\033[39m   "
+                              << std::setprecision(3) << std::fixed
+                              << "Time [" << telapsed << "]   recTime [" << trec << "]   reccrTime [" << treccr
+                              << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  " << std::endl;
+                        log().setf(fmt);
+                    }
                     tstart = MPI_Wtime();
                     trec = tcomm = treccr = trhs = 0.;
                 }
@@ -321,6 +451,7 @@ namespace DNDS
                 {
                     PrintData(config.outPltName + std::to_string(step) + ".plt", ode);
                 }
+                stepCount++;
             }
 
             // u.WaitPersistentPullClean();
@@ -335,14 +466,14 @@ namespace DNDS
                 (*outDist)[iCell][0] = recval(0) + u[iCell](0);
                 (*outDist)[iCell][1] = recval(1);
                 (*outDist)[iCell][2] = recval(2);
-                // (*outDist)[iCell][2] = ;
+                (*outDist)[iCell][3] = err->sResult[iCell];
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();
             const static std::vector<std::string> names{
-                "sln", "dx", "dy"};
+                "sln", "dx", "dy", "sR"};
             mesh->PrintSerialPartPltASCIIDataArray(
-                fname, 0, 3, //! oprank = 0
+                fname, 0, nOUTS, //! oprank = 0
                 [&](int idata)
                 { return names[idata]; },
                 [&](int idata, index iv)

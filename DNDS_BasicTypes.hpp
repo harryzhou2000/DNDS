@@ -40,7 +40,7 @@ namespace DNDS
             index Length;
 
             Context() : Length(indexMin){};
-            Context(int nLength) : Length(nLength) {}
+            Context(index nLength) : Length(nLength) {}
         };
 
         struct Indexer

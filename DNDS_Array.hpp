@@ -321,8 +321,7 @@ namespace DNDS
         }
 
         // use local index to get T data
-        T
-        operator[](index i)
+        T operator[](index i)
         {
             auto indexInfo = indexer[i];
             assert(std::get<0>(indexInfo) + std::get<1>(indexInfo) <= data.size());

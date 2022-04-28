@@ -18,6 +18,14 @@ namespace DNDS
     public:
         tIndexVec &RLengths() { return RankLengths; }
 
+        index globalSize()
+        {
+            if (RankOffsets.size() >= 1)
+                return RankOffsets[RankOffsets.size() - 1];
+            else
+                return 0;
+        }
+
         /// \brief bcast, synchronize the rank lengths, then accumulate rank offsets
         void setMPIAlignBcast(const MPIInfo &mpi, index myLength)
         {
