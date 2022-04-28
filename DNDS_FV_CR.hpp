@@ -37,7 +37,7 @@ namespace DNDS
             // for each inner cell (ghost cell no need)
             forEachInArray(
                 *mesh->cell2faceLocal.dist,
-                [&](tAdjArrayCascade::tComponent &c2f, index iCell)
+                [&](tAdjArray::tComponent &c2f, index iCell)
                 {
                     auto &cellAttribute = mesh->cellAtrLocal[iCell][0];
                     auto &cellRecAttribute = cellRecAtrLocal[iCell][0];
@@ -144,8 +144,15 @@ namespace DNDS
                                 });
                         }
                     }
-                    Eigen::MatrixXd Ainv;
+                    Eigen::MatrixXd Ainv, AinvFilterd;
                     HardEigen::EigenLeastSquareInverse((*matrixInvAB)[iCell][0], Ainv);
+                    // HardEigen::EigenLeastSquareInverse_Filtered((*matrixInvAB)[iCell][0], AinvFilterd);
+                    // std::cout << "Ainv\n"
+                    //           << Ainv << std::endl
+                    //           << "AinvFiltered\n"
+                    //           << AinvFilterd << std::endl;
+                    // exit(0);
+
                     // std::cout << "CRA " << (*matrixInvAB)[iCell][0] << std::endl;
                     // std::cout << "CRAinv " << Ainv << std::endl;
                     (*matrixInvAB)[iCell][0] = Ainv;
@@ -156,8 +163,8 @@ namespace DNDS
 
         template <uint32_t vsize>
         // static const int vsize = 1;
-        void Reconstruction(ArrayCascadeLocal<VecStaticBatch<vsize>> &u,
-                            ArrayCascadeLocal<SemiVarMatrix<vsize>> &uRec, ArrayCascadeLocal<SemiVarMatrix<vsize>> &uRecCR)
+        void Reconstruction(ArrayLocal<VecStaticBatch<vsize>> &u,
+                            ArrayLocal<SemiVarMatrix<vsize>> &uRec, ArrayLocal<SemiVarMatrix<vsize>> &uRecCR)
         {
             // InsertCheck(mpi, "ReconstructionJacobiStep Start");
             // forEachInArray(
@@ -278,7 +285,7 @@ namespace DNDS
         void Initialization();
 
         // static const int vsize = 1;
-        void Reconstruction(ArrayCascadeLocal<VecStaticBatch<1>> &u,
-                            ArrayCascadeLocal<SemiVarMatrix<1>> &uRec, ArrayCascadeLocal<SemiVarMatrix<1>> &uRecCR);
+        void Reconstruction(ArrayLocal<VecStaticBatch<1>> &u,
+                            ArrayLocal<SemiVarMatrix<1>> &uRec, ArrayLocal<SemiVarMatrix<1>> &uRecCR);
     };
 }

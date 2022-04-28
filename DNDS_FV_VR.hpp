@@ -22,7 +22,7 @@ namespace DNDS
         std::vector<real> volumeLocal;
         std::vector<real> faceArea;
 
-        ImplicitFiniteVolume2D(CompactFacedMeshSerialRW *nMesh) : mesh(nMesh), mpi(nMesh->mpi)
+        ImplicitFiniteVolume2D(CompactFacedMeshSerialRW *nMesh) : mpi(nMesh->mpi), mesh(nMesh)
         {
             if (!Elem::ElementManager::NBufferInit)
                 Elem::ElementManager::InitNBuffer(); //! do not asuume it't been initialized
@@ -35,7 +35,7 @@ namespace DNDS
             // std::cout << mpi.rank << " " << mesh->cell2nodeLocal.size() << std::endl;
             forEachInArrayPair( // get volumes
                 *mesh->cell2nodeLocal.pair,
-                [&](tAdjArrayCascade::tComponent &c2n, index iv)
+                [&](tAdjArray::tComponent &c2n, index iv)
                 {
                     auto atr = mesh->cellAtrLocal[iv][0];
                     Elem::ElementManager elemMan(atr.type, 0);
@@ -70,7 +70,7 @@ namespace DNDS
                 });
             forEachInArrayPair(
                 *mesh->face2nodeLocal.pair,
-                [&](tAdjArrayCascade::tComponent &f2n, index iff)
+                [&](tAdjArray::tComponent &f2n, index iff)
                 {
                     auto atr = mesh->faceAtrLocal[iff][0];
                     Elem::ElementManager elemMan(atr.type, 0);
@@ -99,7 +99,7 @@ namespace DNDS
 
         template <uint32_t vsize>
         // static const int vsize = 1; // intellisense helper: give example...
-        void BuildMean(ArrayCascadeLocal<VecStaticBatch<vsize>> &u)
+        void BuildMean(ArrayLocal<VecStaticBatch<vsize>> &u)
         {
             index nCellDist = mesh->cell2nodeLocal.dist->size();
             u.dist = std::make_shared<typename decltype(u.dist)::element_type>(
@@ -114,17 +114,17 @@ namespace DNDS
     public:
         MPIInfo mpi;
         const static int P_ORDER = 3;
-        typedef ArrayCascade<SmallMatricesBatch> tMatArray;
+        typedef Array<SmallMatricesBatch> tMatArray;
         CompactFacedMeshSerialRW *mesh; // a mere reference to mesh, user responsible for keeping it valid
         ImplicitFiniteVolume2D *FV;
-        ArrayCascadeLocal<Batch<RecAtr, 1>> cellRecAtrLocal;
-        ArrayCascadeLocal<Batch<RecAtr, 1>> faceRecAtrLocal;
+        ArrayLocal<Batch<RecAtr, 1>> cellRecAtrLocal;
+        ArrayLocal<Batch<RecAtr, 1>> faceRecAtrLocal;
 
-        // ArrayCascadeLocal<SmallMatricesBatch> cellDiBjGaussCache;  // DiBjCache[i].m(iGauss) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
-        // ArrayCascadeLocal<SmallMatricesBatch> cellDiBjCenterCache; // center, only order 0, 1 diffs
-        // ArrayCascadeLocal<SmallMatricesBatch> faceDiBjGaussCache;  // DiBjCache[i].m(iGauss * 2 + 0/1) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
-        // ArrayCascadeLocal<SmallMatricesBatch> faceDiBjCenterCache; // center, only order 0, 1 diffs
-        // ArrayCascadeLocal<VarVector> baseMoment;                   // full dofs, like baseMoment[i].v()(0) == 1
+        // ArrayLocal<SmallMatricesBatch> cellDiBjGaussCache;  // DiBjCache[i].m(iGauss) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
+        // ArrayLocal<SmallMatricesBatch> cellDiBjCenterCache; // center, only order 0, 1 diffs
+        // ArrayLocal<SmallMatricesBatch> faceDiBjGaussCache;  // DiBjCache[i].m(iGauss * 2 + 0/1) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
+        // ArrayLocal<SmallMatricesBatch> faceDiBjCenterCache; // center, only order 0, 1 diffs
+        // ArrayLocal<VarVector> baseMoment;                   // full dofs, like baseMoment[i].v()(0) == 1
 
         std::vector<std::vector<Eigen::MatrixXd>> cellDiBjGaussCache;                 // DiBjCache[i].m(iGauss) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
         std::vector<Eigen::MatrixXd> cellDiBjCenterCache;                             // center, only order 0, 1 diffs
@@ -143,7 +143,7 @@ namespace DNDS
         std::shared_ptr<std::vector<std::vector<Eigen::MatrixXd>>> matrixInvAB; // matrixInvAB[i][icf + 1] = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
                                                                                 // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
 
-        VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV) : mesh(nMesh), FV(nFV), mpi(nMesh->mpi)
+        VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV) : mpi(nMesh->mpi), mesh(nMesh), FV(nFV)
         {
             assert(FV->mpi == mpi);
         }
@@ -233,7 +233,7 @@ namespace DNDS
 
             forEachInArray(
                 *mesh->cellAtrLocal.dist,
-                [&](tElemAtrArrayCascade::tComponent &atr, index iCell)
+                [&](tElemAtrArray::tComponent &atr, index iCell)
                 {
                     Elem::ElementManager eCell(atr[0].type, atr[0].intScheme);
                     auto &recAtr = cellRecAtrLocal[iCell][0];
@@ -263,7 +263,7 @@ namespace DNDS
 
             forEachInArray(
                 *mesh->faceAtrLocal.dist,
-                [&](tElemAtrArrayCascade::tComponent &atr, index iFace)
+                [&](tElemAtrArray::tComponent &atr, index iFace)
                 {
                     Elem::ElementManager eFace(atr[0].type, atr[0].intScheme);
                     auto &recAtr = faceRecAtrLocal[iFace][0];
@@ -291,7 +291,7 @@ namespace DNDS
             cellBaries.resize(nlocalCells);
             forEachInArrayPair(
                 *mesh->cell2nodeLocal.pair,
-                [&](tAdjArrayCascade::tComponent &c2n, index iCell)
+                [&](tAdjArray::tComponent &c2n, index iCell)
                 {
                     auto cellRecAtr = cellRecAtrLocal[iCell][0];
                     auto cellAtr = mesh->cellAtrLocal[iCell][0];
@@ -359,7 +359,7 @@ namespace DNDS
             cellGaussJacobiDets.resize(nlocalCells);
             forEachInArrayPair(
                 *mesh->cell2nodeLocal.pair,
-                [&](tAdjArrayCascade::tComponent &c2n, index iCell)
+                [&](tAdjArray::tComponent &c2n, index iCell)
                 {
                     auto cellRecAtr = cellRecAtrLocal[iCell][0];
                     auto cellAtr = mesh->cellAtrLocal[iCell][0];
@@ -404,7 +404,7 @@ namespace DNDS
             faceNormCenter.resize(nlocalFaces);
             forEachInArrayPair(
                 *mesh->face2cellLocal.pair,
-                [&](tAdjStatic2ArrayCascade::tComponent &f2c, index iFace)
+                [&](tAdjStatic2Array::tComponent &f2c, index iFace)
                 {
                     auto faceRecAtr = faceRecAtrLocal[iFace][0];
                     auto faceAtr = mesh->faceAtrLocal[iFace][0];
@@ -565,7 +565,7 @@ namespace DNDS
             // for each inner cell (ghost cell no need)
             forEachInArray(
                 *mesh->cell2faceLocal.dist,
-                [&](tAdjArrayCascade::tComponent &c2f, index iCell)
+                [&](tAdjArray::tComponent &c2f, index iCell)
                 {
                     auto &cellAttribute = mesh->cellAtrLocal[iCell][0];
                     auto &cellRecAttribute = cellRecAtrLocal[iCell][0];
@@ -612,8 +612,6 @@ namespace DNDS
 
                     Eigen::MatrixXd Ainv;
                     HardEigen::EigenLeastSquareInverse((*matrixInvAB)[iCell][0], Ainv);
-
-                    
 
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
                     {
@@ -711,7 +709,7 @@ namespace DNDS
 
         template <uint32_t vsize>
         // static const int vsize = 1; // intellisense helper: give example...
-        void BuildRec(ArrayCascadeLocal<SemiVarMatrix<vsize>> &uR)
+        void BuildRec(ArrayLocal<SemiVarMatrix<vsize>> &uR)
         {
             index nCellDist = mesh->cell2nodeLocal.dist->size();
 
@@ -734,9 +732,9 @@ namespace DNDS
          */
         template <uint32_t vsize>
         // static const int vsize = 1; // intellisense helper: give example...
-        void ReconstructionJacobiStep(ArrayCascadeLocal<VecStaticBatch<vsize>> &u,
-                                      ArrayCascadeLocal<SemiVarMatrix<vsize>> &uRec,
-                                      ArrayCascadeLocal<SemiVarMatrix<vsize>> &uRecNewBuf)
+        void ReconstructionJacobiStep(ArrayLocal<VecStaticBatch<vsize>> &u,
+                                      ArrayLocal<SemiVarMatrix<vsize>> &uRec,
+                                      ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf)
         {
 
             static int icount = 0;
@@ -826,8 +824,8 @@ namespace DNDS
             }
             // );
 
-            real vall;
-            real nall;
+            real vall = 0;
+            real nall = 0;
             // forEachInArray(
             //     *uRec.dist,
             //     [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
@@ -849,9 +847,9 @@ namespace DNDS
             icount++;
         }
 
-        void ReconstructionJacobiStep(ArrayCascadeLocal<VecStaticBatch<1>> &u,
-                                      ArrayCascadeLocal<SemiVarMatrix<1>> &uRec,
-                                      ArrayCascadeLocal<SemiVarMatrix<1>> &uRecNewBuf);
+        void ReconstructionJacobiStep(ArrayLocal<VecStaticBatch<1>> &u,
+                                      ArrayLocal<SemiVarMatrix<1>> &uRec,
+                                      ArrayLocal<SemiVarMatrix<1>> &uRecNewBuf);
 
         void Initialization();
     };

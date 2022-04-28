@@ -5,24 +5,24 @@
 namespace DNDS
 {
     template <class T>
-    class ArrayCascadePair
+    class ArrayPair
     {
         bool connected = false;
 
     public:
-        ArrayCascade<T> &arr;
-        ArrayCascade<T> &arrGhost;
+        Array<T> &arr;
+        Array<T> &arrGhost;
 
         std::vector<T> tPrebuild;
 
         template <class Tarr>
-        ArrayCascadePair(Tarr &&nArr, Tarr &&nArrGhost) : arr(std::forward<Tarr>(nArr)), arrGhost(std::forward<Tarr>(nArrGhost))
+        ArrayPair(Tarr &&nArr, Tarr &&nArrGhost) : arr(std::forward<Tarr>(nArr)), arrGhost(std::forward<Tarr>(nArrGhost))
         {
             assert(arrGhost.father == &arr);
             arr.connectWith(arrGhost);
             connected = true;
             tPrebuild.resize(size());
-            for (index i = 0; i < tPrebuild.size(); i++)
+            for (typename decltype(tPrebuild)::size_type i = 0; i < tPrebuild.size(); i++)
             {
                 if (i >= arr.size())
                     tPrebuild[i] = arrGhost[i - arr.size()];
@@ -58,7 +58,7 @@ namespace DNDS
      *
      */
     template <class T, class Tf>
-    void forEachInArrayPair(ArrayCascadePair<T> &arr, Tf &&f)
+    void forEachInArrayPair(ArrayPair<T> &arr, Tf &&f)
     {
         // if (arr.getMPI().rank == 3)
         //     std::cout << "SDFS" << arr.size() << std::endl;
@@ -76,7 +76,7 @@ namespace DNDS
      *
      */
     template <class T, class Tf>
-    void forEachBasicInArrayPair(ArrayCascadePair<T> &arr, Tf &&f)
+    void forEachBasicInArrayPair(ArrayPair<T> &arr, Tf &&f)
     {
         for (index i = 0; i < arr.size(); i++)
         {
@@ -92,30 +92,30 @@ namespace DNDS
 {
 
     template <class T>
-    struct ArrayCascadeLocal
+    struct ArrayLocal
     {
-        typedef ArrayCascade<T> tArray;
-        typedef ArrayCascadePair<T> tPair;
-        std::shared_ptr<ArrayCascade<T>> dist;
-        std::shared_ptr<ArrayCascade<T>> ghost;
-        std::shared_ptr<ArrayCascadePair<T>> pair;
+        typedef Array<T> tArray;
+        typedef ArrayPair<T> tPair;
+        std::shared_ptr<Array<T>> dist;
+        std::shared_ptr<Array<T>> ghost;
+        std::shared_ptr<ArrayPair<T>> pair;
 
-        // ArrayCascadeLocal
+        // ArrayLocal
 
-        void Copy(ArrayCascadeLocal<T> &R)
+        void Copy(ArrayLocal<T> &R)
         {
-            dist = std::make_shared<ArrayCascade<T>>(*R.dist);
-            ghost = std::make_shared<ArrayCascade<T>>(*R.ghost, dist.get());
+            dist = std::make_shared<Array<T>>(*R.dist);
+            ghost = std::make_shared<Array<T>>(*R.ghost, dist.get());
             // ghost->BorrowGGIndexing(*R.ghost);
             // ghost->createMPITypes();
             MakePair();
         }
 
         template <class TR>
-        void CreateGhostCopyComm(ArrayCascadeLocal<TR> &R)
+        void CreateGhostCopyComm(ArrayLocal<TR> &R)
         {
             assert(dist);
-            ghost = std::make_shared<ArrayCascade<T>>(dist.get());
+            ghost = std::make_shared<Array<T>>(dist.get());
             ghost->BorrowGGIndexing(*R.ghost);
             ghost->createMPITypes();
             MakePair();
@@ -124,7 +124,7 @@ namespace DNDS
         void MakePair()
         {
             assert(dist && ghost);
-            pair = std::make_shared<ArrayCascadePair<T>>(*dist, *ghost);
+            pair = std::make_shared<ArrayPair<T>>(*dist, *ghost);
         }
 
         void PullOnce()
@@ -169,15 +169,15 @@ namespace DNDS
 namespace DNDS
 {
     template <uint32_t vsize>
-    class ArrayDOF : public ArrayCascadeLocal<VecStaticBatch<vsize>>
+    class ArrayDOF : public ArrayLocal<VecStaticBatch<vsize>>
     {
     public:
-        typedef ArrayCascadeLocal<VecStaticBatch<vsize>> base;
-        using ArrayCascadeLocal<VecStaticBatch<vsize>>::ArrayCascadeLocal;
+        typedef ArrayLocal<VecStaticBatch<vsize>> base;
+        using ArrayLocal<VecStaticBatch<vsize>>::ArrayLocal;
         ArrayDOF() {}
         ArrayDOF(index distSize, const MPIInfo &mpi)
         {
-            base::dist = std::make_shared<ArrayCascade<VecStaticBatch<vsize>>>(
+            base::dist = std::make_shared<Array<VecStaticBatch<vsize>>>(
                 typename VecStaticBatch<vsize>::Context(distSize), mpi);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p().setZero(); });
@@ -187,7 +187,7 @@ namespace DNDS
         {
             assert(base::dist);
             MPIInfo mpi = base::dist->getMPI();
-            base::dist = std::make_shared<ArrayCascade<VecStaticBatch<vsize>>>(
+            base::dist = std::make_shared<Array<VecStaticBatch<vsize>>>(
                 typename VecStaticBatch<vsize>::Context(nsize), mpi);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p().setZero(); });
@@ -195,7 +195,7 @@ namespace DNDS
 
         void resize(index nsize, const MPIInfo &mpi)
         {
-            base::dist = std::make_shared<ArrayCascade<VecStaticBatch<vsize>>>(
+            base::dist = std::make_shared<Array<VecStaticBatch<vsize>>>(
                 typename VecStaticBatch<vsize>::Context(nsize), mpi);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p().setZero(); });

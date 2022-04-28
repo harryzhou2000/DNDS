@@ -4,5 +4,7 @@
     "nDataOut": 50,
     "CFL": 0.5,
     "meshFile": "data/mesh/NACA0012_WIDE_H3_O2.msh",
-    "outPltName": "data/out/debugData_"
+    "outPltName": "data/out/debugData_",
+    "err_dMax": 0.01,
+    "res_base": 0
 }

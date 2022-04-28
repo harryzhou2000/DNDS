@@ -18,7 +18,7 @@ namespace DNDS
         inline bool IsDebugged()
         {
 
-#if defined(linux) || defined(_UNIX)
+#if defined(linux) || defined(_UNIX) || defined(__linux__)
             std::ifstream fin("/proc/self/status"); // able to detect gdb
             std::string buf;
             int tpid = 0;
@@ -28,7 +28,7 @@ namespace DNDS
                 if (buf == "TracerPid:")
                 {
                     fin >> tpid;
-                    exit;
+                    break;
                 }
             }
             fin.close();
