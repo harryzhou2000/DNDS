@@ -34,6 +34,10 @@ of the errors/incompatibilities:
     could be in weights difference or RHS implementation
     one was in hardeigen, which is Singular value filtering ???(do without?)
 
+# 2022 4-28
+of the hetrogenious systems:
+    beware that currently DNDS do not handle endian problems!!!
+
 
 
 

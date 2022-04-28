@@ -145,6 +145,7 @@ namespace DNDS
                         }
                     }
                     Eigen::MatrixXd Ainv, AinvFilterd;
+                    // HardEigen::EigenLeastSquareInverse_Filtered((*matrixInvAB)[iCell][0], Ainv);
                     HardEigen::EigenLeastSquareInverse((*matrixInvAB)[iCell][0], Ainv);
                     // HardEigen::EigenLeastSquareInverse_Filtered((*matrixInvAB)[iCell][0], AinvFilterd);
                     // std::cout << "Ainv\n"

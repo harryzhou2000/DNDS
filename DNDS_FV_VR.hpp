@@ -535,7 +535,7 @@ namespace DNDS
                     else if (faceAtr.iPhy == BoundaryType::Farfield)
                     {
                         (*faceWeights)[iFace].setConstant(0.0);
-                        (*faceWeights)[iFace][0] = 1.0;
+                        (*faceWeights)[iFace][0] = 0.0;
                         delta = pFace - cellBaries[f2c[0]];
                     }
                     else
