@@ -11,3 +11,4 @@ Eigen
 rapidjson
 fmt
 perf.data*
+syncgs.sh

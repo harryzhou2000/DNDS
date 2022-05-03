@@ -3,12 +3,14 @@ export OMPI_CXX=clang++
 
 first: what
 
+
+CPC=mpicxx
 # MPIINC=-I "C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
 # MPILIB=-L "C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" -lmsmpi
 # CGNSINC=-I "E:\projects\tools\CGNS-4.2.0\build\include"
 # CGNSLIB=-L "E:\projects\tools\CGNS-4.2.0\build\lib" -lcgns
 # CPC=g++
-CPC=mpicxx
+
 
 MPIINC=
 MPILIB=
