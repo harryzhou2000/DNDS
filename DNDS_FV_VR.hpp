@@ -120,17 +120,19 @@ namespace DNDS
         ArrayLocal<Batch<RecAtr, 1>> cellRecAtrLocal;
         ArrayLocal<Batch<RecAtr, 1>> faceRecAtrLocal;
 
-        // ArrayLocal<SmallMatricesBatch> cellDiBjGaussCache;  // DiBjCache[i].m(iGauss) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
-        // ArrayLocal<SmallMatricesBatch> cellDiBjCenterCache; // center, only order 0, 1 diffs
         // ArrayLocal<SmallMatricesBatch> faceDiBjGaussCache;  // DiBjCache[i].m(iGauss * 2 + 0/1) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
         // ArrayLocal<SmallMatricesBatch> faceDiBjCenterCache; // center, only order 0, 1 diffs
         // ArrayLocal<VarVector> baseMoment;                   // full dofs, like baseMoment[i].v()(0) == 1
 
-        std::vector<std::vector<Eigen::MatrixXd>> cellDiBjGaussCache;                 // DiBjCache[i].m(iGauss) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
-        std::vector<Eigen::MatrixXd> cellDiBjCenterCache;                             // center, only order 0, 1 diffs
-        std::vector<std::vector<Eigen::MatrixXd>> faceDiBjGaussCache;                 // DiBjCache[i].m(iGauss * 2 + 0/1) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
-        std::vector<std::pair<Eigen::MatrixXd, Eigen::MatrixXd>> faceDiBjCenterCache; // center, only order 0, 1 diffs
-        std::vector<Eigen::VectorXd> baseMoments;                                     // full dofs, like baseMoment[i].v()(0) == 1
+        // std::vector<std::vector<Eigen::MatrixXd>> faceDiBjGaussCache;                 // DiBjCache[i].m(iGauss * 2 + 0/1) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
+        // std::vector<std::pair<Eigen::MatrixXd, Eigen::MatrixXd>> faceDiBjCenterCache; // center, only order 0, 1 diffs
+
+        std::shared_ptr<Array<SmallMatricesBatch>> cellDiBjGaussBatch;  // DiBjCache[i].m(iGauss) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
+        std::shared_ptr<Array<SmallMatricesBatch>> cellDiBjCenterBatch; // center, only order 0, 1 diffs
+        std::shared_ptr<Array<SmallMatricesBatch>> faceDiBjGaussBatch;  // DiBjCache[i].m(iGauss * 2 + 0/1) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
+        std::shared_ptr<Array<SmallMatricesBatch>> faceDiBjCenterBatch; // center, only order 0, 1 diffs
+
+        std::vector<Eigen::VectorXd> baseMoments; // full dofs, like baseMoment[i].v()(0) == 1
         std::vector<Elem::tPoint> cellCenters;
         std::vector<Elem::tPoint> cellBaries;
         std::vector<std::vector<real>> cellGaussJacobiDets;
@@ -139,9 +141,9 @@ namespace DNDS
         std::vector<Elem::tPoint> faceNormCenter;
         std::shared_ptr<std::vector<Eigen::VectorXd>> faceWeights;
 
-        std::shared_ptr<std::vector<Eigen::MatrixXd>> vectorInvAb;              // invAb[i][icf] = the A^-1b of cell i's icf neighbour
-        std::shared_ptr<std::vector<std::vector<Eigen::MatrixXd>>> matrixInvAB; // matrixInvAB[i][icf + 1] = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
-                                                                                // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
+        std::shared_ptr<Array<SmallMatricesBatch>> vectorBatch; // invAb[i][icf] = the A^-1b of cell i's icf neighbour
+        std::shared_ptr<Array<SmallMatricesBatch>> matrixBatch; // matrixInvAB[i][icf + 1] = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
+                                                                // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
 
         VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV) : mpi(nMesh->mpi), mesh(nMesh), FV(nFV)
         {
@@ -169,6 +171,7 @@ namespace DNDS
                    0.5;
         }
 
+        template <class TWrite>
         static void FDiffBaseValue(Elem::ElementManager &cElem,
                                    const Eigen::MatrixXd &coords,
                                    const Elem::tDiFj &DiNj, //@ pParam
@@ -176,7 +179,7 @@ namespace DNDS
                                    const Elem::tPoint &cPhysics,
                                    const Elem::tPoint &simpleScale,
                                    const Eigen::VectorXd &baseMoment,
-                                   Eigen::MatrixXd &DiBj) // for 2d polynomials here
+                                   TWrite &&DiBj) // for 2d polynomials here
         {
             // static int i = 0;
             // if (i == 9)
@@ -212,7 +215,9 @@ namespace DNDS
             // i++;
         }
 
-        static void FFaceFunctional(const Eigen::MatrixXd &DiffI, const Eigen::MatrixXd &DiffJ, const Eigen::VectorXd &Weights, Eigen::MatrixXd &Conj)
+
+        template<class TDIFFI, class TDIFFJ>
+        static void FFaceFunctional(TDIFFI &&DiffI, TDIFFJ &&DiffJ, const Eigen::VectorXd &Weights, Eigen::MatrixXd &Conj)
         {
             assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
             Conj = DiffI.transpose() * Weights.asDiagonal() * Weights.asDiagonal() * DiffJ;
@@ -354,9 +359,75 @@ namespace DNDS
         {
             // InsertCheck(mpi, "initBaseDiffCache");
             index nlocalCells = mesh->cell2nodeLocal.size();
-            cellDiBjCenterCache.resize(nlocalCells);
-            cellDiBjGaussCache.resize(nlocalCells);
             cellGaussJacobiDets.resize(nlocalCells);
+
+            // * Allocate space for cellDiBjGaussBatch
+            auto fGetCellDiBjGaussSize = [&](int &nmat, std::vector<int> &matSizes, index iCell)
+            {
+                auto cellRecAtr = cellRecAtrLocal[iCell][0];
+                auto cellAtr = mesh->cellAtrLocal[iCell][0];
+                Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
+                nmat = eCell.getNInt();
+                matSizes.resize(nmat * 2);
+                for (int ig = 0; ig < eCell.getNInt(); ig++)
+                {
+                    matSizes[ig * 2 + 0] = cellRecAtr.NDIFF;
+                    matSizes[ig * 2 + 1] = cellRecAtr.NDOF;
+                }
+            };
+            cellDiBjGaussBatch = std::make_shared<decltype(cellDiBjGaussBatch)::element_type>(
+                decltype(cellDiBjGaussBatch)::element_type::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetCellDiBjGaussSize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+                    },
+                    [&](uint8_t *data, index siz, index i)
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetCellDiBjGaussSize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
+                    },
+                    mesh->cell2faceLocal.size()),
+                mpi);
+
+            // *Allocate space for cellDiBjCenterBatch
+            auto fGetCellDiBjCenterSize = [&](int &nmat, std::vector<int> &matSizes, index iCell)
+            {
+                auto cellRecAtr = cellRecAtrLocal[iCell][0];
+                auto cellAtr = mesh->cellAtrLocal[iCell][0];
+                Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
+                nmat = 1;
+                matSizes.resize(nmat * 2);
+                matSizes[0 * 2 + 0] = cellRecAtr.NDIFF;
+                matSizes[0 * 2 + 1] = cellRecAtr.NDOF;
+            };
+            cellDiBjCenterBatch = std::make_shared<decltype(cellDiBjCenterBatch)::element_type>(
+                decltype(cellDiBjCenterBatch)::element_type::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetCellDiBjCenterSize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+                    },
+                    [&](uint8_t *data, index siz, index i)
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetCellDiBjCenterSize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
+                    },
+                    mesh->cell2faceLocal.size()),
+                mpi);
+
             forEachInArrayPair(
                 *mesh->cell2nodeLocal.pair,
                 [&](tAdjArray::tComponent &c2n, index iCell)
@@ -364,9 +435,10 @@ namespace DNDS
                     auto cellRecAtr = cellRecAtrLocal[iCell][0];
                     auto cellAtr = mesh->cellAtrLocal[iCell][0];
                     Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
+                    auto cellDiBjCenterBatchElem = (*cellDiBjCenterBatch)[iCell];
+                    auto cellDiBjGaussBatchElem = (*cellDiBjGaussBatch)[iCell];
                     // center part
                     Elem::tPoint p = eCell.getCenterPParam();
-                    cellDiBjCenterCache[iCell].resize(cellRecAtr.NDIFF, cellRecAtr.NDOF);
                     Eigen::MatrixXd coords;
                     mesh->LoadCoords(c2n, coords);
                     Eigen::MatrixXd DiNj(4, eCell.getNNode());
@@ -375,33 +447,140 @@ namespace DNDS
                     FDiffBaseValue(eCell, coords, DiNj,
                                    p, cellBaries[iCell], sScale,
                                    baseMoments[iCell],
-                                   cellDiBjCenterCache[iCell]);
+                                   cellDiBjCenterBatchElem.m(0));
 
                     // iGaussPart
-                    cellDiBjGaussCache[iCell].resize(eCell.getNInt());
                     cellGaussJacobiDets[iCell].resize(eCell.getNInt());
                     for (int ig = 0; ig < eCell.getNInt(); ig++)
                     {
                         eCell.GetIntPoint(ig, p);
-                        cellDiBjGaussCache[iCell][ig].resize(cellRecAtr.NDIFF, cellRecAtr.NDOF);
                         eCell.GetDiNj(p, DiNj); // N_cache not using
                         FDiffBaseValue(eCell, coords, DiNj,
                                        p, cellBaries[iCell], sScale,
                                        baseMoments[iCell],
-                                       cellDiBjGaussCache[iCell][ig]);
+                                       cellDiBjGaussBatchElem.m(ig));
                         cellGaussJacobiDets[iCell][ig] = Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
                     }
                 });
             // InsertCheck(mpi, "initBaseDiffCache Cell Ended");
 
-            // face part: sides
+            // *face part: sides
             index nlocalFaces = mesh->face2nodeLocal.size();
-            faceDiBjCenterCache.resize(nlocalFaces);
-            faceDiBjGaussCache.resize(nlocalFaces);
+            // faceDiBjCenterCache.resize(nlocalFaces);
+            // faceDiBjGaussCache.resize(nlocalFaces);
             faceNorms.resize(nlocalFaces);
             faceWeights = std::make_shared<decltype(faceWeights)::element_type>(nlocalFaces);
             faceCenters.resize(nlocalFaces);
             faceNormCenter.resize(nlocalFaces);
+
+            // *Allocate space for faceDiBjCenterBatch
+            auto fGetFaceDiBjCenterSize = [&](int &nmat, std::vector<int> &matSizes, index iFace)
+            {
+                auto faceRecAtr = faceRecAtrLocal[iFace][0];
+                auto faceAtr = mesh->faceAtrLocal[iFace][0];
+                Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
+                auto f2n = mesh->face2nodeLocal[iFace];
+                auto f2c = mesh->face2cellLocal[iFace];
+                nmat = 2;
+                matSizes.resize(nmat * 2, 0);
+
+                DNDS::RecAtr *cellRecAtrL{nullptr};
+                DNDS::RecAtr *cellRecAtrR{nullptr};
+                DNDS::ElemAttributes *cellAtrL{nullptr};
+                DNDS::ElemAttributes *cellAtrR{nullptr};
+                cellRecAtrL = &cellRecAtrLocal[f2c[0]][0];
+                cellAtrL = &mesh->cellAtrLocal[f2c[0]][0];
+                if (f2c[1] != FACE_2_VOL_EMPTY)
+                {
+                    cellRecAtrR = &cellRecAtrLocal[f2c[1]][0];
+                    cellAtrR = &mesh->cellAtrLocal[f2c[1]][0];
+                }
+                // doing center
+                matSizes[0 * 2 + 0] = faceRecAtr.NDIFF;
+                matSizes[0 * 2 + 1] = cellRecAtrL->NDOF;
+                if (f2c[1] != FACE_2_VOL_EMPTY)
+                {
+                    matSizes[1 * 2 + 0] = faceRecAtr.NDIFF;
+                    matSizes[1 * 2 + 1] = cellRecAtrR->NDOF;
+                }
+            };
+            faceDiBjCenterBatch = std::make_shared<decltype(faceDiBjCenterBatch)::element_type>(
+                decltype(faceDiBjCenterBatch)::element_type::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetFaceDiBjCenterSize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+                    },
+                    [&](uint8_t *data, index siz, index i)
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetFaceDiBjCenterSize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
+                    },
+                    mesh->face2cellLocal.size()),
+                mpi);
+
+            // *Allocate space for faceDiBjGaussBatch
+            auto fGetFaceDiBjGaussSize = [&](int &nmat, std::vector<int> &matSizes, index iFace)
+            {
+                auto faceRecAtr = faceRecAtrLocal[iFace][0];
+                auto faceAtr = mesh->faceAtrLocal[iFace][0];
+                Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
+                auto f2n = mesh->face2nodeLocal[iFace];
+                auto f2c = mesh->face2cellLocal[iFace];
+                nmat = eFace.getNInt() * 2;
+                matSizes.resize(nmat * 2, 0);
+
+                DNDS::RecAtr *cellRecAtrL{nullptr};
+                DNDS::RecAtr *cellRecAtrR{nullptr};
+                DNDS::ElemAttributes *cellAtrL{nullptr};
+                DNDS::ElemAttributes *cellAtrR{nullptr};
+                cellRecAtrL = &cellRecAtrLocal[f2c[0]][0];
+                cellAtrL = &mesh->cellAtrLocal[f2c[0]][0];
+                if (f2c[1] != FACE_2_VOL_EMPTY)
+                {
+                    cellRecAtrR = &cellRecAtrLocal[f2c[1]][0];
+                    cellAtrR = &mesh->cellAtrLocal[f2c[1]][0];
+                }
+                // start doing gauss
+                for (int ig = 0; ig < eFace.getNInt(); ig++)
+                {
+                    matSizes[(ig * 2 + 0) * 2 + 0] = faceRecAtr.NDIFF;
+                    matSizes[(ig * 2 + 0) * 2 + 1] = cellRecAtrL->NDOF;
+                    if (f2c[1] != FACE_2_VOL_EMPTY)
+                    {
+                        // Right side
+                        matSizes[(ig * 2 + 1) * 2 + 0] = faceRecAtr.NDIFF;
+                        matSizes[(ig * 2 + 1) * 2 + 1] = cellRecAtrR->NDOF;
+                    }
+                }
+            };
+            faceDiBjGaussBatch = std::make_shared<decltype(faceDiBjGaussBatch)::element_type>(
+                decltype(faceDiBjGaussBatch)::element_type::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetFaceDiBjGaussSize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+                    },
+                    [&](uint8_t *data, index siz, index i)
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetFaceDiBjGaussSize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
+                    },
+                    mesh->face2cellLocal.size()),
+                mpi);
+
             forEachInArrayPair(
                 *mesh->face2cellLocal.pair,
                 [&](tAdjStatic2Array::tComponent &f2c, index iFace)
@@ -410,7 +589,10 @@ namespace DNDS
                     auto faceAtr = mesh->faceAtrLocal[iFace][0];
                     Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
                     auto f2n = mesh->face2nodeLocal[iFace];
-                    faceDiBjGaussCache[iFace].resize(eFace.getNInt() * 2); // note the 2x size
+                    auto faceDiBjCenterBatchElem = (*faceDiBjCenterBatch)[iFace];
+                    auto faceDiBjGaussBatchElem = (*faceDiBjGaussBatch)[iFace];
+
+                    // faceDiBjGaussCache[iFace].resize(eFace.getNInt() * 2); // note the 2x size
                     faceNorms[iFace].resize(eFace.getNInt());
 
                     Eigen::MatrixXd faceCoords;
@@ -450,12 +632,12 @@ namespace DNDS
                     Elem::tPoint pCell;
                     mesh->FacePParam2Cell(iCell, 0, iFace, f2n, eFace, pFace, pCell);
                     Elem::ElementManager eCell(cellAtrL->type, 0); // int scheme is not relevant here
-                    faceDiBjCenterCache[iFace].first.resize(faceRecAtr.NDIFF, cellRecAtrL->NDOF);
+                    // faceDiBjCenterCache[iFace].first.resize(faceRecAtr.NDIFF, cellRecAtrL->NDOF);
                     Elem::tDiFj cellDiNj(4, eCell.getNNode());
                     eCell.GetDiNj(pCell, cellDiNj);
                     FDiffBaseValue(eCell, cellCoordsL, cellDiNj,
                                    pCell, cellBaries[iCell], sScaleL,
-                                   baseMoments[iCell], faceDiBjCenterCache[iFace].first);
+                                   baseMoments[iCell], faceDiBjCenterBatchElem.m(0));
 
                     if (f2c[1] != FACE_2_VOL_EMPTY)
                     {
@@ -466,12 +648,12 @@ namespace DNDS
                         mesh->FacePParam2Cell(iCell, 1, iFace, f2n, eFace, pFace, pCell);
                         // InsertCheck(mpi, "DO1End");
                         Elem::ElementManager eCell(cellAtrR->type, 0); // int scheme is not relevant here
-                        faceDiBjCenterCache[iFace].second.resize(faceRecAtr.NDIFF, cellRecAtrR->NDOF);
+                        // faceDiBjCenterCache[iFace].second.resize(faceRecAtr.NDIFF, cellRecAtrR->NDOF);
                         Elem::tDiFj cellDiNj(4, eCell.getNNode());
                         eCell.GetDiNj(pCell, cellDiNj);
                         FDiffBaseValue(eCell, cellCoordsR, cellDiNj,
                                        pCell, cellBaries[iCell], sScaleR,
-                                       baseMoments[iCell], faceDiBjCenterCache[iFace].second);
+                                       baseMoments[iCell], faceDiBjCenterBatchElem.m(1));
                     }
 
                     /*******************************************/
@@ -489,12 +671,12 @@ namespace DNDS
                         Elem::tPoint pCell; // IND identical apart from faceDiBjGaussCache[iFace][ig * 2 + 0]
                         mesh->FacePParam2Cell(iCell, 0, iFace, f2n, eFace, pFace, pCell);
                         Elem::ElementManager eCell(cellAtrL->type, 0); // int scheme is not relevant here
-                        faceDiBjGaussCache[iFace][ig * 2 + 0].resize(faceRecAtr.NDIFF, cellRecAtrL->NDOF);
+                        // faceDiBjGaussCache[iFace][ig * 2 + 0].resize(faceRecAtr.NDIFF, cellRecAtrL->NDOF);
                         Elem::tDiFj cellDiNj(4, eCell.getNNode());
                         eCell.GetDiNj(pCell, cellDiNj);
                         FDiffBaseValue(eCell, cellCoordsL, cellDiNj,
                                        pCell, cellBaries[iCell], sScaleL,
-                                       baseMoments[iCell], faceDiBjGaussCache[iFace][ig * 2 + 0]);
+                                       baseMoments[iCell], faceDiBjGaussBatchElem.m(ig * 2 + 0));
                         // std::cout << "GP" << cellCoordsL * cellDiNj(0, Eigen::all).transpose() << std::endl;
                         // InsertCheck(mpi, "DOAEND");
                         if (f2c[1] != FACE_2_VOL_EMPTY)
@@ -504,12 +686,12 @@ namespace DNDS
                             Elem::tPoint pCell; // IND identical apart from faceDiBjGaussCache[iFace][ig * 2 + 1], R
                             mesh->FacePParam2Cell(iCell, 1, iFace, f2n, eFace, pFace, pCell);
                             Elem::ElementManager eCell(cellAtrR->type, 0); // int scheme is not relevant here
-                            faceDiBjGaussCache[iFace][ig * 2 + 1].resize(faceRecAtr.NDIFF, cellRecAtrR->NDOF);
+                            // faceDiBjGaussCache[iFace][ig * 2 + 1].resize(faceRecAtr.NDIFF, cellRecAtrR->NDOF);
                             Elem::tDiFj cellDiNj(4, eCell.getNNode());
                             eCell.GetDiNj(pCell, cellDiNj);
                             FDiffBaseValue(eCell, cellCoordsR, cellDiNj,
                                            pCell, cellBaries[iCell], sScaleR,
-                                           baseMoments[iCell], faceDiBjGaussCache[iFace][ig * 2 + 1]);
+                                           baseMoments[iCell], faceDiBjGaussBatchElem.m(ig * 2 + 1));
                         }
                     }
                     // exit(0);
@@ -559,8 +741,91 @@ namespace DNDS
         void initReconstructionMatVec()
         {
 
-            vectorInvAb = std::make_shared<decltype(vectorInvAb)::element_type>(mesh->cell2faceLocal.dist->size());
-            matrixInvAB = std::make_shared<decltype(matrixInvAB)::element_type>(mesh->cell2faceLocal.dist->size());
+            auto fGetMatSizes = [&](int &nmat, std::vector<int> &matSizes, index iCell)
+            {
+                auto &cellAttribute = mesh->cellAtrLocal[iCell][0];
+                auto &cellRecAttribute = cellRecAtrLocal[iCell][0];
+                auto eCell = Elem::ElementManager(cellAttribute.type, cellAttribute.intScheme);
+                auto c2f = mesh->cell2faceLocal[iCell];
+                nmat = c2f.size() + 1;
+                matSizes.resize(nmat * 2);
+                matSizes[0 * 2 + 0] = matSizes[0 * 2 + 1] = cellRecAttribute.NDOF - 1;
+                for (int ic2f = 0; ic2f < int(c2f.size()); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto f2c = mesh->face2cellLocal[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        auto &cellRecAttributeOther = cellRecAtrLocal[iCellOther][0];
+                        matSizes[(ic2f + 1) * 2 + 0] = cellRecAttribute.NDOF - 1;
+                        matSizes[(ic2f + 1) * 2 + 1] = cellRecAttributeOther.NDOF - 1;
+                    }
+                    else if (faceAttribute.iPhy == BoundaryType::Wall || faceAttribute.iPhy == BoundaryType::Farfield)
+                    {
+                        matSizes[(ic2f + 1) * 2 + 0] = cellRecAttribute.NDOF - 1;
+                        matSizes[(ic2f + 1) * 2 + 1] = cellRecAttribute.NDOF - 1;
+                    }
+                    else
+                    {
+                        assert(false);
+                    }
+                }
+            };
+
+            auto fGetVecSize = [&](std::vector<int> &matSizes, index iCell)
+            {
+                auto &cellAttribute = mesh->cellAtrLocal[iCell][0];
+                auto &cellRecAttribute = cellRecAtrLocal[iCell][0];
+                auto eCell = Elem::ElementManager(cellAttribute.type, cellAttribute.intScheme);
+                auto c2f = mesh->cell2faceLocal[iCell];
+                matSizes.resize(2);
+                matSizes[0 * 2 + 0] = c2f.size();
+                matSizes[0 * 2 + 1] = cellRecAttribute.NDOF - 1;
+            };
+
+            vectorBatch = std::make_shared<decltype(vectorBatch)::element_type>(
+                decltype(vectorBatch)::element_type::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        int nmats = 1;
+                        std::vector<int> matSizes;
+                        fGetVecSize(matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+                    },
+                    [&](uint8_t *data, index siz, index i)
+                    {
+                        int nmats = 1;
+                        std::vector<int> matSizes;
+                        fGetVecSize(matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
+                    },
+                    mesh->cell2faceLocal.dist->size()),
+                mpi);
+            matrixBatch = std::make_shared<decltype(matrixBatch)::element_type>(
+                decltype(matrixBatch)::element_type::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetMatSizes(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+                    },
+                    [&](uint8_t *data, index siz, index i)
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetMatSizes(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
+                    },
+                    mesh->cell2faceLocal.dist->size()),
+                mpi);
 
             // for each inner cell (ghost cell no need)
             forEachInArray(
@@ -571,13 +836,13 @@ namespace DNDS
                     auto &cellRecAttribute = cellRecAtrLocal[iCell][0];
                     auto eCell = Elem::ElementManager(cellAttribute.type, cellAttribute.intScheme);
                     assert(c2f.size() == eCell.getNFace());
-                    (*matrixInvAB)[iCell].resize(c2f.size() + 1);
-                    (*vectorInvAb)[iCell].resize(c2f.size(), cellRecAttribute.NDOF - 1);
-                    (*vectorInvAb)[iCell].setConstant(UnInitReal);
-                    (*matrixInvAB)[iCell][0].resize(cellRecAttribute.NDOF - 1, cellRecAttribute.NDOF - 1);
-                    (*matrixInvAB)[iCell][0].setZero();
+                    auto matrixBatchElem = (*matrixBatch)[iCell];
+                    auto vectorBatchElem = (*vectorBatch)[iCell];
 
                     // get Aii
+                    Eigen::MatrixXd A;
+                    A.resizeLike(matrixBatchElem.m(0));
+                    A.setZero();
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
                     {
                         index iFace = c2f[ic2f];
@@ -587,55 +852,49 @@ namespace DNDS
                         auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
                         auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
                         Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
-
+                        auto faceDiBjGaussBatchElem = (*faceDiBjGaussBatch)[iFace];
                         eFace.Integration(
-                            (*matrixInvAB)[iCell][0],
+                            A,
                             [&](Eigen::MatrixXd &incA, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
                             {
-                                Eigen::MatrixXd &diffsI = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace];
+                                auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                 Eigen::MatrixXd incAFull;
                                 FFaceFunctional(diffsI, diffsI, (*faceWeights)[iFace], incAFull);
                                 assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                                 incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                 incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
-                                // std::cout << "DI " << std::endl;
-                                // std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace] << std::endl;
                             });
-                        // if (mpi.rank == 0)
-                        // std::cout << "FW " << iCell << "\n"
-                        //           << (*faceWeights)[iFace] << std::endl;
                     }
-                    // if (mpi.rank == 0)
-                    // std::cout << "MOMENT" << baseMoments[iCell] << std::endl;
-                    // std::cout << "A " << iCell << "\n"
-                    //           << (*matrixInvAB)[iCell][0] << std::endl;
 
                     Eigen::MatrixXd Ainv;
-                    HardEigen::EigenLeastSquareInverse((*matrixInvAB)[iCell][0], Ainv);
+                    HardEigen::EigenLeastSquareInverse(A, Ainv);
+                    matrixBatchElem.m(0) = Ainv;
 
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
                     {
                         index iFace = c2f[ic2f];
-                        auto f2c = (*mesh->face2cellPair)[iFace];
+                        auto f2c = mesh->face2cellLocal[iFace];
                         index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
 
                         index iCellAtFace = f2c[0] == iCell ? 0 : 1;
                         auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
                         auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
                         Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+                        auto faceDiBjGaussBatchElem = (*faceDiBjGaussBatch)[iFace];
 
                         if (iCellOther != FACE_2_VOL_EMPTY)
                         {
                             auto &cellAttributeOther = mesh->cellAtrLocal[iCellOther][0];
                             auto &cellRecAttributeOther = cellRecAtrLocal[iCellOther][0];
-                            (*matrixInvAB)[iCell][ic2f + 1].resize(cellRecAttribute.NDOF - 1, cellRecAttributeOther.NDOF - 1);
-                            (*matrixInvAB)[iCell][ic2f + 1].setZero();
+                            Eigen::MatrixXd B;
+                            B.resizeLike(matrixBatchElem.m(ic2f + 1));
+                            B.setZero();
                             eFace.Integration(
-                                (*matrixInvAB)[iCell][ic2f + 1],
+                                B,
                                 [&](Eigen::MatrixXd &incB, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
                                 {
-                                    Eigen::MatrixXd &diffsI = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace];
-                                    Eigen::MatrixXd &diffsJ = faceDiBjGaussCache[iFace][ig * 2 + 1 - iCellAtFace];
+                                    auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
+                                    auto diffsJ = faceDiBjGaussBatchElem.m(ig * 2 + 1 - iCellAtFace);
                                     Eigen::MatrixXd incBFull;
                                     FFaceFunctional(diffsI, diffsJ, (*faceWeights)[iFace], incBFull);
                                     assert(incBFull(Eigen::all, 0).norm() + incBFull(0, Eigen::all).norm() == 0);
@@ -644,23 +903,22 @@ namespace DNDS
                                     // std::cout << "DI " << std::endl;
                                     // std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellFace] << std::endl;
                                 });
-                            // std::cout << "Bij " << (*matrixInvAB)[iCell][ic2f + 1] << std::endl;
-                            (*matrixInvAB)[iCell][ic2f + 1] = Ainv * (*matrixInvAB)[iCell][ic2f + 1];
+                            matrixBatchElem.m(ic2f + 1) = Ainv * B;
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Wall)
                         {
-                            (*matrixInvAB)[iCell][ic2f + 1].resize(cellRecAttribute.NDOF - 1, cellRecAttribute.NDOF - 1);
-                            (*matrixInvAB)[iCell][ic2f + 1].setZero(); // the other 'cell' has no rec
+                            matrixBatchElem.m(ic2f + 1).setZero(); // the other 'cell' has no rec
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Farfield)
                         {
-                            (*matrixInvAB)[iCell][ic2f + 1].resize(cellRecAttribute.NDOF - 1, cellRecAttribute.NDOF - 1);
-                            (*matrixInvAB)[iCell][ic2f + 1].setZero();
+                            Eigen::MatrixXd B;
+                            B.resizeLike(matrixBatchElem.m(ic2f + 1));
+                            B.setZero();
                             eFace.Integration(
-                                (*matrixInvAB)[iCell][ic2f + 1],
+                                B,
                                 [&](Eigen::MatrixXd &incA, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
                                 {
-                                    Eigen::MatrixXd &diffsI = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace];
+                                    auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                     Eigen::MatrixXd incAFull;
                                     FFaceFunctional(diffsI, diffsI, (*faceWeights)[iFace], incAFull);
                                     // std::cout << "W " << faceWeights[iFace] << std::endl;
@@ -668,9 +926,7 @@ namespace DNDS
                                     incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                     incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
                                 });
-                            (*matrixInvAB)[iCell][ic2f + 1] = Ainv * (*matrixInvAB)[iCell][ic2f + 1];
-                            // std::cout << "FFAiB" << (*matrixInvAB)[iCell][ic2f + 1] << std::endl;
-                            // std::cout << "W " << faceWeights[iFace] << std::endl;
+                            matrixBatchElem.m(ic2f + 1) = Ainv * B;
                         }
                         else
                         {
@@ -678,15 +934,17 @@ namespace DNDS
                         }
                         // everyone is welcome to have this
                         {
-                            Eigen::RowVectorXd row((*vectorInvAb)[iCell].cols());
+                            Eigen::RowVectorXd row(vectorBatchElem.m(0).cols());
                             row.setZero();
                             eFace.Integration(
                                 row,
                                 [&](Eigen::RowVectorXd &incb, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
                                 {
-                                    Eigen::MatrixXd &diffsI = faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace];
+                                    auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                     Eigen::MatrixXd incbFull;
-                                    FFaceFunctional(Eigen::MatrixXd::Ones(1, 1), diffsI({0}, Eigen::all), (*faceWeights)[iFace]({0}), incbFull);
+                                    Eigen::MatrixXd rowDiffI = diffsI({0}, Eigen::all);
+                                    Eigen::MatrixXd fw0 = (*faceWeights)[iFace]({0});
+                                    FFaceFunctional(Eigen::MatrixXd::Ones(1, 1), rowDiffI, fw0, incbFull);
                                     // std::cout << incbFull(0, 0) << " " << incbFull.size() << incb.size() << std::endl;
                                     assert(incbFull(0, 0) == 0);
                                     incb = incbFull.rightCols(incbFull.size() - 1);
@@ -694,16 +952,10 @@ namespace DNDS
                                     // std::cout << "DI " << std::endl;
                                     // std::cout << faceDiBjGaussCache[iFace][ig * 2 + iCellFace] << std::endl;
                                 });
-                            (*vectorInvAb)[iCell].row(ic2f) = row;
+                            vectorBatchElem.m(0).row(ic2f) = row;
                         }
                     }
-                    // std::cout << "Ainv " << iCell << "\n"
-                    //           << Ainv << std::endl;
-                    // exit(0);
-                    (*vectorInvAb)[iCell] = (*vectorInvAb)[iCell] * Ainv.transpose(); // must be outside the loop as it operates all rows at once
-                    // std::cout << "bMat " << std::endl;
-                    // std::cout << vectorInvAb[iCell] << std::endl;
-                    (*matrixInvAB)[iCell][0] = Ainv; // converts to Ainv instead of A
+                    vectorBatchElem.m(0) = vectorBatchElem.m(0) * Ainv.transpose(); // must be outside the loop as it operates all rows at once
                 });
         }
 
@@ -749,15 +1001,14 @@ namespace DNDS
                 real relax = cellRecAtrLocal[iCell][0].relax;
                 auto &c2f = mesh->cell2faceLocal[iCell];
                 uRecNewBuf[iCell].m() = (1 - relax) * uRec[iCell].m();
+                auto matrixBatchElem = (*matrixBatch)[iCell];
+                auto vectorBatchElem = (*vectorBatch)[iCell];
 
                 Eigen::MatrixXd coords;
                 mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
                 // std::cout << "COORDS" << coords << std::endl;
-                // std::cout << (*matrixInvAB)[iCell][0] << std::endl
-                //           << std::endl;
                 for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                 {
-                    // this is a repeated code block START
                     index iFace = c2f[ic2f];
                     auto &f2c = (*mesh->face2cellPair)[iFace];
                     index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
@@ -767,15 +1018,12 @@ namespace DNDS
                     Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
                     Eigen::MatrixXd BCCorrection;
                     BCCorrection.resizeLike(uRec[iCell].m());
-                    // this is a repeated code block END
 
                     if (iCellOther != FACE_2_VOL_EMPTY)
                     {
                         uRecNewBuf[iCell].m() +=
-                            relax * (((*matrixInvAB)[iCell][ic2f + 1] * uRec[iCellOther].m()) +
-                                     ((u[iCellOther].p() - u[iCell].p()) * (*vectorInvAb)[iCell].row(ic2f)).transpose());
-                        // std::cout << "MIABInner" << (*matrixInvAB)[iCell][ic2f + 1] << std::endl;
-                        // InsertCheck(mpi, "ReconstructionJacobiStep AD1");
+                            relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCellOther].m()) +
+                                     ((u[iCellOther].p() - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
                     }
                     else
                     {
@@ -783,13 +1031,8 @@ namespace DNDS
                         {
                             Eigen::Vector<real, vsize> uBV;
                             uBV.setZero();
-                            // Eigen::MatrixXd fc;
-                            // mesh->LoadCoords(mesh->face2nodeLocal[iFace], fc);
-                            // real ytest = (fc(1, 0) + fc(1, 1)) * 0.5;
-                            // uBV.setConstant(ytest * 4);
-                            // Eigen::MatrixXd uRecBV;
                             uRecNewBuf[iCell].m() +=
-                                relax * (((uBV - u[iCell].p()) * (*vectorInvAb)[iCell].row(ic2f)).transpose());
+                                relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
 
                             // eFace.Integration(
                             //     BCCorrection,
@@ -806,7 +1049,7 @@ namespace DNDS
                         else if (faceAttribute.iPhy == BoundaryType::Farfield)
                         {
                             uRecNewBuf[iCell].m() +=
-                                relax * (((*matrixInvAB)[iCell][ic2f + 1] * uRec[iCell].m()));
+                                relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCell].m()));
                         }
                         else
                         {

@@ -15,7 +15,7 @@ namespace DNDS
 #include <Windows.h>
 #include <process.h>
 #endif
-        inline bool IsDebugged()
+        bool IsDebugged()
         {
 
 #if defined(linux) || defined(_UNIX) || defined(__linux__)
@@ -39,7 +39,7 @@ namespace DNDS
 #endif
         }
 
-        inline void MPIDebugHold(const MPIInfo &mpi)
+        void MPIDebugHold(const MPIInfo &mpi)
         {
 #if defined(linux) || defined(_UNIX)
             MPISerialDo(mpi, [&]

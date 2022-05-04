@@ -14,7 +14,7 @@ namespace DNDS
 {
     typedef double real;
     typedef int64_t index;
-    typedef int16_t rowsize;
+    typedef int32_t rowsize;
 
     static const char *outputDelim = "\t";
 
@@ -87,6 +87,13 @@ namespace DNDS
     {
         for (auto i = 0; i < dat.size(); i++)
             out << TP(dat[i]) << outputDelim;
+    }
+
+    /// \brief l must be non-negative, r must be positive. integers
+    template <class TL, class TR>
+    inline constexpr auto divCeil(TL l, TR r)
+    {
+        return l / r + (l % r) ? 1 : 0;
     }
 }
 

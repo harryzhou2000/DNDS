@@ -193,7 +193,7 @@ namespace DNDS
 
             // rowSizes unit in n-Ts!!!
             // if needs initialization
-            Context(const tRowsizFunc &rowSizes, const fInitializer &nfInit, index newLength) : Length(newLength), needInitialize(true), fInit(nfInit)
+            Context(const tRowsizFunc &rowSizes, const fInitializer &nfInit, index newLength) : needInitialize(true), fInit(nfInit), Length(newLength)
             {
                 // pRowstart.reset(); // abandon any hooked row info // not necessary
                 pRowstart = std::make_shared<tIndexVec>(tIndexVec(Length + 1));

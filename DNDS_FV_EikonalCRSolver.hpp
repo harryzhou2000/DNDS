@@ -35,13 +35,15 @@ namespace DNDS
             for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
             {
                 auto f2c = mesh->face2cellLocal[iFace];
+                auto faceDiBjCenterBatchElemVR = (*vfv->faceDiBjCenterBatch)[iFace];
+                auto faceDiBjGaussBatchElemVR = (*vfv->faceDiBjGaussBatch)[iFace];
                 Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
 
                 index iCellL = f2c[0];
                 Elem::tPoint gradL{0, 0, 0}, gradR{0, 0, 0};
-                gradL({0, 1}) = vfv->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(vfv->faceDiBjCenterCache[iFace].first.cols() - 1) * uRec[iCellL].m();
+                gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(0)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(0).cols() - 1) * uRec[iCellL].m();
                 if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
-                    gradR({0, 1}) = vfv->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(vfv->faceDiBjCenterCache[iFace].second.cols() - 1) * uRec[f2c[1]].m();
+                    gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(1).cols() - 1) * uRec[f2c[1]].m();
                 Elem::tPoint grad = (gradL + gradR) * 0.5;
                 real lamFace = (std::abs(grad.dot(unitNorm)) + 1) * fv->faceArea[iFace];
                 lambdaCell[iCellL] += lamFace;
@@ -80,13 +82,15 @@ namespace DNDS
                 auto &cellRecAtr = vfv->cellRecAtrLocal[iCell][0];
                 auto &cellAtr = mesh->cellAtrLocal[iCell][0];
                 Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
+                auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
+                auto cellDiBjGaussBatchElemCR = (*cfv->cellDiBjGaussBatch)[iCell];
                 eCell.Integration(
                     rhsValue,
                     [&](real &inc, int ig, Elem::tPoint p, Elem::tDiFj &DiNj)
                     {
                         Elem::tPoint vrGrad{0, 0, 0}, crGrad{0, 0, 0};
-                        vrGrad({0, 1}) = vfv->cellDiBjGaussCache[iCell][ig]({1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
-                        crGrad({0, 1}) = cfv->cellDiBjGaussCache[iCell][ig]({1, 2}, Eigen::all).rightCols(uRecCR[iCell].m().rows()) * uRecCR[iCell].m();
+                        vrGrad({0, 1}) = cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
+                        crGrad({0, 1}) = cellDiBjGaussBatchElemCR.m(ig)({1, 2}, Eigen::all).rightCols(uRecCR[iCell].m().rows()) * uRecCR[iCell].m();
                         inc = 1 - std::fabs(vrGrad.dot(crGrad));
                         inc *= vfv->cellGaussJacobiDets[iCell][ig];
                     });
@@ -103,6 +107,7 @@ namespace DNDS
                 Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
                 real flux = 0.;
                 real dist;
+                auto faceDiBjGaussBatchElemVR = (*vfv->faceDiBjGaussBatch)[iFace];
 
                 if (f2c[1] != FACE_2_VOL_EMPTY)
                     dist = (vfv->cellCenters[f2c[0]] - vfv->cellCenters[f2c[1]]).norm();
@@ -114,10 +119,10 @@ namespace DNDS
                     {
                         Elem::tPoint unitNorm = vfv->faceNorms[iFace][ig].normalized();
                         Eigen::Vector3d uRecVal{0, 0, 0}, uRecValL{0, 0, 0}, uRecValR{0, 0, 0}; // 2-d specific, no gradient z!
-                        uRecValL = vfv->faceDiBjGaussCache[iFace][ig * 2 + 0]({0, 1, 2}, Eigen::all).rightCols(uRec[f2c[0]].m().rows()) * uRec[f2c[0]].m();
+                        uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({0, 1, 2}, Eigen::all).rightCols(uRec[f2c[0]].m().rows()) * uRec[f2c[0]].m();
                         if (f2c[1] != FACE_2_VOL_EMPTY)
                         {
-                            uRecValR = vfv->faceDiBjGaussCache[iFace][ig * 2 + 1]({0, 1, 2}, Eigen::all).rightCols(uRec[f2c[1]].m().rows()) * uRec[f2c[1]].m();
+                            uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({0, 1, 2}, Eigen::all).rightCols(uRec[f2c[1]].m().rows()) * uRec[f2c[1]].m();
                             uRecVal = (uRecValL + uRecValR) * 0.5;
                         }
                         Elem::tPoint gradC{uRecVal(1), uRecVal(2), 0}; // 2-d specific, no gradient z!
@@ -241,7 +246,7 @@ namespace DNDS
             {
                 if (sResult[iCell] < MaxD)
                 {
-                    Eigen::MatrixXd recval = vfv->cellDiBjCenterCache[iCell]({0}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
+                    Eigen::MatrixXd recval = vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
                     real diff = (recval(0) + u[iCell](0)) - sResult[iCell];
                     errD += std::fabs(diff) / sResult[iCell];
                     volD += 1.;
@@ -328,6 +333,7 @@ namespace DNDS
 
         void ReadMeshAndInitialize()
         {
+            // Debug::MPIDebugHold(mpi);
             CompactFacedMeshSerialRWBuild(mpi, config.mName, "data/out/debugmeshSO.plt", mesh);
             fv = std::make_shared<ImplicitFiniteVolume2D>(mesh.get());
             vfv = std::make_shared<VRFiniteVolume2D>(mesh.get(), fv.get());
@@ -355,6 +361,7 @@ namespace DNDS
 
         void RunExplicitSSPRK4()
         {
+
             ODE::ExplicitSSPRK4LocalDt<decltype(u)> ode(
                 u.dist->size(),
                 [&](decltype(u) &data)
@@ -462,7 +469,7 @@ namespace DNDS
         {
             for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
-                Eigen::MatrixXd recval = vfv->cellDiBjCenterCache[iCell]({0, 1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
+                Eigen::MatrixXd recval = vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0, 1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
                 (*outDist)[iCell][0] = recval(0) + u[iCell](0);
                 (*outDist)[iCell][1] = recval(1);
                 (*outDist)[iCell][2] = recval(2);
