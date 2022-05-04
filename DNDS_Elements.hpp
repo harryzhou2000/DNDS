@@ -1,6 +1,7 @@
 #pragma once
 #include "DNDS_Defines.h"
 #include "Eigen/Dense"
+#include "EigenTensor.hpp"
 
 /**
  * \file DNDS_Elements.hpp
@@ -898,7 +899,7 @@ namespace DNDS
             {
                 int diffOrder = getDiffOrderFromDiffSize(DiNj.rows());
                 assert(DiNj.cols() >= Nnode);
-                auto x = p[0], y = p[1];//, z = p[2]; // param space
+                auto x = p[0], y = p[1]; //, z = p[2]; // param space
                 switch (elemType)
                 {
                 case ElemType::Line2:
@@ -1334,6 +1335,46 @@ namespace DNDS
         {
             assert(Jacobi(0, 2) == 0.0);
             return tPoint{Jacobi(0, 1), -Jacobi(0, 0), 0.0};
+        }
+
+        template <class TMat>
+        inline void Convert2dDiffsLinMap(TMat &&mat, const Eigen::Matrix2d &dXijdXi)
+        {
+            switch (mat.rows())
+            {
+            case 10:
+                for (int iB = 0; iB < mat.cols(); iB++)
+                {
+                    Eigen::ETensorR3<real, 2, 2, 2> dPhidxiidxijdxik;
+                    dPhidxiidxijdxik(0, 0, 0) = mat(6, iB);
+                    dPhidxiidxijdxik(0, 0, 1) = dPhidxiidxijdxik(0, 1, 0) = dPhidxiidxijdxik(1, 0, 0) = mat(7, iB);
+                    dPhidxiidxijdxik(0, 1, 1) = dPhidxiidxijdxik(1, 0, 1) = dPhidxiidxijdxik(1, 1, 0) = mat(8, iB);
+                    dPhidxiidxijdxik(1, 1, 1) = mat(9, iB);
+                    dPhidxiidxijdxik.MatTransform0(dXijdXi.transpose());
+                    dPhidxiidxijdxik.MatTransform1(dXijdXi.transpose());
+                    dPhidxiidxijdxik.MatTransform2(dXijdXi.transpose());
+                    mat(6, iB) = dPhidxiidxijdxik(0, 0, 0);
+                    mat(7, iB) = dPhidxiidxijdxik(0, 0, 1);
+                    mat(8, iB) = dPhidxiidxijdxik(0, 1, 1);
+                    mat(9, iB) = dPhidxiidxijdxik(1, 1, 1);
+                }
+            case 6:
+                for (int iB = 0; iB < mat.cols(); iB++)
+                {
+                    Eigen::Matrix2d dPhidxiidxij{{mat(3, iB), mat(4, iB)},
+                                                 {mat(4, iB), mat(5, iB)}};
+                    dPhidxiidxij = dXijdXi * dPhidxiidxij * dXijdXi.transpose();
+                    mat(3, iB) = dPhidxiidxij(0, 0), mat(4, iB) = dPhidxiidxij(0, 1), mat(5, iB) = dPhidxiidxij(1, 1);
+                }
+            case 3:
+                mat({1, 2}, Eigen::all) = dXijdXi * mat({1, 2}, Eigen::all);
+            case 1:
+                break;
+
+            default:
+                assert(false);
+                break;
+            }
         }
     }
 

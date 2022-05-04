@@ -12,3 +12,4 @@ rapidjson
 fmt
 perf.data*
 syncgs.sh
+pulldata.sh

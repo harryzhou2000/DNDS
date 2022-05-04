@@ -1,7 +1,7 @@
 {
     "nTimeStep": 20000,
     "nConsoleCheck": 10,
-    "nDataOut": 500,
+    "nDataOut": 50,
     "CFL": 0.5,
     "meshFile": "data/mesh/NACA0012_WIDE_H3.msh",
     "meshFileList": [
@@ -9,7 +9,8 @@
         "data/mesh/NACA0012_WIDE_H3_O2.msh",
         "data/mesh/NACA0012_WIDE_H30.msh",
         "data/mesh/NACA0012_WIDE_H300.msh",
-        "data/mesh/NACA0012_WIDE_500k.msh"
+        "data/mesh/NACA0012_WIDE_500k.msh",
+        "data/mesh/Uniform/UniformD100.msh"
     ],
     "outPltName": "data/out/debugData_",
     "err_dMax": 0.01,

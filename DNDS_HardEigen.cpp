@@ -6,7 +6,7 @@ namespace DNDS
     namespace HardEigen
     {
 
-// #define EIGEN_USE_LAPACKE
+        // #define EIGEN_USE_LAPACKE
         void EigenLeastSquareInverse(const Eigen::MatrixXd &A, Eigen::MatrixXd &AI)
         {
             static const double sVmin = 1e-12;
@@ -32,6 +32,13 @@ namespace DNDS
             AI = SVDResult.matrixV() * sVs.asDiagonal() * SVDResult.matrixU().transpose();
 
             // std::cout << AI * A << std::endl;
+        }
+
+        Eigen::Matrix3d Eigen3x3RealSymEigenDecomposition(const Eigen::Matrix3d &A)
+        {
+            Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver;
+            solver.compute(A);
+            return (solver.eigenvectors() * solver.eigenvalues().array().abs().sqrt().matrix().asDiagonal())(Eigen::all, {2, 1, 0});
         }
     }
 }

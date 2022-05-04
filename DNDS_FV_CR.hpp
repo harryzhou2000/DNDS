@@ -164,7 +164,7 @@ namespace DNDS
                             {
                                 Eigen::MatrixXd diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                 Eigen::MatrixXd incAFull;
-                                FFaceFunctional(diffsI.topRows(1), diffsI.topRows(1), (*faceWeights)[iFace].topRows(1), incAFull);
+                                FFaceFunctional(iFace,ig, diffsI.topRows(1), diffsI.topRows(1), (*faceWeights)[iFace].topRows(1), incAFull);
                                 assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                                 incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                 incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
@@ -180,7 +180,7 @@ namespace DNDS
                                 auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                 auto diffsVRI = faceDiBjGaussBatchElemVR.m(ig * 2 + iCellAtFace);
                                 Eigen::MatrixXd incAFull;
-                                FFaceFunctional(diffsVRI.topRows(1), diffsI.topRows(1), (*faceWeights)[iFace].topRows(1), incAFull);
+                                FFaceFunctional(iFace,ig, diffsVRI.topRows(1), diffsI.topRows(1), (*faceWeights)[iFace].topRows(1), incAFull);
                                 assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                                 incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                 incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
@@ -195,7 +195,7 @@ namespace DNDS
                             {
                                 auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                 Eigen::MatrixXd incAFull;
-                                FFaceFunctional(diffsI.topRows(1), Eigen::MatrixXd::Ones(1, 1), (*faceWeights)[iFace].topRows(1), incAFull);
+                                FFaceFunctional(iFace, ig, diffsI.topRows(1), Eigen::MatrixXd::Ones(1, 1), (*faceWeights)[iFace].topRows(1), incAFull);
                                 assert(incAFull(0) == 0);
                                 incA = incAFull.bottomRows(incAFull.rows() - 1);
                                 incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
@@ -215,7 +215,7 @@ namespace DNDS
                                     auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                     auto diffsVRI = faceDiBjGaussBatchElemVR.m(ig * 2 + 1 - iCellAtFace);
                                     Eigen::MatrixXd incAFull;
-                                    FFaceFunctional(diffsI.topRows(1), diffsVRI.topRows(1), (*faceWeights)[iFace].topRows(1), incAFull);
+                                    FFaceFunctional(iFace, ig, diffsI.topRows(1), diffsVRI.topRows(1), (*faceWeights)[iFace].topRows(1), incAFull);
                                     assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                                     incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                     incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
@@ -233,7 +233,7 @@ namespace DNDS
                                 {
                                     auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                     Eigen::MatrixXd incAFull;
-                                    FFaceFunctional(diffsI.topRows(1), Eigen::MatrixXd::Ones(1, 1), (*faceWeights)[iFace].topRows(1), incAFull);
+                                    FFaceFunctional(iFace, ig, diffsI.topRows(1), Eigen::MatrixXd::Ones(1, 1), (*faceWeights)[iFace].topRows(1), incAFull);
                                     assert(incAFull(0) == 0);
                                     incA = incAFull.bottomRows(incAFull.rows() - 1);
                                     incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
@@ -247,7 +247,7 @@ namespace DNDS
                     }
                     Eigen::MatrixXd Ainv, AinvFilterd;
                     HardEigen::EigenLeastSquareInverse(A, Ainv);
-                    
+
                     matrixBatchElem.m(0) = Ainv;
                     // exit(0);
                 });
