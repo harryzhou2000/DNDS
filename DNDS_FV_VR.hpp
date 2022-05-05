@@ -146,6 +146,22 @@ namespace DNDS
         std::shared_ptr<Array<SmallMatricesBatch>> matrixBatch; // matrixInvAB[i][icf + 1] = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
                                                                 // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
 
+        struct Setting
+        {
+            real tangWeight = 1;
+        } setting;
+        // **********************************************************************************************************************
+        /*
+
+
+
+
+
+
+
+        */
+        // **********************************************************************************************************************
+
         VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV) : mpi(nMesh->mpi), mesh(nMesh), FV(nFV)
         {
             assert(FV->mpi == mpi);
@@ -272,7 +288,7 @@ namespace DNDS
                 }
                 Eigen::Vector2d fNorm = faceNorms[iFace][iGauss]({0, 1}).stableNormalized() * length;
                 Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
-                fTang *= 0.5;
+                fTang *= setting.tangWeight;
                 real n0 = fNorm(0), n1 = fNorm(1);
                 real t0 = fTang(0), t1 = fTang(1);
                 // w2r *= 0.1;
