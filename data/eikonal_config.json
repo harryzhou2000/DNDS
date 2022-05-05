@@ -3,8 +3,8 @@
     "nConsoleCheck": 10,
     "nDataOut": 500,
     "CFL": 0.5,
-    "meshFile": "data/mesh/NACA0012_WIDE_H3.msh",
-    "meshFileList": [
+    "meshFile": "data/mesh/NACA0012_WIDE_H3_O2.msh",
+    "comment_meshFileList": [
         "data/mesh/NACA0012_WIDE_H3.msh",
         "data/mesh/NACA0012_WIDE_H3_O2.msh",
         "data/mesh/NACA0012_WIDE_H30.msh",
@@ -16,6 +16,8 @@
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
-        "tangWeight": 0.5
+        "tangWeight": 0,
+        "baseCenterType": "Param",
+        "scaleMLargerPortion": 1
     }
 }
