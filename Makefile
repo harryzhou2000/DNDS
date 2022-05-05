@@ -1,5 +1,5 @@
-export OMPI_CXX=clang++
-# export OMPI_CXX=g++
+# export OMPI_CXX=clang++
+export OMPI_CXX=g++
 
 first: what
 
@@ -41,17 +41,17 @@ HEADERS=$(wildcard *.hpp *.h)
 
 
 
-FLAGS=-g
-FLAGS=-Os
+# FLAGS=-g
+# FLAGS=-Os
 # FLAGS=-O2
 # FLAGS=-g -O2
-# FLAGS=-O3 -DNDEBUG
+FLAGS=-O3 -DNDEBUG
 
 
-FLAGS_FAST=-g
-FLAGS_FAST=-Os
+# FLAGS_FAST=-g
+# FLAGS_FAST=-Os
 # FLAGS_FAST=-g -O3
-# FLAGS_FAST=-O3 -DNDEBUG
+FLAGS_FAST=-O3 -DNDEBUG
 
 
 -include $(PREBUILD_FAST_DEP)

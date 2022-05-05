@@ -1147,8 +1147,8 @@ namespace DNDS
                 *cell2nodePair,
                 [&](tAdjArray::tComponent &c2n, index ic, index in, index icn)
                 {
-                    MPI_int rank;
-                    index val;
+                    MPI_int rank = -1;
+                    index val = -1;
                     bool rt = pNodeGlobalMapping->search(in, rank, val);
                     assert(rt);
                     if (rank != mpi.rank)
