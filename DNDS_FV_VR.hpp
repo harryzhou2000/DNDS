@@ -148,7 +148,16 @@ namespace DNDS
 
         struct Setting
         {
-            real tangWeight = 1;
+            real tangWeight = 0;
+            // center type
+            std::string baseCenterTypeName = "Bary";
+            enum BaseCenterType
+            {
+                Barycenter,
+                Paramcenter
+            } baseCenterType = Barycenter;
+            // mscale calculating
+            real scaleMLargerPortion = 1.;
         } setting;
         // **********************************************************************************************************************
         /*
@@ -186,6 +195,24 @@ namespace DNDS
                        coords(1, Eigen::all).maxCoeff() - coords(1, Eigen::all).minCoeff(),
                        coords(2, Eigen::all).maxCoeff() - coords(2, Eigen::all).minCoeff()} *
                    0.5;
+        }
+
+        Elem::tPoint getCellCenter(index iCell)
+        {
+            Elem::tPoint cent;
+            switch (setting.baseCenterType)
+            {
+            case Setting::BaseCenterType::Barycenter:
+                cent = cellBaries[iCell];
+                break;
+            case Setting::BaseCenterType::Paramcenter:
+                cent = cellCenters[iCell];
+                break;
+            default:
+                assert(false);
+                break;
+            }
+            return cent;
         }
 
         template <class TWrite>
@@ -235,7 +262,12 @@ namespace DNDS
             DiBj(0, Eigen::all) -= baseMoment.transpose();
             return;
 #endif
-            real scaleM = simpleScale.maxCoeff();
+            real scaleMLarge = simpleScale({0, 1}).maxCoeff();
+            real scaleMSmall = simpleScale({0, 1}).minCoeff();
+            real scaleM = std::pow(scaleMLarge, setting.scaleMLargerPortion) *
+                          std::pow(scaleMSmall, 1 - setting.scaleMLargerPortion);
+            // std::cout << scaleM << "\t";
+
             Eigen::Matrix2d pJacobi = (*cellIntertia)[iCell]({0, 1}, {0, 1}) * 3;
             pJacobi.col(0) = pJacobi.col(0).normalized() * scaleM;
             pJacobi.col(1) = pJacobi.col(1).normalized() * scaleM;
@@ -523,8 +555,9 @@ namespace DNDS
                             // InsertCheck(mpi, "Do2");
                             incBj.resize(1, cellRecAtr.NDOF);
                             // InsertCheck(mpi, "Do2End");
+
                             FDiffBaseValue(iCell, eCell, coords, iDiNj,
-                                           ip, cellBaries[iCell], sScale,
+                                           ip, getCellCenter(iCell), sScale,
                                            Eigen::VectorXd::Zero(cellRecAtr.NDOF),
                                            incBj);
                             Elem::tJacobi Jacobi = Elem::DiNj2Jacobi(iDiNj, coords);
@@ -634,7 +667,7 @@ namespace DNDS
                     eCell.GetDiNj(p, DiNj); // N_cache not using
                     Elem::tPoint sScale = CoordMinMaxScale(coords);
                     FDiffBaseValue(iCell, eCell, coords, DiNj,
-                                   p, cellBaries[iCell], sScale,
+                                   p, getCellCenter(iCell), sScale,
                                    baseMoments[iCell],
                                    cellDiBjCenterBatchElem.m(0));
 
@@ -645,7 +678,7 @@ namespace DNDS
                         eCell.GetIntPoint(ig, p);
                         eCell.GetDiNj(p, DiNj); // N_cache not using
                         FDiffBaseValue(iCell, eCell, coords, DiNj,
-                                       p, cellBaries[iCell], sScale,
+                                       p, getCellCenter(iCell), sScale,
                                        baseMoments[iCell],
                                        cellDiBjGaussBatchElem.m(ig));
                         cellGaussJacobiDets[iCell][ig] = Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
@@ -825,7 +858,7 @@ namespace DNDS
                     Elem::tDiFj cellDiNj(4, eCell.getNNode());
                     eCell.GetDiNj(pCell, cellDiNj);
                     FDiffBaseValue(iCell, eCell, cellCoordsL, cellDiNj,
-                                   pCell, cellBaries[iCell], sScaleL,
+                                   pCell, getCellCenter(iCell), sScaleL,
                                    baseMoments[iCell], faceDiBjCenterBatchElem.m(0));
 
                     if (f2c[1] != FACE_2_VOL_EMPTY)
@@ -841,7 +874,7 @@ namespace DNDS
                         Elem::tDiFj cellDiNj(4, eCell.getNNode());
                         eCell.GetDiNj(pCell, cellDiNj);
                         FDiffBaseValue(iCell, eCell, cellCoordsR, cellDiNj,
-                                       pCell, cellBaries[iCell], sScaleR,
+                                       pCell, getCellCenter(iCell), sScaleR,
                                        baseMoments[iCell], faceDiBjCenterBatchElem.m(1));
                     }
 
@@ -864,7 +897,7 @@ namespace DNDS
                         Elem::tDiFj cellDiNj(4, eCell.getNNode());
                         eCell.GetDiNj(pCell, cellDiNj);
                         FDiffBaseValue(iCell, eCell, cellCoordsL, cellDiNj,
-                                       pCell, cellBaries[iCell], sScaleL,
+                                       pCell, getCellCenter(iCell), sScaleL,
                                        baseMoments[iCell], faceDiBjGaussBatchElem.m(ig * 2 + 0));
                         // std::cout << "GP" << cellCoordsL * cellDiNj(0, Eigen::all).transpose() << std::endl;
                         // InsertCheck(mpi, "DOAEND");
@@ -879,7 +912,7 @@ namespace DNDS
                             Elem::tDiFj cellDiNj(4, eCell.getNNode());
                             eCell.GetDiNj(pCell, cellDiNj);
                             FDiffBaseValue(iCell, eCell, cellCoordsR, cellDiNj,
-                                           pCell, cellBaries[iCell], sScaleR,
+                                           pCell, getCellCenter(iCell), sScaleR,
                                            baseMoments[iCell], faceDiBjGaussBatchElem.m(ig * 2 + 1));
                         }
                     }

@@ -348,6 +348,27 @@ namespace DNDS
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.tangWeight = " << config.vfvSetting.tangWeight << std::endl;
                 }
+
+                if (doc["vfvSetting"]["baseCenterType"].IsString())
+                {
+                    std::string centerOpt = doc["vfvSetting"]["baseCenterType"].GetString();
+                    config.vfvSetting.baseCenterTypeName = centerOpt;
+                    if (centerOpt == "Param")
+                        config.vfvSetting.baseCenterType = VRFiniteVolume2D::Setting::BaseCenterType::Paramcenter;
+                    else if (centerOpt == "Bary")
+                        config.vfvSetting.baseCenterType = VRFiniteVolume2D::Setting::BaseCenterType::Barycenter;
+                    else
+                        assert(false);
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.baseCenterType = " << config.vfvSetting.baseCenterTypeName << std::endl;
+                }
+
+                if (doc["vfvSetting"]["scaleMLargerPortion"].IsNumber())
+                {
+                    config.vfvSetting.scaleMLargerPortion = doc["vfvSetting"]["scaleMLargerPortion"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.scaleMLargerPortion = " << config.vfvSetting.scaleMLargerPortion << std::endl;
+                }
             }
         }
 
