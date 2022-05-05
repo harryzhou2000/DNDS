@@ -291,6 +291,8 @@ namespace DNDS
             real err_dMax = 0.1;
 
             real res_base = 0;
+
+            VRFiniteVolume2D::Setting vfvSetting;
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -298,37 +300,55 @@ namespace DNDS
             rapidjson::Document doc;
             JSON::ReadFile(jsonName, doc);
 
+            assert(doc["nTimeStep"].IsInt());
             config.nTimeStep = doc["nTimeStep"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nTimeStep = " << config.nTimeStep << std::endl;
 
+            assert(doc["nConsoleCheck"].IsInt());
             config.nConsoleCheck = doc["nConsoleCheck"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nConsoleCheck = " << config.nConsoleCheck << std::endl;
 
+            assert(doc["nDataOut"].IsInt());
             config.nDataOut = doc["nDataOut"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nDataOut = " << config.nDataOut << std::endl;
 
+            assert(doc["CFL"].IsNumber());
             config.CFL = doc["CFL"].GetDouble();
             if (mpi.rank == 0)
                 log() << "JSON: CFL = " << config.CFL << std::endl;
 
+            assert(doc["meshFile"].IsString());
             config.mName = doc["meshFile"].GetString();
             if (mpi.rank == 0)
                 log() << "JSON: meshFile = " << config.mName << std::endl;
 
+            assert(doc["outPltName"].IsString());
             config.outPltName = doc["outPltName"].GetString();
             if (mpi.rank == 0)
                 log() << "JSON: outPltName = " << config.outPltName << std::endl;
 
+            assert(doc["err_dMax"].IsNumber());
             config.err_dMax = doc["err_dMax"].GetDouble();
             if (mpi.rank == 0)
                 log() << "JSON: err_dMax = " << config.err_dMax << std::endl;
 
+            assert(doc["res_base"].IsNumber());
             config.res_base = doc["res_base"].GetDouble();
             if (mpi.rank == 0)
                 log() << "JSON: res_base = " << config.res_base << std::endl;
+
+            if (doc["vfvSetting"].IsObject())
+            {
+                if (doc["vfvSetting"]["tangWeight"].IsNumber())
+                {
+                    config.vfvSetting.tangWeight = doc["vfvSetting"]["tangWeight"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.tangWeight = " << config.vfvSetting.tangWeight << std::endl;
+                }
+            }
         }
 
         void ReadMeshAndInitialize()
@@ -337,6 +357,7 @@ namespace DNDS
             CompactFacedMeshSerialRWBuild(mpi, config.mName, "data/out/debugmeshSO.plt", mesh);
             fv = std::make_shared<ImplicitFiniteVolume2D>(mesh.get());
             vfv = std::make_shared<VRFiniteVolume2D>(mesh.get(), fv.get());
+            vfv->setting = config.vfvSetting; //* currently only copies, could upgrade to referencing
             vfv->Initialization();
 
             cfv = std::make_shared<CRFiniteVolume2D>(*vfv);
