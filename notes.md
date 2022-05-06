@@ -135,5 +135,9 @@ not due to -O3 unrolling or inlining, but -g symbols... normally should be 1.5M 
 # about integration:
 in this scheme for eikonal, downgrading face int order is bad,
 
-downgrading/upgrading volume int order is ok, sum error is lower but 1st layer error is **Worse** !!
+downgrading/upgrading volume int order is ok??
 upgrading:
+
+need checking!! 
+
+geom is actually important
