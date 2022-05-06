@@ -1,7 +1,7 @@
 {
     "nTimeStep": 20000,
     "nConsoleCheck": 10,
-    "nDataOut": 100,
+    "nDataOut": 500,
     "CFL": 0.5,
     "meshFile": "data/mesh/NACA0012_WIDE_H3_O2_F.msh",
     "comment_meshFileList": [

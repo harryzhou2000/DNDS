@@ -41,11 +41,10 @@ HEADERS=$(wildcard *.hpp *.h)
 
 
 
-# FLAGS=-g
+FLAGS=-g
 # FLAGS=-Os
 # FLAGS=-O2
 # FLAGS=-g -O2
-
 FLAGS=-O3
 # FLAGS=-O3 -DNDEBUG
 
