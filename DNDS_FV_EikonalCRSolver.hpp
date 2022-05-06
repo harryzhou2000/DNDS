@@ -237,9 +237,10 @@ namespace DNDS
                 //! assuming being a line and continuous
                 if ((imin % NSampleLine) > 0 && (imin % NSampleLine) < NSampleLine - 1 && distMin < 3 * MaxD)
                 {
-                    auto p0 = BCPointFull[imin - 1].p()({0, 1, 2});
-                    auto p1 = BCPointFull[imin].p()({0, 1, 2});
-                    auto p2 = BCPointFull[imin + 1].p()({0, 1, 2});
+                    Elem::tPoint p0 = BCPointFull[imin - 1].p()({0, 1, 2});
+                    Elem::tPoint p1 = BCPointFull[imin].p()({0, 1, 2});
+                    Elem::tPoint p2 = BCPointFull[imin + 1].p()({0, 1, 2});
+                    //! using auto to receive here could cause segfault in -O3, GPU704
                     auto d = [&](real pPx) -> real
                     {
                         return ((pPx * (pPx - 1) * 0.5) * p0 + (1 - pPx * pPx) * p1 + (pPx * (pPx + 1) * 0.5) * p2 - pC).squaredNorm();

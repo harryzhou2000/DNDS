@@ -141,3 +141,6 @@ upgrading:
 need checking!! 
 
 geom is actually important
+
+in this scheme for eikonal, downgrading face int order is bad, downgrading volume int order is ok
+

@@ -447,7 +447,7 @@ namespace DNDS
                         recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                         break;
                     case Elem::ParamSpace::QuadSpace:
-                        recAtr.intScheme = Elem::INT_SCHEME_QUAD_4;
+                        recAtr.intScheme = Elem::INT_SCHEME_QUAD_9;
                         recAtr.NDOF = PolynomialNDOF(P_ORDER);
                         recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                         break;
