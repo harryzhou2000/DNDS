@@ -14,3 +14,7 @@ perf.data*
 syncgs.sh
 pulldata.sh
 *.msh
+~*
+*.ppt*
+*.doc*
+*.pdf*

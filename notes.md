@@ -133,5 +133,7 @@ of the heterogeneous systems:
 not due to -O3 unrolling or inlining, but -g symbols... normally should be 1.5M  (eikonal.exe)
 
 # about integration:
-in this scheme for eikonal, downgrading face int order is bad, downgrading volume int order is ok, sum error is lower but 1st layer error is **Worse** !!
+in this scheme for eikonal, downgrading face int order is bad,
+
+downgrading/upgrading volume int order is ok, sum error is lower but 1st layer error is **Worse** !!
 upgrading:
