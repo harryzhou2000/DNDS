@@ -13,3 +13,4 @@ fmt
 perf.data*
 syncgs.sh
 pulldata.sh
+*.msh

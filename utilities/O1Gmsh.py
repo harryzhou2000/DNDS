@@ -1,7 +1,9 @@
+from copy import copy
 import numpy as np
 import scipy
 import scipy.sparse
 import scipy.interpolate
+import copy
 
 
 def RBF(x, c):
@@ -350,7 +352,8 @@ class MeshO12DModder:
 
         fout.write("$PhysicalNames\n%d\n" % (self.nphy))
         for ip in self.phys:
-            fout.write("%d %d \"%s\"\n" % (self.phys[ip][0], ip, self.phys[ip][1]))
+            fout.write("%d %d \"%s\"\n" %
+                       (self.phys[ip][0], ip, self.phys[ip][1]))
         fout.write("$EndPhysicalNames\n")
 
     def SmoothEdge(self, bname, crbf, thetaMax):
@@ -389,9 +392,10 @@ class MeshO12DModder:
                 continue
             N1 = self.smoothNodes[inode][0]
             N2 = self.smoothNodes[inode][1]
+            #3 -- 1 -- 2 -- 4
             p1 = self.nodesO2All[N1]
             p2 = self.nodesO2All[N2]
-            if(len(self.smoothNodes[N1]) > 1 and len(self.smoothNodes[N2]) > 1):
+            if len(self.smoothNodes[N1]) > 1 and len(self.smoothNodes[N2]) > 1:
                 if(self.smoothNodes[N1][0] != inode):
                     M1 = self.smoothNodes[N1][0]
                 else:
@@ -418,17 +422,26 @@ class MeshO12DModder:
                 L24 /= np.sqrt(np.dot(L24, L24))
                 A312 = np.arccos(np.dot(L31, L12))
                 A124 = np.arccos(np.dot(L12, L24))
-                if(A312 > thetaMax or A124 > thetaMax):
+                T32 = (p2 - p3)/2
+                T14 = (p4 - p1)/2
+                if A312 > thetaMax or A124 > thetaMax:
                     self.smoothedNodes[inode] = (p1+p2) * 0.5
                     continue
                 # print("%f %f"%(A312,A124))
-                xs = np.array([p3[0], p1[0], p2[0], p4[0]])
-                ys = np.array([p3[1], p1[1], p2[1], p4[1]])
-                zs = np.array([p3[2], p1[2], p2[2], p4[2]])
-                us = np.array([-1.5, -0.5, 0.5, 1.5])
-                tck, u = scipy.interpolate.splprep([xs, ys, zs], u=us)
-                pnew = scipy.interpolate.splev([0], tck)
-                p = np.array([pnew[0][0], pnew[1][0], pnew[2][0]])
+                # xs = np.array([p3[0], p1[0], p2[0], p4[0]])
+                # ys = np.array([p3[1], p1[1], p2[1], p4[1]])
+                # zs = np.array([p3[2], p1[2], p2[2], p4[2]])
+                # us = np.array([-1.5, -0.5, 0.5, 1.5])
+                # tck, u = scipy.interpolate.splprep([xs, ys, zs], u=us)
+                # pnew = scipy.interpolate.splev([0], tck)
+                # p = np.array([pnew[0][0], pnew[1][0], pnew[2][0]])
+
+                xs = np.array([p1[0], p2[0]])
+                ys = np.array([p1[1], p2[1]])
+                zs = np.array([p1[2], p2[2]])
+                interp = scipy.interpolate.CubicSpline(
+                    np.array([0, 1]), [xs, ys, zs], bc_type=((1, T32), (1, T14)), axis=1)
+                p = interp(0.5)
                 self.smoothedNodes[inode] = p
 
             else:
@@ -461,7 +474,7 @@ def ExecuteO2Interp():
     modder.GetMediumTopo()
     modder.AddO2Points()
     modder.SmoothEdge('bc-1', 1, np.pi/180.0 * 60)
-    modder.PrintO2('NACA0012_WIDE_H3_O2.msh')
+    modder.PrintO2('NACA0012_WIDE_H3_O2_F.msh')
     # modder.PrintO2('CylinderO2.msh')
 
 

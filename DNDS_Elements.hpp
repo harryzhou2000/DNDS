@@ -185,7 +185,9 @@ namespace DNDS
             Prism6 = 6,
             Prism18 = 13,
             Pyramid5 = 7,
-            Pyramid14 = 14
+            Pyramid14 = 14,
+            // Point1 = 15,
+            // Quad8 = 16,
         };
 
         enum ParamSpace
