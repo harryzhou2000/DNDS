@@ -447,7 +447,7 @@ namespace DNDS
                         recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                         break;
                     case Elem::ParamSpace::QuadSpace:
-                        recAtr.intScheme = Elem::INT_SCHEME_QUAD_9;
+                        recAtr.intScheme = Elem::INT_SCHEME_QUAD_4;
                         recAtr.NDOF = PolynomialNDOF(P_ORDER);
                         recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                         break;
@@ -469,12 +469,15 @@ namespace DNDS
                 {
                     Elem::ElementManager eFace(atr[0].type, atr[0].intScheme);
                     auto &recAtr = faceRecAtrLocal[iFace][0];
+                    auto &atrr = mesh->faceAtrLocal[iFace][0];
                     switch (eFace.getPspace())
                     {
                     case Elem::ParamSpace::LineSpace:
                         recAtr.intScheme = Elem::INT_SCHEME_LINE_3;
                         recAtr.NDOF = PolynomialNDOF(P_ORDER);
                         recAtr.NDIFF = PolynomialNDOF(P_ORDER);
+                        if (atrr.iPhy == BoundaryType::Wall)
+                            recAtr.intScheme = Elem::INT_SCHEME_LINE_3;
                         break;
                     default:
                         assert(false);

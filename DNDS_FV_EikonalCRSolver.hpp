@@ -181,13 +181,14 @@ namespace DNDS
         {
             MPIInfo mpi = mesh->mpi;
             sResult.resize(mesh->cell2nodeLocal.dist->size());
+            const int NSampleLine = 6;
 
             index nBCPoint = 0;
             for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
                 if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall)
                 {
                     Elem::ElementManager eFace(mesh->faceAtrLocal[iFace][0].type, vfv->faceRecAtrLocal[iFace][0].intScheme);
-                    nBCPoint += eFace.getNInt();
+                    nBCPoint += NSampleLine; //! knowing as line //eFace.getNInt()
                 }
             Array<VecStaticBatch<6>> BCPointDist(VecStaticBatch<6>::Context(nBCPoint), mpi);
             index iFill = 0;
@@ -197,10 +198,11 @@ namespace DNDS
                     Elem::ElementManager eFace(mesh->faceAtrLocal[iFace][0].type, vfv->faceRecAtrLocal[iFace][0].intScheme);
                     Eigen::MatrixXd coords;
                     mesh->LoadCoords(mesh->face2nodeLocal[iFace], coords);
-                    for (int ig = 0; ig < eFace.getNInt(); ig++)
+                    for (int ig = 0; ig < NSampleLine; ig++) //! knowing as line //eFace.getNInt()
                     {
                         Elem::tPoint pp;
-                        eFace.GetIntPoint(ig, pp);
+                        // eFace.GetIntPoint(ig, pp);
+                        pp << -1.0 + ig * 2.0 / double(NSampleLine - 1), 0, 0;
                         Elem::tDiFj DiNj(1, eFace.getNNode());
                         eFace.GetDiNj(pp, DiNj);
                         Elem::tPoint pPhyG = coords * DiNj.transpose();
@@ -217,7 +219,7 @@ namespace DNDS
             BCPointFull.createGhostMapping(fullPull);
             BCPointFull.createMPITypes();
             BCPointFull.pullOnce();
-
+            real minResult = veryLargeReal;
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
                 Elem::tPoint &pC = vfv->cellCenters[iCell];
@@ -232,9 +234,52 @@ namespace DNDS
                         imin = isearch;
                     }
                 }
-                sResult[iCell] = std::fabs((BCPointFull[imin].p()({0, 1, 2}) - pC).dot(BCPointFull[imin].p()({3, 4, 5})));
+                //! assuming being a line and continuous
+                if ((imin % NSampleLine) > 0 && (imin % NSampleLine) < NSampleLine - 1 && distMin < 3 * MaxD)
+                {
+                    auto p0 = BCPointFull[imin - 1].p()({0, 1, 2});
+                    auto p1 = BCPointFull[imin].p()({0, 1, 2});
+                    auto p2 = BCPointFull[imin + 1].p()({0, 1, 2});
+                    auto d = [&](real pPx) -> real
+                    {
+                        return ((pPx * (pPx - 1) * 0.5) * p0 + (1 - pPx * pPx) * p1 + (pPx * (pPx + 1) * 0.5) * p2 - pC).squaredNorm();
+                    };
+                    auto dd = [&](real pPx) -> real
+                    {
+                        return 2 * ((pPx * (pPx - 1) * 0.5) * p0 + (1 - pPx * pPx) * p1 + (pPx * (pPx + 1) * 0.5) * p2 - pC)
+                                       .dot(((2 * pPx - 1) * 0.5) * p0 + (-2 * pPx) * p1 + ((2 * pPx + 1) * 0.5) * p2);
+                    };
+
+                    real pPxc = 0.0;
+
+                    real dc = d(pPxc);
+                    real ddxm = std::max(std::fabs(dd(-1)), std::fabs(dd(1)));
+                    int i;
+                    for (i = 0; i < 10000; i++)
+                    {
+                        real ddxc = dd(pPxc);
+                        real inc = std::max(std::min(ddxc / ddxm, 1.), -1.) * 0.1;
+                        pPxc -= inc;
+                        // std::cout << d(pPxc) << std::endl;
+                        if (std::abs(inc) < 1e-10)
+                            break;
+                    }
+
+                    real de = d(pPxc);
+                    // std::cout << imin << " " << i << " sDC " << std::sqrt(dc) << " sDE " << std::sqrt(de) << " NC "
+                    //           << std::fabs((BCPointFull[imin].p()({0, 1, 2}) - pC).dot(BCPointFull[imin].p()({3, 4, 5}))) << std::endl;
+                    // exit(0);
+                    sResult[iCell] = std::sqrt(de);
+                }
+                else
+                {
+                    // sResult[iCell] = std::fabs((BCPointFull[imin].p()({0, 1, 2}) - pC).dot(BCPointFull[imin].p()({3, 4, 5})));
+                    sResult[iCell] = distMin;
+                }
                 // sResult[iCell] = distMin;
+                minResult = std::min(minResult, sResult[iCell]);
             }
+            // std::cout << minResult << " M \n";
         }
 
         void EvaluateError(real &err, ArrayDOF<1u> &u, ArrayLocal<SemiVarMatrix<1u>> &uRec)
