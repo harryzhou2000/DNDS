@@ -1,7 +1,7 @@
 {
     "nTimeStep": 20000,
     "nConsoleCheck": 10,
-    "nDataOut": 500,
+    "nDataOut": 50,
     "CFL": 0.5,
     "meshFile": "data/mesh/NACA0012_WIDE_H3_O2_F.msh",
     "comment_meshFileList": [
@@ -17,7 +17,7 @@
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
-        "tangWeight": 0.005,
+        "tangWeight": 1e-3,
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1
     }

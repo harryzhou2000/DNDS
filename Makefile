@@ -79,8 +79,13 @@ what:
 
 
 VPATH:=test
-%.exe: %.cpp ${HEADERS} ${PREBUILD} ${PREBUILD_FAST}
+
+$(SINGLE_TARGETS):%.exe: %.cpp ${HEADERS} ${PREBUILD} ${PREBUILD_FAST}
 	${CPC} -o $@ $(filter %.cpp , $^) ${PREBUILD} ${PREBUILD_FAST} $(FLAGS) $(CXX_COMPILE_FLAGS) $(CXX_LINK_FLAGS)
+
+test/testTensor.exe: test/testTensor.cpp SmallTensor.hpp
+	g++ $< -o $@ -std=c++14
+
 
 .PHONY: clean first
 

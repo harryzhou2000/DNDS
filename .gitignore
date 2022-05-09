@@ -8,6 +8,7 @@ data
 log.txt
 *.lnk
 Eigen
+unsupported
 rapidjson
 fmt
 perf.data*
