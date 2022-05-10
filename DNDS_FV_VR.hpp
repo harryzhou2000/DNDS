@@ -262,16 +262,42 @@ namespace DNDS
             DiBj(0, Eigen::all) -= baseMoment.transpose();
             return;
 #endif
+            auto coordsC = coords.colwise() - cPhysics;
+            // ** minmax scaling
+            auto P2CDist = coordsC.colwise().norm();
+            Eigen::Index maxDistIndex, minDistIndex;
+            real maxDist = P2CDist.maxCoeff(&maxDistIndex);
+            real minDist = P2CDist.minCoeff(&minDistIndex);
+            // ** minmax scaling
             real scaleMLarge = simpleScale({0, 1}).maxCoeff();
             real scaleMSmall = simpleScale({0, 1}).minCoeff();
+            scaleMLarge = maxDist;
+            scaleMSmall = minDist;
             real scaleM = std::pow(scaleMLarge, setting.scaleMLargerPortion) *
                           std::pow(scaleMSmall, 1 - setting.scaleMLargerPortion);
-            // std::cout << scaleM << "\t";
 
-            Eigen::Matrix2d pJacobi = (*cellIntertia)[iCell]({0, 1}, {0, 1}) * 3;
-            pJacobi.col(0) = pJacobi.col(0).normalized() * scaleM;
-            pJacobi.col(1) = pJacobi.col(1).normalized() * scaleM;
+            Eigen::Matrix2d pJacobi = (*cellIntertia)[iCell]({0, 1}, {0, 1}) * 10;
+
+            real scaleL0 = pJacobi.col(0).norm();
+            real scaleL1 = pJacobi.col(1).norm();
+
+            pJacobi.col(0) = pJacobi.col(0).normalized();
+            pJacobi.col(1) = pJacobi.col(1).normalized();
+
             Eigen::Matrix2d invPJacobi = pJacobi.inverse();
+
+            auto ncoords = (invPJacobi * coordsC.topRows(2));
+            auto nSizes = ncoords.rowwise().maxCoeff() - ncoords.rowwise().minCoeff();
+
+            scaleL0 = nSizes(0);
+            scaleL1 = nSizes(1);
+            // std::cout << scaleM << "\t" << scaleL0 << "\t" << scaleL1 << "\t" << std::endl;
+            // abort();
+
+            pJacobi.col(0) = pJacobi.col(0) * std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
+            pJacobi.col(1) = pJacobi.col(1) * std::pow(scaleL1, 0) * std::pow(scaleL0, 1);
+            invPJacobi = pJacobi.inverse();
+
             Eigen::Vector2d pParamL = invPJacobi * pPhysicsC.topRows(2);
             // std::cout << pPhysicsCScaled << "\n"
             //           << pJacobi << "\n"
@@ -288,7 +314,12 @@ namespace DNDS
                     int ndz = Elem::diffOperatorOrderList2D[idiff][2];
                     DiBj(idiff, ibase) = FPolynomial3D(px, py, pz, ndx, ndy, ndz,
                                                        pParamL(0), pParamL(1), 0);
+                    // todo: upgrade FPoly to considering using zeta-based curvilinear [matlab exposure? or recursion?] using zeta_i(xi_i), D_i_zeta_i(xi_i)
+                    // todo: which can be calculated [contraction of tensors] level 0 of the function, given zeta's coeff a_zeta
+                    // todo: a_zeta is a approximation of solution in cell, with some approximation functional
+                    // todo: D_i means d/dxi_1, d/dxi_2, d2/dxi_1dxi_1 ...
                 }
+            // here DiBj's direvatives are dBdxi-s, where xi is defined by xi = invPJacobi * (x - xc)
             Elem::Convert2dDiffsLinMap(DiBj, invPJacobi.transpose());
             DiBj(0, Eigen::all) -= baseMoment.transpose();
             return;
@@ -921,7 +952,7 @@ namespace DNDS
                     }
                     // exit(0);
 
-                    // Do weights!!
+                    // *Do weights!!
                     // if (f2c[1] == FACE_2_VOL_EMPTY)
                     //     std::cout << faceAtr.iPhy << std::endl;
                     (*faceWeights)[iFace].resize(faceRecAtr.NDIFF);

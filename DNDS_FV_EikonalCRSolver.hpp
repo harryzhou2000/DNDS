@@ -235,7 +235,7 @@ namespace DNDS
                     }
                 }
                 //! assuming being a line and continuous
-                if ((imin % NSampleLine) > 0 && (imin % NSampleLine) < NSampleLine - 1 && distMin < 3 * MaxD)
+                if ((imin % NSampleLine) > 0 && (imin % NSampleLine) < NSampleLine - 1 && distMin < 300 * MaxD)
                 {
                     Elem::tPoint p0 = BCPointFull[imin - 1].p()({0, 1, 2});
                     Elem::tPoint p1 = BCPointFull[imin].p()({0, 1, 2});

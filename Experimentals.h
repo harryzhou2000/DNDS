@@ -1,4 +1,4 @@
 
 
 #define USE_NORM_FUNCTIONAL
-// #define USE_LOCAL_COORD
+#define USE_LOCAL_COORD

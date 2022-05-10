@@ -1,5 +1,6 @@
 #include "../SmallTensor.hpp"
 #include "../Eigen/Dense"
+#include "../unsupported/Eigen/CXX11/TensorSymmetry"
 
 int main()
 {
@@ -31,13 +32,15 @@ int main()
     Eigen::Tensor<double, 1> v2e(3);
     v2e.setValues({0.76, 1.3, 0.2});
 
+    std::cout << e1 << std::endl;
+
     std::cout << std::endl
               << e1.contract(v1e, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
                      .contract(v2e, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
               << std::endl;
 
     std::cout << std::endl
-              << "SIZE " << sizeof(Eigen::TensorFixedSize<double, Eigen::Sizes<1, 2, 3, 4>>)
+              << "SIZE " << sizeof(Eigen::TensorFixedSize<float, Eigen::Sizes<1, 2, 3, 4>>)
               << std::endl;
     return 0;
 }
