@@ -152,6 +152,9 @@ namespace DNDS
 
         struct Setting
         {
+            real wallWeight = 5.0;
+            real farWeight = 0.0;
+
             real tangWeight = 0;
             // center type
             std::string baseCenterTypeName = "Bary";
@@ -162,6 +165,8 @@ namespace DNDS
             } baseCenterType = Barycenter;
             // mscale calculating
             real scaleMLargerPortion = 1.;
+
+            int curvilinearOrder = 1;
         } setting;
         // **********************************************************************************************************************
         /*
@@ -219,6 +224,17 @@ namespace DNDS
             return cent;
         }
 
+        struct FDiffBaseValueOptions
+        {
+            bool disableLocalCoord2GlobalDiffs = false;
+            bool disableCurvilinear = false;
+
+            FDiffBaseValueOptions() {}
+
+            FDiffBaseValueOptions(bool NdisableLocalCoord2GlobalDiffs, bool NdisableCurvilinear)
+                : disableLocalCoord2GlobalDiffs(NdisableLocalCoord2GlobalDiffs), disableCurvilinear(NdisableCurvilinear) {}
+        };
+
         template <class TWrite>
         void FDiffBaseValue(index iCell,
                             Elem::ElementManager &cElem,
@@ -228,7 +244,8 @@ namespace DNDS
                             const Elem::tPoint &cPhysics,
                             const Elem::tPoint &simpleScale,
                             const Eigen::VectorXd &baseMoment,
-                            TWrite &&DiBj) // for 2d polynomials here
+                            TWrite &&DiBj,
+                            FDiffBaseValueOptions options = FDiffBaseValueOptions()) // for 2d polynomials here
         {
             // static int i = 0;
             // if (i == 9)
@@ -325,573 +342,578 @@ namespace DNDS
                     // todo: D_i means d/dxi_1, d/dxi_2, d2/dxi_1dxi_1 ...
                 }
 #else
-            for (int idiff = 0; idiff < DiBj.rows(); idiff++)
-                for (int ibase = 0; ibase < DiBj.cols(); ibase++)
+            if (options.disableCurvilinear)
+            {
+                for (int idiff = 0; idiff < DiBj.rows(); idiff++)
+                    for (int ibase = 0; ibase < DiBj.cols(); ibase++)
+                    {
+                        int px = Elem::diffOperatorOrderList2D[ibase][0];
+                        int py = Elem::diffOperatorOrderList2D[ibase][1];
+                        int pz = Elem::diffOperatorOrderList2D[ibase][2];
+                        int ndx = Elem::diffOperatorOrderList2D[idiff][0];
+                        int ndy = Elem::diffOperatorOrderList2D[idiff][1];
+                        int ndz = Elem::diffOperatorOrderList2D[idiff][2];
+                        DiBj(idiff, ibase) = FPolynomial3D(px, py, pz, ndx, ndy, ndz,
+                                                           pParamL(0), pParamL(1), 0);
+                    }
+            }
+            else
+            {
+
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3>> curveA1;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> curveA2;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> curveA3;
+                curveA1.setZero(), curveA2.setZero(), curveA3.setZero();
+                auto curveCoeff = uCurve[iCell].m();
+                int curveNBase = curveCoeff.rows();
+                switch (curveNBase)
                 {
-                    int px = Elem::diffOperatorOrderList2D[ibase][0];
-                    int py = Elem::diffOperatorOrderList2D[ibase][1];
-                    int pz = Elem::diffOperatorOrderList2D[ibase][2];
-                    int ndx = Elem::diffOperatorOrderList2D[idiff][0];
-                    int ndy = Elem::diffOperatorOrderList2D[idiff][1];
-                    int ndz = Elem::diffOperatorOrderList2D[idiff][2];
-                    DiBj(idiff, ibase) = FPolynomial3D(px, py, pz, ndx, ndy, ndz,
-                                                       pParamL(0), pParamL(1), 0);
-                    // todo: upgrade FPoly to considering using zeta-based curvilinear [matlab exposure? or recursion?] using zeta_i(xi_i), D_i_zeta_i(xi_i)
-                    // todo: which can be calculated [contraction of tensors] level 0 of the function, given zeta's coeff a_zeta
-                    // todo: a_zeta is a approximation of solution in cell, with some approximation functional
-                    // todo: D_i means d/dxi_1, d/dxi_2, d2/dxi_1dxi_1 ...
+                case 9:
+                    curveA3(0, 0, 0) = curveCoeff(6 - 1, 0);
+                    curveA3(0, 0, 1) = curveA3(1, 0, 0) = curveA3(0, 1, 0) = curveCoeff(7 - 1, 0) / 3.0;
+                    curveA3(0, 1, 1) = curveA3(1, 1, 0) = curveA3(1, 0, 1) = curveCoeff(8 - 1, 0) / 3.0;
+                    curveA3(1, 1, 1) = curveCoeff(9 - 1, 0);
+                case 5:
+                    curveA2(0, 0) = curveCoeff(3 - 1, 0);
+                    curveA2(0, 1) = curveA2(1, 0) = curveCoeff(4 - 1, 0) / 2.0;
+                    curveA2(1, 1) = curveCoeff(5 - 1, 0);
+                case 2:
+                    curveA1(0) = curveCoeff(1 - 1, 0);
+                    curveA1(1) = curveCoeff(2 - 1, 0);
+                    break;
+                default:
+                    assert(false);
+                    break;
+                }
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3>> xi;
+                xi.setValues({pParamL(0), pParamL(1), 0});
+                // Eigen::TensorFixedSize<real, Eigen::Sizes<3>> xiN1;
+                // xiN1.setValues({0, 0, pParamL.norm()});
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3>> xiM1;
+                xiM1.setValues({-pParamL(1), pParamL(0), 0});
+
+                // xiM1 = -1;
+                //  xiN1 *= -1;
+
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> rotXi2XiN;
+                rotXi2XiN.setZero();
+                rotXi2XiN(2, 2) = 1;
+                rotXi2XiN(0, 1) = -1;
+                rotXi2XiN(1, 0) = 1;
+
+                auto EvalTensorPoly =
+                    [&curveA1, &curveA2, &curveA3, &xi](
+                        Eigen::TensorFixedSize<real, Eigen::Sizes<>> &D0,
+                        Eigen::TensorFixedSize<real, Eigen::Sizes<3>> &D1,
+                        Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> &D2,
+                        Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> &D3) -> void
+                {
+                    D0 =
+                        curveA1
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)}) +
+                        curveA2
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)}) +
+                        curveA3
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)});
+                    D1 =
+                        curveA1 +
+                        (curveA2 + curveA2.shuffle(std::vector<int>{1, 0}))
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)}) +
+                        (curveA3 + curveA3.shuffle(std::vector<int>{1, 2, 0}) + curveA3.shuffle(std::vector<int>{2, 0, 1}))
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)});
+                    D2 =
+                        (curveA2 + curveA2.shuffle(std::vector<int>{1, 0})) +
+                        (curveA3 + curveA3.shuffle(std::vector<int>{0, 2, 1}) + curveA3.shuffle(std::vector<int>{1, 2, 0}) + curveA3.shuffle(std::vector<int>{1, 0, 2}) + curveA3.shuffle(std::vector<int>{2, 0, 1}) + curveA3.shuffle(std::vector<int>{2, 1, 0}))
+                            .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)});
+                    D3 =
+                        (curveA3 + curveA3.shuffle(std::vector<int>{0, 2, 1}) + curveA3.shuffle(std::vector<int>{1, 2, 0}) + curveA3.shuffle(std::vector<int>{1, 0, 2}) + curveA3.shuffle(std::vector<int>{2, 0, 1}) + curveA3.shuffle(std::vector<int>{2, 1, 0}));
+                };
+                Eigen::TensorFixedSize<real, Eigen::Sizes<>> D0zeta0;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3>> D1zeta0;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> D2zeta0;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> D3zeta0;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<>> D0zeta1;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3>> D1zeta1;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> D2zeta1;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> D3zeta1;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<>> D0zeta2;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3>> D1zeta2;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> D2zeta2;
+                Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> D3zeta2;
+
+                EvalTensorPoly(D0zeta0, D1zeta0, D2zeta0, D3zeta0);
+                // std::cout << "CurveA1 " << curveA1 << std::endl;
+                // std::cout << "res " << curveA1.contract(rotXi2XiN, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 1)}) << std::endl;
+                // Eigen::TensorFixedSize<real, Eigen::Sizes<3>> curveA1E = curveA1.contract(rotXi2XiN, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 1)});
+                // Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> curveA2E = curveA2.contract(rotXi2XiN, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(1, 1)});
+                // Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> curveA3E = curveA3.contract(rotXi2XiN, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(2, 1)}); // converts to second zeta
+                // curveA1 = curveA1E;
+                // curveA2 = curveA2E;
+                // curveA3 = curveA3E;
+                switch (curveNBase)
+                {
+                case 9:
+                    curveA3(0, 0, 0) = curveCoeff(6 - 1, 1);
+                    curveA3(0, 0, 1) = curveA3(1, 0, 0) = curveA3(0, 1, 0) = curveCoeff(7 - 1, 1) / 3.0;
+                    curveA3(0, 1, 1) = curveA3(1, 1, 0) = curveA3(1, 0, 1) = curveCoeff(8 - 1, 1) / 3.0;
+                    curveA3(1, 1, 1) = curveCoeff(9 - 1, 1);
+                case 5:
+                    curveA2(0, 0) = curveCoeff(3 - 1, 1);
+                    curveA2(0, 1) = curveA2(1, 0) = curveCoeff(4 - 1, 1) / 2.0;
+                    curveA2(1, 1) = curveCoeff(5 - 1, 1);
+                case 2:
+                    curveA1(0) = curveCoeff(1 - 1, 1);
+                    curveA1(1) = curveCoeff(2 - 1, 1);
+                    break;
+                default:
+                    assert(false);
+                    break;
                 }
 
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3>> curveA1;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> curveA2;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> curveA3;
-            curveA1.setZero(), curveA2.setZero(), curveA3.setZero();
-            auto curveCoeff = uCurve[iCell].m();
-            int curveNBase = curveCoeff.rows();
-            switch (curveNBase)
-            {
-            case 9:
-                curveA3(0, 0, 0) = curveCoeff(6 - 1, 0);
-                curveA3(0, 0, 1) = curveA3(1, 0, 0) = curveA3(0, 1, 0) = curveCoeff(7 - 1, 0) / 3.0;
-                curveA3(0, 1, 1) = curveA3(1, 1, 0) = curveA3(1, 0, 1) = curveCoeff(8 - 1, 0) / 3.0;
-                curveA3(1, 1, 1) = curveCoeff(9 - 1, 0);
-            case 5:
-                curveA2(0, 0) = curveCoeff(3 - 1, 0);
-                curveA2(0, 1) = curveA2(1, 0) = curveCoeff(4 - 1, 0) / 2.0;
-                curveA2(1, 1) = curveCoeff(5 - 1, 0);
-            case 2:
-                curveA1(0) = curveCoeff(1 - 1, 0);
-                curveA1(1) = curveCoeff(2 - 1, 0);
-                break;
-            default:
-                assert(false);
-                break;
+                // std::cout << "CurveA1 " << curveA1 << std::endl;
+
+                EvalTensorPoly(D0zeta1, D1zeta1, D2zeta1, D3zeta1);
+                // std::cout << "D0zeta1 " << D0zeta1 << std::endl;
+                D0zeta2.setZero(), D1zeta2.setZero(), D2zeta2.setZero(), D3zeta2.setZero();
+                D1zeta2(2) = 1;
+
+                Eigen::MatrixXd DZeta(20, 3);
+                DZeta.setZero();
+                auto ExpandTensor2Col =
+                    [](int icol, Eigen::MatrixXd &Diffs,
+                       Eigen::TensorFixedSize<real, Eigen::Sizes<>> &D0,
+                       Eigen::TensorFixedSize<real, Eigen::Sizes<3>> &D1,
+                       Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> &D2,
+                       Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> &D3) -> void
+                {
+                    Diffs(0, icol) = D0(0);
+                    Diffs(1, icol) = D1(0);
+                    Diffs(2, icol) = D1(1);
+                    Diffs(3, icol) = D1(2);
+                    Diffs(4, icol) = D2(0, 0);
+                    Diffs(5, icol) = D2(0, 1);
+                    Diffs(6, icol) = D2(0, 2);
+                    Diffs(7, icol) = D2(1, 1);
+                    Diffs(8, icol) = D2(1, 2);
+                    Diffs(9, icol) = D2(2, 2);
+                    Diffs(10, icol) = D3(0, 0, 0);
+                    Diffs(11, icol) = D3(0, 0, 1);
+                    Diffs(12, icol) = D3(0, 0, 2);
+                    Diffs(13, icol) = D3(0, 1, 1);
+                    Diffs(14, icol) = D3(0, 1, 2);
+                    Diffs(15, icol) = D3(0, 2, 2);
+                    Diffs(16, icol) = D3(1, 1, 1);
+                    Diffs(17, icol) = D3(1, 1, 2);
+                    Diffs(18, icol) = D3(1, 2, 2);
+                    Diffs(19, icol) = D3(2, 2, 2);
+                };
+
+                ExpandTensor2Col(0, DZeta, D0zeta0, D1zeta0, D2zeta0, D3zeta0);
+                ExpandTensor2Col(1, DZeta, D0zeta1, D1zeta1, D2zeta1, D3zeta1);
+                ExpandTensor2Col(2, DZeta, D0zeta2, D1zeta2, D2zeta2, D3zeta2);
+                // assert(DZeta({4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}, Eigen::all).norm() == 0);
+
+                Eigen::MatrixXd DiBj3(20, 20);
+                DiBj3.setZero();
+                DiBj3(0, 0) = 1.0;
+                DiBj3(0, 1) = DZeta(0, 0);
+                DiBj3(0, 2) = DZeta(0, 1);
+                DiBj3(0, 3) = DZeta(0, 2);
+                DiBj3(0, 4) = DZeta(0, 0) * DZeta(0, 0);
+                DiBj3(0, 5) = DZeta(0, 0) * DZeta(0, 1);
+                DiBj3(0, 6) = DZeta(0, 0) * DZeta(0, 2);
+                DiBj3(0, 7) = DZeta(0, 1) * DZeta(0, 1);
+                DiBj3(0, 8) = DZeta(0, 1) * DZeta(0, 2);
+                DiBj3(0, 9) = DZeta(0, 2) * DZeta(0, 2);
+                DiBj3(0, 10) = DZeta(0, 0) * DZeta(0, 0) * DZeta(0, 0);
+                DiBj3(0, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(0, 1);
+                DiBj3(0, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(0, 2);
+                DiBj3(0, 13) = DZeta(0, 0) * (DZeta(0, 1) * DZeta(0, 1));
+                DiBj3(0, 14) = DZeta(0, 0) * DZeta(0, 1) * DZeta(0, 2);
+                DiBj3(0, 15) = DZeta(0, 0) * (DZeta(0, 2) * DZeta(0, 2));
+                DiBj3(0, 16) = DZeta(0, 1) * DZeta(0, 1) * DZeta(0, 1);
+                DiBj3(0, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(0, 2);
+                DiBj3(0, 18) = DZeta(0, 1) * (DZeta(0, 2) * DZeta(0, 2));
+                DiBj3(0, 19) = DZeta(0, 2) * DZeta(0, 2) * DZeta(0, 2);
+                DiBj3(1, 1) = DZeta(1, 0);
+                DiBj3(1, 2) = DZeta(1, 1);
+                DiBj3(1, 3) = DZeta(1, 2);
+                DiBj3(1, 4) = DZeta(0, 0) * DZeta(1, 0) * 2.0;
+                DiBj3(1, 5) = DZeta(0, 0) * DZeta(1, 1) + DZeta(0, 1) * DZeta(1, 0);
+                DiBj3(1, 6) = DZeta(0, 0) * DZeta(1, 2) + DZeta(0, 2) * DZeta(1, 0);
+                DiBj3(1, 7) = DZeta(0, 1) * DZeta(1, 1) * 2.0;
+                DiBj3(1, 8) = DZeta(0, 1) * DZeta(1, 2) + DZeta(0, 2) * DZeta(1, 1);
+                DiBj3(1, 9) = DZeta(0, 2) * DZeta(1, 2) * 2.0;
+                DiBj3(1, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(1, 0) * 3.0;
+                DiBj3(1, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(1, 1) + DZeta(0, 0) * DZeta(0, 1) * DZeta(1, 0) * 2.0;
+                DiBj3(1, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(1, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(1, 0) * 2.0;
+                DiBj3(1, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(1, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(1, 1) * 2.0;
+                DiBj3(1, 14) = DZeta(0, 0) * DZeta(0, 1) * DZeta(1, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(1, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(1, 0);
+                DiBj3(1, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(1, 0) + DZeta(0, 0) * DZeta(0, 2) * DZeta(1, 2) * 2.0;
+                DiBj3(1, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(1, 1) * 3.0;
+                DiBj3(1, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(1, 2) + DZeta(0, 1) * DZeta(0, 2) * DZeta(1, 1) * 2.0;
+                DiBj3(1, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(1, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(1, 2) * 2.0;
+                DiBj3(1, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(1, 2) * 3.0;
+                DiBj3(2, 1) = DZeta(2, 0);
+                DiBj3(2, 2) = DZeta(2, 1);
+                DiBj3(2, 3) = DZeta(2, 2);
+                DiBj3(2, 4) = DZeta(0, 0) * DZeta(2, 0) * 2.0;
+                DiBj3(2, 5) = DZeta(0, 0) * DZeta(2, 1) + DZeta(0, 1) * DZeta(2, 0);
+                DiBj3(2, 6) = DZeta(0, 0) * DZeta(2, 2) + DZeta(0, 2) * DZeta(2, 0);
+                DiBj3(2, 7) = DZeta(0, 1) * DZeta(2, 1) * 2.0;
+                DiBj3(2, 8) = DZeta(0, 1) * DZeta(2, 2) + DZeta(0, 2) * DZeta(2, 1);
+                DiBj3(2, 9) = DZeta(0, 2) * DZeta(2, 2) * 2.0;
+                DiBj3(2, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(2, 0) * 3.0;
+                DiBj3(2, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(2, 1) + DZeta(0, 0) * DZeta(0, 1) * DZeta(2, 0) * 2.0;
+                DiBj3(2, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(2, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(2, 0) * 2.0;
+                DiBj3(2, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(2, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(2, 1) * 2.0;
+                DiBj3(2, 14) = DZeta(0, 0) * DZeta(0, 1) * DZeta(2, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(2, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(2, 0);
+                DiBj3(2, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(2, 0) + DZeta(0, 0) * DZeta(0, 2) * DZeta(2, 2) * 2.0;
+                DiBj3(2, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(2, 1) * 3.0;
+                DiBj3(2, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(2, 2) + DZeta(0, 1) * DZeta(0, 2) * DZeta(2, 1) * 2.0;
+                DiBj3(2, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(2, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(2, 2) * 2.0;
+                DiBj3(2, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(2, 2) * 3.0;
+                DiBj3(3, 1) = DZeta(3, 0);
+                DiBj3(3, 2) = DZeta(3, 1);
+                DiBj3(3, 3) = DZeta(3, 2);
+                DiBj3(3, 4) = DZeta(0, 0) * DZeta(3, 0) * 2.0;
+                DiBj3(3, 5) = DZeta(0, 0) * DZeta(3, 1) + DZeta(0, 1) * DZeta(3, 0);
+                DiBj3(3, 6) = DZeta(0, 0) * DZeta(3, 2) + DZeta(0, 2) * DZeta(3, 0);
+                DiBj3(3, 7) = DZeta(0, 1) * DZeta(3, 1) * 2.0;
+                DiBj3(3, 8) = DZeta(0, 1) * DZeta(3, 2) + DZeta(0, 2) * DZeta(3, 1);
+                DiBj3(3, 9) = DZeta(0, 2) * DZeta(3, 2) * 2.0;
+                DiBj3(3, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(3, 0) * 3.0;
+                DiBj3(3, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(3, 1) + DZeta(0, 0) * DZeta(0, 1) * DZeta(3, 0) * 2.0;
+                DiBj3(3, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(3, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(3, 0) * 2.0;
+                DiBj3(3, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(3, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(3, 1) * 2.0;
+                DiBj3(3, 14) = DZeta(0, 0) * DZeta(0, 1) * DZeta(3, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(3, 0);
+                DiBj3(3, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(3, 0) + DZeta(0, 0) * DZeta(0, 2) * DZeta(3, 2) * 2.0;
+                DiBj3(3, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(3, 1) * 3.0;
+                DiBj3(3, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(3, 2) + DZeta(0, 1) * DZeta(0, 2) * DZeta(3, 1) * 2.0;
+                DiBj3(3, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(3, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(3, 2) * 2.0;
+                DiBj3(3, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(3, 2) * 3.0;
+                DiBj3(4, 1) = DZeta(4, 0);
+                DiBj3(4, 2) = DZeta(4, 1);
+                DiBj3(4, 3) = DZeta(4, 2);
+                DiBj3(4, 4) = (DZeta(1, 0) * DZeta(1, 0)) * 2.0 + DZeta(0, 0) * DZeta(4, 0) * 2.0;
+                DiBj3(4, 5) = DZeta(1, 0) * DZeta(1, 1) * 2.0 + DZeta(0, 0) * DZeta(4, 1) + DZeta(0, 1) * DZeta(4, 0);
+                DiBj3(4, 6) = DZeta(1, 0) * DZeta(1, 2) * 2.0 + DZeta(0, 0) * DZeta(4, 2) + DZeta(0, 2) * DZeta(4, 0);
+                DiBj3(4, 7) = (DZeta(1, 1) * DZeta(1, 1)) * 2.0 + DZeta(0, 1) * DZeta(4, 1) * 2.0;
+                DiBj3(4, 8) = DZeta(1, 1) * DZeta(1, 2) * 2.0 + DZeta(0, 1) * DZeta(4, 2) + DZeta(0, 2) * DZeta(4, 1);
+                DiBj3(4, 9) = (DZeta(1, 2) * DZeta(1, 2)) * 2.0 + DZeta(0, 2) * DZeta(4, 2) * 2.0;
+                DiBj3(4, 10) = DZeta(0, 0) * (DZeta(1, 0) * DZeta(1, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(4, 0) * 3.0;
+                DiBj3(4, 11) = DZeta(0, 1) * (DZeta(1, 0) * DZeta(1, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(4, 1) + DZeta(0, 0) * DZeta(1, 0) * DZeta(1, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(4, 0) * 2.0;
+                DiBj3(4, 12) = DZeta(0, 2) * (DZeta(1, 0) * DZeta(1, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(4, 2) + DZeta(0, 0) * DZeta(1, 0) * DZeta(1, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(4, 0) * 2.0;
+                DiBj3(4, 13) = DZeta(0, 0) * (DZeta(1, 1) * DZeta(1, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(4, 0) + DZeta(0, 1) * DZeta(1, 0) * DZeta(1, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(4, 1) * 2.0;
+                DiBj3(4, 14) = DZeta(0, 0) * DZeta(1, 1) * DZeta(1, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(1, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(1, 1) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(4, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(4, 0);
+                DiBj3(4, 15) = DZeta(0, 0) * (DZeta(1, 2) * DZeta(1, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(4, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(1, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(4, 2) * 2.0;
+                DiBj3(4, 16) = DZeta(0, 1) * (DZeta(1, 1) * DZeta(1, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(4, 1) * 3.0;
+                DiBj3(4, 17) = DZeta(0, 2) * (DZeta(1, 1) * DZeta(1, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(4, 2) + DZeta(0, 1) * DZeta(1, 1) * DZeta(1, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(4, 1) * 2.0;
+                DiBj3(4, 18) = DZeta(0, 1) * (DZeta(1, 2) * DZeta(1, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(4, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(1, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(4, 2) * 2.0;
+                DiBj3(4, 19) = DZeta(0, 2) * (DZeta(1, 2) * DZeta(1, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(4, 2) * 3.0;
+                DiBj3(5, 1) = DZeta(5, 0);
+                DiBj3(5, 2) = DZeta(5, 1);
+                DiBj3(5, 3) = DZeta(5, 2);
+                DiBj3(5, 4) = DZeta(1, 0) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(5, 0) * 2.0;
+                DiBj3(5, 5) = DZeta(1, 0) * DZeta(2, 1) + DZeta(1, 1) * DZeta(2, 0) + DZeta(0, 0) * DZeta(5, 1) + DZeta(0, 1) * DZeta(5, 0);
+                DiBj3(5, 6) = DZeta(1, 0) * DZeta(2, 2) + DZeta(1, 2) * DZeta(2, 0) + DZeta(0, 0) * DZeta(5, 2) + DZeta(0, 2) * DZeta(5, 0);
+                DiBj3(5, 7) = DZeta(1, 1) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(5, 1) * 2.0;
+                DiBj3(5, 8) = DZeta(1, 1) * DZeta(2, 2) + DZeta(1, 2) * DZeta(2, 1) + DZeta(0, 1) * DZeta(5, 2) + DZeta(0, 2) * DZeta(5, 1);
+                DiBj3(5, 9) = DZeta(1, 2) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(5, 2) * 2.0;
+                DiBj3(5, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(5, 0) * 3.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(2, 0) * 6.0;
+                DiBj3(5, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(5, 1) + DZeta(0, 0) * DZeta(1, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(2, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(5, 0) * 2.0;
+                DiBj3(5, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(5, 2) + DZeta(0, 0) * DZeta(1, 0) * DZeta(2, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(2, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(5, 0) * 2.0;
+                DiBj3(5, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(5, 0) + DZeta(0, 0) * DZeta(1, 1) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(5, 1) * 2.0;
+                DiBj3(5, 14) = DZeta(0, 0) * DZeta(1, 1) * DZeta(2, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(2, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(2, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(2, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(2, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(2, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(5, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(5, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(5, 0);
+                DiBj3(5, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(5, 0) + DZeta(0, 0) * DZeta(1, 2) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(5, 2) * 2.0;
+                DiBj3(5, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(5, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(2, 1) * 6.0;
+                DiBj3(5, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(5, 2) + DZeta(0, 1) * DZeta(1, 1) * DZeta(2, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(2, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(5, 1) * 2.0;
+                DiBj3(5, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(5, 1) + DZeta(0, 1) * DZeta(1, 2) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(5, 2) * 2.0;
+                DiBj3(5, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(5, 2) * 3.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(2, 2) * 6.0;
+                DiBj3(6, 1) = DZeta(6, 0);
+                DiBj3(6, 2) = DZeta(6, 1);
+                DiBj3(6, 3) = DZeta(6, 2);
+                DiBj3(6, 4) = DZeta(1, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(6, 0) * 2.0;
+                DiBj3(6, 5) = DZeta(1, 0) * DZeta(3, 1) + DZeta(1, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(6, 1) + DZeta(0, 1) * DZeta(6, 0);
+                DiBj3(6, 6) = DZeta(1, 0) * DZeta(3, 2) + DZeta(1, 2) * DZeta(3, 0) + DZeta(0, 0) * DZeta(6, 2) + DZeta(0, 2) * DZeta(6, 0);
+                DiBj3(6, 7) = DZeta(1, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(6, 1) * 2.0;
+                DiBj3(6, 8) = DZeta(1, 1) * DZeta(3, 2) + DZeta(1, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(6, 2) + DZeta(0, 2) * DZeta(6, 1);
+                DiBj3(6, 9) = DZeta(1, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(6, 2) * 2.0;
+                DiBj3(6, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(6, 0) * 3.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(3, 0) * 6.0;
+                DiBj3(6, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(6, 1) + DZeta(0, 0) * DZeta(1, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(6, 0) * 2.0;
+                DiBj3(6, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(6, 2) + DZeta(0, 0) * DZeta(1, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(6, 0) * 2.0;
+                DiBj3(6, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(6, 0) + DZeta(0, 0) * DZeta(1, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(6, 1) * 2.0;
+                DiBj3(6, 14) = DZeta(0, 0) * DZeta(1, 1) * DZeta(3, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(3, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(3, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(3, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(6, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(6, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(6, 0);
+                DiBj3(6, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(6, 0) + DZeta(0, 0) * DZeta(1, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(6, 2) * 2.0;
+                DiBj3(6, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(6, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(3, 1) * 6.0;
+                DiBj3(6, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(6, 2) + DZeta(0, 1) * DZeta(1, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(6, 1) * 2.0;
+                DiBj3(6, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(6, 1) + DZeta(0, 1) * DZeta(1, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(6, 2) * 2.0;
+                DiBj3(6, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(6, 2) * 3.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(3, 2) * 6.0;
+                DiBj3(7, 1) = DZeta(7, 0);
+                DiBj3(7, 2) = DZeta(7, 1);
+                DiBj3(7, 3) = DZeta(7, 2);
+                DiBj3(7, 4) = (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + DZeta(0, 0) * DZeta(7, 0) * 2.0;
+                DiBj3(7, 5) = DZeta(2, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 0) * DZeta(7, 1) + DZeta(0, 1) * DZeta(7, 0);
+                DiBj3(7, 6) = DZeta(2, 0) * DZeta(2, 2) * 2.0 + DZeta(0, 0) * DZeta(7, 2) + DZeta(0, 2) * DZeta(7, 0);
+                DiBj3(7, 7) = (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + DZeta(0, 1) * DZeta(7, 1) * 2.0;
+                DiBj3(7, 8) = DZeta(2, 1) * DZeta(2, 2) * 2.0 + DZeta(0, 1) * DZeta(7, 2) + DZeta(0, 2) * DZeta(7, 1);
+                DiBj3(7, 9) = (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + DZeta(0, 2) * DZeta(7, 2) * 2.0;
+                DiBj3(7, 10) = DZeta(0, 0) * (DZeta(2, 0) * DZeta(2, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(7, 0) * 3.0;
+                DiBj3(7, 11) = DZeta(0, 1) * (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(7, 1) + DZeta(0, 0) * DZeta(2, 0) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(7, 0) * 2.0;
+                DiBj3(7, 12) = DZeta(0, 2) * (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(7, 2) + DZeta(0, 0) * DZeta(2, 0) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(7, 0) * 2.0;
+                DiBj3(7, 13) = DZeta(0, 0) * (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(7, 0) + DZeta(0, 1) * DZeta(2, 0) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(7, 1) * 2.0;
+                DiBj3(7, 14) = DZeta(0, 0) * DZeta(2, 1) * DZeta(2, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(7, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(7, 0);
+                DiBj3(7, 15) = DZeta(0, 0) * (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(7, 0) + DZeta(0, 2) * DZeta(2, 0) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(7, 2) * 2.0;
+                DiBj3(7, 16) = DZeta(0, 1) * (DZeta(2, 1) * DZeta(2, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(7, 1) * 3.0;
+                DiBj3(7, 17) = DZeta(0, 2) * (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(7, 2) + DZeta(0, 1) * DZeta(2, 1) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(7, 1) * 2.0;
+                DiBj3(7, 18) = DZeta(0, 1) * (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(7, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(7, 2) * 2.0;
+                DiBj3(7, 19) = DZeta(0, 2) * (DZeta(2, 2) * DZeta(2, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(7, 2) * 3.0;
+                DiBj3(8, 1) = DZeta(8, 0);
+                DiBj3(8, 2) = DZeta(8, 1);
+                DiBj3(8, 3) = DZeta(8, 2);
+                DiBj3(8, 4) = DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(8, 0) * 2.0;
+                DiBj3(8, 5) = DZeta(2, 0) * DZeta(3, 1) + DZeta(2, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(8, 1) + DZeta(0, 1) * DZeta(8, 0);
+                DiBj3(8, 6) = DZeta(2, 0) * DZeta(3, 2) + DZeta(2, 2) * DZeta(3, 0) + DZeta(0, 0) * DZeta(8, 2) + DZeta(0, 2) * DZeta(8, 0);
+                DiBj3(8, 7) = DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(8, 1) * 2.0;
+                DiBj3(8, 8) = DZeta(2, 1) * DZeta(3, 2) + DZeta(2, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(8, 2) + DZeta(0, 2) * DZeta(8, 1);
+                DiBj3(8, 9) = DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(8, 2) * 2.0;
+                DiBj3(8, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(8, 0) * 3.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(3, 0) * 6.0;
+                DiBj3(8, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(8, 1) + DZeta(0, 0) * DZeta(2, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(8, 0) * 2.0;
+                DiBj3(8, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(8, 2) + DZeta(0, 0) * DZeta(2, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(8, 0) * 2.0;
+                DiBj3(8, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(8, 0) + DZeta(0, 0) * DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(8, 1) * 2.0;
+                DiBj3(8, 14) = DZeta(0, 0) * DZeta(2, 1) * DZeta(3, 2) + DZeta(0, 0) * DZeta(2, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(2, 0) * DZeta(3, 2) + DZeta(0, 1) * DZeta(2, 2) * DZeta(3, 0) + DZeta(0, 2) * DZeta(2, 0) * DZeta(3, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(8, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(8, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(8, 0);
+                DiBj3(8, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(8, 0) + DZeta(0, 0) * DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(8, 2) * 2.0;
+                DiBj3(8, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(8, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(3, 1) * 6.0;
+                DiBj3(8, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(8, 2) + DZeta(0, 1) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(8, 1) * 2.0;
+                DiBj3(8, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(8, 1) + DZeta(0, 1) * DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(8, 2) * 2.0;
+                DiBj3(8, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(8, 2) * 3.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(3, 2) * 6.0;
+                DiBj3(9, 1) = DZeta(9, 0);
+                DiBj3(9, 2) = DZeta(9, 1);
+                DiBj3(9, 3) = DZeta(9, 2);
+                DiBj3(9, 4) = (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + DZeta(0, 0) * DZeta(9, 0) * 2.0;
+                DiBj3(9, 5) = DZeta(3, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(9, 1) + DZeta(0, 1) * DZeta(9, 0);
+                DiBj3(9, 6) = DZeta(3, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 0) * DZeta(9, 2) + DZeta(0, 2) * DZeta(9, 0);
+                DiBj3(9, 7) = (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + DZeta(0, 1) * DZeta(9, 1) * 2.0;
+                DiBj3(9, 8) = DZeta(3, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 1) * DZeta(9, 2) + DZeta(0, 2) * DZeta(9, 1);
+                DiBj3(9, 9) = (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + DZeta(0, 2) * DZeta(9, 2) * 2.0;
+                DiBj3(9, 10) = DZeta(0, 0) * (DZeta(3, 0) * DZeta(3, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(9, 0) * 3.0;
+                DiBj3(9, 11) = DZeta(0, 1) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(9, 1) + DZeta(0, 0) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(9, 0) * 2.0;
+                DiBj3(9, 12) = DZeta(0, 2) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(9, 2) + DZeta(0, 0) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(9, 0) * 2.0;
+                DiBj3(9, 13) = DZeta(0, 0) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(9, 0) + DZeta(0, 1) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(9, 1) * 2.0;
+                DiBj3(9, 14) = DZeta(0, 0) * DZeta(3, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(9, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(9, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(9, 0);
+                DiBj3(9, 15) = DZeta(0, 0) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(9, 0) + DZeta(0, 2) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(9, 2) * 2.0;
+                DiBj3(9, 16) = DZeta(0, 1) * (DZeta(3, 1) * DZeta(3, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(9, 1) * 3.0;
+                DiBj3(9, 17) = DZeta(0, 2) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(9, 2) + DZeta(0, 1) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(9, 1) * 2.0;
+                DiBj3(9, 18) = DZeta(0, 1) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(9, 1) + DZeta(0, 2) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(9, 2) * 2.0;
+                DiBj3(9, 19) = DZeta(0, 2) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(9, 2) * 3.0;
+                DiBj3(10, 1) = DZeta(10, 0);
+                DiBj3(10, 2) = DZeta(10, 1);
+                DiBj3(10, 3) = DZeta(10, 2);
+                DiBj3(10, 4) = DZeta(1, 0) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(10, 0) * 2.0;
+                DiBj3(10, 5) = DZeta(1, 0) * DZeta(4, 1) * 3.0 + DZeta(1, 1) * DZeta(4, 0) * 3.0 + DZeta(0, 0) * DZeta(10, 1) + DZeta(0, 1) * DZeta(10, 0);
+                DiBj3(10, 6) = DZeta(1, 0) * DZeta(4, 2) * 3.0 + DZeta(1, 2) * DZeta(4, 0) * 3.0 + DZeta(0, 0) * DZeta(10, 2) + DZeta(0, 2) * DZeta(10, 0);
+                DiBj3(10, 7) = DZeta(1, 1) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(10, 1) * 2.0;
+                DiBj3(10, 8) = DZeta(1, 1) * DZeta(4, 2) * 3.0 + DZeta(1, 2) * DZeta(4, 1) * 3.0 + DZeta(0, 1) * DZeta(10, 2) + DZeta(0, 2) * DZeta(10, 1);
+                DiBj3(10, 9) = DZeta(1, 2) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(10, 2) * 2.0;
+                DiBj3(10, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(10, 0) * 3.0 + (DZeta(1, 0) * DZeta(1, 0) * DZeta(1, 0)) * 6.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(4, 0) * 1.8E+1;
+                DiBj3(10, 11) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(1, 1) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(10, 1) + DZeta(0, 0) * DZeta(1, 0) * DZeta(4, 1) * 6.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(4, 0) * 6.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(10, 0) * 2.0;
+                DiBj3(10, 12) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(1, 2) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(10, 2) + DZeta(0, 0) * DZeta(1, 0) * DZeta(4, 2) * 6.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(4, 0) * 6.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(10, 0) * 2.0;
+                DiBj3(10, 13) = DZeta(1, 0) * (DZeta(1, 1) * DZeta(1, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(10, 0) + DZeta(0, 0) * DZeta(1, 1) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(10, 1) * 2.0;
+                DiBj3(10, 14) = DZeta(1, 0) * DZeta(1, 1) * DZeta(1, 2) * 6.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(4, 2) * 3.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(4, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(4, 2) * 3.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(4, 0) * 3.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(4, 1) * 3.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(4, 0) * 3.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(10, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(10, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(10, 0);
+                DiBj3(10, 15) = DZeta(1, 0) * (DZeta(1, 2) * DZeta(1, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(10, 0) + DZeta(0, 0) * DZeta(1, 2) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(10, 2) * 2.0;
+                DiBj3(10, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(10, 1) * 3.0 + (DZeta(1, 1) * DZeta(1, 1) * DZeta(1, 1)) * 6.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(4, 1) * 1.8E+1;
+                DiBj3(10, 17) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(1, 2) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(10, 2) + DZeta(0, 1) * DZeta(1, 1) * DZeta(4, 2) * 6.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(4, 1) * 6.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(10, 1) * 2.0;
+                DiBj3(10, 18) = DZeta(1, 1) * (DZeta(1, 2) * DZeta(1, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(10, 1) + DZeta(0, 1) * DZeta(1, 2) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(10, 2) * 2.0;
+                DiBj3(10, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(10, 2) * 3.0 + (DZeta(1, 2) * DZeta(1, 2) * DZeta(1, 2)) * 6.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(4, 2) * 1.8E+1;
+                DiBj3(11, 1) = DZeta(11, 0);
+                DiBj3(11, 2) = DZeta(11, 1);
+                DiBj3(11, 3) = DZeta(11, 2);
+                DiBj3(11, 4) = DZeta(1, 0) * DZeta(5, 0) * 4.0 + DZeta(2, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(11, 0) * 2.0;
+                DiBj3(11, 5) = DZeta(1, 0) * DZeta(5, 1) * 2.0 + DZeta(1, 1) * DZeta(5, 0) * 2.0 + DZeta(2, 0) * DZeta(4, 1) + DZeta(2, 1) * DZeta(4, 0) + DZeta(0, 0) * DZeta(11, 1) + DZeta(0, 1) * DZeta(11, 0);
+                DiBj3(11, 6) = DZeta(1, 0) * DZeta(5, 2) * 2.0 + DZeta(1, 2) * DZeta(5, 0) * 2.0 + DZeta(2, 0) * DZeta(4, 2) + DZeta(2, 2) * DZeta(4, 0) + DZeta(0, 0) * DZeta(11, 2) + DZeta(0, 2) * DZeta(11, 0);
+                DiBj3(11, 7) = DZeta(1, 1) * DZeta(5, 1) * 4.0 + DZeta(2, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(11, 1) * 2.0;
+                DiBj3(11, 8) = DZeta(1, 1) * DZeta(5, 2) * 2.0 + DZeta(1, 2) * DZeta(5, 1) * 2.0 + DZeta(2, 1) * DZeta(4, 2) + DZeta(2, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(11, 2) + DZeta(0, 2) * DZeta(11, 1);
+                DiBj3(11, 9) = DZeta(1, 2) * DZeta(5, 2) * 4.0 + DZeta(2, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(11, 2) * 2.0;
+                DiBj3(11, 10) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(2, 0) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(11, 0) * 3.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(5, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(2, 0) * DZeta(4, 0) * 6.0;
+                DiBj3(11, 11) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(2, 1) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(11, 1) + DZeta(1, 0) * DZeta(1, 1) * DZeta(2, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(5, 1) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(4, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(4, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(5, 0) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(11, 0) * 2.0;
+                DiBj3(11, 12) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(2, 2) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(11, 2) + DZeta(1, 0) * DZeta(1, 2) * DZeta(2, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(5, 2) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(4, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(4, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(5, 0) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(11, 0) * 2.0;
+                DiBj3(11, 13) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(2, 0) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(11, 0) + DZeta(1, 0) * DZeta(1, 1) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(5, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(5, 0) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(11, 1) * 2.0;
+                DiBj3(11, 14) = DZeta(1, 0) * DZeta(1, 1) * DZeta(2, 2) * 2.0 + DZeta(1, 0) * DZeta(1, 2) * DZeta(2, 1) * 2.0 + DZeta(1, 1) * DZeta(1, 2) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(5, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(5, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(4, 2) + DZeta(0, 0) * DZeta(2, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(5, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(5, 0) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(4, 2) + DZeta(0, 1) * DZeta(2, 2) * DZeta(4, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(5, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(5, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(4, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(4, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(11, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(11, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(11, 0);
+                DiBj3(11, 15) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(2, 0) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(11, 0) + DZeta(1, 0) * DZeta(1, 2) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(5, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(5, 0) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(11, 2) * 2.0;
+                DiBj3(11, 16) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(2, 1) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(11, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(5, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(2, 1) * DZeta(4, 1) * 6.0;
+                DiBj3(11, 17) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(2, 2) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(11, 2) + DZeta(1, 1) * DZeta(1, 2) * DZeta(2, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(5, 2) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(4, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(4, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(5, 1) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(11, 1) * 2.0;
+                DiBj3(11, 18) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(2, 1) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(11, 1) + DZeta(1, 1) * DZeta(1, 2) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(5, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(5, 1) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(11, 2) * 2.0;
+                DiBj3(11, 19) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(2, 2) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(11, 2) * 3.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(5, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(2, 2) * DZeta(4, 2) * 6.0;
+                DiBj3(12, 1) = DZeta(12, 0);
+                DiBj3(12, 2) = DZeta(12, 1);
+                DiBj3(12, 3) = DZeta(12, 2);
+                DiBj3(12, 4) = DZeta(1, 0) * DZeta(6, 0) * 4.0 + DZeta(3, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(12, 0) * 2.0;
+                DiBj3(12, 5) = DZeta(1, 0) * DZeta(6, 1) * 2.0 + DZeta(1, 1) * DZeta(6, 0) * 2.0 + DZeta(3, 0) * DZeta(4, 1) + DZeta(3, 1) * DZeta(4, 0) + DZeta(0, 0) * DZeta(12, 1) + DZeta(0, 1) * DZeta(12, 0);
+                DiBj3(12, 6) = DZeta(1, 0) * DZeta(6, 2) * 2.0 + DZeta(1, 2) * DZeta(6, 0) * 2.0 + DZeta(3, 0) * DZeta(4, 2) + DZeta(3, 2) * DZeta(4, 0) + DZeta(0, 0) * DZeta(12, 2) + DZeta(0, 2) * DZeta(12, 0);
+                DiBj3(12, 7) = DZeta(1, 1) * DZeta(6, 1) * 4.0 + DZeta(3, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(12, 1) * 2.0;
+                DiBj3(12, 8) = DZeta(1, 1) * DZeta(6, 2) * 2.0 + DZeta(1, 2) * DZeta(6, 1) * 2.0 + DZeta(3, 1) * DZeta(4, 2) + DZeta(3, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(12, 2) + DZeta(0, 2) * DZeta(12, 1);
+                DiBj3(12, 9) = DZeta(1, 2) * DZeta(6, 2) * 4.0 + DZeta(3, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(12, 2) * 2.0;
+                DiBj3(12, 10) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(3, 0) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(12, 0) * 3.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(6, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(3, 0) * DZeta(4, 0) * 6.0;
+                DiBj3(12, 11) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(3, 1) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(12, 1) + DZeta(1, 0) * DZeta(1, 1) * DZeta(3, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(6, 1) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(4, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(4, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(6, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(12, 0) * 2.0;
+                DiBj3(12, 12) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(3, 2) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(12, 2) + DZeta(1, 0) * DZeta(1, 2) * DZeta(3, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(6, 2) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(4, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(4, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(6, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(12, 0) * 2.0;
+                DiBj3(12, 13) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(3, 0) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(12, 0) + DZeta(1, 0) * DZeta(1, 1) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(6, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(6, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(12, 1) * 2.0;
+                DiBj3(12, 14) = DZeta(1, 0) * DZeta(1, 1) * DZeta(3, 2) * 2.0 + DZeta(1, 0) * DZeta(1, 2) * DZeta(3, 1) * 2.0 + DZeta(1, 1) * DZeta(1, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(6, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(6, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(4, 2) + DZeta(0, 0) * DZeta(3, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(6, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(6, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(4, 2) + DZeta(0, 1) * DZeta(3, 2) * DZeta(4, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(6, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(6, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(4, 1) + DZeta(0, 2) * DZeta(3, 1) * DZeta(4, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(12, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(12, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(12, 0);
+                DiBj3(12, 15) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(3, 0) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(12, 0) + DZeta(1, 0) * DZeta(1, 2) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(6, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(6, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(12, 2) * 2.0;
+                DiBj3(12, 16) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(3, 1) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(12, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(6, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(3, 1) * DZeta(4, 1) * 6.0;
+                DiBj3(12, 17) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(3, 2) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(12, 2) + DZeta(1, 1) * DZeta(1, 2) * DZeta(3, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(6, 2) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(4, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(4, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(6, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(12, 1) * 2.0;
+                DiBj3(12, 18) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(3, 1) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(12, 1) + DZeta(1, 1) * DZeta(1, 2) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(6, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(6, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(12, 2) * 2.0;
+                DiBj3(12, 19) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(3, 2) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(12, 2) * 3.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(6, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(3, 2) * DZeta(4, 2) * 6.0;
+                DiBj3(13, 1) = DZeta(13, 0);
+                DiBj3(13, 2) = DZeta(13, 1);
+                DiBj3(13, 3) = DZeta(13, 2);
+                DiBj3(13, 4) = DZeta(2, 0) * DZeta(5, 0) * 4.0 + DZeta(1, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(13, 0) * 2.0;
+                DiBj3(13, 5) = DZeta(2, 0) * DZeta(5, 1) * 2.0 + DZeta(2, 1) * DZeta(5, 0) * 2.0 + DZeta(1, 0) * DZeta(7, 1) + DZeta(1, 1) * DZeta(7, 0) + DZeta(0, 0) * DZeta(13, 1) + DZeta(0, 1) * DZeta(13, 0);
+                DiBj3(13, 6) = DZeta(2, 0) * DZeta(5, 2) * 2.0 + DZeta(2, 2) * DZeta(5, 0) * 2.0 + DZeta(1, 0) * DZeta(7, 2) + DZeta(1, 2) * DZeta(7, 0) + DZeta(0, 0) * DZeta(13, 2) + DZeta(0, 2) * DZeta(13, 0);
+                DiBj3(13, 7) = DZeta(2, 1) * DZeta(5, 1) * 4.0 + DZeta(1, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(13, 1) * 2.0;
+                DiBj3(13, 8) = DZeta(2, 1) * DZeta(5, 2) * 2.0 + DZeta(2, 2) * DZeta(5, 1) * 2.0 + DZeta(1, 1) * DZeta(7, 2) + DZeta(1, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(13, 2) + DZeta(0, 2) * DZeta(13, 1);
+                DiBj3(13, 9) = DZeta(2, 2) * DZeta(5, 2) * 4.0 + DZeta(1, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(13, 2) * 2.0;
+                DiBj3(13, 10) = DZeta(1, 0) * (DZeta(2, 0) * DZeta(2, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(13, 0) * 3.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(5, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(1, 0) * DZeta(7, 0) * 6.0;
+                DiBj3(13, 11) = DZeta(1, 1) * (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(13, 1) + DZeta(1, 0) * DZeta(2, 0) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(5, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(5, 0) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(7, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(7, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(13, 0) * 2.0;
+                DiBj3(13, 12) = DZeta(1, 2) * (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(13, 2) + DZeta(1, 0) * DZeta(2, 0) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(5, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(5, 0) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(7, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(7, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(13, 0) * 2.0;
+                DiBj3(13, 13) = DZeta(1, 0) * (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(13, 0) + DZeta(1, 1) * DZeta(2, 0) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(13, 1) * 2.0;
+                DiBj3(13, 14) = DZeta(1, 0) * DZeta(2, 1) * DZeta(2, 2) * 2.0 + DZeta(1, 1) * DZeta(2, 0) * DZeta(2, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(5, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(5, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(5, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(5, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(7, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(7, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(7, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(7, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(7, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(13, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(13, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(13, 0);
+                DiBj3(13, 15) = DZeta(1, 0) * (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(13, 0) + DZeta(1, 2) * DZeta(2, 0) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(13, 2) * 2.0;
+                DiBj3(13, 16) = DZeta(1, 1) * (DZeta(2, 1) * DZeta(2, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(13, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(5, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(1, 1) * DZeta(7, 1) * 6.0;
+                DiBj3(13, 17) = DZeta(1, 2) * (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(13, 2) + DZeta(1, 1) * DZeta(2, 1) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(5, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(5, 1) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(7, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(7, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(13, 1) * 2.0;
+                DiBj3(13, 18) = DZeta(1, 1) * (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(13, 1) + DZeta(1, 2) * DZeta(2, 1) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(13, 2) * 2.0;
+                DiBj3(13, 19) = DZeta(1, 2) * (DZeta(2, 2) * DZeta(2, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(13, 2) * 3.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(5, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(1, 2) * DZeta(7, 2) * 6.0;
+                DiBj3(14, 1) = DZeta(14, 0);
+                DiBj3(14, 2) = DZeta(14, 1);
+                DiBj3(14, 3) = DZeta(14, 2);
+                DiBj3(14, 4) = DZeta(2, 0) * DZeta(6, 0) * 2.0 + DZeta(3, 0) * DZeta(5, 0) * 2.0 + DZeta(1, 0) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(14, 0) * 2.0;
+                DiBj3(14, 5) = DZeta(2, 0) * DZeta(6, 1) + DZeta(2, 1) * DZeta(6, 0) + DZeta(3, 0) * DZeta(5, 1) + DZeta(3, 1) * DZeta(5, 0) + DZeta(1, 0) * DZeta(8, 1) + DZeta(1, 1) * DZeta(8, 0) + DZeta(0, 0) * DZeta(14, 1) + DZeta(0, 1) * DZeta(14, 0);
+                DiBj3(14, 6) = DZeta(2, 0) * DZeta(6, 2) + DZeta(2, 2) * DZeta(6, 0) + DZeta(3, 0) * DZeta(5, 2) + DZeta(3, 2) * DZeta(5, 0) + DZeta(1, 0) * DZeta(8, 2) + DZeta(1, 2) * DZeta(8, 0) + DZeta(0, 0) * DZeta(14, 2) + DZeta(0, 2) * DZeta(14, 0);
+                DiBj3(14, 7) = DZeta(2, 1) * DZeta(6, 1) * 2.0 + DZeta(3, 1) * DZeta(5, 1) * 2.0 + DZeta(1, 1) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(14, 1) * 2.0;
+                DiBj3(14, 8) = DZeta(2, 1) * DZeta(6, 2) + DZeta(2, 2) * DZeta(6, 1) + DZeta(3, 1) * DZeta(5, 2) + DZeta(3, 2) * DZeta(5, 1) + DZeta(1, 1) * DZeta(8, 2) + DZeta(1, 2) * DZeta(8, 1) + DZeta(0, 1) * DZeta(14, 2) + DZeta(0, 2) * DZeta(14, 1);
+                DiBj3(14, 9) = DZeta(2, 2) * DZeta(6, 2) * 2.0 + DZeta(3, 2) * DZeta(5, 2) * 2.0 + DZeta(1, 2) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(14, 2) * 2.0;
+                DiBj3(14, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(14, 0) * 3.0 + DZeta(1, 0) * DZeta(2, 0) * DZeta(3, 0) * 6.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(6, 0) * 6.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(5, 0) * 6.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(8, 0) * 6.0;
+                DiBj3(14, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(14, 1) + DZeta(1, 0) * DZeta(2, 0) * DZeta(3, 1) * 2.0 + DZeta(1, 0) * DZeta(2, 1) * DZeta(3, 0) * 2.0 + DZeta(1, 1) * DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(6, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(6, 0) * 2.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(5, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(5, 0) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(6, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(8, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(14, 0) * 2.0;
+                DiBj3(14, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(14, 2) + DZeta(1, 0) * DZeta(2, 0) * DZeta(3, 2) * 2.0 + DZeta(1, 0) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(1, 2) * DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(6, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(6, 0) * 2.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(5, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(5, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(6, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(8, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(14, 0) * 2.0;
+                DiBj3(14, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(14, 0) + DZeta(1, 0) * DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(1, 1) * DZeta(2, 0) * DZeta(3, 1) * 2.0 + DZeta(1, 1) * DZeta(2, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(6, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(6, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(6, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(14, 1) * 2.0;
+                DiBj3(14, 14) = DZeta(1, 0) * DZeta(2, 1) * DZeta(3, 2) + DZeta(1, 0) * DZeta(2, 2) * DZeta(3, 1) + DZeta(1, 1) * DZeta(2, 0) * DZeta(3, 2) + DZeta(1, 1) * DZeta(2, 2) * DZeta(3, 0) + DZeta(1, 2) * DZeta(2, 0) * DZeta(3, 1) + DZeta(1, 2) * DZeta(2, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(2, 1) * DZeta(6, 2) + DZeta(0, 0) * DZeta(2, 2) * DZeta(6, 1) + DZeta(0, 0) * DZeta(3, 1) * DZeta(5, 2) + DZeta(0, 0) * DZeta(3, 2) * DZeta(5, 1) + DZeta(0, 1) * DZeta(2, 0) * DZeta(6, 2) + DZeta(0, 1) * DZeta(2, 2) * DZeta(6, 0) + DZeta(0, 1) * DZeta(3, 0) * DZeta(5, 2) + DZeta(0, 1) * DZeta(3, 2) * DZeta(5, 0) + DZeta(0, 2) * DZeta(2, 0) * DZeta(6, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(6, 0) + DZeta(0, 2) * DZeta(3, 0) * DZeta(5, 1) + DZeta(0, 2) * DZeta(3, 1) * DZeta(5, 0) + DZeta(0, 0) * DZeta(1, 1) * DZeta(8, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(8, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(8, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(8, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(8, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(8, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(14, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(14, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(14, 0);
+                DiBj3(14, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(14, 0) + DZeta(1, 0) * DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 0) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(6, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(5, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(6, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(6, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(5, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(14, 2) * 2.0;
+                DiBj3(14, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(14, 1) * 3.0 + DZeta(1, 1) * DZeta(2, 1) * DZeta(3, 1) * 6.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(6, 1) * 6.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(5, 1) * 6.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(8, 1) * 6.0;
+                DiBj3(14, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(14, 2) + DZeta(1, 1) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(1, 1) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(1, 2) * DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(6, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(6, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(5, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(5, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(6, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(8, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(14, 1) * 2.0;
+                DiBj3(14, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(14, 1) + DZeta(1, 1) * DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(6, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(5, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(6, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(6, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(5, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(14, 2) * 2.0;
+                DiBj3(14, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(14, 2) * 3.0 + DZeta(1, 2) * DZeta(2, 2) * DZeta(3, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(6, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(5, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(8, 2) * 6.0;
+                DiBj3(15, 1) = DZeta(15, 0);
+                DiBj3(15, 2) = DZeta(15, 1);
+                DiBj3(15, 3) = DZeta(15, 2);
+                DiBj3(15, 4) = DZeta(3, 0) * DZeta(6, 0) * 4.0 + DZeta(1, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(15, 0) * 2.0;
+                DiBj3(15, 5) = DZeta(3, 0) * DZeta(6, 1) * 2.0 + DZeta(3, 1) * DZeta(6, 0) * 2.0 + DZeta(1, 0) * DZeta(9, 1) + DZeta(1, 1) * DZeta(9, 0) + DZeta(0, 0) * DZeta(15, 1) + DZeta(0, 1) * DZeta(15, 0);
+                DiBj3(15, 6) = DZeta(3, 0) * DZeta(6, 2) * 2.0 + DZeta(3, 2) * DZeta(6, 0) * 2.0 + DZeta(1, 0) * DZeta(9, 2) + DZeta(1, 2) * DZeta(9, 0) + DZeta(0, 0) * DZeta(15, 2) + DZeta(0, 2) * DZeta(15, 0);
+                DiBj3(15, 7) = DZeta(3, 1) * DZeta(6, 1) * 4.0 + DZeta(1, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(15, 1) * 2.0;
+                DiBj3(15, 8) = DZeta(3, 1) * DZeta(6, 2) * 2.0 + DZeta(3, 2) * DZeta(6, 1) * 2.0 + DZeta(1, 1) * DZeta(9, 2) + DZeta(1, 2) * DZeta(9, 1) + DZeta(0, 1) * DZeta(15, 2) + DZeta(0, 2) * DZeta(15, 1);
+                DiBj3(15, 9) = DZeta(3, 2) * DZeta(6, 2) * 4.0 + DZeta(1, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(15, 2) * 2.0;
+                DiBj3(15, 10) = DZeta(1, 0) * (DZeta(3, 0) * DZeta(3, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(15, 0) * 3.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(6, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(1, 0) * DZeta(9, 0) * 6.0;
+                DiBj3(15, 11) = DZeta(1, 1) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(15, 1) + DZeta(1, 0) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(6, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(6, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(9, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(9, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(15, 0) * 2.0;
+                DiBj3(15, 12) = DZeta(1, 2) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(15, 2) + DZeta(1, 0) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(6, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(6, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(9, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(9, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(15, 0) * 2.0;
+                DiBj3(15, 13) = DZeta(1, 0) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(15, 0) + DZeta(1, 1) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(15, 1) * 2.0;
+                DiBj3(15, 14) = DZeta(1, 0) * DZeta(3, 1) * DZeta(3, 2) * 2.0 + DZeta(1, 1) * DZeta(3, 0) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(3, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(6, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(6, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(6, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(6, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(6, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(6, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(9, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(9, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(9, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(9, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(9, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(9, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(15, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(15, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(15, 0);
+                DiBj3(15, 15) = DZeta(1, 0) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(15, 0) + DZeta(1, 2) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(15, 2) * 2.0;
+                DiBj3(15, 16) = DZeta(1, 1) * (DZeta(3, 1) * DZeta(3, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(15, 1) * 3.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(6, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(1, 1) * DZeta(9, 1) * 6.0;
+                DiBj3(15, 17) = DZeta(1, 2) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(15, 2) + DZeta(1, 1) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(6, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(6, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(9, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(9, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(15, 1) * 2.0;
+                DiBj3(15, 18) = DZeta(1, 1) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(15, 1) + DZeta(1, 2) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(15, 2) * 2.0;
+                DiBj3(15, 19) = DZeta(1, 2) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(15, 2) * 3.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(6, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(1, 2) * DZeta(9, 2) * 6.0;
+                DiBj3(16, 1) = DZeta(16, 0);
+                DiBj3(16, 2) = DZeta(16, 1);
+                DiBj3(16, 3) = DZeta(16, 2);
+                DiBj3(16, 4) = DZeta(2, 0) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(16, 0) * 2.0;
+                DiBj3(16, 5) = DZeta(2, 0) * DZeta(7, 1) * 3.0 + DZeta(2, 1) * DZeta(7, 0) * 3.0 + DZeta(0, 0) * DZeta(16, 1) + DZeta(0, 1) * DZeta(16, 0);
+                DiBj3(16, 6) = DZeta(2, 0) * DZeta(7, 2) * 3.0 + DZeta(2, 2) * DZeta(7, 0) * 3.0 + DZeta(0, 0) * DZeta(16, 2) + DZeta(0, 2) * DZeta(16, 0);
+                DiBj3(16, 7) = DZeta(2, 1) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(16, 1) * 2.0;
+                DiBj3(16, 8) = DZeta(2, 1) * DZeta(7, 2) * 3.0 + DZeta(2, 2) * DZeta(7, 1) * 3.0 + DZeta(0, 1) * DZeta(16, 2) + DZeta(0, 2) * DZeta(16, 1);
+                DiBj3(16, 9) = DZeta(2, 2) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(16, 2) * 2.0;
+                DiBj3(16, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(16, 0) * 3.0 + (DZeta(2, 0) * DZeta(2, 0) * DZeta(2, 0)) * 6.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(7, 0) * 1.8E+1;
+                DiBj3(16, 11) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(2, 1) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(16, 1) + DZeta(0, 0) * DZeta(2, 0) * DZeta(7, 1) * 6.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(7, 0) * 6.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(16, 0) * 2.0;
+                DiBj3(16, 12) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(2, 2) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(16, 2) + DZeta(0, 0) * DZeta(2, 0) * DZeta(7, 2) * 6.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(7, 0) * 6.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(16, 0) * 2.0;
+                DiBj3(16, 13) = DZeta(2, 0) * (DZeta(2, 1) * DZeta(2, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(16, 0) + DZeta(0, 0) * DZeta(2, 1) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(16, 1) * 2.0;
+                DiBj3(16, 14) = DZeta(2, 0) * DZeta(2, 1) * DZeta(2, 2) * 6.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(7, 2) * 3.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(7, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(7, 2) * 3.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(7, 0) * 3.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(7, 1) * 3.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(7, 0) * 3.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(16, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(16, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(16, 0);
+                DiBj3(16, 15) = DZeta(2, 0) * (DZeta(2, 2) * DZeta(2, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(16, 0) + DZeta(0, 0) * DZeta(2, 2) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(16, 2) * 2.0;
+                DiBj3(16, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(16, 1) * 3.0 + (DZeta(2, 1) * DZeta(2, 1) * DZeta(2, 1)) * 6.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(7, 1) * 1.8E+1;
+                DiBj3(16, 17) = (DZeta(2, 1) * DZeta(2, 1)) * DZeta(2, 2) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(16, 2) + DZeta(0, 1) * DZeta(2, 1) * DZeta(7, 2) * 6.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(7, 1) * 6.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(16, 1) * 2.0;
+                DiBj3(16, 18) = DZeta(2, 1) * (DZeta(2, 2) * DZeta(2, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(16, 1) + DZeta(0, 1) * DZeta(2, 2) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(16, 2) * 2.0;
+                DiBj3(16, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(16, 2) * 3.0 + (DZeta(2, 2) * DZeta(2, 2) * DZeta(2, 2)) * 6.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(7, 2) * 1.8E+1;
+                DiBj3(17, 1) = DZeta(17, 0);
+                DiBj3(17, 2) = DZeta(17, 1);
+                DiBj3(17, 3) = DZeta(17, 2);
+                DiBj3(17, 4) = DZeta(2, 0) * DZeta(8, 0) * 4.0 + DZeta(3, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(17, 0) * 2.0;
+                DiBj3(17, 5) = DZeta(2, 0) * DZeta(8, 1) * 2.0 + DZeta(2, 1) * DZeta(8, 0) * 2.0 + DZeta(3, 0) * DZeta(7, 1) + DZeta(3, 1) * DZeta(7, 0) + DZeta(0, 0) * DZeta(17, 1) + DZeta(0, 1) * DZeta(17, 0);
+                DiBj3(17, 6) = DZeta(2, 0) * DZeta(8, 2) * 2.0 + DZeta(2, 2) * DZeta(8, 0) * 2.0 + DZeta(3, 0) * DZeta(7, 2) + DZeta(3, 2) * DZeta(7, 0) + DZeta(0, 0) * DZeta(17, 2) + DZeta(0, 2) * DZeta(17, 0);
+                DiBj3(17, 7) = DZeta(2, 1) * DZeta(8, 1) * 4.0 + DZeta(3, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(17, 1) * 2.0;
+                DiBj3(17, 8) = DZeta(2, 1) * DZeta(8, 2) * 2.0 + DZeta(2, 2) * DZeta(8, 1) * 2.0 + DZeta(3, 1) * DZeta(7, 2) + DZeta(3, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(17, 2) + DZeta(0, 2) * DZeta(17, 1);
+                DiBj3(17, 9) = DZeta(2, 2) * DZeta(8, 2) * 4.0 + DZeta(3, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(17, 2) * 2.0;
+                DiBj3(17, 10) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(3, 0) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(17, 0) * 3.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(8, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(3, 0) * DZeta(7, 0) * 6.0;
+                DiBj3(17, 11) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(3, 1) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(17, 1) + DZeta(2, 0) * DZeta(2, 1) * DZeta(3, 0) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(8, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(7, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(7, 0) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(17, 0) * 2.0;
+                DiBj3(17, 12) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(3, 2) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(17, 2) + DZeta(2, 0) * DZeta(2, 2) * DZeta(3, 0) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(8, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(7, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(7, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(17, 0) * 2.0;
+                DiBj3(17, 13) = (DZeta(2, 1) * DZeta(2, 1)) * DZeta(3, 0) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(17, 0) + DZeta(2, 0) * DZeta(2, 1) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(8, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(17, 1) * 2.0;
+                DiBj3(17, 14) = DZeta(2, 0) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(2, 0) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(2, 1) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(8, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(7, 2) + DZeta(0, 0) * DZeta(3, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(2, 0) * DZeta(8, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(7, 2) + DZeta(0, 1) * DZeta(3, 2) * DZeta(7, 0) + DZeta(0, 2) * DZeta(2, 0) * DZeta(8, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(7, 1) + DZeta(0, 2) * DZeta(3, 1) * DZeta(7, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(17, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(17, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(17, 0);
+                DiBj3(17, 15) = (DZeta(2, 2) * DZeta(2, 2)) * DZeta(3, 0) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(17, 0) + DZeta(2, 0) * DZeta(2, 2) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(8, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(17, 2) * 2.0;
+                DiBj3(17, 16) = (DZeta(2, 1) * DZeta(2, 1)) * DZeta(3, 1) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(17, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(8, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(3, 1) * DZeta(7, 1) * 6.0;
+                DiBj3(17, 17) = (DZeta(2, 1) * DZeta(2, 1)) * DZeta(3, 2) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(17, 2) + DZeta(2, 1) * DZeta(2, 2) * DZeta(3, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(8, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(7, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(7, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(17, 1) * 2.0;
+                DiBj3(17, 18) = (DZeta(2, 2) * DZeta(2, 2)) * DZeta(3, 1) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(17, 1) + DZeta(2, 1) * DZeta(2, 2) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(8, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(17, 2) * 2.0;
+                DiBj3(17, 19) = (DZeta(2, 2) * DZeta(2, 2)) * DZeta(3, 2) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(17, 2) * 3.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(8, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(3, 2) * DZeta(7, 2) * 6.0;
+                DiBj3(18, 1) = DZeta(18, 0);
+                DiBj3(18, 2) = DZeta(18, 1);
+                DiBj3(18, 3) = DZeta(18, 2);
+                DiBj3(18, 4) = DZeta(2, 0) * DZeta(9, 0) * 2.0 + DZeta(3, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(18, 0) * 2.0;
+                DiBj3(18, 5) = DZeta(2, 0) * DZeta(9, 1) + DZeta(2, 1) * DZeta(9, 0) + DZeta(3, 0) * DZeta(8, 1) * 2.0 + DZeta(3, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(18, 1) + DZeta(0, 1) * DZeta(18, 0);
+                DiBj3(18, 6) = DZeta(2, 0) * DZeta(9, 2) + DZeta(2, 2) * DZeta(9, 0) + DZeta(3, 0) * DZeta(8, 2) * 2.0 + DZeta(3, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(18, 2) + DZeta(0, 2) * DZeta(18, 0);
+                DiBj3(18, 7) = DZeta(2, 1) * DZeta(9, 1) * 2.0 + DZeta(3, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(18, 1) * 2.0;
+                DiBj3(18, 8) = DZeta(2, 1) * DZeta(9, 2) + DZeta(2, 2) * DZeta(9, 1) + DZeta(3, 1) * DZeta(8, 2) * 2.0 + DZeta(3, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(18, 2) + DZeta(0, 2) * DZeta(18, 1);
+                DiBj3(18, 9) = DZeta(2, 2) * DZeta(9, 2) * 2.0 + DZeta(3, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(18, 2) * 2.0;
+                DiBj3(18, 10) = DZeta(2, 0) * (DZeta(3, 0) * DZeta(3, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(18, 0) * 3.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(8, 0) * 1.2E+1;
+                DiBj3(18, 11) = DZeta(2, 1) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(18, 1) + DZeta(2, 0) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(9, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(8, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(8, 0) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(18, 0) * 2.0;
+                DiBj3(18, 12) = DZeta(2, 2) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(18, 2) + DZeta(2, 0) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(9, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(8, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(8, 0) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(18, 0) * 2.0;
+                DiBj3(18, 13) = DZeta(2, 0) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(18, 0) + DZeta(2, 1) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(9, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(18, 1) * 2.0;
+                DiBj3(18, 14) = DZeta(2, 0) * DZeta(3, 1) * DZeta(3, 2) * 2.0 + DZeta(2, 1) * DZeta(3, 0) * DZeta(3, 2) * 2.0 + DZeta(2, 2) * DZeta(3, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(9, 2) + DZeta(0, 0) * DZeta(2, 2) * DZeta(9, 1) + DZeta(0, 0) * DZeta(3, 1) * DZeta(8, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(9, 2) + DZeta(0, 1) * DZeta(2, 2) * DZeta(9, 0) + DZeta(0, 1) * DZeta(3, 0) * DZeta(8, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(9, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(9, 0) + DZeta(0, 2) * DZeta(3, 0) * DZeta(8, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(18, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(18, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(18, 0);
+                DiBj3(18, 15) = DZeta(2, 0) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(18, 0) + DZeta(2, 2) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(9, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(18, 2) * 2.0;
+                DiBj3(18, 16) = DZeta(2, 1) * (DZeta(3, 1) * DZeta(3, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(18, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(8, 1) * 1.2E+1;
+                DiBj3(18, 17) = DZeta(2, 2) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(18, 2) + DZeta(2, 1) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(9, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(8, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(8, 1) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(18, 1) * 2.0;
+                DiBj3(18, 18) = DZeta(2, 1) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(18, 1) + DZeta(2, 2) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(9, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(18, 2) * 2.0;
+                DiBj3(18, 19) = DZeta(2, 2) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(18, 2) * 3.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(8, 2) * 1.2E+1;
+                DiBj3(19, 1) = DZeta(19, 0);
+                DiBj3(19, 2) = DZeta(19, 1);
+                DiBj3(19, 3) = DZeta(19, 2);
+                DiBj3(19, 4) = DZeta(3, 0) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(19, 0) * 2.0;
+                DiBj3(19, 5) = DZeta(3, 0) * DZeta(9, 1) * 3.0 + DZeta(3, 1) * DZeta(9, 0) * 3.0 + DZeta(0, 0) * DZeta(19, 1) + DZeta(0, 1) * DZeta(19, 0);
+                DiBj3(19, 6) = DZeta(3, 0) * DZeta(9, 2) * 3.0 + DZeta(3, 2) * DZeta(9, 0) * 3.0 + DZeta(0, 0) * DZeta(19, 2) + DZeta(0, 2) * DZeta(19, 0);
+                DiBj3(19, 7) = DZeta(3, 1) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(19, 1) * 2.0;
+                DiBj3(19, 8) = DZeta(3, 1) * DZeta(9, 2) * 3.0 + DZeta(3, 2) * DZeta(9, 1) * 3.0 + DZeta(0, 1) * DZeta(19, 2) + DZeta(0, 2) * DZeta(19, 1);
+                DiBj3(19, 9) = DZeta(3, 2) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(19, 2) * 2.0;
+                DiBj3(19, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(19, 0) * 3.0 + (DZeta(3, 0) * DZeta(3, 0) * DZeta(3, 0)) * 6.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(9, 0) * 1.8E+1;
+                DiBj3(19, 11) = (DZeta(3, 0) * DZeta(3, 0)) * DZeta(3, 1) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(19, 1) + DZeta(0, 0) * DZeta(3, 0) * DZeta(9, 1) * 6.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(9, 0) * 6.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(19, 0) * 2.0;
+                DiBj3(19, 12) = (DZeta(3, 0) * DZeta(3, 0)) * DZeta(3, 2) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(19, 2) + DZeta(0, 0) * DZeta(3, 0) * DZeta(9, 2) * 6.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(9, 0) * 6.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(19, 0) * 2.0;
+                DiBj3(19, 13) = DZeta(3, 0) * (DZeta(3, 1) * DZeta(3, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(19, 0) + DZeta(0, 0) * DZeta(3, 1) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(19, 1) * 2.0;
+                DiBj3(19, 14) = DZeta(3, 0) * DZeta(3, 1) * DZeta(3, 2) * 6.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(9, 2) * 3.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(9, 1) * 3.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(9, 2) * 3.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(9, 0) * 3.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(9, 1) * 3.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(9, 0) * 3.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(19, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(19, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(19, 0);
+                DiBj3(19, 15) = DZeta(3, 0) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(19, 0) + DZeta(0, 0) * DZeta(3, 2) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(19, 2) * 2.0;
+                DiBj3(19, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(19, 1) * 3.0 + (DZeta(3, 1) * DZeta(3, 1) * DZeta(3, 1)) * 6.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(9, 1) * 1.8E+1;
+                DiBj3(19, 17) = (DZeta(3, 1) * DZeta(3, 1)) * DZeta(3, 2) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(19, 2) + DZeta(0, 1) * DZeta(3, 1) * DZeta(9, 2) * 6.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(9, 1) * 6.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(19, 1) * 2.0;
+                DiBj3(19, 18) = DZeta(3, 1) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(19, 1) + DZeta(0, 1) * DZeta(3, 2) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(19, 2) * 2.0;
+                DiBj3(19, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(19, 2) * 3.0 + (DZeta(3, 2) * DZeta(3, 2) * DZeta(3, 2)) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(9, 2) * 1.8E+1;
+
+                Eigen::MatrixXd DiBj2 = DiBj3({0, 1, 2, 4, 5, 7, 10, 11, 13, 16}, {0, 1, 2, 4, 5, 7, 10, 11, 13, 16});
+                // std::cout << DiBj << std::endl;
+                // std::cout << D1zeta1 << D1zeta0 << std::endl;
+                DiBj = DiBj2.topLeftCorner(DiBj.rows(), DiBj.cols());
+                // std::cout << "\nNEW\n\n"
+                //           << DiBj << std::endl;
+                // abort();
             }
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3>> xi;
-            xi.setValues({pParamL(0), pParamL(1), 0});
-            // Eigen::TensorFixedSize<real, Eigen::Sizes<3>> xiN1;
-            // xiN1.setValues({0, 0, pParamL.norm()});
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3>> xiM1;
-            xiM1.setValues({-pParamL(1), pParamL(0), 0});
-
-            // xiM1 = -1;
-            //  xiN1 *= -1;
-
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> rotXi2XiN;
-            rotXi2XiN.setZero();
-            rotXi2XiN(2, 2) = 1;
-            rotXi2XiN(0, 1) = -1;
-            rotXi2XiN(1, 0) = 1;
-
-            auto EvalTensorPoly =
-                [&curveA1, &curveA2, &curveA3, &xi](
-                    Eigen::TensorFixedSize<real, Eigen::Sizes<>> &D0,
-                    Eigen::TensorFixedSize<real, Eigen::Sizes<3>> &D1,
-                    Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> &D2,
-                    Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> &D3) -> void
-            {
-                D0 =
-                    curveA1
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)}) +
-                    curveA2
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)}) +
-                    curveA3
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)});
-                D1 =
-                    curveA1 +
-                    (curveA2 + curveA2.shuffle(std::vector<int>{1, 0}))
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)}) +
-                    (curveA3 + curveA3.shuffle(std::vector<int>{1, 2, 0}) + curveA3.shuffle(std::vector<int>{2, 0, 1}))
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)});
-                D2 =
-                    (curveA2 + curveA2.shuffle(std::vector<int>{1, 0})) +
-                    (curveA3 + curveA3.shuffle(std::vector<int>{0, 2, 1}) + curveA3.shuffle(std::vector<int>{1, 2, 0}) + curveA3.shuffle(std::vector<int>{1, 0, 2}) + curveA3.shuffle(std::vector<int>{2, 0, 1}) + curveA3.shuffle(std::vector<int>{2, 1, 0}))
-                        .contract(xi, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)});
-                D3 =
-                    (curveA3 + curveA3.shuffle(std::vector<int>{0, 2, 1}) + curveA3.shuffle(std::vector<int>{1, 2, 0}) + curveA3.shuffle(std::vector<int>{1, 0, 2}) + curveA3.shuffle(std::vector<int>{2, 0, 1}) + curveA3.shuffle(std::vector<int>{2, 1, 0}));
-            };
-            Eigen::TensorFixedSize<real, Eigen::Sizes<>> D0zeta0;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3>> D1zeta0;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> D2zeta0;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> D3zeta0;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<>> D0zeta1;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3>> D1zeta1;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> D2zeta1;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> D3zeta1;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<>> D0zeta2;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3>> D1zeta2;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> D2zeta2;
-            Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> D3zeta2;
-
-            EvalTensorPoly(D0zeta0, D1zeta0, D2zeta0, D3zeta0);
-            // std::cout << "CurveA1 " << curveA1 << std::endl;
-            // std::cout << "res " << curveA1.contract(rotXi2XiN, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 1)}) << std::endl;
-            // Eigen::TensorFixedSize<real, Eigen::Sizes<3>> curveA1E = curveA1.contract(rotXi2XiN, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 1)});
-            // Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> curveA2E = curveA2.contract(rotXi2XiN, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(1, 1)});
-            // Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> curveA3E = curveA3.contract(rotXi2XiN, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(2, 1)}); // converts to second zeta
-            // curveA1 = curveA1E;
-            // curveA2 = curveA2E;
-            // curveA3 = curveA3E;
-            switch (curveNBase)
-            {
-            case 9:
-                curveA3(0, 0, 0) = curveCoeff(6 - 1, 1);
-                curveA3(0, 0, 1) = curveA3(1, 0, 0) = curveA3(0, 1, 0) = curveCoeff(7 - 1, 1) / 3.0;
-                curveA3(0, 1, 1) = curveA3(1, 1, 0) = curveA3(1, 0, 1) = curveCoeff(8 - 1, 1) / 3.0;
-                curveA3(1, 1, 1) = curveCoeff(9 - 1, 1);
-            case 5:
-                curveA2(0, 0) = curveCoeff(3 - 1, 1);
-                curveA2(0, 1) = curveA2(1, 0) = curveCoeff(4 - 1, 1) / 2.0;
-                curveA2(1, 1) = curveCoeff(5 - 1, 1);
-            case 2:
-                curveA1(0) = curveCoeff(1 - 1, 1);
-                curveA1(1) = curveCoeff(2 - 1, 1);
-                break;
-            default:
-                assert(false);
-                break;
-            }
-
-            // std::cout << "CurveA1 " << curveA1 << std::endl;
-
-            EvalTensorPoly(D0zeta1, D1zeta1, D2zeta1, D3zeta1);
-            // std::cout << "D0zeta1 " << D0zeta1 << std::endl;
-            D0zeta2.setZero(), D1zeta2.setZero(), D2zeta2.setZero(), D3zeta2.setZero();
-            D1zeta2(2) = 1;
-
-            Eigen::MatrixXd DZeta(20, 3);
-            DZeta.setZero();
-            auto ExpandTensor2Col =
-                [](int icol, Eigen::MatrixXd &Diffs,
-                   Eigen::TensorFixedSize<real, Eigen::Sizes<>> &D0,
-                   Eigen::TensorFixedSize<real, Eigen::Sizes<3>> &D1,
-                   Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3>> &D2,
-                   Eigen::TensorFixedSize<real, Eigen::Sizes<3, 3, 3>> &D3) -> void
-            {
-                Diffs(0, icol) = D0(0);
-                Diffs(1, icol) = D1(0);
-                Diffs(2, icol) = D1(1);
-                Diffs(3, icol) = D1(2);
-                Diffs(4, icol) = D2(0, 0);
-                Diffs(5, icol) = D2(0, 1);
-                Diffs(6, icol) = D2(0, 2);
-                Diffs(7, icol) = D2(1, 1);
-                Diffs(8, icol) = D2(1, 2);
-                Diffs(9, icol) = D2(2, 2);
-                Diffs(10, icol) = D3(0, 0, 0);
-                Diffs(11, icol) = D3(0, 0, 1);
-                Diffs(12, icol) = D3(0, 0, 2);
-                Diffs(13, icol) = D3(0, 1, 1);
-                Diffs(14, icol) = D3(0, 1, 2);
-                Diffs(15, icol) = D3(0, 2, 2);
-                Diffs(16, icol) = D3(1, 1, 1);
-                Diffs(17, icol) = D3(1, 1, 2);
-                Diffs(18, icol) = D3(1, 2, 2);
-                Diffs(19, icol) = D3(2, 2, 2);
-            };
-            ExpandTensor2Col(0, DZeta, D0zeta0, D1zeta0, D2zeta0, D3zeta0);
-            ExpandTensor2Col(1, DZeta, D0zeta1, D1zeta1, D2zeta1, D3zeta1);
-            ExpandTensor2Col(2, DZeta, D0zeta2, D1zeta2, D2zeta2, D3zeta2);
-
-            Eigen::MatrixXd DiBj3(20, 20);
-            DiBj3.setZero();
-            DiBj3(0, 0) = 1.0;
-            DiBj3(0, 1) = DZeta(0, 0);
-            DiBj3(0, 2) = DZeta(0, 1);
-            DiBj3(0, 3) = DZeta(0, 2);
-            DiBj3(0, 4) = DZeta(0, 0) * DZeta(0, 0);
-            DiBj3(0, 5) = DZeta(0, 0) * DZeta(0, 1);
-            DiBj3(0, 6) = DZeta(0, 0) * DZeta(0, 2);
-            DiBj3(0, 7) = DZeta(0, 1) * DZeta(0, 1);
-            DiBj3(0, 8) = DZeta(0, 1) * DZeta(0, 2);
-            DiBj3(0, 9) = DZeta(0, 2) * DZeta(0, 2);
-            DiBj3(0, 10) = DZeta(0, 0) * DZeta(0, 0) * DZeta(0, 0);
-            DiBj3(0, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(0, 1);
-            DiBj3(0, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(0, 2);
-            DiBj3(0, 13) = DZeta(0, 0) * (DZeta(0, 1) * DZeta(0, 1));
-            DiBj3(0, 14) = DZeta(0, 0) * DZeta(0, 1) * DZeta(0, 2);
-            DiBj3(0, 15) = DZeta(0, 0) * (DZeta(0, 2) * DZeta(0, 2));
-            DiBj3(0, 16) = DZeta(0, 1) * DZeta(0, 1) * DZeta(0, 1);
-            DiBj3(0, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(0, 2);
-            DiBj3(0, 18) = DZeta(0, 1) * (DZeta(0, 2) * DZeta(0, 2));
-            DiBj3(0, 19) = DZeta(0, 2) * DZeta(0, 2) * DZeta(0, 2);
-            DiBj3(1, 1) = DZeta(1, 0);
-            DiBj3(1, 2) = DZeta(1, 1);
-            DiBj3(1, 3) = DZeta(1, 2);
-            DiBj3(1, 4) = DZeta(0, 0) * DZeta(1, 0) * 2.0;
-            DiBj3(1, 5) = DZeta(0, 0) * DZeta(1, 1) + DZeta(0, 1) * DZeta(1, 0);
-            DiBj3(1, 6) = DZeta(0, 0) * DZeta(1, 2) + DZeta(0, 2) * DZeta(1, 0);
-            DiBj3(1, 7) = DZeta(0, 1) * DZeta(1, 1) * 2.0;
-            DiBj3(1, 8) = DZeta(0, 1) * DZeta(1, 2) + DZeta(0, 2) * DZeta(1, 1);
-            DiBj3(1, 9) = DZeta(0, 2) * DZeta(1, 2) * 2.0;
-            DiBj3(1, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(1, 0) * 3.0;
-            DiBj3(1, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(1, 1) + DZeta(0, 0) * DZeta(0, 1) * DZeta(1, 0) * 2.0;
-            DiBj3(1, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(1, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(1, 0) * 2.0;
-            DiBj3(1, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(1, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(1, 1) * 2.0;
-            DiBj3(1, 14) = DZeta(0, 0) * DZeta(0, 1) * DZeta(1, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(1, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(1, 0);
-            DiBj3(1, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(1, 0) + DZeta(0, 0) * DZeta(0, 2) * DZeta(1, 2) * 2.0;
-            DiBj3(1, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(1, 1) * 3.0;
-            DiBj3(1, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(1, 2) + DZeta(0, 1) * DZeta(0, 2) * DZeta(1, 1) * 2.0;
-            DiBj3(1, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(1, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(1, 2) * 2.0;
-            DiBj3(1, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(1, 2) * 3.0;
-            DiBj3(2, 1) = DZeta(2, 0);
-            DiBj3(2, 2) = DZeta(2, 1);
-            DiBj3(2, 3) = DZeta(2, 2);
-            DiBj3(2, 4) = DZeta(0, 0) * DZeta(2, 0) * 2.0;
-            DiBj3(2, 5) = DZeta(0, 0) * DZeta(2, 1) + DZeta(0, 1) * DZeta(2, 0);
-            DiBj3(2, 6) = DZeta(0, 0) * DZeta(2, 2) + DZeta(0, 2) * DZeta(2, 0);
-            DiBj3(2, 7) = DZeta(0, 1) * DZeta(2, 1) * 2.0;
-            DiBj3(2, 8) = DZeta(0, 1) * DZeta(2, 2) + DZeta(0, 2) * DZeta(2, 1);
-            DiBj3(2, 9) = DZeta(0, 2) * DZeta(2, 2) * 2.0;
-            DiBj3(2, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(2, 0) * 3.0;
-            DiBj3(2, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(2, 1) + DZeta(0, 0) * DZeta(0, 1) * DZeta(2, 0) * 2.0;
-            DiBj3(2, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(2, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(2, 0) * 2.0;
-            DiBj3(2, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(2, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(2, 1) * 2.0;
-            DiBj3(2, 14) = DZeta(0, 0) * DZeta(0, 1) * DZeta(2, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(2, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(2, 0);
-            DiBj3(2, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(2, 0) + DZeta(0, 0) * DZeta(0, 2) * DZeta(2, 2) * 2.0;
-            DiBj3(2, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(2, 1) * 3.0;
-            DiBj3(2, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(2, 2) + DZeta(0, 1) * DZeta(0, 2) * DZeta(2, 1) * 2.0;
-            DiBj3(2, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(2, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(2, 2) * 2.0;
-            DiBj3(2, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(2, 2) * 3.0;
-            DiBj3(3, 1) = DZeta(3, 0);
-            DiBj3(3, 2) = DZeta(3, 1);
-            DiBj3(3, 3) = DZeta(3, 2);
-            DiBj3(3, 4) = DZeta(0, 0) * DZeta(3, 0) * 2.0;
-            DiBj3(3, 5) = DZeta(0, 0) * DZeta(3, 1) + DZeta(0, 1) * DZeta(3, 0);
-            DiBj3(3, 6) = DZeta(0, 0) * DZeta(3, 2) + DZeta(0, 2) * DZeta(3, 0);
-            DiBj3(3, 7) = DZeta(0, 1) * DZeta(3, 1) * 2.0;
-            DiBj3(3, 8) = DZeta(0, 1) * DZeta(3, 2) + DZeta(0, 2) * DZeta(3, 1);
-            DiBj3(3, 9) = DZeta(0, 2) * DZeta(3, 2) * 2.0;
-            DiBj3(3, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(3, 0) * 3.0;
-            DiBj3(3, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(3, 1) + DZeta(0, 0) * DZeta(0, 1) * DZeta(3, 0) * 2.0;
-            DiBj3(3, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(3, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(3, 0) * 2.0;
-            DiBj3(3, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(3, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(3, 1) * 2.0;
-            DiBj3(3, 14) = DZeta(0, 0) * DZeta(0, 1) * DZeta(3, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(3, 0);
-            DiBj3(3, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(3, 0) + DZeta(0, 0) * DZeta(0, 2) * DZeta(3, 2) * 2.0;
-            DiBj3(3, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(3, 1) * 3.0;
-            DiBj3(3, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(3, 2) + DZeta(0, 1) * DZeta(0, 2) * DZeta(3, 1) * 2.0;
-            DiBj3(3, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(3, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(3, 2) * 2.0;
-            DiBj3(3, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(3, 2) * 3.0;
-            DiBj3(4, 1) = DZeta(4, 0);
-            DiBj3(4, 2) = DZeta(4, 1);
-            DiBj3(4, 3) = DZeta(4, 2);
-            DiBj3(4, 4) = (DZeta(1, 0) * DZeta(1, 0)) * 2.0 + DZeta(0, 0) * DZeta(4, 0) * 2.0;
-            DiBj3(4, 5) = DZeta(1, 0) * DZeta(1, 1) * 2.0 + DZeta(0, 0) * DZeta(4, 1) + DZeta(0, 1) * DZeta(4, 0);
-            DiBj3(4, 6) = DZeta(1, 0) * DZeta(1, 2) * 2.0 + DZeta(0, 0) * DZeta(4, 2) + DZeta(0, 2) * DZeta(4, 0);
-            DiBj3(4, 7) = (DZeta(1, 1) * DZeta(1, 1)) * 2.0 + DZeta(0, 1) * DZeta(4, 1) * 2.0;
-            DiBj3(4, 8) = DZeta(1, 1) * DZeta(1, 2) * 2.0 + DZeta(0, 1) * DZeta(4, 2) + DZeta(0, 2) * DZeta(4, 1);
-            DiBj3(4, 9) = (DZeta(1, 2) * DZeta(1, 2)) * 2.0 + DZeta(0, 2) * DZeta(4, 2) * 2.0;
-            DiBj3(4, 10) = DZeta(0, 0) * (DZeta(1, 0) * DZeta(1, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(4, 0) * 3.0;
-            DiBj3(4, 11) = DZeta(0, 1) * (DZeta(1, 0) * DZeta(1, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(4, 1) + DZeta(0, 0) * DZeta(1, 0) * DZeta(1, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(4, 0) * 2.0;
-            DiBj3(4, 12) = DZeta(0, 2) * (DZeta(1, 0) * DZeta(1, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(4, 2) + DZeta(0, 0) * DZeta(1, 0) * DZeta(1, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(4, 0) * 2.0;
-            DiBj3(4, 13) = DZeta(0, 0) * (DZeta(1, 1) * DZeta(1, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(4, 0) + DZeta(0, 1) * DZeta(1, 0) * DZeta(1, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(4, 1) * 2.0;
-            DiBj3(4, 14) = DZeta(0, 0) * DZeta(1, 1) * DZeta(1, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(1, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(1, 1) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(4, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(4, 0);
-            DiBj3(4, 15) = DZeta(0, 0) * (DZeta(1, 2) * DZeta(1, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(4, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(1, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(4, 2) * 2.0;
-            DiBj3(4, 16) = DZeta(0, 1) * (DZeta(1, 1) * DZeta(1, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(4, 1) * 3.0;
-            DiBj3(4, 17) = DZeta(0, 2) * (DZeta(1, 1) * DZeta(1, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(4, 2) + DZeta(0, 1) * DZeta(1, 1) * DZeta(1, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(4, 1) * 2.0;
-            DiBj3(4, 18) = DZeta(0, 1) * (DZeta(1, 2) * DZeta(1, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(4, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(1, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(4, 2) * 2.0;
-            DiBj3(4, 19) = DZeta(0, 2) * (DZeta(1, 2) * DZeta(1, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(4, 2) * 3.0;
-            DiBj3(5, 1) = DZeta(5, 0);
-            DiBj3(5, 2) = DZeta(5, 1);
-            DiBj3(5, 3) = DZeta(5, 2);
-            DiBj3(5, 4) = DZeta(1, 0) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(5, 0) * 2.0;
-            DiBj3(5, 5) = DZeta(1, 0) * DZeta(2, 1) + DZeta(1, 1) * DZeta(2, 0) + DZeta(0, 0) * DZeta(5, 1) + DZeta(0, 1) * DZeta(5, 0);
-            DiBj3(5, 6) = DZeta(1, 0) * DZeta(2, 2) + DZeta(1, 2) * DZeta(2, 0) + DZeta(0, 0) * DZeta(5, 2) + DZeta(0, 2) * DZeta(5, 0);
-            DiBj3(5, 7) = DZeta(1, 1) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(5, 1) * 2.0;
-            DiBj3(5, 8) = DZeta(1, 1) * DZeta(2, 2) + DZeta(1, 2) * DZeta(2, 1) + DZeta(0, 1) * DZeta(5, 2) + DZeta(0, 2) * DZeta(5, 1);
-            DiBj3(5, 9) = DZeta(1, 2) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(5, 2) * 2.0;
-            DiBj3(5, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(5, 0) * 3.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(2, 0) * 6.0;
-            DiBj3(5, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(5, 1) + DZeta(0, 0) * DZeta(1, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(2, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(5, 0) * 2.0;
-            DiBj3(5, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(5, 2) + DZeta(0, 0) * DZeta(1, 0) * DZeta(2, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(2, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(5, 0) * 2.0;
-            DiBj3(5, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(5, 0) + DZeta(0, 0) * DZeta(1, 1) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(5, 1) * 2.0;
-            DiBj3(5, 14) = DZeta(0, 0) * DZeta(1, 1) * DZeta(2, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(2, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(2, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(2, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(2, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(2, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(5, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(5, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(5, 0);
-            DiBj3(5, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(5, 0) + DZeta(0, 0) * DZeta(1, 2) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(5, 2) * 2.0;
-            DiBj3(5, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(5, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(2, 1) * 6.0;
-            DiBj3(5, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(5, 2) + DZeta(0, 1) * DZeta(1, 1) * DZeta(2, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(2, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(5, 1) * 2.0;
-            DiBj3(5, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(5, 1) + DZeta(0, 1) * DZeta(1, 2) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(2, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(5, 2) * 2.0;
-            DiBj3(5, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(5, 2) * 3.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(2, 2) * 6.0;
-            DiBj3(6, 1) = DZeta(6, 0);
-            DiBj3(6, 2) = DZeta(6, 1);
-            DiBj3(6, 3) = DZeta(6, 2);
-            DiBj3(6, 4) = DZeta(1, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(6, 0) * 2.0;
-            DiBj3(6, 5) = DZeta(1, 0) * DZeta(3, 1) + DZeta(1, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(6, 1) + DZeta(0, 1) * DZeta(6, 0);
-            DiBj3(6, 6) = DZeta(1, 0) * DZeta(3, 2) + DZeta(1, 2) * DZeta(3, 0) + DZeta(0, 0) * DZeta(6, 2) + DZeta(0, 2) * DZeta(6, 0);
-            DiBj3(6, 7) = DZeta(1, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(6, 1) * 2.0;
-            DiBj3(6, 8) = DZeta(1, 1) * DZeta(3, 2) + DZeta(1, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(6, 2) + DZeta(0, 2) * DZeta(6, 1);
-            DiBj3(6, 9) = DZeta(1, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(6, 2) * 2.0;
-            DiBj3(6, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(6, 0) * 3.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(3, 0) * 6.0;
-            DiBj3(6, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(6, 1) + DZeta(0, 0) * DZeta(1, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(6, 0) * 2.0;
-            DiBj3(6, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(6, 2) + DZeta(0, 0) * DZeta(1, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(6, 0) * 2.0;
-            DiBj3(6, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(6, 0) + DZeta(0, 0) * DZeta(1, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(6, 1) * 2.0;
-            DiBj3(6, 14) = DZeta(0, 0) * DZeta(1, 1) * DZeta(3, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(3, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(3, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(3, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(6, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(6, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(6, 0);
-            DiBj3(6, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(6, 0) + DZeta(0, 0) * DZeta(1, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(6, 2) * 2.0;
-            DiBj3(6, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(6, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(3, 1) * 6.0;
-            DiBj3(6, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(6, 2) + DZeta(0, 1) * DZeta(1, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(6, 1) * 2.0;
-            DiBj3(6, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(6, 1) + DZeta(0, 1) * DZeta(1, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(6, 2) * 2.0;
-            DiBj3(6, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(6, 2) * 3.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(3, 2) * 6.0;
-            DiBj3(7, 1) = DZeta(7, 0);
-            DiBj3(7, 2) = DZeta(7, 1);
-            DiBj3(7, 3) = DZeta(7, 2);
-            DiBj3(7, 4) = (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + DZeta(0, 0) * DZeta(7, 0) * 2.0;
-            DiBj3(7, 5) = DZeta(2, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 0) * DZeta(7, 1) + DZeta(0, 1) * DZeta(7, 0);
-            DiBj3(7, 6) = DZeta(2, 0) * DZeta(2, 2) * 2.0 + DZeta(0, 0) * DZeta(7, 2) + DZeta(0, 2) * DZeta(7, 0);
-            DiBj3(7, 7) = (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + DZeta(0, 1) * DZeta(7, 1) * 2.0;
-            DiBj3(7, 8) = DZeta(2, 1) * DZeta(2, 2) * 2.0 + DZeta(0, 1) * DZeta(7, 2) + DZeta(0, 2) * DZeta(7, 1);
-            DiBj3(7, 9) = (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + DZeta(0, 2) * DZeta(7, 2) * 2.0;
-            DiBj3(7, 10) = DZeta(0, 0) * (DZeta(2, 0) * DZeta(2, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(7, 0) * 3.0;
-            DiBj3(7, 11) = DZeta(0, 1) * (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(7, 1) + DZeta(0, 0) * DZeta(2, 0) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(7, 0) * 2.0;
-            DiBj3(7, 12) = DZeta(0, 2) * (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(7, 2) + DZeta(0, 0) * DZeta(2, 0) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(7, 0) * 2.0;
-            DiBj3(7, 13) = DZeta(0, 0) * (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(7, 0) + DZeta(0, 1) * DZeta(2, 0) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(7, 1) * 2.0;
-            DiBj3(7, 14) = DZeta(0, 0) * DZeta(2, 1) * DZeta(2, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(2, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(7, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(7, 0);
-            DiBj3(7, 15) = DZeta(0, 0) * (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(7, 0) + DZeta(0, 2) * DZeta(2, 0) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(7, 2) * 2.0;
-            DiBj3(7, 16) = DZeta(0, 1) * (DZeta(2, 1) * DZeta(2, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(7, 1) * 3.0;
-            DiBj3(7, 17) = DZeta(0, 2) * (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(7, 2) + DZeta(0, 1) * DZeta(2, 1) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(7, 1) * 2.0;
-            DiBj3(7, 18) = DZeta(0, 1) * (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(7, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(7, 2) * 2.0;
-            DiBj3(7, 19) = DZeta(0, 2) * (DZeta(2, 2) * DZeta(2, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(7, 2) * 3.0;
-            DiBj3(8, 1) = DZeta(8, 0);
-            DiBj3(8, 2) = DZeta(8, 1);
-            DiBj3(8, 3) = DZeta(8, 2);
-            DiBj3(8, 4) = DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(8, 0) * 2.0;
-            DiBj3(8, 5) = DZeta(2, 0) * DZeta(3, 1) + DZeta(2, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(8, 1) + DZeta(0, 1) * DZeta(8, 0);
-            DiBj3(8, 6) = DZeta(2, 0) * DZeta(3, 2) + DZeta(2, 2) * DZeta(3, 0) + DZeta(0, 0) * DZeta(8, 2) + DZeta(0, 2) * DZeta(8, 0);
-            DiBj3(8, 7) = DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(8, 1) * 2.0;
-            DiBj3(8, 8) = DZeta(2, 1) * DZeta(3, 2) + DZeta(2, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(8, 2) + DZeta(0, 2) * DZeta(8, 1);
-            DiBj3(8, 9) = DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(8, 2) * 2.0;
-            DiBj3(8, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(8, 0) * 3.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(3, 0) * 6.0;
-            DiBj3(8, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(8, 1) + DZeta(0, 0) * DZeta(2, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(8, 0) * 2.0;
-            DiBj3(8, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(8, 2) + DZeta(0, 0) * DZeta(2, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(8, 0) * 2.0;
-            DiBj3(8, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(8, 0) + DZeta(0, 0) * DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(8, 1) * 2.0;
-            DiBj3(8, 14) = DZeta(0, 0) * DZeta(2, 1) * DZeta(3, 2) + DZeta(0, 0) * DZeta(2, 2) * DZeta(3, 1) + DZeta(0, 1) * DZeta(2, 0) * DZeta(3, 2) + DZeta(0, 1) * DZeta(2, 2) * DZeta(3, 0) + DZeta(0, 2) * DZeta(2, 0) * DZeta(3, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(8, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(8, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(8, 0);
-            DiBj3(8, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(8, 0) + DZeta(0, 0) * DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(8, 2) * 2.0;
-            DiBj3(8, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(8, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(3, 1) * 6.0;
-            DiBj3(8, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(8, 2) + DZeta(0, 1) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(8, 1) * 2.0;
-            DiBj3(8, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(8, 1) + DZeta(0, 1) * DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(8, 2) * 2.0;
-            DiBj3(8, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(8, 2) * 3.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(3, 2) * 6.0;
-            DiBj3(9, 1) = DZeta(9, 0);
-            DiBj3(9, 2) = DZeta(9, 1);
-            DiBj3(9, 3) = DZeta(9, 2);
-            DiBj3(9, 4) = (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + DZeta(0, 0) * DZeta(9, 0) * 2.0;
-            DiBj3(9, 5) = DZeta(3, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(9, 1) + DZeta(0, 1) * DZeta(9, 0);
-            DiBj3(9, 6) = DZeta(3, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 0) * DZeta(9, 2) + DZeta(0, 2) * DZeta(9, 0);
-            DiBj3(9, 7) = (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + DZeta(0, 1) * DZeta(9, 1) * 2.0;
-            DiBj3(9, 8) = DZeta(3, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 1) * DZeta(9, 2) + DZeta(0, 2) * DZeta(9, 1);
-            DiBj3(9, 9) = (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + DZeta(0, 2) * DZeta(9, 2) * 2.0;
-            DiBj3(9, 10) = DZeta(0, 0) * (DZeta(3, 0) * DZeta(3, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(9, 0) * 3.0;
-            DiBj3(9, 11) = DZeta(0, 1) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(9, 1) + DZeta(0, 0) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(9, 0) * 2.0;
-            DiBj3(9, 12) = DZeta(0, 2) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(9, 2) + DZeta(0, 0) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(9, 0) * 2.0;
-            DiBj3(9, 13) = DZeta(0, 0) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(9, 0) + DZeta(0, 1) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(9, 1) * 2.0;
-            DiBj3(9, 14) = DZeta(0, 0) * DZeta(3, 1) * DZeta(3, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(3, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(9, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(9, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(9, 0);
-            DiBj3(9, 15) = DZeta(0, 0) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(9, 0) + DZeta(0, 2) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(9, 2) * 2.0;
-            DiBj3(9, 16) = DZeta(0, 1) * (DZeta(3, 1) * DZeta(3, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(9, 1) * 3.0;
-            DiBj3(9, 17) = DZeta(0, 2) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(9, 2) + DZeta(0, 1) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(9, 1) * 2.0;
-            DiBj3(9, 18) = DZeta(0, 1) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(9, 1) + DZeta(0, 2) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(9, 2) * 2.0;
-            DiBj3(9, 19) = DZeta(0, 2) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(9, 2) * 3.0;
-            DiBj3(10, 1) = DZeta(10, 0);
-            DiBj3(10, 2) = DZeta(10, 1);
-            DiBj3(10, 3) = DZeta(10, 2);
-            DiBj3(10, 4) = DZeta(1, 0) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(10, 0) * 2.0;
-            DiBj3(10, 5) = DZeta(1, 0) * DZeta(4, 1) * 3.0 + DZeta(1, 1) * DZeta(4, 0) * 3.0 + DZeta(0, 0) * DZeta(10, 1) + DZeta(0, 1) * DZeta(10, 0);
-            DiBj3(10, 6) = DZeta(1, 0) * DZeta(4, 2) * 3.0 + DZeta(1, 2) * DZeta(4, 0) * 3.0 + DZeta(0, 0) * DZeta(10, 2) + DZeta(0, 2) * DZeta(10, 0);
-            DiBj3(10, 7) = DZeta(1, 1) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(10, 1) * 2.0;
-            DiBj3(10, 8) = DZeta(1, 1) * DZeta(4, 2) * 3.0 + DZeta(1, 2) * DZeta(4, 1) * 3.0 + DZeta(0, 1) * DZeta(10, 2) + DZeta(0, 2) * DZeta(10, 1);
-            DiBj3(10, 9) = DZeta(1, 2) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(10, 2) * 2.0;
-            DiBj3(10, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(10, 0) * 3.0 + (DZeta(1, 0) * DZeta(1, 0) * DZeta(1, 0)) * 6.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(4, 0) * 1.8E+1;
-            DiBj3(10, 11) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(1, 1) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(10, 1) + DZeta(0, 0) * DZeta(1, 0) * DZeta(4, 1) * 6.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(4, 0) * 6.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(10, 0) * 2.0;
-            DiBj3(10, 12) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(1, 2) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(10, 2) + DZeta(0, 0) * DZeta(1, 0) * DZeta(4, 2) * 6.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(4, 0) * 6.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(10, 0) * 2.0;
-            DiBj3(10, 13) = DZeta(1, 0) * (DZeta(1, 1) * DZeta(1, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(10, 0) + DZeta(0, 0) * DZeta(1, 1) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(10, 1) * 2.0;
-            DiBj3(10, 14) = DZeta(1, 0) * DZeta(1, 1) * DZeta(1, 2) * 6.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(4, 2) * 3.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(4, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(4, 2) * 3.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(4, 0) * 3.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(4, 1) * 3.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(4, 0) * 3.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(10, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(10, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(10, 0);
-            DiBj3(10, 15) = DZeta(1, 0) * (DZeta(1, 2) * DZeta(1, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(10, 0) + DZeta(0, 0) * DZeta(1, 2) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(4, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(10, 2) * 2.0;
-            DiBj3(10, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(10, 1) * 3.0 + (DZeta(1, 1) * DZeta(1, 1) * DZeta(1, 1)) * 6.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(4, 1) * 1.8E+1;
-            DiBj3(10, 17) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(1, 2) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(10, 2) + DZeta(0, 1) * DZeta(1, 1) * DZeta(4, 2) * 6.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(4, 1) * 6.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(10, 1) * 2.0;
-            DiBj3(10, 18) = DZeta(1, 1) * (DZeta(1, 2) * DZeta(1, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(10, 1) + DZeta(0, 1) * DZeta(1, 2) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(4, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(4, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(10, 2) * 2.0;
-            DiBj3(10, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(10, 2) * 3.0 + (DZeta(1, 2) * DZeta(1, 2) * DZeta(1, 2)) * 6.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(4, 2) * 1.8E+1;
-            DiBj3(11, 1) = DZeta(11, 0);
-            DiBj3(11, 2) = DZeta(11, 1);
-            DiBj3(11, 3) = DZeta(11, 2);
-            DiBj3(11, 4) = DZeta(1, 0) * DZeta(5, 0) * 4.0 + DZeta(2, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(11, 0) * 2.0;
-            DiBj3(11, 5) = DZeta(1, 0) * DZeta(5, 1) * 2.0 + DZeta(1, 1) * DZeta(5, 0) * 2.0 + DZeta(2, 0) * DZeta(4, 1) + DZeta(2, 1) * DZeta(4, 0) + DZeta(0, 0) * DZeta(11, 1) + DZeta(0, 1) * DZeta(11, 0);
-            DiBj3(11, 6) = DZeta(1, 0) * DZeta(5, 2) * 2.0 + DZeta(1, 2) * DZeta(5, 0) * 2.0 + DZeta(2, 0) * DZeta(4, 2) + DZeta(2, 2) * DZeta(4, 0) + DZeta(0, 0) * DZeta(11, 2) + DZeta(0, 2) * DZeta(11, 0);
-            DiBj3(11, 7) = DZeta(1, 1) * DZeta(5, 1) * 4.0 + DZeta(2, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(11, 1) * 2.0;
-            DiBj3(11, 8) = DZeta(1, 1) * DZeta(5, 2) * 2.0 + DZeta(1, 2) * DZeta(5, 1) * 2.0 + DZeta(2, 1) * DZeta(4, 2) + DZeta(2, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(11, 2) + DZeta(0, 2) * DZeta(11, 1);
-            DiBj3(11, 9) = DZeta(1, 2) * DZeta(5, 2) * 4.0 + DZeta(2, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(11, 2) * 2.0;
-            DiBj3(11, 10) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(2, 0) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(11, 0) * 3.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(5, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(2, 0) * DZeta(4, 0) * 6.0;
-            DiBj3(11, 11) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(2, 1) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(11, 1) + DZeta(1, 0) * DZeta(1, 1) * DZeta(2, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(5, 1) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(4, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(4, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(5, 0) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(11, 0) * 2.0;
-            DiBj3(11, 12) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(2, 2) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(11, 2) + DZeta(1, 0) * DZeta(1, 2) * DZeta(2, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(5, 2) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(4, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(4, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(5, 0) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(11, 0) * 2.0;
-            DiBj3(11, 13) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(2, 0) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(11, 0) + DZeta(1, 0) * DZeta(1, 1) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(5, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(5, 0) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(11, 1) * 2.0;
-            DiBj3(11, 14) = DZeta(1, 0) * DZeta(1, 1) * DZeta(2, 2) * 2.0 + DZeta(1, 0) * DZeta(1, 2) * DZeta(2, 1) * 2.0 + DZeta(1, 1) * DZeta(1, 2) * DZeta(2, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(5, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(5, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(4, 2) + DZeta(0, 0) * DZeta(2, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(5, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(5, 0) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(4, 2) + DZeta(0, 1) * DZeta(2, 2) * DZeta(4, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(5, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(5, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(4, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(4, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(11, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(11, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(11, 0);
-            DiBj3(11, 15) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(2, 0) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(11, 0) + DZeta(1, 0) * DZeta(1, 2) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(5, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(5, 0) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(11, 2) * 2.0;
-            DiBj3(11, 16) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(2, 1) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(11, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(5, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(2, 1) * DZeta(4, 1) * 6.0;
-            DiBj3(11, 17) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(2, 2) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(11, 2) + DZeta(1, 1) * DZeta(1, 2) * DZeta(2, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(5, 2) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(4, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(4, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(5, 1) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(11, 1) * 2.0;
-            DiBj3(11, 18) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(2, 1) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(11, 1) + DZeta(1, 1) * DZeta(1, 2) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(5, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(5, 1) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(11, 2) * 2.0;
-            DiBj3(11, 19) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(2, 2) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(11, 2) * 3.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(5, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(2, 2) * DZeta(4, 2) * 6.0;
-            DiBj3(12, 1) = DZeta(12, 0);
-            DiBj3(12, 2) = DZeta(12, 1);
-            DiBj3(12, 3) = DZeta(12, 2);
-            DiBj3(12, 4) = DZeta(1, 0) * DZeta(6, 0) * 4.0 + DZeta(3, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(12, 0) * 2.0;
-            DiBj3(12, 5) = DZeta(1, 0) * DZeta(6, 1) * 2.0 + DZeta(1, 1) * DZeta(6, 0) * 2.0 + DZeta(3, 0) * DZeta(4, 1) + DZeta(3, 1) * DZeta(4, 0) + DZeta(0, 0) * DZeta(12, 1) + DZeta(0, 1) * DZeta(12, 0);
-            DiBj3(12, 6) = DZeta(1, 0) * DZeta(6, 2) * 2.0 + DZeta(1, 2) * DZeta(6, 0) * 2.0 + DZeta(3, 0) * DZeta(4, 2) + DZeta(3, 2) * DZeta(4, 0) + DZeta(0, 0) * DZeta(12, 2) + DZeta(0, 2) * DZeta(12, 0);
-            DiBj3(12, 7) = DZeta(1, 1) * DZeta(6, 1) * 4.0 + DZeta(3, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(12, 1) * 2.0;
-            DiBj3(12, 8) = DZeta(1, 1) * DZeta(6, 2) * 2.0 + DZeta(1, 2) * DZeta(6, 1) * 2.0 + DZeta(3, 1) * DZeta(4, 2) + DZeta(3, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(12, 2) + DZeta(0, 2) * DZeta(12, 1);
-            DiBj3(12, 9) = DZeta(1, 2) * DZeta(6, 2) * 4.0 + DZeta(3, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(12, 2) * 2.0;
-            DiBj3(12, 10) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(3, 0) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(12, 0) * 3.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(6, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(3, 0) * DZeta(4, 0) * 6.0;
-            DiBj3(12, 11) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(3, 1) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(12, 1) + DZeta(1, 0) * DZeta(1, 1) * DZeta(3, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(6, 1) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(4, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(4, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(6, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(12, 0) * 2.0;
-            DiBj3(12, 12) = (DZeta(1, 0) * DZeta(1, 0)) * DZeta(3, 2) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(12, 2) + DZeta(1, 0) * DZeta(1, 2) * DZeta(3, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(6, 2) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(4, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(4, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(6, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(12, 0) * 2.0;
-            DiBj3(12, 13) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(3, 0) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(12, 0) + DZeta(1, 0) * DZeta(1, 1) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(6, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(6, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(12, 1) * 2.0;
-            DiBj3(12, 14) = DZeta(1, 0) * DZeta(1, 1) * DZeta(3, 2) * 2.0 + DZeta(1, 0) * DZeta(1, 2) * DZeta(3, 1) * 2.0 + DZeta(1, 1) * DZeta(1, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(6, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(6, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(4, 2) + DZeta(0, 0) * DZeta(3, 2) * DZeta(4, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(6, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(6, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(4, 2) + DZeta(0, 1) * DZeta(3, 2) * DZeta(4, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(6, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(6, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(4, 1) + DZeta(0, 2) * DZeta(3, 1) * DZeta(4, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(12, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(12, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(12, 0);
-            DiBj3(12, 15) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(3, 0) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(12, 0) + DZeta(1, 0) * DZeta(1, 2) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(6, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(6, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(4, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(12, 2) * 2.0;
-            DiBj3(12, 16) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(3, 1) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(12, 1) * 3.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(6, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(3, 1) * DZeta(4, 1) * 6.0;
-            DiBj3(12, 17) = (DZeta(1, 1) * DZeta(1, 1)) * DZeta(3, 2) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(12, 2) + DZeta(1, 1) * DZeta(1, 2) * DZeta(3, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(6, 2) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(4, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(4, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(6, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(12, 1) * 2.0;
-            DiBj3(12, 18) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(3, 1) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(12, 1) + DZeta(1, 1) * DZeta(1, 2) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(6, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(6, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(4, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(4, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(12, 2) * 2.0;
-            DiBj3(12, 19) = (DZeta(1, 2) * DZeta(1, 2)) * DZeta(3, 2) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(12, 2) * 3.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(6, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(3, 2) * DZeta(4, 2) * 6.0;
-            DiBj3(13, 1) = DZeta(13, 0);
-            DiBj3(13, 2) = DZeta(13, 1);
-            DiBj3(13, 3) = DZeta(13, 2);
-            DiBj3(13, 4) = DZeta(2, 0) * DZeta(5, 0) * 4.0 + DZeta(1, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(13, 0) * 2.0;
-            DiBj3(13, 5) = DZeta(2, 0) * DZeta(5, 1) * 2.0 + DZeta(2, 1) * DZeta(5, 0) * 2.0 + DZeta(1, 0) * DZeta(7, 1) + DZeta(1, 1) * DZeta(7, 0) + DZeta(0, 0) * DZeta(13, 1) + DZeta(0, 1) * DZeta(13, 0);
-            DiBj3(13, 6) = DZeta(2, 0) * DZeta(5, 2) * 2.0 + DZeta(2, 2) * DZeta(5, 0) * 2.0 + DZeta(1, 0) * DZeta(7, 2) + DZeta(1, 2) * DZeta(7, 0) + DZeta(0, 0) * DZeta(13, 2) + DZeta(0, 2) * DZeta(13, 0);
-            DiBj3(13, 7) = DZeta(2, 1) * DZeta(5, 1) * 4.0 + DZeta(1, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(13, 1) * 2.0;
-            DiBj3(13, 8) = DZeta(2, 1) * DZeta(5, 2) * 2.0 + DZeta(2, 2) * DZeta(5, 1) * 2.0 + DZeta(1, 1) * DZeta(7, 2) + DZeta(1, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(13, 2) + DZeta(0, 2) * DZeta(13, 1);
-            DiBj3(13, 9) = DZeta(2, 2) * DZeta(5, 2) * 4.0 + DZeta(1, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(13, 2) * 2.0;
-            DiBj3(13, 10) = DZeta(1, 0) * (DZeta(2, 0) * DZeta(2, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(13, 0) * 3.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(5, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(1, 0) * DZeta(7, 0) * 6.0;
-            DiBj3(13, 11) = DZeta(1, 1) * (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(13, 1) + DZeta(1, 0) * DZeta(2, 0) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(5, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(5, 0) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(7, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(7, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(13, 0) * 2.0;
-            DiBj3(13, 12) = DZeta(1, 2) * (DZeta(2, 0) * DZeta(2, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(13, 2) + DZeta(1, 0) * DZeta(2, 0) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(5, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(5, 0) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(7, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(7, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(13, 0) * 2.0;
-            DiBj3(13, 13) = DZeta(1, 0) * (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(13, 0) + DZeta(1, 1) * DZeta(2, 0) * DZeta(2, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(13, 1) * 2.0;
-            DiBj3(13, 14) = DZeta(1, 0) * DZeta(2, 1) * DZeta(2, 2) * 2.0 + DZeta(1, 1) * DZeta(2, 0) * DZeta(2, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 0) * DZeta(2, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(5, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(5, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(5, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(5, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(7, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(7, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(7, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(7, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(7, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(13, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(13, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(13, 0);
-            DiBj3(13, 15) = DZeta(1, 0) * (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(13, 0) + DZeta(1, 2) * DZeta(2, 0) * DZeta(2, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(5, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(13, 2) * 2.0;
-            DiBj3(13, 16) = DZeta(1, 1) * (DZeta(2, 1) * DZeta(2, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(13, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(5, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(1, 1) * DZeta(7, 1) * 6.0;
-            DiBj3(13, 17) = DZeta(1, 2) * (DZeta(2, 1) * DZeta(2, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(13, 2) + DZeta(1, 1) * DZeta(2, 1) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(5, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(5, 1) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(7, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(7, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(13, 1) * 2.0;
-            DiBj3(13, 18) = DZeta(1, 1) * (DZeta(2, 2) * DZeta(2, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(13, 1) + DZeta(1, 2) * DZeta(2, 1) * DZeta(2, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(5, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(5, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(13, 2) * 2.0;
-            DiBj3(13, 19) = DZeta(1, 2) * (DZeta(2, 2) * DZeta(2, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(13, 2) * 3.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(5, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(1, 2) * DZeta(7, 2) * 6.0;
-            DiBj3(14, 1) = DZeta(14, 0);
-            DiBj3(14, 2) = DZeta(14, 1);
-            DiBj3(14, 3) = DZeta(14, 2);
-            DiBj3(14, 4) = DZeta(2, 0) * DZeta(6, 0) * 2.0 + DZeta(3, 0) * DZeta(5, 0) * 2.0 + DZeta(1, 0) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(14, 0) * 2.0;
-            DiBj3(14, 5) = DZeta(2, 0) * DZeta(6, 1) + DZeta(2, 1) * DZeta(6, 0) + DZeta(3, 0) * DZeta(5, 1) + DZeta(3, 1) * DZeta(5, 0) + DZeta(1, 0) * DZeta(8, 1) + DZeta(1, 1) * DZeta(8, 0) + DZeta(0, 0) * DZeta(14, 1) + DZeta(0, 1) * DZeta(14, 0);
-            DiBj3(14, 6) = DZeta(2, 0) * DZeta(6, 2) + DZeta(2, 2) * DZeta(6, 0) + DZeta(3, 0) * DZeta(5, 2) + DZeta(3, 2) * DZeta(5, 0) + DZeta(1, 0) * DZeta(8, 2) + DZeta(1, 2) * DZeta(8, 0) + DZeta(0, 0) * DZeta(14, 2) + DZeta(0, 2) * DZeta(14, 0);
-            DiBj3(14, 7) = DZeta(2, 1) * DZeta(6, 1) * 2.0 + DZeta(3, 1) * DZeta(5, 1) * 2.0 + DZeta(1, 1) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(14, 1) * 2.0;
-            DiBj3(14, 8) = DZeta(2, 1) * DZeta(6, 2) + DZeta(2, 2) * DZeta(6, 1) + DZeta(3, 1) * DZeta(5, 2) + DZeta(3, 2) * DZeta(5, 1) + DZeta(1, 1) * DZeta(8, 2) + DZeta(1, 2) * DZeta(8, 1) + DZeta(0, 1) * DZeta(14, 2) + DZeta(0, 2) * DZeta(14, 1);
-            DiBj3(14, 9) = DZeta(2, 2) * DZeta(6, 2) * 2.0 + DZeta(3, 2) * DZeta(5, 2) * 2.0 + DZeta(1, 2) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(14, 2) * 2.0;
-            DiBj3(14, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(14, 0) * 3.0 + DZeta(1, 0) * DZeta(2, 0) * DZeta(3, 0) * 6.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(6, 0) * 6.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(5, 0) * 6.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(8, 0) * 6.0;
-            DiBj3(14, 11) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(14, 1) + DZeta(1, 0) * DZeta(2, 0) * DZeta(3, 1) * 2.0 + DZeta(1, 0) * DZeta(2, 1) * DZeta(3, 0) * 2.0 + DZeta(1, 1) * DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(6, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(6, 0) * 2.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(5, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(5, 0) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(6, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(8, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(14, 0) * 2.0;
-            DiBj3(14, 12) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(14, 2) + DZeta(1, 0) * DZeta(2, 0) * DZeta(3, 2) * 2.0 + DZeta(1, 0) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(1, 2) * DZeta(2, 0) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(6, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(6, 0) * 2.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(5, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(5, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(6, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(8, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(14, 0) * 2.0;
-            DiBj3(14, 13) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(14, 0) + DZeta(1, 0) * DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(1, 1) * DZeta(2, 0) * DZeta(3, 1) * 2.0 + DZeta(1, 1) * DZeta(2, 1) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(6, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(6, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(6, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(14, 1) * 2.0;
-            DiBj3(14, 14) = DZeta(1, 0) * DZeta(2, 1) * DZeta(3, 2) + DZeta(1, 0) * DZeta(2, 2) * DZeta(3, 1) + DZeta(1, 1) * DZeta(2, 0) * DZeta(3, 2) + DZeta(1, 1) * DZeta(2, 2) * DZeta(3, 0) + DZeta(1, 2) * DZeta(2, 0) * DZeta(3, 1) + DZeta(1, 2) * DZeta(2, 1) * DZeta(3, 0) + DZeta(0, 0) * DZeta(2, 1) * DZeta(6, 2) + DZeta(0, 0) * DZeta(2, 2) * DZeta(6, 1) + DZeta(0, 0) * DZeta(3, 1) * DZeta(5, 2) + DZeta(0, 0) * DZeta(3, 2) * DZeta(5, 1) + DZeta(0, 1) * DZeta(2, 0) * DZeta(6, 2) + DZeta(0, 1) * DZeta(2, 2) * DZeta(6, 0) + DZeta(0, 1) * DZeta(3, 0) * DZeta(5, 2) + DZeta(0, 1) * DZeta(3, 2) * DZeta(5, 0) + DZeta(0, 2) * DZeta(2, 0) * DZeta(6, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(6, 0) + DZeta(0, 2) * DZeta(3, 0) * DZeta(5, 1) + DZeta(0, 2) * DZeta(3, 1) * DZeta(5, 0) + DZeta(0, 0) * DZeta(1, 1) * DZeta(8, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(8, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(8, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(8, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(8, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(8, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(14, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(14, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(14, 0);
-            DiBj3(14, 15) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(14, 0) + DZeta(1, 0) * DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 0) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(6, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(5, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(6, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(6, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(5, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(5, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(14, 2) * 2.0;
-            DiBj3(14, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(14, 1) * 3.0 + DZeta(1, 1) * DZeta(2, 1) * DZeta(3, 1) * 6.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(6, 1) * 6.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(5, 1) * 6.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(8, 1) * 6.0;
-            DiBj3(14, 17) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(14, 2) + DZeta(1, 1) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(1, 1) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(1, 2) * DZeta(2, 1) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(6, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(6, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(5, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(5, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(6, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(8, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(14, 1) * 2.0;
-            DiBj3(14, 18) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(14, 1) + DZeta(1, 1) * DZeta(2, 2) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(6, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(5, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(6, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(6, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(5, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(5, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(8, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(14, 2) * 2.0;
-            DiBj3(14, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(14, 2) * 3.0 + DZeta(1, 2) * DZeta(2, 2) * DZeta(3, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(6, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(5, 2) * 6.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(8, 2) * 6.0;
-            DiBj3(15, 1) = DZeta(15, 0);
-            DiBj3(15, 2) = DZeta(15, 1);
-            DiBj3(15, 3) = DZeta(15, 2);
-            DiBj3(15, 4) = DZeta(3, 0) * DZeta(6, 0) * 4.0 + DZeta(1, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(15, 0) * 2.0;
-            DiBj3(15, 5) = DZeta(3, 0) * DZeta(6, 1) * 2.0 + DZeta(3, 1) * DZeta(6, 0) * 2.0 + DZeta(1, 0) * DZeta(9, 1) + DZeta(1, 1) * DZeta(9, 0) + DZeta(0, 0) * DZeta(15, 1) + DZeta(0, 1) * DZeta(15, 0);
-            DiBj3(15, 6) = DZeta(3, 0) * DZeta(6, 2) * 2.0 + DZeta(3, 2) * DZeta(6, 0) * 2.0 + DZeta(1, 0) * DZeta(9, 2) + DZeta(1, 2) * DZeta(9, 0) + DZeta(0, 0) * DZeta(15, 2) + DZeta(0, 2) * DZeta(15, 0);
-            DiBj3(15, 7) = DZeta(3, 1) * DZeta(6, 1) * 4.0 + DZeta(1, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(15, 1) * 2.0;
-            DiBj3(15, 8) = DZeta(3, 1) * DZeta(6, 2) * 2.0 + DZeta(3, 2) * DZeta(6, 1) * 2.0 + DZeta(1, 1) * DZeta(9, 2) + DZeta(1, 2) * DZeta(9, 1) + DZeta(0, 1) * DZeta(15, 2) + DZeta(0, 2) * DZeta(15, 1);
-            DiBj3(15, 9) = DZeta(3, 2) * DZeta(6, 2) * 4.0 + DZeta(1, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(15, 2) * 2.0;
-            DiBj3(15, 10) = DZeta(1, 0) * (DZeta(3, 0) * DZeta(3, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(15, 0) * 3.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(6, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(1, 0) * DZeta(9, 0) * 6.0;
-            DiBj3(15, 11) = DZeta(1, 1) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(15, 1) + DZeta(1, 0) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(6, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(6, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(9, 1) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(9, 0) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(15, 0) * 2.0;
-            DiBj3(15, 12) = DZeta(1, 2) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(15, 2) + DZeta(1, 0) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(6, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(6, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 0) * DZeta(9, 2) * 2.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(9, 0) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(15, 0) * 2.0;
-            DiBj3(15, 13) = DZeta(1, 0) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(15, 0) + DZeta(1, 1) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 0) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(15, 1) * 2.0;
-            DiBj3(15, 14) = DZeta(1, 0) * DZeta(3, 1) * DZeta(3, 2) * 2.0 + DZeta(1, 1) * DZeta(3, 0) * DZeta(3, 2) * 2.0 + DZeta(1, 2) * DZeta(3, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(6, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(6, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(6, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(6, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(6, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(6, 0) * 2.0 + DZeta(0, 0) * DZeta(1, 1) * DZeta(9, 2) + DZeta(0, 0) * DZeta(1, 2) * DZeta(9, 1) + DZeta(0, 1) * DZeta(1, 0) * DZeta(9, 2) + DZeta(0, 1) * DZeta(1, 2) * DZeta(9, 0) + DZeta(0, 2) * DZeta(1, 0) * DZeta(9, 1) + DZeta(0, 2) * DZeta(1, 1) * DZeta(9, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(15, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(15, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(15, 0);
-            DiBj3(15, 15) = DZeta(1, 0) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(15, 0) + DZeta(1, 2) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(6, 0) * 4.0 + DZeta(0, 0) * DZeta(1, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 0) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(15, 2) * 2.0;
-            DiBj3(15, 16) = DZeta(1, 1) * (DZeta(3, 1) * DZeta(3, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(15, 1) * 3.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(6, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(1, 1) * DZeta(9, 1) * 6.0;
-            DiBj3(15, 17) = DZeta(1, 2) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(15, 2) + DZeta(1, 1) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(6, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(6, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 1) * DZeta(9, 2) * 2.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(9, 1) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(15, 1) * 2.0;
-            DiBj3(15, 18) = DZeta(1, 1) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(15, 1) + DZeta(1, 2) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(6, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(6, 1) * 4.0 + DZeta(0, 1) * DZeta(1, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 1) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(1, 2) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(15, 2) * 2.0;
-            DiBj3(15, 19) = DZeta(1, 2) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(15, 2) * 3.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(6, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(1, 2) * DZeta(9, 2) * 6.0;
-            DiBj3(16, 1) = DZeta(16, 0);
-            DiBj3(16, 2) = DZeta(16, 1);
-            DiBj3(16, 3) = DZeta(16, 2);
-            DiBj3(16, 4) = DZeta(2, 0) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(16, 0) * 2.0;
-            DiBj3(16, 5) = DZeta(2, 0) * DZeta(7, 1) * 3.0 + DZeta(2, 1) * DZeta(7, 0) * 3.0 + DZeta(0, 0) * DZeta(16, 1) + DZeta(0, 1) * DZeta(16, 0);
-            DiBj3(16, 6) = DZeta(2, 0) * DZeta(7, 2) * 3.0 + DZeta(2, 2) * DZeta(7, 0) * 3.0 + DZeta(0, 0) * DZeta(16, 2) + DZeta(0, 2) * DZeta(16, 0);
-            DiBj3(16, 7) = DZeta(2, 1) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(16, 1) * 2.0;
-            DiBj3(16, 8) = DZeta(2, 1) * DZeta(7, 2) * 3.0 + DZeta(2, 2) * DZeta(7, 1) * 3.0 + DZeta(0, 1) * DZeta(16, 2) + DZeta(0, 2) * DZeta(16, 1);
-            DiBj3(16, 9) = DZeta(2, 2) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(16, 2) * 2.0;
-            DiBj3(16, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(16, 0) * 3.0 + (DZeta(2, 0) * DZeta(2, 0) * DZeta(2, 0)) * 6.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(7, 0) * 1.8E+1;
-            DiBj3(16, 11) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(2, 1) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(16, 1) + DZeta(0, 0) * DZeta(2, 0) * DZeta(7, 1) * 6.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(7, 0) * 6.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(16, 0) * 2.0;
-            DiBj3(16, 12) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(2, 2) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(16, 2) + DZeta(0, 0) * DZeta(2, 0) * DZeta(7, 2) * 6.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(7, 0) * 6.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(16, 0) * 2.0;
-            DiBj3(16, 13) = DZeta(2, 0) * (DZeta(2, 1) * DZeta(2, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(16, 0) + DZeta(0, 0) * DZeta(2, 1) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(16, 1) * 2.0;
-            DiBj3(16, 14) = DZeta(2, 0) * DZeta(2, 1) * DZeta(2, 2) * 6.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(7, 2) * 3.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(7, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(7, 2) * 3.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(7, 0) * 3.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(7, 1) * 3.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(7, 0) * 3.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(16, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(16, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(16, 0);
-            DiBj3(16, 15) = DZeta(2, 0) * (DZeta(2, 2) * DZeta(2, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(16, 0) + DZeta(0, 0) * DZeta(2, 2) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(7, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(16, 2) * 2.0;
-            DiBj3(16, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(16, 1) * 3.0 + (DZeta(2, 1) * DZeta(2, 1) * DZeta(2, 1)) * 6.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(7, 1) * 1.8E+1;
-            DiBj3(16, 17) = (DZeta(2, 1) * DZeta(2, 1)) * DZeta(2, 2) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(16, 2) + DZeta(0, 1) * DZeta(2, 1) * DZeta(7, 2) * 6.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(7, 1) * 6.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(16, 1) * 2.0;
-            DiBj3(16, 18) = DZeta(2, 1) * (DZeta(2, 2) * DZeta(2, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(16, 1) + DZeta(0, 1) * DZeta(2, 2) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(7, 2) * 6.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(7, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(16, 2) * 2.0;
-            DiBj3(16, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(16, 2) * 3.0 + (DZeta(2, 2) * DZeta(2, 2) * DZeta(2, 2)) * 6.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(7, 2) * 1.8E+1;
-            DiBj3(17, 1) = DZeta(17, 0);
-            DiBj3(17, 2) = DZeta(17, 1);
-            DiBj3(17, 3) = DZeta(17, 2);
-            DiBj3(17, 4) = DZeta(2, 0) * DZeta(8, 0) * 4.0 + DZeta(3, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(17, 0) * 2.0;
-            DiBj3(17, 5) = DZeta(2, 0) * DZeta(8, 1) * 2.0 + DZeta(2, 1) * DZeta(8, 0) * 2.0 + DZeta(3, 0) * DZeta(7, 1) + DZeta(3, 1) * DZeta(7, 0) + DZeta(0, 0) * DZeta(17, 1) + DZeta(0, 1) * DZeta(17, 0);
-            DiBj3(17, 6) = DZeta(2, 0) * DZeta(8, 2) * 2.0 + DZeta(2, 2) * DZeta(8, 0) * 2.0 + DZeta(3, 0) * DZeta(7, 2) + DZeta(3, 2) * DZeta(7, 0) + DZeta(0, 0) * DZeta(17, 2) + DZeta(0, 2) * DZeta(17, 0);
-            DiBj3(17, 7) = DZeta(2, 1) * DZeta(8, 1) * 4.0 + DZeta(3, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(17, 1) * 2.0;
-            DiBj3(17, 8) = DZeta(2, 1) * DZeta(8, 2) * 2.0 + DZeta(2, 2) * DZeta(8, 1) * 2.0 + DZeta(3, 1) * DZeta(7, 2) + DZeta(3, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(17, 2) + DZeta(0, 2) * DZeta(17, 1);
-            DiBj3(17, 9) = DZeta(2, 2) * DZeta(8, 2) * 4.0 + DZeta(3, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(17, 2) * 2.0;
-            DiBj3(17, 10) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(3, 0) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(17, 0) * 3.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(8, 0) * 1.2E+1 + DZeta(0, 0) * DZeta(3, 0) * DZeta(7, 0) * 6.0;
-            DiBj3(17, 11) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(3, 1) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(17, 1) + DZeta(2, 0) * DZeta(2, 1) * DZeta(3, 0) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(8, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(7, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(7, 0) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(17, 0) * 2.0;
-            DiBj3(17, 12) = (DZeta(2, 0) * DZeta(2, 0)) * DZeta(3, 2) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(17, 2) + DZeta(2, 0) * DZeta(2, 2) * DZeta(3, 0) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(8, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(7, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(7, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(17, 0) * 2.0;
-            DiBj3(17, 13) = (DZeta(2, 1) * DZeta(2, 1)) * DZeta(3, 0) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(17, 0) + DZeta(2, 0) * DZeta(2, 1) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(8, 0) * 4.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(17, 1) * 2.0;
-            DiBj3(17, 14) = DZeta(2, 0) * DZeta(2, 1) * DZeta(3, 2) * 2.0 + DZeta(2, 0) * DZeta(2, 2) * DZeta(3, 1) * 2.0 + DZeta(2, 1) * DZeta(2, 2) * DZeta(3, 0) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(8, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(7, 2) + DZeta(0, 0) * DZeta(3, 2) * DZeta(7, 1) + DZeta(0, 1) * DZeta(2, 0) * DZeta(8, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(7, 2) + DZeta(0, 1) * DZeta(3, 2) * DZeta(7, 0) + DZeta(0, 2) * DZeta(2, 0) * DZeta(8, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(7, 1) + DZeta(0, 2) * DZeta(3, 1) * DZeta(7, 0) + DZeta(0, 0) * DZeta(0, 1) * DZeta(17, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(17, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(17, 0);
-            DiBj3(17, 15) = (DZeta(2, 2) * DZeta(2, 2)) * DZeta(3, 0) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(17, 0) + DZeta(2, 0) * DZeta(2, 2) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(8, 0) * 4.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(7, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(17, 2) * 2.0;
-            DiBj3(17, 16) = (DZeta(2, 1) * DZeta(2, 1)) * DZeta(3, 1) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(17, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(8, 1) * 1.2E+1 + DZeta(0, 1) * DZeta(3, 1) * DZeta(7, 1) * 6.0;
-            DiBj3(17, 17) = (DZeta(2, 1) * DZeta(2, 1)) * DZeta(3, 2) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(17, 2) + DZeta(2, 1) * DZeta(2, 2) * DZeta(3, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(8, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(7, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(7, 1) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(17, 1) * 2.0;
-            DiBj3(17, 18) = (DZeta(2, 2) * DZeta(2, 2)) * DZeta(3, 1) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(17, 1) + DZeta(2, 1) * DZeta(2, 2) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(8, 1) * 4.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(7, 2) * 2.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(7, 1) * 2.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(17, 2) * 2.0;
-            DiBj3(17, 19) = (DZeta(2, 2) * DZeta(2, 2)) * DZeta(3, 2) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(17, 2) * 3.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(8, 2) * 1.2E+1 + DZeta(0, 2) * DZeta(3, 2) * DZeta(7, 2) * 6.0;
-            DiBj3(18, 1) = DZeta(18, 0);
-            DiBj3(18, 2) = DZeta(18, 1);
-            DiBj3(18, 3) = DZeta(18, 2);
-            DiBj3(18, 4) = DZeta(2, 0) * DZeta(9, 0) * 2.0 + DZeta(3, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(18, 0) * 2.0;
-            DiBj3(18, 5) = DZeta(2, 0) * DZeta(9, 1) + DZeta(2, 1) * DZeta(9, 0) + DZeta(3, 0) * DZeta(8, 1) * 2.0 + DZeta(3, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(18, 1) + DZeta(0, 1) * DZeta(18, 0);
-            DiBj3(18, 6) = DZeta(2, 0) * DZeta(9, 2) + DZeta(2, 2) * DZeta(9, 0) + DZeta(3, 0) * DZeta(8, 2) * 2.0 + DZeta(3, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(18, 2) + DZeta(0, 2) * DZeta(18, 0);
-            DiBj3(18, 7) = DZeta(2, 1) * DZeta(9, 1) * 2.0 + DZeta(3, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(18, 1) * 2.0;
-            DiBj3(18, 8) = DZeta(2, 1) * DZeta(9, 2) + DZeta(2, 2) * DZeta(9, 1) + DZeta(3, 1) * DZeta(8, 2) * 2.0 + DZeta(3, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(18, 2) + DZeta(0, 2) * DZeta(18, 1);
-            DiBj3(18, 9) = DZeta(2, 2) * DZeta(9, 2) * 2.0 + DZeta(3, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(18, 2) * 2.0;
-            DiBj3(18, 10) = DZeta(2, 0) * (DZeta(3, 0) * DZeta(3, 0)) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(18, 0) * 3.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(8, 0) * 1.2E+1;
-            DiBj3(18, 11) = DZeta(2, 1) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(18, 1) + DZeta(2, 0) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(9, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(8, 1) * 4.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(8, 0) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(18, 0) * 2.0;
-            DiBj3(18, 12) = DZeta(2, 2) * (DZeta(3, 0) * DZeta(3, 0)) * 2.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(18, 2) + DZeta(2, 0) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 0) * DZeta(9, 2) * 2.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(9, 0) * 2.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(8, 2) * 4.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(8, 0) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(9, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(18, 0) * 2.0;
-            DiBj3(18, 13) = DZeta(2, 0) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(18, 0) + DZeta(2, 1) * DZeta(3, 0) * DZeta(3, 1) * 4.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(9, 0) * 2.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(18, 1) * 2.0;
-            DiBj3(18, 14) = DZeta(2, 0) * DZeta(3, 1) * DZeta(3, 2) * 2.0 + DZeta(2, 1) * DZeta(3, 0) * DZeta(3, 2) * 2.0 + DZeta(2, 2) * DZeta(3, 0) * DZeta(3, 1) * 2.0 + DZeta(0, 0) * DZeta(2, 1) * DZeta(9, 2) + DZeta(0, 0) * DZeta(2, 2) * DZeta(9, 1) + DZeta(0, 0) * DZeta(3, 1) * DZeta(8, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(8, 1) * 2.0 + DZeta(0, 1) * DZeta(2, 0) * DZeta(9, 2) + DZeta(0, 1) * DZeta(2, 2) * DZeta(9, 0) + DZeta(0, 1) * DZeta(3, 0) * DZeta(8, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(8, 0) * 2.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(9, 1) + DZeta(0, 2) * DZeta(2, 1) * DZeta(9, 0) + DZeta(0, 2) * DZeta(3, 0) * DZeta(8, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(8, 0) * 2.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(18, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(18, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(18, 0);
-            DiBj3(18, 15) = DZeta(2, 0) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(18, 0) + DZeta(2, 2) * DZeta(3, 0) * DZeta(3, 2) * 4.0 + DZeta(0, 0) * DZeta(2, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 0) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(9, 0) * 2.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(8, 0) * 4.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(18, 2) * 2.0;
-            DiBj3(18, 16) = DZeta(2, 1) * (DZeta(3, 1) * DZeta(3, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(18, 1) * 3.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(8, 1) * 1.2E+1;
-            DiBj3(18, 17) = DZeta(2, 2) * (DZeta(3, 1) * DZeta(3, 1)) * 2.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(18, 2) + DZeta(2, 1) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 1) * DZeta(9, 2) * 2.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(9, 1) * 2.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(8, 2) * 4.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(8, 1) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(9, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(18, 1) * 2.0;
-            DiBj3(18, 18) = DZeta(2, 1) * (DZeta(3, 2) * DZeta(3, 2)) * 2.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(18, 1) + DZeta(2, 2) * DZeta(3, 1) * DZeta(3, 2) * 4.0 + DZeta(0, 1) * DZeta(2, 2) * DZeta(9, 2) * 2.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(2, 1) * DZeta(9, 2) * 2.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(9, 1) * 2.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(8, 2) * 4.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(8, 1) * 4.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(18, 2) * 2.0;
-            DiBj3(18, 19) = DZeta(2, 2) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(18, 2) * 3.0 + DZeta(0, 2) * DZeta(2, 2) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(8, 2) * 1.2E+1;
-            DiBj3(19, 1) = DZeta(19, 0);
-            DiBj3(19, 2) = DZeta(19, 1);
-            DiBj3(19, 3) = DZeta(19, 2);
-            DiBj3(19, 4) = DZeta(3, 0) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(19, 0) * 2.0;
-            DiBj3(19, 5) = DZeta(3, 0) * DZeta(9, 1) * 3.0 + DZeta(3, 1) * DZeta(9, 0) * 3.0 + DZeta(0, 0) * DZeta(19, 1) + DZeta(0, 1) * DZeta(19, 0);
-            DiBj3(19, 6) = DZeta(3, 0) * DZeta(9, 2) * 3.0 + DZeta(3, 2) * DZeta(9, 0) * 3.0 + DZeta(0, 0) * DZeta(19, 2) + DZeta(0, 2) * DZeta(19, 0);
-            DiBj3(19, 7) = DZeta(3, 1) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(19, 1) * 2.0;
-            DiBj3(19, 8) = DZeta(3, 1) * DZeta(9, 2) * 3.0 + DZeta(3, 2) * DZeta(9, 1) * 3.0 + DZeta(0, 1) * DZeta(19, 2) + DZeta(0, 2) * DZeta(19, 1);
-            DiBj3(19, 9) = DZeta(3, 2) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(19, 2) * 2.0;
-            DiBj3(19, 10) = (DZeta(0, 0) * DZeta(0, 0)) * DZeta(19, 0) * 3.0 + (DZeta(3, 0) * DZeta(3, 0) * DZeta(3, 0)) * 6.0 + DZeta(0, 0) * DZeta(3, 0) * DZeta(9, 0) * 1.8E+1;
-            DiBj3(19, 11) = (DZeta(3, 0) * DZeta(3, 0)) * DZeta(3, 1) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(19, 1) + DZeta(0, 0) * DZeta(3, 0) * DZeta(9, 1) * 6.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(9, 0) * 6.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(19, 0) * 2.0;
-            DiBj3(19, 12) = (DZeta(3, 0) * DZeta(3, 0)) * DZeta(3, 2) * 6.0 + (DZeta(0, 0) * DZeta(0, 0)) * DZeta(19, 2) + DZeta(0, 0) * DZeta(3, 0) * DZeta(9, 2) * 6.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(9, 0) * 6.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(19, 0) * 2.0;
-            DiBj3(19, 13) = DZeta(3, 0) * (DZeta(3, 1) * DZeta(3, 1)) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(19, 0) + DZeta(0, 0) * DZeta(3, 1) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(19, 1) * 2.0;
-            DiBj3(19, 14) = DZeta(3, 0) * DZeta(3, 1) * DZeta(3, 2) * 6.0 + DZeta(0, 0) * DZeta(3, 1) * DZeta(9, 2) * 3.0 + DZeta(0, 0) * DZeta(3, 2) * DZeta(9, 1) * 3.0 + DZeta(0, 1) * DZeta(3, 0) * DZeta(9, 2) * 3.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(9, 0) * 3.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(9, 1) * 3.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(9, 0) * 3.0 + DZeta(0, 0) * DZeta(0, 1) * DZeta(19, 2) + DZeta(0, 0) * DZeta(0, 2) * DZeta(19, 1) + DZeta(0, 1) * DZeta(0, 2) * DZeta(19, 0);
-            DiBj3(19, 15) = DZeta(3, 0) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(19, 0) + DZeta(0, 0) * DZeta(3, 2) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 0) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(9, 0) * 6.0 + DZeta(0, 0) * DZeta(0, 2) * DZeta(19, 2) * 2.0;
-            DiBj3(19, 16) = (DZeta(0, 1) * DZeta(0, 1)) * DZeta(19, 1) * 3.0 + (DZeta(3, 1) * DZeta(3, 1) * DZeta(3, 1)) * 6.0 + DZeta(0, 1) * DZeta(3, 1) * DZeta(9, 1) * 1.8E+1;
-            DiBj3(19, 17) = (DZeta(3, 1) * DZeta(3, 1)) * DZeta(3, 2) * 6.0 + (DZeta(0, 1) * DZeta(0, 1)) * DZeta(19, 2) + DZeta(0, 1) * DZeta(3, 1) * DZeta(9, 2) * 6.0 + DZeta(0, 1) * DZeta(3, 2) * DZeta(9, 1) * 6.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(19, 1) * 2.0;
-            DiBj3(19, 18) = DZeta(3, 1) * (DZeta(3, 2) * DZeta(3, 2)) * 6.0 + (DZeta(0, 2) * DZeta(0, 2)) * DZeta(19, 1) + DZeta(0, 1) * DZeta(3, 2) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 1) * DZeta(9, 2) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(9, 1) * 6.0 + DZeta(0, 1) * DZeta(0, 2) * DZeta(19, 2) * 2.0;
-            DiBj3(19, 19) = (DZeta(0, 2) * DZeta(0, 2)) * DZeta(19, 2) * 3.0 + (DZeta(3, 2) * DZeta(3, 2) * DZeta(3, 2)) * 6.0 + DZeta(0, 2) * DZeta(3, 2) * DZeta(9, 2) * 1.8E+1;
-
-            Eigen::MatrixXd DiBj2 = DiBj3({0, 1, 2, 4, 5, 7, 10, 11, 13, 16}, {0, 1, 2, 4, 5, 7, 10, 11, 13, 16});
-            // std::cout << DiBj << std::endl;
-            // std::cout << D1zeta1 << D1zeta0 << std::endl;
-            DiBj = DiBj2.topLeftCorner(DiBj.rows(), DiBj.cols());
-            // std::cout << "\nNEW\n\n"
-            //           << DiBj << std::endl;
-            // abort();
 #endif
 
             // here DiBj's direvatives are dBdxi-s, where xi is defined by xi = invPJacobi * (x - xc)
-            Elem::Convert2dDiffsLinMap(DiBj, invPJacobi.transpose());
+            if (!options.disableLocalCoord2GlobalDiffs)
+                Elem::Convert2dDiffsLinMap(DiBj, invPJacobi.transpose());
             DiBj(0, Eigen::all) -= baseMoment.transpose();
 
             return;
@@ -1058,7 +1080,7 @@ namespace DNDS
                         assert(false);
                         break;
                     }
-                    recAtr.relax = 1.;
+                    recAtr.relax = 1.0;
                 });
             cellRecAtrLocal.PullOnce();
             faceRecAtrLocal.dist = std::make_shared<decltype(faceRecAtrLocal.dist)::element_type>(
@@ -1537,7 +1559,7 @@ namespace DNDS
                     else if (faceAtr.iPhy == BoundaryType::Wall)
                     {
                         (*faceWeights)[iFace].setConstant(0.0);
-                        (*faceWeights)[iFace][0] = 1.0;
+                        (*faceWeights)[iFace][0] = setting.wallWeight;
                         // delta = (faceCoords(Eigen::all, 0) + faceCoords(Eigen::all, 1)) * 0.5 - cellCenters[f2c[0]];
                         delta = pFace - cellBaries[f2c[0]];
                         delta *= 1.0;
@@ -1545,7 +1567,7 @@ namespace DNDS
                     else if (faceAtr.iPhy == BoundaryType::Farfield)
                     {
                         (*faceWeights)[iFace].setConstant(0.0);
-                        (*faceWeights)[iFace][0] = 1.0;
+                        (*faceWeights)[iFace][0] = setting.farWeight;
                         delta = pFace - cellBaries[f2c[0]];
                     }
                     else
@@ -1814,7 +1836,21 @@ namespace DNDS
                 decltype(uCurve.dist)::element_type::tContext(
                     [&](index i) -> rowsize
                     {
-                        return 2 * (cellRecAtrLocal[i][0].NDOF - 1); // !!note - 1!! !!note the 2 sized row!!
+                        switch (setting.curvilinearOrder)
+                        {
+                        case 1:
+                            return 2 * (3 - 1); // !!note - 1!! !!note the 2 sized row!!
+                            break;
+                        case 2:
+                            return 2 * (6 - 1);
+                            break;
+                        case 3:
+                            return 2 * (10 - 1);
+                            break;
+                        default:
+                            assert(false);
+                            return -1;
+                        }
                     },
                     nCellDist),
                 mpi);
@@ -1827,6 +1863,10 @@ namespace DNDS
                     e.m().setZero();
                     e.m()(0, 0) = 1;
                     e.m()(1, 1) = 1;
+
+                    // e.m()(1, 0) = 1.1;
+                    // e.m()(0, 1) = -1.1;
+                    // e.m()(1, 1) = -1000.1;
                 });
         }
 
@@ -1938,6 +1978,7 @@ namespace DNDS
                 // std::cout << uRecE.m() << std::endl;
             }
             // );
+#ifdef PRINT_EVERY_VR_JACOBI_ITER_INCREMENT
             // // std::cout << "NEW\n"
             // //           << uRecNewBuf[0] << std::endl;
             MPI_Allreduce(&vall, &vallR, 1, DNDS_MPI_REAL, MPI_SUM, mpi.comm); //? remove at release
@@ -1946,9 +1987,10 @@ namespace DNDS
             if (mpi.rank == 0)
             {
                 auto fmt = log().flags();
-                log()<< " Rec RES " << std::scientific << std::setprecision(10) << res << std::endl;
+                log() << " Rec RES " << std::scientific << std::setprecision(10) << res << std::endl;
                 log().setf(fmt);
             }
+#endif
             icount++;
         }
 

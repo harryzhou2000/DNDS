@@ -340,6 +340,7 @@ namespace DNDS
             VRFiniteVolume2D::Setting vfvSetting;
             int curvilinearOneStep = 500;
             int curvilinearRestartNstep = 100;
+            real curvilinearRange = 0.1;
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -416,6 +417,24 @@ namespace DNDS
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.scaleMLargerPortion = " << config.vfvSetting.scaleMLargerPortion << std::endl;
                 }
+                if (doc["vfvSetting"]["wallWeight"].IsNumber())
+                {
+                    config.vfvSetting.wallWeight = doc["vfvSetting"]["wallWeight"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.wallWeight = " << config.vfvSetting.wallWeight << std::endl;
+                }
+                if (doc["vfvSetting"]["farWeight"].IsNumber())
+                {
+                    config.vfvSetting.farWeight = doc["vfvSetting"]["farWeight"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.farWeight = " << config.vfvSetting.farWeight << std::endl;
+                }
+                if (doc["vfvSetting"]["curvilinearOrder"].IsInt())
+                {
+                    config.vfvSetting.curvilinearOrder = doc["vfvSetting"]["curvilinearOrder"].GetInt();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.curvilinearOrder = " << config.vfvSetting.curvilinearOrder << std::endl;
+                }
             }
 
             if (doc["curvilinearOneStep"].IsInt())
@@ -430,6 +449,13 @@ namespace DNDS
                 if (mpi.rank == 0)
                     log() << "JSON: curvilinearRestartNstep = " << config.curvilinearRestartNstep << std::endl;
             }
+            if (doc["curvilinearRange"].IsNumber())
+            {
+                config.curvilinearRange = doc["curvilinearRange"].GetDouble();
+                if (mpi.rank == 0)
+                    log() << "JSON: curvilinearRange = " << config.curvilinearRange << std::endl;
+            }
+            
         }
 
         void ReadMeshAndInitialize()
@@ -566,34 +592,13 @@ namespace DNDS
                         *vfv->uCurve.dist,
                         [&](decltype(vfv->uCurve.dist)::element_type::tComponent &e, index iCell)
                         {
-                            if (err->sResult[iCell] > config.err_dMax)
+                            if (u[iCell](0) > config.curvilinearRange)
                                 return;
-                            // e.m() *= 0.7;
-                            // return;
+                            auto em = e.m();
 
-                            // e.m() = uRec[iCell].m();
-                            // auto coeffs = e.m();
-                            // real Lfact = coeffs({0, 1}, 0).norm();
-                            // // Eigen::MatrixXd recval = vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0, 1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
-                            // // Lfact = recval({1, 2}, 0).norm();
-                            // switch (coeffs.rows())
-                            // {
-                            // case 9:
-                            //     coeffs({5, 6, 7, 8}, 0) /= Lfact;
-                            //     coeffs({5, 6, 7, 8}, 0) *= 0;
-                            // case 5:
-                            //     coeffs({2, 3, 4}, 0) /= Lfact; //! use the same coeffs here as we scale the first derivative
-                            //     coeffs({2, 3, 4}, 0) *= 0;
-                            // case 2:
-                            //     coeffs({0, 1}, 0) /= Lfact;
-                            //     break;
-                            // default:
-                            //     assert(false);
-                            // }
-
-                            e.m().setZero();
-                            e.m()(0, 0) = e.m()(1, 1) = 1.0;
-                            int nZetaDof = e.m().rows();
+                            em.setZero();
+                            em(0, 0) = em(1, 1) = 1.0;
+                            int nZetaDof = em.rows();
 
                             auto &cellAtr = mesh->cellAtrLocal[iCell][0];
                             auto &cellAtrRec = vfv->cellRecAtrLocal[iCell][0];
@@ -616,12 +621,15 @@ namespace DNDS
                                         pparam, center, sScale,
                                         Eigen::VectorXd::Zero(nZetaDof + 1),
                                         DiBj);
-                                    auto DiNjSlice = DiNj({1, 2}, Eigen::all);
+                                    Eigen::MatrixXd DiBjSlice = DiBj({1, 2}, Eigen::all);
 
-                                    incFull = DiNjSlice.transpose() * DiNjSlice;
+                                    incFull = DiBjSlice.transpose() * DiBjSlice;
                                     inc = incFull.bottomRightCorner(incFull.rows() - 1, incFull.cols() - 1);
                                     inc *= vfv->cellGaussJacobiDets[iCell][ig];
                                 });
+
+                            // std::cout << "Amat good \n"
+                            //           << std::endl;
 
                             Eigen::MatrixXd b(nZetaDof, 2);
                             b.setZero();
@@ -636,24 +644,29 @@ namespace DNDS
                                         pparam, center, sScale,
                                         Eigen::VectorXd::Zero(nZetaDof + 1),
                                         DiBj);
-                                    auto DiNjSlice = DiNj({1, 2}, Eigen::all);
+                                    Eigen::MatrixXd DiBjSlice = DiBj({1, 2}, Eigen::all); //? why can't use auto to recieve
                                     Eigen::Vector2d recGrad = vfv->cellDiBjGaussBatch->operator[](iCell).m(ig)({1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
                                     Eigen::Matrix2d recGrad01;
                                     recGrad01.col(0) = recGrad;
                                     recGrad01.col(1)(0) = -recGrad(1), recGrad01.col(1)(1) = recGrad(0);
-                                    incFull = DiNjSlice.transpose() * recGrad01;
-                                    inc = incFull.bottomRows(inc.rows() - 1);
+                                    incFull = DiBjSlice.transpose() * recGrad01;
+                                    inc = incFull.bottomRows(incFull.rows() - 1);
                                     inc *= vfv->cellGaussJacobiDets[iCell][ig];
                                 });
                             Eigen::MatrixXd Ainv;
                             HardEigen::EigenLeastSquareInverse(A, Ainv);
-                            e.m() = Ainv * b;
+                            em = Ainv * b;
+                            Eigen::MatrixXd lengths = em({0, 1}, Eigen::all).colwise().norm();
+                            em.col(0) /= lengths(0);
+                            em.col(1) /= lengths(1);
 
                             // std::cout << "REC " << uRec[iCell].m().transpose();
-                            std::cout << " EM " << e.m().transpose() << std::endl;
-                            abort();
+                            // std::cout << " EM \n"
+                            //           << std::scientific << std::setprecision(6) << em.transpose() << std::endl;
+                            // exit(123);
                         });
-                    vfv->uCurve.InitPersistentPullClean();
+
+                    vfv->uCurve.StartPersistentPullClean();
                     vfv->uCurve.WaitPersistentPullClean();
                     // InsertCheck(mpi, "CHECK VFVRENEW B");
                     vfv->Initialization_RenewBase();

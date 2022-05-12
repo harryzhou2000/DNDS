@@ -1,7 +1,7 @@
 {
     "nTimeStep": 20000,
     "nConsoleCheck": 10,
-    "nDataOut": 1000,
+    "nDataOut": 500,
     "CFL": 0.5,
     "meshFile": "data/mesh/NACA0012_WIDE_H3_O2_F.msh",
     "comment_meshFileList": [
@@ -17,10 +17,14 @@
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
-        "tangWeight": 1e-3,
+        "tangWeight": 5e-3,
+        "wallWeight": 1.0,
+        "farWeight": 0.0,
         "baseCenterType": "Bary",
-        "scaleMLargerPortion": 1
+        "scaleMLargerPortion": 1,
+        "curvilinearOrder": 2
     },
-    "curvilinearOneStep": 1,
-    "curvilinearRestartNstep": 150
+    "curvilinearOneStep": 1000,
+    "curvilinearRestartNstep": 100,
+    "curvilinearRange": 0.4
 }
