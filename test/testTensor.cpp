@@ -32,7 +32,8 @@ int main()
     Eigen::Tensor<double, 1> v2e(3);
     v2e.setValues({0.76, 1.3, 0.2});
 
-    std::cout << e1 << std::endl;
+    int s1[3] = {0, 1, 2};
+    std::cout << e1.shuffle(std::vector<int>({1,2,0})) << std::endl;
 
     std::cout << std::endl
               << e1.contract(v1e, Eigen::array<Eigen::IndexPair<int>, 1>{Eigen::IndexPair<int>(0, 0)})

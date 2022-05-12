@@ -10,14 +10,13 @@ namespace DNDS
 {
     class EikonalEvaluator
     {
-
+    public:
         int kAv = 4; //! change when order is changed!!
         CompactFacedMeshSerialRW *mesh = nullptr;
         ImplicitFiniteVolume2D *fv = nullptr;
         VRFiniteVolume2D *vfv = nullptr;
         CRFiniteVolume2D *cfv = nullptr;
 
-    public:
         std::vector<real> lambdaCell;
         // std::vector<real> lambdaFace;
 
@@ -339,6 +338,8 @@ namespace DNDS
             real res_base = 0;
 
             VRFiniteVolume2D::Setting vfvSetting;
+            int curvilinearOneStep = 500;
+            int curvilinearRestartNstep = 100;
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -415,6 +416,19 @@ namespace DNDS
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.scaleMLargerPortion = " << config.vfvSetting.scaleMLargerPortion << std::endl;
                 }
+            }
+
+            if (doc["curvilinearOneStep"].IsInt())
+            {
+                config.curvilinearOneStep = doc["curvilinearOneStep"].GetInt();
+                if (mpi.rank == 0)
+                    log() << "JSON: curvilinearOneStep = " << config.curvilinearOneStep << std::endl;
+            }
+            if (doc["curvilinearRestartNstep"].IsInt())
+            {
+                config.curvilinearRestartNstep = doc["curvilinearRestartNstep"].GetInt();
+                if (mpi.rank == 0)
+                    log() << "JSON: curvilinearRestartNstep = " << config.curvilinearRestartNstep << std::endl;
             }
         }
 
@@ -546,6 +560,125 @@ namespace DNDS
                 {
                     PrintData(config.outPltName + std::to_string(step) + ".plt", ode);
                 }
+                if (step == config.curvilinearOneStep)
+                {
+                    forEachInArray(
+                        *vfv->uCurve.dist,
+                        [&](decltype(vfv->uCurve.dist)::element_type::tComponent &e, index iCell)
+                        {
+                            if (err->sResult[iCell] > config.err_dMax)
+                                return;
+                            // e.m() *= 0.7;
+                            // return;
+
+                            // e.m() = uRec[iCell].m();
+                            // auto coeffs = e.m();
+                            // real Lfact = coeffs({0, 1}, 0).norm();
+                            // // Eigen::MatrixXd recval = vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0, 1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
+                            // // Lfact = recval({1, 2}, 0).norm();
+                            // switch (coeffs.rows())
+                            // {
+                            // case 9:
+                            //     coeffs({5, 6, 7, 8}, 0) /= Lfact;
+                            //     coeffs({5, 6, 7, 8}, 0) *= 0;
+                            // case 5:
+                            //     coeffs({2, 3, 4}, 0) /= Lfact; //! use the same coeffs here as we scale the first derivative
+                            //     coeffs({2, 3, 4}, 0) *= 0;
+                            // case 2:
+                            //     coeffs({0, 1}, 0) /= Lfact;
+                            //     break;
+                            // default:
+                            //     assert(false);
+                            // }
+
+                            e.m().setZero();
+                            e.m()(0, 0) = e.m()(1, 1) = 1.0;
+                            int nZetaDof = e.m().rows();
+
+                            auto &cellAtr = mesh->cellAtrLocal[iCell][0];
+                            auto &cellAtrRec = vfv->cellRecAtrLocal[iCell][0];
+                            auto eCell = Elem::ElementManager(cellAtr.type, cellAtrRec.intScheme);
+                            Eigen::MatrixXd coords;
+                            mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
+                            Elem::tPoint sScale = vfv->CoordMinMaxScale(coords);
+                            Elem::tPoint center = vfv->getCellCenter(iCell);
+
+                            Eigen::MatrixXd A(nZetaDof, nZetaDof);
+                            A.setZero();
+                            eCell.Integration(
+                                A,
+                                [&](Eigen::MatrixXd &inc, int ig, Elem::tPoint pparam, Elem::tDiFj &DiNj)
+                                {
+                                    Eigen::MatrixXd incFull;
+                                    Eigen::MatrixXd DiBj(3, nZetaDof + 1); //*remember add 1 Dof for constvalue-base
+                                    vfv->FDiffBaseValue(
+                                        iCell, eCell, coords, DiNj,
+                                        pparam, center, sScale,
+                                        Eigen::VectorXd::Zero(nZetaDof + 1),
+                                        DiBj);
+                                    auto DiNjSlice = DiNj({1, 2}, Eigen::all);
+
+                                    incFull = DiNjSlice.transpose() * DiNjSlice;
+                                    inc = incFull.bottomRightCorner(incFull.rows() - 1, incFull.cols() - 1);
+                                    inc *= vfv->cellGaussJacobiDets[iCell][ig];
+                                });
+
+                            Eigen::MatrixXd b(nZetaDof, 2);
+                            b.setZero();
+                            eCell.Integration(
+                                b,
+                                [&](Eigen::MatrixXd &inc, int ig, Elem::tPoint pparam, Elem::tDiFj &DiNj)
+                                {
+                                    Eigen::MatrixXd incFull;
+                                    Eigen::MatrixXd DiBj(3, nZetaDof + 1);
+                                    vfv->FDiffBaseValue(
+                                        iCell, eCell, coords, DiNj,
+                                        pparam, center, sScale,
+                                        Eigen::VectorXd::Zero(nZetaDof + 1),
+                                        DiBj);
+                                    auto DiNjSlice = DiNj({1, 2}, Eigen::all);
+                                    Eigen::Vector2d recGrad = vfv->cellDiBjGaussBatch->operator[](iCell).m(ig)({1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
+                                    Eigen::Matrix2d recGrad01;
+                                    recGrad01.col(0) = recGrad;
+                                    recGrad01.col(1)(0) = -recGrad(1), recGrad01.col(1)(1) = recGrad(0);
+                                    incFull = DiNjSlice.transpose() * recGrad01;
+                                    inc = incFull.bottomRows(inc.rows() - 1);
+                                    inc *= vfv->cellGaussJacobiDets[iCell][ig];
+                                });
+                            Eigen::MatrixXd Ainv;
+                            HardEigen::EigenLeastSquareInverse(A, Ainv);
+                            e.m() = Ainv * b;
+
+                            // std::cout << "REC " << uRec[iCell].m().transpose();
+                            std::cout << " EM " << e.m().transpose() << std::endl;
+                            abort();
+                        });
+                    vfv->uCurve.InitPersistentPullClean();
+                    vfv->uCurve.WaitPersistentPullClean();
+                    // InsertCheck(mpi, "CHECK VFVRENEW B");
+                    vfv->Initialization_RenewBase();
+                    // InsertCheck(mpi, "CHECK VFVRENEW");
+                    cfv = std::make_shared<CRFiniteVolume2D>(*vfv);
+                    // InsertCheck(mpi, "CHECK CFVDONE");
+                    cfv->Initialization();
+                    // std::cout << cfv->baseMoments.size() << "cfv- "<< cfv->faceNormCenter[0].size()
+                    eval.cfv = cfv.get();
+                    forEachInArray(
+                        *uRec.dist,
+                        [&](decltype(uRec.dist)::element_type::tComponent &e, index iCell)
+                        {
+                            e.m().setZero();
+                        });
+                    for (int i = 0; i < config.curvilinearRestartNstep; i++)
+                    {
+                        uRec.StartPersistentPullClean();
+                        uRec.WaitPersistentPullClean();
+                        vfv->ReconstructionJacobiStep(u, uRec, uRecNew);
+                        if (mpi.rank == 0)
+                            log() << "--- Restart Reconstruction " << i << std::endl;
+                    }
+                }
+
                 stepCount++;
             }
 

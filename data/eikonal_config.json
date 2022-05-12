@@ -20,5 +20,7 @@
         "tangWeight": 1e-3,
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1
-    }
+    },
+    "curvilinearOneStep": 1,
+    "curvilinearRestartNstep": 150
 }

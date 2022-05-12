@@ -419,27 +419,29 @@ namespace DNDS
         static const int ndiff = 3;
         static const int ndiffSiz = 20;
         static const int ndiffSiz2D = 10;
-        static const int diffOperatorOrderList[ndiffSiz][3] = {
-            {0, 0, 0}, // 00
-            {1, 0, 0}, // 01 0
-            {0, 1, 0}, // 02 1
-            {0, 0, 1}, // 03 2
-            {2, 0, 0}, // 04 00
-            {1, 1, 0}, // 05 01
-            {1, 0, 1}, // 06 02
-            {0, 2, 0}, // 07 11
-            {0, 1, 1}, // 08 12
-            {0, 0, 2}, // 09 22
-            {3, 0, 0}, // 10 000
-            {2, 1, 0}, // 11 001
-            {2, 0, 1}, // 12 002
-            {1, 2, 0}, // 13 011
-            {1, 1, 1}, // 14 012
-            {1, 0, 2}, // 15 022
-            {0, 3, 0}, // 16 111
-            {0, 2, 1}, // 17 112
-            {0, 1, 2}, // 18 122
-            {0, 0, 3}, // 19 222
+        static const int diffOperatorOrderList[ndiffSiz][3] =
+            {
+                //{diffOrderX_0, diffOrderX_1, diffOrder_X2} // indexPlace, diffSeq //*diff seq is ascending, like ddd/dydxdz -> 012
+                {0, 0, 0}, // 00     0
+                {1, 0, 0}, // 01 0
+                {0, 1, 0}, // 02 1
+                {0, 0, 1}, // 03 2
+                {2, 0, 0}, // 04 00
+                {1, 1, 0}, // 05 01
+                {1, 0, 1}, // 06 02
+                {0, 2, 0}, // 07 11
+                {0, 1, 1}, // 08 12
+                {0, 0, 2}, // 09 22
+                {3, 0, 0}, // 10 000
+                {2, 1, 0}, // 11 001
+                {2, 0, 1}, // 12 002
+                {1, 2, 0}, // 13 011
+                {1, 1, 1}, // 14 012
+                {1, 0, 2}, // 15 022
+                {0, 3, 0}, // 16 111
+                {0, 2, 1}, // 17 112
+                {0, 1, 2}, // 18 122
+                {0, 0, 3}, // 19 222
         };
         static const int diffOperatorOrderList2D[ndiffSiz2D][3] = {
             {0, 0, 0}, // 00 00
@@ -454,7 +456,71 @@ namespace DNDS
             {0, 3, 0}, // 09 16 111
         };
 
-#define DNDS_DIFF3Dto2DMAP ({0, 1, 2, 4, 5, 7, 10, 11, 13, 16})
+        constexpr inline int diffOperatorOrder2Plc(int d0, int d1, int d2)
+        {
+            int b = 1;
+            int number = 0; // calculates number as diffSeq's 3-based integer (each digit added by 1, 012 == 1*3^2 + 2*3^1 + 3*3^0)
+            for (int i = 0; i < d2; i++)
+            {
+                number += 3 * b;
+                b *= 3;
+            }
+            for (int i = 0; i < d1; i++)
+            {
+                number += 2 * b;
+                b *= 3;
+            }
+            for (int i = 0; i < d0; i++)
+            {
+                number += 1 * b;
+                b *= 3;
+            }
+            switch (number)
+            {
+            case 0:
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+                return number;
+            case 8:
+                return 7;
+            case 9:
+                return 8;
+            case 12:
+                return 9;
+            case 13:
+                return 10;
+            case 14:
+                return 11;
+            case 15:
+                return 12;
+            case 17:
+                return 13;
+            case 18:
+                return 14;
+            case 21:
+                return 15;
+            case 26:
+                return 16;
+            case 27:
+                return 17;
+            case 30:
+                return 18;
+            case 39:
+                return 19;
+            default:
+                assert(false);
+                return -1;
+                break;
+            }
+        }
+
+#define DNDS_DIFF2Dto3DMAP {0, 1, 2, 4, 5, 7, 10, 11, 13, 16}
+        static const int diff2Dto3Dmap[ndiffSiz2D] = {0, 1, 2, 4, 5, 7, 10, 11, 13, 16};
+        static const int diff3Dto2Dmap[ndiffSiz] = {0, 1, 2, -0xfffffff, 3, 4, -0xfffffff, 5, -0xfffffff, -0xfffffff, 6, 7, -0xfffffff, 8, -0xfffffff, -0xfffffff, 9, -0xfffffff, -0xfffffff, -0xfffffff};
 
         static const int factorials[ndiff * 3 + 1] = {
             1,

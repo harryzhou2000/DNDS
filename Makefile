@@ -41,7 +41,7 @@ HEADERS=$(wildcard *.hpp *.h)
 
 
 
-FLAGS=-g
+# FLAGS=-g
 # FLAGS=-Os
 # FLAGS=-O2
 # FLAGS=-g -O2
@@ -52,7 +52,7 @@ FLAGS=-O3
 # FLAGS_FAST=-g
 # FLAGS_FAST=-Os
 # FLAGS_FAST=-g -O3
-FLAGS_FAST=-O3 -DNDEBUG
+FLAGS_FAST=-O3
 
 
 -include $(PREBUILD_FAST_DEP)
