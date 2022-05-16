@@ -114,7 +114,7 @@ namespace DNDS
     {
     public:
         MPIInfo mpi;
-        const static int P_ORDER = 3;
+        const int P_ORDER = 3;
         typedef Array<SmallMatricesBatch> tMatArray;
         CompactFacedMeshSerialRW *mesh; // a mere reference to mesh, user responsible for keeping it valid
         ImplicitFiniteVolume2D *FV;
@@ -180,7 +180,8 @@ namespace DNDS
         */
         // **********************************************************************************************************************
 
-        VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV) : mpi(nMesh->mpi), mesh(nMesh), FV(nFV)
+        VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV, int nPOrder = 3)
+            : mpi(nMesh->mpi),P_ORDER(nPOrder),  mesh(nMesh), FV(nFV)
         {
             assert(FV->mpi == mpi);
         }
@@ -1070,7 +1071,7 @@ namespace DNDS
                     switch (eCell.getPspace())
                     {
                     case Elem::ParamSpace::TriSpace:
-                        recAtr.intScheme = Elem::INT_SCHEME_TRI_7;
+                        recAtr.intScheme = Elem::INT_SCHEME_TRI_4;
                         recAtr.NDOF = PolynomialNDOF(P_ORDER);
                         recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                         break;
@@ -1718,6 +1719,9 @@ namespace DNDS
                                 FFaceFunctional(iFace, ig, diffsI, diffsI, (*faceWeights)[iFace], incAFull);
                                 // std::cout << diffsI << std::endl;
                                 assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
+                                // std::cout << "\nincAFULL" << incAFull << std::endl;
+                                // std::cout << "\ndiffsI" << diffsI << std::endl;
+
                                 incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                 incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
                             });
@@ -1727,6 +1731,13 @@ namespace DNDS
                     // HardEigen::EigenLeastSquareInverse(A, Ainv);
                     HardEigen::EigenLeastSquareInverse_Filtered(A, Ainv);
                     matrixBatchElem.m(0) = Ainv;
+                    // if (iCell == 71)
+                    // {
+                    //     std::cout << "A " << A << std::endl;
+                    //     std::cout << mesh->faceAtrLocal[c2f[0]][0].iPhy << "  " << mesh->faceAtrLocal[c2f[1]][0].iPhy << " " << mesh->faceAtrLocal[c2f[2]][0].iPhy << " " << std::endl;
+                    //     std::cout << cellCenters[iCell] << std::endl;
+                    //     abort();
+                    // }
 
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell
                     {

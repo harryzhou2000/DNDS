@@ -11,11 +11,11 @@ namespace DNDS
     class EikonalEvaluator
     {
     public:
-        int kAv = 4; //! change when order is changed!!
         CompactFacedMeshSerialRW *mesh = nullptr;
         ImplicitFiniteVolume2D *fv = nullptr;
         VRFiniteVolume2D *vfv = nullptr;
         CRFiniteVolume2D *cfv = nullptr;
+        int kAv = 0;
 
         std::vector<real> lambdaCell;
         // std::vector<real> lambdaFace;
@@ -26,7 +26,7 @@ namespace DNDS
         } settings;
 
         EikonalEvaluator(CompactFacedMeshSerialRW *Nmesh, ImplicitFiniteVolume2D *Nfv, VRFiniteVolume2D *Nvfv, CRFiniteVolume2D *Ncfv)
-            : kAv(vfv->P_ORDER + 1), mesh(Nmesh), fv(Nfv), vfv(Nvfv), cfv(Ncfv)
+            : mesh(Nmesh), fv(Nfv), vfv(Nvfv), cfv(Ncfv), kAv(Nvfv->P_ORDER + 1)
         {
             lambdaCell.resize(mesh->cell2nodeLocal.size()); // but only dist part are used, ghost part to not judge for it in facial iter
             // lambdaFace.resize(mesh->face2nodeLocal.size());
@@ -59,11 +59,13 @@ namespace DNDS
             {
                 // std::cout << fv->volumeLocal[iCell] << " " << (lambdaCell[iCell]) << " " << CFL << std::endl;
                 // exit(0);
-                dt[iCell] = std::min(CFL * fv->volumeLocal[iCell] / (lambdaCell[iCell] + 1e-10), MaxDt);
+                dt[iCell] = std::min(CFL * fv->volumeLocal[iCell] / (lambdaCell[iCell] + 0.0000000001), MaxDt);
                 dtMin = std::min(dtMin, dt[iCell]);
             }
             real dtMinall;
             MPI_Allreduce(&dtMin, &dtMinall, 1, DNDS_MPI_REAL, MPI_MIN, uRec.dist->getMPI().comm);
+            // if (uRec.dist->getMPI().rank == 0)
+            //     std::cout << "dt min is " << dtMinall << std::endl;
             if (!UseLocaldt)
             {
                 for (auto &i : dt)
@@ -336,6 +338,7 @@ namespace DNDS
 
         struct Configuration
         {
+            int recOrder = 2;
             int nTimeStep = 1000;
             int nConsoleCheck = 10;
             int nDataOut = 50;
@@ -361,6 +364,11 @@ namespace DNDS
         {
             rapidjson::Document doc;
             JSON::ReadFile(jsonName, doc);
+
+            assert(doc["recOrder"].IsInt());
+            config.recOrder = doc["recOrder"].GetInt();
+            if (mpi.rank == 0)
+                log() << "JSON: recOrder = " << config.recOrder << std::endl;
 
             assert(doc["nTimeStep"].IsInt());
             config.nTimeStep = doc["nTimeStep"].GetInt();
@@ -498,7 +506,7 @@ namespace DNDS
             // Debug::MPIDebugHold(mpi);
             CompactFacedMeshSerialRWBuild(mpi, config.mName, "data/out/debugmeshSO.plt", mesh);
             fv = std::make_shared<ImplicitFiniteVolume2D>(mesh.get());
-            vfv = std::make_shared<VRFiniteVolume2D>(mesh.get(), fv.get());
+            vfv = std::make_shared<VRFiniteVolume2D>(mesh.get(), fv.get(), config.recOrder);
             vfv->setting = config.vfvSetting; //* currently only copies, could upgrade to referencing
             vfv->Initialization();
 
