@@ -1,10 +1,11 @@
 {
     "recOrder": 3,
-    "nInternalRecStep" : 1, 
-    "nTimeStep": 5000,
+    "nInternalRecStep": 1,
+    "nTimeStep": 20000,
     "nConsoleCheck": 10,
-    "nDataOut": 100,
+    "nDataOut": 500,
     "CFL": 0.5,
+    "useLocalDt": false,
     "meshFile": "data/mesh/CylinderBM_U2.msh",
     "comment_meshFileList": [
         "data/mesh/NACA0012_WIDE_H3.msh",

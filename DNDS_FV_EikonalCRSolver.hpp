@@ -360,6 +360,8 @@ namespace DNDS
 
             int curvilinearRestartNstep = 100;
             real curvilinearRange = 0.1;
+
+            bool useLocalDt = true;
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -425,6 +427,11 @@ namespace DNDS
             config.res_base = doc["res_base"].GetDouble();
             if (mpi.rank == 0)
                 log() << "JSON: res_base = " << config.res_base << std::endl;
+
+            assert(doc["useLocalDt"].IsBool());
+            config.useLocalDt = doc["useLocalDt"].GetBool();
+            if (mpi.rank == 0)
+                log() << "JSON: useLocalDt = " << config.useLocalDt << std::endl;
 
             if (doc["vfvSetting"].IsObject())
             {
@@ -635,7 +642,7 @@ namespace DNDS
                         uRec.WaitPersistentPullClean();
                         tcomm += MPI_Wtime() - tstartG;
 
-                        eval.EvaluateDt(dt, uRec, config.CFL, 1e100, true);
+                        eval.EvaluateDt(dt, uRec, config.CFL, 1e100, config.useLocalDt);
                     });
                 real res;
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
