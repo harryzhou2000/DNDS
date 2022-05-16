@@ -166,7 +166,12 @@ namespace DNDS
             // mscale calculating
             real scaleMLargerPortion = 1.;
 
+            bool SOR_Instead = false;
+            real JacobiRelax = 1.0;
+
             int curvilinearOrder = 1;
+
+            
         } setting;
         // **********************************************************************************************************************
         /*
@@ -181,7 +186,7 @@ namespace DNDS
         // **********************************************************************************************************************
 
         VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV, int nPOrder = 3)
-            : mpi(nMesh->mpi),P_ORDER(nPOrder),  mesh(nMesh), FV(nFV)
+            : mpi(nMesh->mpi), P_ORDER(nPOrder), mesh(nMesh), FV(nFV)
         {
             assert(FV->mpi == mpi);
         }
@@ -1084,7 +1089,7 @@ namespace DNDS
                         assert(false);
                         break;
                     }
-                    recAtr.relax = 1.0;
+                    recAtr.relax = setting.JacobiRelax;
                 });
             cellRecAtrLocal.PullOnce();
             faceRecAtrLocal.dist = std::make_shared<decltype(faceRecAtrLocal.dist)::element_type>(
@@ -1911,7 +1916,11 @@ namespace DNDS
                 auto &uRecE = uRec[iCell];
                 real relax = cellRecAtrLocal[iCell][0].relax;
                 auto &c2f = mesh->cell2faceLocal[iCell];
-                uRecNewBuf[iCell].m() = (1 - relax) * uRec[iCell].m();
+                if (!setting.SOR_Instead)
+                    uRecNewBuf[iCell].m() = (1 - relax) * uRec[iCell].m();
+                else
+                    uRec[iCell].m() = (1 - relax) * uRec[iCell].m();
+
                 auto matrixBatchElem = (*matrixBatch)[iCell];
                 auto vectorBatchElem = (*vectorBatch)[iCell];
 
@@ -1932,9 +1941,14 @@ namespace DNDS
 
                     if (iCellOther != FACE_2_VOL_EMPTY)
                     {
-                        uRecNewBuf[iCell].m() +=
-                            relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCellOther].m()) +
-                                     ((u[iCellOther].p() - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                        if (!setting.SOR_Instead)
+                            uRecNewBuf[iCell].m() +=
+                                relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCellOther].m()) +
+                                         ((u[iCellOther].p() - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                        else
+                            uRec[iCell].m() +=
+                                relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCellOther].m()) +
+                                         ((u[iCellOther].p() - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
                     }
                     else
                     {
@@ -1942,8 +1956,12 @@ namespace DNDS
                         {
                             Eigen::Vector<real, vsize> uBV;
                             uBV.setZero();
-                            uRecNewBuf[iCell].m() +=
-                                relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                            if (!setting.SOR_Instead)
+                                uRecNewBuf[iCell].m() +=
+                                    relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                            else
+                                uRec[iCell].m() +=
+                                    relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
 
                             // eFace.Integration(
                             //     BCCorrection,
@@ -1959,8 +1977,12 @@ namespace DNDS
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Farfield)
                         {
-                            uRecNewBuf[iCell].m() +=
-                                relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCell].m()));
+                            if (!setting.SOR_Instead)
+                                uRecNewBuf[iCell].m() +=
+                                    relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCell].m()));
+                            else
+                                uRec[iCell].m() +=
+                                    relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCell].m()));
                         }
                         else
                         {
@@ -1985,15 +2007,18 @@ namespace DNDS
             //     *uRec.dist,
             //     [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
 
-            for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
+            if (!setting.SOR_Instead)
             {
-                auto &uRecE = uRec[iCell];
-                nall += (uRecE.m() - uRecNewBuf[iCell].m()).squaredNorm();
-                vall += 1;
-                // std::cout << "INC:\n";
-                // std::cout << uRecE.m() << std::endl;
-                uRecE.m() = uRecNewBuf[iCell].m();
-                // std::cout << uRecE.m() << std::endl;
+                for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
+                {
+                    auto &uRecE = uRec[iCell];
+                    nall += (uRecE.m() - uRecNewBuf[iCell].m()).squaredNorm();
+                    vall += 1;
+                    // std::cout << "INC:\n";
+                    // std::cout << uRecE.m() << std::endl;
+                    uRecE.m() = uRecNewBuf[iCell].m();
+                    // std::cout << uRecE.m() << std::endl;
+                }
             }
             // );
 #ifdef PRINT_EVERY_VR_JACOBI_ITER_INCREMENT

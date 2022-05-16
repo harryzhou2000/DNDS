@@ -1,10 +1,11 @@
 {
-    "recOrder": 2,
-    "nTimeStep": 500,
+    "recOrder": 3,
+    "nInternalRecStep" : 1, 
+    "nTimeStep": 5000,
     "nConsoleCheck": 10,
-    "nDataOut": 1,
+    "nDataOut": 100,
     "CFL": 0.5,
-    "meshFile": "data/mesh/CylinderBM_U3.msh",
+    "meshFile": "data/mesh/CylinderBM_U2.msh",
     "comment_meshFileList": [
         "data/mesh/NACA0012_WIDE_H3.msh",
         "data/mesh/NACA0012_WIDE_H3_O2.msh",
@@ -14,6 +15,7 @@
         "data/mesh/NACA0012_WIDE_500k.msh",
         "data/mesh/Uniform/UniformD100.msh",
         "data/mesh/Uniform/CylinderBM_U3.msh",
+        "data/mesh/Uniform/CylinderBM_U2.msh",
         "data/mesh/Uniform/UniformU.msh",
         "data/mesh/Uniform/UniformUL.msh",
         "data/mesh/SimpleHoleU.msh"
@@ -22,6 +24,8 @@
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
+        "SOR_Instead": true,
+        "JacobiRelax": 1,
         "tangWeight": 5e-3,
         "wallWeight": 1,
         "farWeight": 1,
@@ -30,7 +34,7 @@
         "curvilinearOrder": 3
     },
     "eikonalSetting": {
-        "visScale": 0
+        "visScale": 2
     },
     "curvilinearOneStep": 500000,
     "curvilinearRestartNstep": 100,

@@ -7,9 +7,6 @@ namespace DNDS
 {
     namespace Gas
     {
-
-        
-
         template <uint32_t dim>
         void RoeFluxT(Eigen::VectorXd &UL, Eigen::VectorXd &UR, real gamma, real tEF, Eigen::VectorXd &F, real &vmax, int &aim, real distance)
         {

@@ -138,9 +138,9 @@ namespace DNDS
                             visEta = 0.;
                         real visGam = 0.5;
                         visEta *= settings.visScale;
-                        visEta = settings.visScale * 2. / 5. / (kAv * kAv);
+                        // visEta = settings.visScale * 2. / 5. / (kAv * kAv);
 
-                        finc = visEta * visGam * (dist * unitNorm.dot(gradC) + (uRecValR(0) - uRecValL(0)) * 0.0);
+                        finc = visEta * visGam * (dist * unitNorm.dot(gradC) + (uRecValR(0) - uRecValL(0)) * .5);
                         finc *= vfv->faceNorms[iFace][ig].norm(); // don't forget this
                     });
                 rhs[f2c[0]](0) += flux / fv->volumeLocal[f2c[0]];
@@ -339,9 +339,11 @@ namespace DNDS
         struct Configuration
         {
             int recOrder = 2;
+            int nInternalRecStep = 1;
             int nTimeStep = 1000;
             int nConsoleCheck = 10;
             int nDataOut = 50;
+
             real CFL = 0.5;
             std::string mName = "data/mesh/NACA0012_WIDE_H3.msh";
             std::string outPltName = "data/out/debugData_";
@@ -365,10 +367,24 @@ namespace DNDS
             rapidjson::Document doc;
             JSON::ReadFile(jsonName, doc);
 
+            assert(doc["nInternalRecStep"].IsInt());
+            config.recOrder = doc["nInternalRecStep"].GetInt();
+            if (mpi.rank == 0)
+            {
+                log() << "JSON: nInternalRecStep = " << config.nInternalRecStep << std::endl;
+            }
+
             assert(doc["recOrder"].IsInt());
             config.recOrder = doc["recOrder"].GetInt();
             if (mpi.rank == 0)
+            {
                 log() << "JSON: recOrder = " << config.recOrder << std::endl;
+                if (config.recOrder < 2 || config.recOrder > 3)
+                {
+                    log() << "Eikonal Error: recOrder bad! " << std::endl;
+                    abort();
+                }
+            }
 
             assert(doc["nTimeStep"].IsInt());
             config.nTimeStep = doc["nTimeStep"].GetInt();
@@ -412,6 +428,20 @@ namespace DNDS
 
             if (doc["vfvSetting"].IsObject())
             {
+                if (doc["vfvSetting"]["SOR_Instead"].IsBool())
+                {
+                    config.vfvSetting.SOR_Instead = doc["vfvSetting"]["SOR_Instead"].GetBool();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.SOR_Instead = " << config.vfvSetting.SOR_Instead << std::endl;
+                }
+
+                if (doc["vfvSetting"]["JacobiRelax"].IsNumber())
+                {
+                    config.vfvSetting.JacobiRelax = doc["vfvSetting"]["JacobiRelax"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.JacobiRelax = " << config.vfvSetting.JacobiRelax << std::endl;
+                }
+
                 if (doc["vfvSetting"]["tangWeight"].IsNumber())
                 {
                     config.vfvSetting.tangWeight = doc["vfvSetting"]["tangWeight"].GetDouble();
@@ -566,17 +596,20 @@ namespace DNDS
                         u.WaitPersistentPullClean();
                         tcomm += MPI_Wtime() - tstartB;
 
-                        double tstartA = MPI_Wtime();
-                        vfv->ReconstructionJacobiStep(cx, uRec, uRecNew);
-                        trec += MPI_Wtime() - tstartA;
+                        for (int iRec = 0; iRec < config.nInternalRecStep; iRec++)
+                        {
+                            double tstartA = MPI_Wtime();
+                            vfv->ReconstructionJacobiStep(cx, uRec, uRecNew);
+                            trec += MPI_Wtime() - tstartA;
 
-                        double tstartF = MPI_Wtime();
-                        uRec.StartPersistentPullClean();
-                        tcomm += MPI_Wtime() - tstartF;
+                            double tstartF = MPI_Wtime();
+                            uRec.StartPersistentPullClean();
+                            tcomm += MPI_Wtime() - tstartF;
 
-                        double tstartG = MPI_Wtime();
-                        uRec.WaitPersistentPullClean();
-                        tcomm += MPI_Wtime() - tstartG;
+                            double tstartG = MPI_Wtime();
+                            uRec.WaitPersistentPullClean();
+                            tcomm += MPI_Wtime() - tstartG;
+                        }
 
                         double tstartD = MPI_Wtime();
                         cfv->Reconstruction(cx, uRec, uRecCR);
