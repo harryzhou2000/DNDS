@@ -27,7 +27,7 @@ namespace DNDS
         {
             if (!Elem::ElementManager::NBufferInit)
                 Elem::ElementManager::InitNBuffer(); //! do not asuume it't been initialized
-            Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_4;
+            Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
             Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_9;
             Elem::tIntScheme schemeLine = Elem::INT_SCHEME_LINE_5;
             volumeLocal.resize(mesh->cell2nodeLocal.size());
@@ -221,6 +221,7 @@ namespace DNDS
                 assert(false);
                 break;
             }
+            // std::cout << cellBaries[iCell] << " " << cellCenters[iCell] << std::endl;
             return cent;
         }
 
@@ -242,7 +243,7 @@ namespace DNDS
                             const Elem::tDiFj &DiNj, //@ pParam
                             const Elem::tPoint &pParam,
                             const Elem::tPoint &cPhysics,
-                            const Elem::tPoint &simpleScale,
+                            Elem::tPoint &simpleScale,
                             const Eigen::VectorXd &baseMoment,
                             TWrite &&DiBj,
                             FDiffBaseValueOptions options = FDiffBaseValueOptions()) // for 2d polynomials here
@@ -314,9 +315,11 @@ namespace DNDS
             scaleL1 = nSizes(1);
             // std::cout << scaleM << "\t" << scaleL0 << "\t" << scaleL1 << "\t" << std::endl;
             // abort();
+            real scaleUni = std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
 
-            pJacobi.col(0) = pJacobi.col(0) * std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
-            pJacobi.col(1) = pJacobi.col(1) * std::pow(scaleL1, 0) * std::pow(scaleL0, 1);
+            pJacobi.col(0) = pJacobi.col(0) * scaleUni;
+            pJacobi.col(1) = pJacobi.col(1) * scaleUni;
+            simpleScale(0) = simpleScale(1) = scaleUni;
             invPJacobi = pJacobi.inverse();
 
             Eigen::Vector2d pParamL = invPJacobi * pPhysicsC.topRows(2);
@@ -1067,7 +1070,7 @@ namespace DNDS
                     switch (eCell.getPspace())
                     {
                     case Elem::ParamSpace::TriSpace:
-                        recAtr.intScheme = Elem::INT_SCHEME_TRI_4;
+                        recAtr.intScheme = Elem::INT_SCHEME_TRI_7;
                         recAtr.NDOF = PolynomialNDOF(P_ORDER);
                         recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                         break;
@@ -1489,6 +1492,7 @@ namespace DNDS
                                    pCell, getCellCenter(iCell), sScaleL,
                                    baseMoments[iCell], faceDiBjCenterBatchElem.m(0));
 
+                    // Elem::tPoint pCellLPhy = cellCoordsL * cellDiNj({0}, Eigen::all).transpose();
                     if (f2c[1] != FACE_2_VOL_EMPTY)
                     {
                         // right side
@@ -1504,6 +1508,8 @@ namespace DNDS
                         FDiffBaseValue(iCell, eCell, cellCoordsR, cellDiNj,
                                        pCell, getCellCenter(iCell), sScaleR,
                                        baseMoments[iCell], faceDiBjCenterBatchElem.m(1));
+                        // Elem::tPoint pCellRPhy = cellCoordsR * cellDiNj({0}, Eigen::all).transpose();
+                        // std::cout << " " << pCellLPhy.transpose() << " " << pCellRPhy.transpose() << std::endl;
                     }
 
                     /*******************************************/
@@ -1718,7 +1724,8 @@ namespace DNDS
                     }
 
                     Eigen::MatrixXd Ainv;
-                    HardEigen::EigenLeastSquareInverse(A, Ainv);
+                    // HardEigen::EigenLeastSquareInverse(A, Ainv);
+                    HardEigen::EigenLeastSquareInverse_Filtered(A, Ainv);
                     matrixBatchElem.m(0) = Ainv;
 
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++) // for each face of cell

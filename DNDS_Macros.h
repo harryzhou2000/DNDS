@@ -1,0 +1,2 @@
+#define EIGEN_USE_BLAS
+#define EIGEN_USE_LAPACKE_STRICT

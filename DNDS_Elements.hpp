@@ -518,7 +518,10 @@ namespace DNDS
             }
         }
 
-#define DNDS_DIFF2Dto3DMAP {0, 1, 2, 4, 5, 7, 10, 11, 13, 16}
+#define DNDS_DIFF2Dto3DMAP               \
+    {                                    \
+        0, 1, 2, 4, 5, 7, 10, 11, 13, 16 \
+    }
         static const int diff2Dto3Dmap[ndiffSiz2D] = {0, 1, 2, 4, 5, 7, 10, 11, 13, 16};
         static const int diff3Dto2Dmap[ndiffSiz] = {0, 1, 2, -0xfffffff, 3, 4, -0xfffffff, 5, -0xfffffff, -0xfffffff, 6, 7, -0xfffffff, 8, -0xfffffff, -0xfffffff, 9, -0xfffffff, -0xfffffff, -0xfffffff};
 
@@ -740,13 +743,13 @@ namespace DNDS
                         switch (iface)
                         {
                         case 0:
-                            pvol[0] = pface[0], pvol[1] = pvol[2] = 0.;
+                            pvol[0] = 0.5 * (pface[0] + 1), pvol[1] = pvol[2] = 0.;
                             break;
                         case 1:
-                            pvol[0] = 1 - pface[0], pvol[1] = pface[0], pvol[2] = 0.;
+                            pvol[0] = 0.5 * (-pface[0] + 1), pvol[1] = 0.5 * (pface[0] + 1), pvol[2] = 0.;
                             break;
                         case 2:
-                            pvol[0] = 0, pvol[1] = 1 - pface[0], pvol[2] = 0.;
+                            pvol[0] = 0, pvol[1] = 0.5 * (-pface[0] + 1), pvol[2] = 0.;
                             break;
                         default:
                             assert(false);
@@ -756,13 +759,13 @@ namespace DNDS
                         switch (iface)
                         {
                         case 0:
-                            pvol[0] = 1 - pface[0], pvol[1] = pvol[2] = 0.;
+                            pvol[0] = 0.5 * (-pface[0] + 1), pvol[1] = pvol[2] = 0.;
                             break;
                         case 1:
-                            pvol[0] = pface[0], pvol[1] = 1 - pface[0], pvol[2] = 0.;
+                            pvol[0] = 0.5 * (pface[0] + 1), pvol[1] = 0.5 * (-pface[0] + 1), pvol[2] = 0.;
                             break;
                         case 2:
-                            pvol[0] = 0, pvol[1] = pface[0], pvol[2] = 0.;
+                            pvol[0] = 0, pvol[1] = 0.5 * (pface[0] + 1), pvol[2] = 0.;
                             break;
                         default:
                             assert(false);
@@ -833,13 +836,13 @@ namespace DNDS
                         switch (iface)
                         {
                         case 0:
-                            pvol[0] = pface[0], pvol[1] = pvol[2] = 0.;
+                            pvol[0] = 0.5 * (pface[0] + 1), pvol[1] = pvol[2] = 0.;
                             break;
                         case 1:
-                            pvol[0] = 1 - pface[0], pvol[1] = pface[0], pvol[2] = 0.;
+                            pvol[0] = 0.5 * (-pface[0] + 1), pvol[1] = 0.5 * (pface[0] + 1), pvol[2] = 0.;
                             break;
                         case 2:
-                            pvol[0] = 0, pvol[1] = 1 - pface[0], pvol[2] = 0.;
+                            pvol[0] = 0, pvol[1] = 0.5 * (-pface[0] + 1), pvol[2] = 0.;
                             break;
                         default:
                             assert(false);
@@ -849,13 +852,13 @@ namespace DNDS
                         switch (iface)
                         {
                         case 0:
-                            pvol[0] = 1 - pface[0], pvol[1] = pvol[2] = 0.;
+                            pvol[0] = 0.5 * (-pface[0] + 1), pvol[1] = pvol[2] = 0.;
                             break;
                         case 1:
-                            pvol[0] = pface[0], pvol[1] = 1 - pface[0], pvol[2] = 0.;
+                            pvol[0] = 0.5 * (pface[0] + 1), pvol[1] = 0.5 * (-pface[0] + 1), pvol[2] = 0.;
                             break;
                         case 2:
-                            pvol[0] = 0, pvol[1] = pface[0], pvol[2] = 0.;
+                            pvol[0] = 0, pvol[1] = 0.5 * (pface[0] + 1), pvol[2] = 0.;
                             break;
                         default:
                             assert(false);

@@ -1,4 +1,6 @@
 #pragma once
+
+#include "DNDS_Defines.h"
 #include "Eigen/Dense"
 #include <assert.h>
 #include <iostream>

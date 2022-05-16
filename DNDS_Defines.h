@@ -1,5 +1,6 @@
 #pragma once
-
+#include "DNDS_Macros.h"
+#include "Experimentals.h"
 // #define NDEBUG
 #include <assert.h>
 #include <stdint.h>
@@ -9,7 +10,7 @@
 #include <iostream>
 #include <cmath>
 #include <iomanip>
-#include "Experimentals.h"
+
 
 namespace DNDS
 {

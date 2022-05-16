@@ -1,4 +1,5 @@
 #pragma once
+#include "DNDS_Macros.h"
 #include "Eigen/Dense"
 
 namespace DNDS

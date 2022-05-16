@@ -2,8 +2,8 @@
     "nTimeStep": 20000,
     "nConsoleCheck": 10,
     "nDataOut": 500,
-    "CFL": 0.5,
-    "meshFile": "data/mesh/NACA0012_WIDE_H3_O2_F.msh",
+    "CFL": 0.25,
+    "meshFile": "data/mesh/CylinderBM_U3.msh",
     "comment_meshFileList": [
         "data/mesh/NACA0012_WIDE_H3.msh",
         "data/mesh/NACA0012_WIDE_H3_O2.msh",
@@ -11,20 +11,28 @@
         "data/mesh/NACA0012_WIDE_H30.msh",
         "data/mesh/NACA0012_WIDE_H300.msh",
         "data/mesh/NACA0012_WIDE_500k.msh",
-        "data/mesh/Uniform/UniformD100.msh"
+        "data/mesh/Uniform/UniformD100.msh",
+        "data/mesh/Uniform/CylinderBM_U3.msh",
+        "data/mesh/Uniform/UniformU.msh",
+        "data/mesh/Uniform/UniformUL.msh"
     ],
     "outPltName": "data/out/debugData_",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
         "tangWeight": 5e-3,
-        "wallWeight": 1.0,
-        "farWeight": 0.0,
+        "wallWeight": 4,
+        "farWeight": 1,
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
-        "curvilinearOrder": 2
+        "curvilinearOrder": 3
     },
-    "curvilinearOneStep": 1000,
+    "eikonalSetting": {
+        "visScale": 1
+    },
+    "curvilinearOneStep": 500000,
     "curvilinearRestartNstep": 100,
+    "curvilinearRepeatInterval": 100,
+    "curvilinearRepeatNum": 10,
     "curvilinearRange": 0.4
 }

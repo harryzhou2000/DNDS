@@ -116,25 +116,26 @@ int main(int argn, char *argv[])
                 [&](Eigen::VectorXd &inc, int ng, Elem::tPoint &p, Elem::tDiFj &DiNj)
                 {
                     Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
-                    int ndof = vfv.cellDiBjGaussCache[iCell][ng].cols();
-                    int ndofCR = cfv.cellDiBjGaussCache[iCell][ng].cols();
-                    Eigen::MatrixXd rec = vfv.cellDiBjGaussCache[iCell][ng].rightCols(ndof - 1) * uRec[iCell].m();
-                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussCache[iCell][ng].rightCols(ndofCR - 1) * uRecCR[iCell].m();
+                    int ndof = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
+                    int ndofCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
+                    Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
+                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell].m();
                     rec(0) += u[iCell].p()(0);
                     recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().abs().matrix();
                     inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
+                    normInf = normInf.array().cwiseMax((vReal - rec.topRows(6)).array().abs());
                 });
             eCell.Integration(
                 norm2,
                 [&](Eigen::VectorXd &inc, int ng, Elem::tPoint &p, Elem::tDiFj &DiNj)
                 {
                     Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
-                    int ndof = vfv.cellDiBjGaussCache[iCell][ng].cols();
-                    int ndofCR = cfv.cellDiBjGaussCache[iCell][ng].cols();
-                    Eigen::MatrixXd rec = vfv.cellDiBjGaussCache[iCell][ng].rightCols(ndof - 1) * uRec[iCell].m();
-                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussCache[iCell][ng].rightCols(ndofCR - 1) * uRecCR[iCell].m();
+                    int ndof = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
+                    int ndofCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
+                    Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
+                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell].m();
                     rec(0) += u[iCell].p()(0);
                     recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);

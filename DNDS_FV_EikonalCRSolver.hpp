@@ -20,6 +20,11 @@ namespace DNDS
         std::vector<real> lambdaCell;
         // std::vector<real> lambdaFace;
 
+        struct Setting
+        {
+            real visScale = 1;
+        } settings;
+
         EikonalEvaluator(CompactFacedMeshSerialRW *Nmesh, ImplicitFiniteVolume2D *Nfv, VRFiniteVolume2D *Nvfv, CRFiniteVolume2D *Ncfv)
             : kAv(vfv->P_ORDER + 1), mesh(Nmesh), fv(Nfv), vfv(Nvfv), cfv(Ncfv)
         {
@@ -111,7 +116,7 @@ namespace DNDS
                 if (f2c[1] != FACE_2_VOL_EMPTY)
                     dist = (vfv->cellCenters[f2c[0]] - vfv->cellCenters[f2c[1]]).norm();
                 else
-                    dist = (vfv->faceCenters[iFace] - vfv->cellCenters[f2c[0]]).norm() * 0;
+                    dist = (vfv->faceCenters[iFace] - vfv->cellCenters[f2c[0]]).norm() * 1;
                 eFace.Integration(
                     flux,
                     [&](real &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
@@ -130,9 +135,10 @@ namespace DNDS
                         if (visEta < 1. / 5. / (kAv * kAv))
                             visEta = 0.;
                         real visGam = 0.5;
-                        visEta *= 0.2;
+                        visEta *= settings.visScale;
+                        visEta = settings.visScale * 2. / 5. / (kAv * kAv);
 
-                        finc = visEta * visGam * (dist * unitNorm.dot(gradC) + (uRecValR(0) - uRecValL(0)) * 0.5);
+                        finc = visEta * visGam * (dist * unitNorm.dot(gradC) + (uRecValR(0) - uRecValL(0)) * 0.0);
                         finc *= vfv->faceNorms[iFace][ig].norm(); // don't forget this
                     });
                 rhs[f2c[0]](0) += flux / fv->volumeLocal[f2c[0]];
@@ -282,11 +288,12 @@ namespace DNDS
             // std::cout << minResult << " M \n";
         }
 
-        void EvaluateError(real &err, ArrayDOF<1u> &u, ArrayLocal<SemiVarMatrix<1u>> &uRec)
+        void EvaluateError(real &err, real &errMax, ArrayDOF<1u> &u, ArrayLocal<SemiVarMatrix<1u>> &uRec)
         {
             auto mpi = uRec.dist->getMPI();
             real volD = 0.0;
             real errD = 0.0;
+            real errDM = 0.0;
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
                 if (sResult[iCell] < MaxD)
@@ -295,11 +302,13 @@ namespace DNDS
                     real diff = (recval(0) + u[iCell](0)) - sResult[iCell];
                     errD += std::fabs(diff) / sResult[iCell];
                     volD += 1.;
+                    errDM = std::max(errDM, std::fabs(diff) / sResult[iCell]);
                 }
             }
             real vol;
             MPI_Allreduce(&volD, &vol, 1, DNDS_MPI_REAL, MPI_SUM, mpi.comm);
             MPI_Allreduce(&errD, &err, 1, DNDS_MPI_REAL, MPI_SUM, mpi.comm);
+            MPI_Allreduce(&errDM, &errMax, 1, DNDS_MPI_REAL, MPI_MAX, mpi.comm);
             err /= vol;
         }
     };
@@ -338,7 +347,12 @@ namespace DNDS
             real res_base = 0;
 
             VRFiniteVolume2D::Setting vfvSetting;
+            EikonalEvaluator::Setting eikonalSetting;
+
             int curvilinearOneStep = 500;
+            int curvilinearRepeatInterval = 500;
+            int curvilinearRepeatNum = 10;
+
             int curvilinearRestartNstep = 100;
             real curvilinearRange = 0.1;
         } config;
@@ -437,6 +451,16 @@ namespace DNDS
                 }
             }
 
+            if (doc["eikonalSetting"].IsObject())
+            {
+                if (doc["eikonalSetting"]["visScale"].IsNumber())
+                {
+                    config.eikonalSetting.visScale = doc["eikonalSetting"]["visScale"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: eikonalSetting.visScale = " << config.eikonalSetting.visScale << std::endl;
+                }
+            }
+
             if (doc["curvilinearOneStep"].IsInt())
             {
                 config.curvilinearOneStep = doc["curvilinearOneStep"].GetInt();
@@ -449,13 +473,24 @@ namespace DNDS
                 if (mpi.rank == 0)
                     log() << "JSON: curvilinearRestartNstep = " << config.curvilinearRestartNstep << std::endl;
             }
+            if (doc["curvilinearRepeatInterval"].IsInt())
+            {
+                config.curvilinearRepeatInterval = doc["curvilinearRepeatInterval"].GetInt();
+                if (mpi.rank == 0)
+                    log() << "JSON: curvilinearRepeatInterval = " << config.curvilinearRepeatInterval << std::endl;
+            }
+            if (doc["curvilinearRepeatNum"].IsInt())
+            {
+                config.curvilinearRepeatNum = doc["curvilinearRepeatNum"].GetInt();
+                if (mpi.rank == 0)
+                    log() << "JSON: curvilinearRepeatNum = " << config.curvilinearRepeatNum << std::endl;
+            }
             if (doc["curvilinearRange"].IsNumber())
             {
                 config.curvilinearRange = doc["curvilinearRange"].GetDouble();
                 if (mpi.rank == 0)
                     log() << "JSON: curvilinearRange = " << config.curvilinearRange << std::endl;
             }
-            
         }
 
         void ReadMeshAndInitialize()
@@ -498,6 +533,7 @@ namespace DNDS
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                 });
             EikonalEvaluator eval(mesh.get(), fv.get(), vfv.get(), cfv.get());
+            eval.settings = config.eikonalSetting;
             uRec.InitPersistentPullClean();
             u.InitPersistentPullClean();
             // u.StartPersistentPullClean();
@@ -505,8 +541,12 @@ namespace DNDS
             double trec{0}, treccr{0}, tcomm{0}, trhs{0};
             int stepCount = 0;
             real resBaseC = config.res_base;
+
+            int curvilinearNum = 0;
+            int curvilinearStepper = 0;
             for (int step = 1; step <= config.nTimeStep; step++)
             {
+                curvilinearStepper++;
                 ode.Step(
                     u,
                     [&](ArrayDOF<1u> &crhs, ArrayDOF<1u> &cx)
@@ -561,11 +601,11 @@ namespace DNDS
                 if (stepCount == 0 && resBaseC == 0)
                     resBaseC = res;
 
-                real error;
-                err->EvaluateError(error, u, uRec);
+                real error, errorMax;
 
                 if (step % config.nConsoleCheck == 0)
                 {
+                    err->EvaluateError(error, errorMax, u, uRec);
                     double telapsed = MPI_Wtime() - tstart;
                     if (mpi.rank == 0)
                     {
@@ -574,6 +614,7 @@ namespace DNDS
                               << "=== Step [" << step << "]   "
                               << "res \033[91m[" << res / resBaseC << "]\033[39m   "
                               << "err \033[93m[" << error << "]\033[39m   "
+                              << "errM \033[93m[" << errorMax << "]\033[39m   "
                               << std::setprecision(3) << std::fixed
                               << "Time [" << telapsed << "]   recTime [" << trec << "]   reccrTime [" << treccr
                               << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  " << std::endl;
@@ -586,8 +627,13 @@ namespace DNDS
                 {
                     PrintData(config.outPltName + std::to_string(step) + ".plt", ode);
                 }
-                if (step == config.curvilinearOneStep)
+#ifdef USE_LOCAL_COORD_CURVILINEAR
+                if ((curvilinearStepper == config.curvilinearOneStep && curvilinearNum == 0) ||
+                    (curvilinearStepper == config.curvilinearRepeatInterval && (curvilinearNum > 0 && curvilinearNum < config.curvilinearRepeatNum)))
                 {
+                    curvilinearStepper = 0;
+                    curvilinearNum++;
+
                     forEachInArray(
                         *vfv->uCurve.dist,
                         [&](decltype(vfv->uCurve.dist)::element_type::tComponent &e, index iCell)
@@ -615,15 +661,21 @@ namespace DNDS
                                 [&](Eigen::MatrixXd &inc, int ig, Elem::tPoint pparam, Elem::tDiFj &DiNj)
                                 {
                                     Eigen::MatrixXd incFull;
-                                    Eigen::MatrixXd DiBj(3, nZetaDof + 1); //*remember add 1 Dof for constvalue-base
+                                    Eigen::MatrixXd DiBj(6, nZetaDof + 1); //*remember add 1 Dof for constvalue-base
                                     vfv->FDiffBaseValue(
                                         iCell, eCell, coords, DiNj,
                                         pparam, center, sScale,
                                         Eigen::VectorXd::Zero(nZetaDof + 1),
                                         DiBj);
                                     Eigen::MatrixXd DiBjSlice = DiBj({1, 2}, Eigen::all);
+                                    Eigen::MatrixXd DiBjSlice2 = DiBj({3, 4, 5}, Eigen::all);
+                                    Eigen::VectorXd Weights(6);
+                                    real L = sScale(0);
+                                    Weights << 0, L, L, L * L, 2 * L * L, L * L;
 
-                                    incFull = DiBjSlice.transpose() * DiBjSlice;
+                                    // incFull = DiBjSlice.transpose() * DiBjSlice + DiBjSlice2.transpose();
+                                    incFull = DiBj.transpose() * Weights.asDiagonal() * DiBj;
+
                                     inc = incFull.bottomRightCorner(incFull.rows() - 1, incFull.cols() - 1);
                                     inc *= vfv->cellGaussJacobiDets[iCell][ig];
                                 });
@@ -638,18 +690,33 @@ namespace DNDS
                                 [&](Eigen::MatrixXd &inc, int ig, Elem::tPoint pparam, Elem::tDiFj &DiNj)
                                 {
                                     Eigen::MatrixXd incFull;
-                                    Eigen::MatrixXd DiBj(3, nZetaDof + 1);
+                                    Eigen::MatrixXd DiBj(6, nZetaDof + 1);
+                                    Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
                                     vfv->FDiffBaseValue(
                                         iCell, eCell, coords, DiNj,
                                         pparam, center, sScale,
                                         Eigen::VectorXd::Zero(nZetaDof + 1),
                                         DiBj);
                                     Eigen::MatrixXd DiBjSlice = DiBj({1, 2}, Eigen::all); //? why can't use auto to recieve
+                                    // Eigen::MatrixXd DiBjSlice0 = DiBj({0}, Eigen::all);
+                                    // real recVal = (vfv->cellDiBjGaussBatch->operator[](iCell).m(ig)({0}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m())(0);
                                     Eigen::Vector2d recGrad = vfv->cellDiBjGaussBatch->operator[](iCell).m(ig)({1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
                                     Eigen::Matrix2d recGrad01;
                                     recGrad01.col(0) = recGrad;
                                     recGrad01.col(1)(0) = -recGrad(1), recGrad01.col(1)(1) = recGrad(0);
                                     incFull = DiBjSlice.transpose() * recGrad01;
+
+                                    Eigen::VectorXd Weights(6);
+                                    real L = sScale(0);
+                                    Weights << 0, L, L, L * L, 2 * L * L, L * L;
+                                    Eigen::MatrixXd recAll = vfv->cellDiBjGaussBatch->operator[](iCell).m(ig)({0, 1, 2, 3, 4, 5}, Eigen::all).rightCols(uRec[iCell].m().rows()) *
+                                                             uRec[iCell].m();
+                                    Eigen::MatrixXd recAll2(6, 2);
+                                    recAll2.col(0) = recAll;
+                                    recAll2.col(1).setZero();
+                                    recAll2.col(1)(1) = -recAll(2), recAll2.col(1)(2) = recAll(1);
+                                    incFull = DiBj.transpose() * Weights.asDiagonal() * recAll2;
+
                                     inc = incFull.bottomRows(incFull.rows() - 1);
                                     inc *= vfv->cellGaussJacobiDets[iCell][ig];
                                 });
@@ -657,8 +724,9 @@ namespace DNDS
                             HardEigen::EigenLeastSquareInverse(A, Ainv);
                             em = Ainv * b;
                             Eigen::MatrixXd lengths = em({0, 1}, Eigen::all).colwise().norm();
-                            em.col(0) /= lengths(0);
-                            em.col(1) /= lengths(1);
+                            real length0 = lengths.norm() / std::sqrt(2);
+                            length0 = sScale(0);
+                            em /= length0;
 
                             // std::cout << "REC " << uRec[iCell].m().transpose();
                             // std::cout << " EM \n"
@@ -691,6 +759,7 @@ namespace DNDS
                             log() << "--- Restart Reconstruction " << i << std::endl;
                     }
                 }
+#endif
 
                 stepCount++;
             }
