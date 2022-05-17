@@ -145,9 +145,14 @@ geom is actually important
 in this scheme for eikonal, downgrading face int order is bad, downgrading volume int order is ok
 
 
-# Fixing on triangles
+# Fixing things about triangles
 
 triangle grids: all good with 3rd order, 4th order needs GS steps instead of Jacobi !!!
-4th order easy to get bad points !! how to avoid? global TS ?
+4th order easy to get bad points !! how to avoid? global TS is a choice but slow
+
+
+# Far weight:
+can't be 0 or 0.1 or blow up for CylinderBM_U2 using global TS
+
 
 

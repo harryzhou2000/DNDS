@@ -167,11 +167,11 @@ namespace DNDS
             real scaleMLargerPortion = 1.;
 
             bool SOR_Instead = false;
+            bool SOR_InverseScanning = false;
             real JacobiRelax = 1.0;
 
             int curvilinearOrder = 1;
 
-            
         } setting;
         // **********************************************************************************************************************
         /*
@@ -1911,9 +1911,18 @@ namespace DNDS
             // forEachInArray(
             //     *uRec.dist,
             //     [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
-            for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
+
+            bool inverseScan = setting.SOR_InverseScanning && setting.SOR_Instead;
+
+            for (index iScan = 0; iScan < uRec.dist->size() * (inverseScan ? 2 : 1); iScan++)
             {
-                auto &uRecE = uRec[iCell];
+
+                index iCell = iScan;
+                if (inverseScan && iCell >= uRec.dist->size())
+                    iCell = 2 * uRec.dist->size() - iScan - 1;
+
+                if (setting.SOR_InverseScanning)
+                    auto &uRecE = uRec[iCell];
                 real relax = cellRecAtrLocal[iCell][0].relax;
                 auto &c2f = mesh->cell2faceLocal[iCell];
                 if (!setting.SOR_Instead)
@@ -1998,30 +2007,26 @@ namespace DNDS
                     // exit(0);
                 }
             }
-            // );
-
-            real vall = 0;
-            real nall = 0;
-            real vallR, nallR;
-            // forEachInArray(
-            //     *uRec.dist,
-            //     [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
 
             if (!setting.SOR_Instead)
             {
                 for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
                 {
                     auto &uRecE = uRec[iCell];
-                    nall += (uRecE.m() - uRecNewBuf[iCell].m()).squaredNorm();
-                    vall += 1;
-                    // std::cout << "INC:\n";
-                    // std::cout << uRecE.m() << std::endl;
                     uRecE.m() = uRecNewBuf[iCell].m();
-                    // std::cout << uRecE.m() << std::endl;
                 }
             }
-            // );
+
 #ifdef PRINT_EVERY_VR_JACOBI_ITER_INCREMENT
+            real vall = 0;
+            real nall = 0;
+            real vallR, nallR;
+            for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
+            {
+                auto &uRecE = uRec[iCell];
+                nall += (uRecE.m() - uRecNewBuf[iCell].m()).squaredNorm();
+                vall += 1;
+            }
             // // std::cout << "NEW\n"
             // //           << uRecNewBuf[0] << std::endl;
             MPI_Allreduce(&vall, &vallR, 1, DNDS_MPI_REAL, MPI_SUM, mpi.comm); //? remove at release

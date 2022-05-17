@@ -1,12 +1,12 @@
 {
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 20000,
+    "nTimeStep": 50000,
     "nConsoleCheck": 10,
     "nDataOut": 500,
     "CFL": 0.5,
     "useLocalDt": false,
-    "meshFile": "data/mesh/CylinderBM_U2.msh",
+    "meshFile": "data/mesh/NACA0012_WIDE_H3_O2.msh",
     "comment_meshFileList": [
         "data/mesh/NACA0012_WIDE_H3.msh",
         "data/mesh/NACA0012_WIDE_H3_O2.msh",
@@ -26,7 +26,8 @@
     "res_base": 0,
     "vfvSetting": {
         "SOR_Instead": true,
-        "JacobiRelax": 1,
+        "SOR_InverseScanning": true,
+        "JacobiRelax": 0.5,
         "tangWeight": 5e-3,
         "wallWeight": 1,
         "farWeight": 1,
@@ -35,7 +36,7 @@
         "curvilinearOrder": 3
     },
     "eikonalSetting": {
-        "visScale": 2
+        "visScale": 1
     },
     "curvilinearOneStep": 500000,
     "curvilinearRestartNstep": 100,

@@ -370,7 +370,7 @@ namespace DNDS
             JSON::ReadFile(jsonName, doc);
 
             assert(doc["nInternalRecStep"].IsInt());
-            config.recOrder = doc["nInternalRecStep"].GetInt();
+            config.nInternalRecStep = doc["nInternalRecStep"].GetInt();
             if (mpi.rank == 0)
             {
                 log() << "JSON: nInternalRecStep = " << config.nInternalRecStep << std::endl;
@@ -441,7 +441,12 @@ namespace DNDS
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.SOR_Instead = " << config.vfvSetting.SOR_Instead << std::endl;
                 }
-
+                if (doc["vfvSetting"]["SOR_InverseScanning"].IsBool())
+                {
+                    config.vfvSetting.SOR_InverseScanning = doc["vfvSetting"]["SOR_InverseScanning"].GetBool();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.SOR_InverseScanning = " << config.vfvSetting.SOR_InverseScanning << std::endl;
+                }
                 if (doc["vfvSetting"]["JacobiRelax"].IsNumber())
                 {
                     config.vfvSetting.JacobiRelax = doc["vfvSetting"]["JacobiRelax"].GetDouble();
