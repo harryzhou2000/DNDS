@@ -1,11 +1,12 @@
 {
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 50000,
+    "nTimeStep": 5000,
     "nConsoleCheck": 10,
     "nDataOut": 500,
-    "CFL": 0.15,
+    "CFL": 0.5,
     "useLocalDt": true,
+    "meshRotZ":45,
     "meshFile": "data/mesh/NACA0012_WIDE_H3_O2_F.msh",
     "comment_meshFileList": [
         "data/mesh/NACA0012_WIDE_H3.msh",
@@ -23,7 +24,8 @@
         "data/mesh/UniformUL.msh",
         "data/mesh/SimpleHoleU.msh"
     ],
-    "outPltName": "data/out/debugData_",
+    "outPltName": "data/out/test_9_45",
+    "outLogName": "data/out/test_9_45",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -33,19 +35,19 @@
         "JacobiRelax": 1,
         "anistropicLengths": false,
         "tangWeight": 5e-3,
-        "wallWeight": 1,
+        "wallWeight": 10,
         "farWeight": 1,
         "weightSchemeGeom": "None",
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
-        "curvilinearOrder": 3
+        "curvilinearOrder": 2
     },
     "eikonalSetting": {
         "visScale": 2
     },
-    "curvilinearOneStep": 500000,
+    "curvilinearOneStep": 1000,
     "curvilinearRestartNstep": 100,
     "curvilinearRepeatInterval": 100,
-    "curvilinearRepeatNum": 10,
+    "curvilinearRepeatNum": 1,
     "curvilinearRange": 0.4
 }

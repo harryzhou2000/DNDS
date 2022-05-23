@@ -404,6 +404,16 @@ namespace DNDS
             }
             fout.close();
         }
+
+        inline void RotateZ(real deg)
+        {
+            for (auto &p : readPoints)
+            {
+                real nX = p(0) * std::cos(deg / 180.0 * pi) - p(1) * std::sin(deg / 180.0 * pi);
+                real nY = p(0) * std::sin(deg / 180.0 * pi) + p(1) * std::cos(deg / 180.0 * pi);
+                p(0) = nX, p(1) = nY;
+            }
+        }
     };
 
 }
@@ -1599,5 +1609,5 @@ namespace DNDS
 namespace DNDS
 {
     void CompactFacedMeshSerialRWBuild(MPIInfo mpi, const std::string &gmshFile, const std::string &distDebugFile,
-                                       std::shared_ptr<CompactFacedMeshSerialRW> &mesh);
+                                       std::shared_ptr<CompactFacedMeshSerialRW> &mesh, real RotZ = 0);
 }

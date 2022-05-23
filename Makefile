@@ -4,7 +4,7 @@ export OMPI_CXX=clang++
 first: what
 
 
-CPC=mpicxx
+CPC=mpicxx.openmpi
 # MPIINC=-I "C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
 # MPILIB=-L "C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" -lmsmpi
 # CGNSINC=-I "E:\projects\tools\CGNS-4.2.0\build\include"
@@ -71,7 +71,7 @@ $(PREBUILD_FAST):%.o: %.cpp
 all: ${SINGLE_TARGETS}
 
 what:
-	echo `mpicxx --showme`
+	echo `mpicxx.openmpi --showme`
 	echo ${SINGLE_TARGETS}
 
 .PRECIOUS: %.o ## don't rm the immediate .o s!!

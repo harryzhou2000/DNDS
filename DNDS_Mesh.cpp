@@ -3,13 +3,14 @@
 namespace DNDS
 {
     void CompactFacedMeshSerialRWBuild(MPIInfo mpi, const std::string &gmshFile, const std::string &distDebugFile,
-                                       std::shared_ptr<CompactFacedMeshSerialRW> &mesh)
+                                       std::shared_ptr<CompactFacedMeshSerialRW> &mesh, real RotZ)
     {
         DNDS::SerialGmshReader2d gmshReader2D;
         if (mpi.rank == 0)
         {
             gmshReader2D.FileRead(gmshFile);
-            // gmshReader2D.FileRead("data/mesh/NACA0012_WIDE_H3_O2.msh");
+            if (RotZ != 0.0)
+                gmshReader2D.RotateZ(RotZ);
             gmshReader2D.InterpolateTopology();
             // gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
         }

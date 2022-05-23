@@ -345,8 +345,11 @@ namespace DNDS
             int nDataOut = 50;
 
             real CFL = 0.5;
+
+            real meshRotZ = 0;
             std::string mName = "data/mesh/NACA0012_WIDE_H3.msh";
             std::string outPltName = "data/out/debugData_";
+            std::string outLogName = "data/out/debugData_";
             real err_dMax = 0.1;
 
             real res_base = 0;
@@ -408,10 +411,20 @@ namespace DNDS
             if (mpi.rank == 0)
                 log() << "JSON: CFL = " << config.CFL << std::endl;
 
+            assert(doc["meshRotZ"].IsNumber());
+            config.meshRotZ = doc["meshRotZ"].GetDouble();
+            if (mpi.rank == 0)
+                log() << "JSON: meshRotZ = " << config.meshRotZ << std::endl;
+
             assert(doc["meshFile"].IsString());
             config.mName = doc["meshFile"].GetString();
             if (mpi.rank == 0)
                 log() << "JSON: meshFile = " << config.mName << std::endl;
+
+            assert(doc["outLogName"].IsString());
+            config.outLogName = doc["outLogName"].GetString();
+            if (mpi.rank == 0)
+                log() << "JSON: outLogName = " << config.outLogName << std::endl;
 
             assert(doc["outPltName"].IsString());
             config.outPltName = doc["outPltName"].GetString();
@@ -575,7 +588,7 @@ namespace DNDS
         void ReadMeshAndInitialize()
         {
             // Debug::MPIDebugHold(mpi);
-            CompactFacedMeshSerialRWBuild(mpi, config.mName, "data/out/debugmeshSO.plt", mesh);
+            CompactFacedMeshSerialRWBuild(mpi, config.mName, "data/out/debugmeshSO.plt", mesh, config.meshRotZ);
             fv = std::make_shared<ImplicitFiniteVolume2D>(mesh.get());
             vfv = std::make_shared<VRFiniteVolume2D>(mesh.get(), fv.get(), config.recOrder);
             vfv->setting = config.vfvSetting; //* currently only copies, could upgrade to referencing
@@ -612,6 +625,7 @@ namespace DNDS
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                 });
             EikonalEvaluator eval(mesh.get(), fv.get(), vfv.get(), cfv.get());
+            std::ofstream logErr(config.outLogName + ".log");
             eval.settings = config.eikonalSetting;
             uRec.InitPersistentPullClean();
             u.InitPersistentPullClean();
@@ -701,6 +715,10 @@ namespace DNDS
                               << "Time [" << telapsed << "]   recTime [" << trec << "]   reccrTime [" << treccr
                               << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  " << std::endl;
                         log().setf(fmt);
+                        logErr << step << "\t" << std::setprecision(9) << std::scientific
+                               << res / resBaseC << "\t"
+                               << error << "\t"
+                               << errorMax << std::endl;
                     }
                     tstart = MPI_Wtime();
                     trec = tcomm = treccr = trhs = 0.;
@@ -848,6 +866,7 @@ namespace DNDS
             }
 
             // u.WaitPersistentPullClean();
+            logErr.close();
         }
 
         template <typename tODE>
