@@ -154,5 +154,8 @@ triangle grids: all good with 3rd order, 4th order needs GS steps instead of Jac
 # Far weight:
 can't be 0 or 0.1 or blow up for CylinderBM_U2 using global TS
 
+# bad points about CylinderBM_U2 tri grids:
+using 4th order, advancing front generates bad meshes that creates bad points, use Delaunay
+
 
 

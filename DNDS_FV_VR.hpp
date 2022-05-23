@@ -4,6 +4,8 @@
 #include "DNDS_HardEigen.h"
 #include "unsupported/Eigen/CXX11/Tensor"
 
+#include <set>
+
 namespace DNDS
 {
 
@@ -146,6 +148,8 @@ namespace DNDS
         std::shared_ptr<Array<SmallMatricesBatch>> vectorBatch; // invAb[i][icf] = the A^-1b of cell i's icf neighbour
         std::shared_ptr<Array<SmallMatricesBatch>> matrixBatch; // matrixInvAB[i][icf + 1] = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
                                                                 // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
+        std::shared_ptr<std::vector<Eigen::MatrixXd>> matrixAii;
+        std::shared_ptr<std::vector<index>> SOR_iScan2iCell;
 
         //* curvilinear doings:
         ArrayLocal<SemiVarMatrix<2>> uCurve;
@@ -168,9 +172,19 @@ namespace DNDS
 
             bool SOR_Instead = false;
             bool SOR_InverseScanning = false;
+            bool SOR_RedBlack = false;
             real JacobiRelax = 1.0;
 
             int curvilinearOrder = 1;
+            bool anistropicLengths = false;
+
+            enum WeightSchemeGeom
+            {
+                None = 0,
+                S = 2,
+                D = 1
+            } weightSchemeGeom = WeightSchemeGeom::None;
+            std::string weightSchemeGeomName;
 
         } setting;
         // **********************************************************************************************************************
@@ -304,28 +318,37 @@ namespace DNDS
             real scaleM = std::pow(scaleMLarge, setting.scaleMLargerPortion) *
                           std::pow(scaleMSmall, 1 - setting.scaleMLargerPortion);
 
-            Eigen::Matrix2d pJacobi = (*cellIntertia)[iCell]({0, 1}, {0, 1}) * 10;
-
+            Eigen::Matrix2d pJacobi = (*cellIntertia)[iCell]({0, 1}, {0, 1}) * 1;
             real scaleL0 = pJacobi.col(0).norm();
             real scaleL1 = pJacobi.col(1).norm();
+            Eigen::Matrix2d invPJacobi;
+            
+                pJacobi.col(0) = pJacobi.col(0).normalized();
+                pJacobi.col(1) = pJacobi.col(1).normalized();
 
-            pJacobi.col(0) = pJacobi.col(0).normalized();
-            pJacobi.col(1) = pJacobi.col(1).normalized();
+                invPJacobi = pJacobi.inverse();
 
-            Eigen::Matrix2d invPJacobi = pJacobi.inverse();
+                auto ncoords = (invPJacobi * coordsC.topRows(2));
+                auto nSizes = ncoords.rowwise().maxCoeff() - ncoords.rowwise().minCoeff();
 
-            auto ncoords = (invPJacobi * coordsC.topRows(2));
-            auto nSizes = ncoords.rowwise().maxCoeff() - ncoords.rowwise().minCoeff();
+                scaleL0 = nSizes(0);
+                scaleL1 = nSizes(1);
+                // std::cout << scaleM << "\t" << scaleL0 << "\t" << scaleL1 << "\t" << std::endl;
+                // abort();
+                real scaleUni = std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
+                if (!setting.anistropicLengths)
+                {
+                    pJacobi.col(0) = pJacobi.col(0) * scaleUni;
+                    pJacobi.col(1) = pJacobi.col(1) * scaleUni;
+                    simpleScale(0) = simpleScale(1) = scaleUni;
+                }
+                else
+                {
+                    pJacobi.col(0) = pJacobi.col(0) * scaleL0;
+                    pJacobi.col(1) = pJacobi.col(1) * scaleL1;
+                    simpleScale(0) = simpleScale(1) = scaleUni;
+                }
 
-            scaleL0 = nSizes(0);
-            scaleL1 = nSizes(1);
-            // std::cout << scaleM << "\t" << scaleL0 << "\t" << scaleL1 << "\t" << std::endl;
-            // abort();
-            real scaleUni = std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
-
-            pJacobi.col(0) = pJacobi.col(0) * scaleUni;
-            pJacobi.col(1) = pJacobi.col(1) * scaleUni;
-            simpleScale(0) = simpleScale(1) = scaleUni;
             invPJacobi = pJacobi.inverse();
 
             Eigen::Vector2d pParamL = invPJacobi * pPhysicsC.topRows(2);
@@ -1587,11 +1610,28 @@ namespace DNDS
                         log() << faceAtr.iPhy << std::endl;
                         assert(false);
                     }
+                    real D = delta.norm();
+                    real S = FV->faceArea[iFace];
+                    real GW = 1;
+                    switch (setting.weightSchemeGeom)
+                    {
+                    case Setting::WeightSchemeGeom::None:
+                        break;
+                    case Setting::WeightSchemeGeom::D:
+                        GW = 1. / D;
+                        break;
+                    case Setting::WeightSchemeGeom::S:
+                        GW = 1. / S;
+                        break;
+                    default:
+                        assert(false);
+                    }
                     for (int idiff = 0; idiff < faceRecAtr.NDIFF; idiff++)
                     {
                         int ndx = Elem::diffOperatorOrderList2D[idiff][0];
                         int ndy = Elem::diffOperatorOrderList2D[idiff][1];
-                        (*faceWeights)[iFace][idiff] *= std::pow(delta[0], ndx) *
+                        (*faceWeights)[iFace][idiff] *= GW *
+                                                        std::pow(delta[0], ndx) *
                                                         std::pow(delta[1], ndy) *
                                                         real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
                     }
@@ -1689,6 +1729,8 @@ namespace DNDS
                     mesh->cell2faceLocal.dist->size()),
                 mpi);
 
+            matrixAii = std::make_shared<decltype(matrixAii)::element_type>(mesh->cell2faceLocal.dist->size());
+
             // for each inner cell (ghost cell no need)
             forEachInArray(
                 *mesh->cell2faceLocal.dist,
@@ -1735,6 +1777,7 @@ namespace DNDS
                     Eigen::MatrixXd Ainv;
                     // HardEigen::EigenLeastSquareInverse(A, Ainv);
                     HardEigen::EigenLeastSquareInverse_Filtered(A, Ainv);
+                    matrixAii->operator[](iCell) = A;
                     matrixBatchElem.m(0) = Ainv;
                     // if (iCell == 71)
                     // {
@@ -1893,6 +1936,96 @@ namespace DNDS
                 });
         }
 
+        void SOR_InitRedBlack()
+        {
+            const index nCell = mesh->cell2nodeLocal.dist->size();
+            SOR_iScan2iCell = std::make_shared<std::vector<index>>(nCell);
+            if (!(setting.SOR_RedBlack && setting.SOR_Instead))
+            {
+                for (index iCell = 0; iCell < nCell; iCell++)
+                    (*SOR_iScan2iCell)[iCell] = iCell;
+                return;
+            }
+
+            // for (index iCell = 0; iCell < nCell; iCell++)
+            //     (*SOR_iScan2iCell)[iCell] = -1;
+            // // ? seeding
+            // (*SOR_iScan2iCell)[0] = 0;
+
+            std::vector<index> color(nCell, -1);
+            std::vector<index> currentBoundary, nextBoundary;
+            index nUnknown = nCell;
+
+            //?seeding
+            index cColor = 0;
+            color[0] = cColor;
+            nUnknown--;
+            currentBoundary.push_back(0);
+
+            while (nUnknown > 0)
+            {
+
+                if (currentBoundary.size() == 0)
+                {
+                    abort();
+                }
+                // if (mpi.rank == 0)
+                // {
+                //     std::cout << "cB ====== " << std::endl;
+                //     for (auto i : currentBoundary)
+                //         std::cout << "cB:" << i << std::endl;
+                // }
+
+                cColor = 1 - cColor; //? 2 colors
+                nextBoundary.clear();
+                for (auto iCell : currentBoundary)
+                {
+                    auto &c2f = mesh->cell2faceLocal[iCell];
+                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                    {
+                        index iFace = c2f[ic2f];
+                        auto &f2c = (*mesh->face2cellPair)[iFace];
+                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                        if (iCellOther != FACE_2_VOL_EMPTY && iCellOther < nCell) // * note that ghost cells unwanted
+                            if (color[iCellOther] == -1)
+                                nextBoundary.push_back(iCellOther), nUnknown--, color[iCellOther] = cColor;
+                    }
+                }
+                currentBoundary = std::move(nextBoundary);
+            }
+            // if (mpi.rank == 0)
+            // {
+            //     for (auto i : color)
+            //         std::cout << "C: " << i << std::endl;
+
+            //     abort();
+            // }
+            std::vector<index> colorSizes(2, 0);
+            for (auto c : color)
+            {
+                assert(c == 0 || c == 1);
+                colorSizes[c]++;
+            }
+            std::vector<index> colorStarts(3, 0);
+            for (index iC = 0; iC < 2; iC++)
+                colorStarts[iC + 1] = colorStarts[iC] + colorSizes[iC];
+
+            colorSizes.assign(colorSizes.size(), 0);
+            for (index iCell = 0; iCell < nCell; iCell++)
+            {
+                index c = color[iCell];
+                (*SOR_iScan2iCell)[colorSizes[c] + colorStarts[c]] = iCell;
+                colorSizes[c]++;
+            }
+            // if (mpi.rank == 0)
+            // {
+            //     for (auto i : (*SOR_iScan2iCell))
+            //         std::cout << i << std::endl;
+
+            //     abort();
+            // }
+        }
+
         /**
          * @brief
          * \pre u need to StartPersistentPullClean()
@@ -1920,6 +2053,8 @@ namespace DNDS
                 index iCell = iScan;
                 if (inverseScan && iCell >= uRec.dist->size())
                     iCell = 2 * uRec.dist->size() - iScan - 1;
+                if (setting.SOR_Instead)
+                    iCell = (*SOR_iScan2iCell)[iCell];
 
                 if (setting.SOR_InverseScanning)
                     auto &uRecE = uRec[iCell];
@@ -1933,8 +2068,8 @@ namespace DNDS
                 auto matrixBatchElem = (*matrixBatch)[iCell];
                 auto vectorBatchElem = (*vectorBatch)[iCell];
 
-                Eigen::MatrixXd coords;
-                mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
+                // Eigen::MatrixXd coords;
+                // mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
                 // std::cout << "COORDS" << coords << std::endl;
                 for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                 {
@@ -2045,6 +2180,78 @@ namespace DNDS
         void ReconstructionJacobiStep(ArrayLocal<VecStaticBatch<1>> &u,
                                       ArrayLocal<SemiVarMatrix<1>> &uRec,
                                       ArrayLocal<SemiVarMatrix<1>> &uRecNewBuf);
+
+        template <uint32_t vsize>
+        void RecMatMulVec(ArrayLocal<SemiVarMatrix<vsize>> &x,
+                          ArrayLocal<SemiVarMatrix<vsize>> &b)
+        {
+            for (index iCell = 0; iCell < x.dist->size(); iCell++)
+            {
+                auto &c2f = mesh->cell2faceLocal[iCell];
+
+                auto matrixBatchElem = (*matrixBatch)[iCell];
+                auto vectorBatchElem = (*vectorBatch)[iCell];
+
+                b[iCell].m() = matrixAii->operator[](iCell) * x[iCell].m();
+
+                // std::cout << "COORDS" << coords << std::endl;
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                    auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
+                    Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        // b[iCell].m() += matrixBatchElem.m(ic2f + 1) * u[iCellOther].m(); //!wrong, this matrixBatchElem is Aii^-1Bij
+                    }
+                    else
+                    {
+                        // if (faceAttribute.iPhy == BoundaryType::Wall)
+                        // {
+                        //     Eigen::Vector<real, vsize> uBV;
+                        //     uBV.setZero();
+                        //     if (!setting.SOR_Instead)
+                        //         uRecNewBuf[iCell].m() +=
+                        //             relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                        //     else
+                        //         uRec[iCell].m() +=
+                        //             relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+
+                        //     // eFace.Integration(
+                        //     //     BCCorrection,
+                        //     //     [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
+                        //     //     {
+                        //     //         auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
+
+                        //     //         Eigen::MatrixXd rowUD = (uBV - uRec[iCell].p()).transpose();
+                        //     //         Eigen::MatrixXd rowDiffI = diffI.row(0);
+                        //     //         FFaceFunctional(iFace,rowDiffI, rowUD, faceWeights[iFace]({0}), corInc);
+                        //     //         corInc *= faceNorms[iFace][ig].norm();
+                        //     //     });
+                        // }
+                        // else if (faceAttribute.iPhy == BoundaryType::Farfield)
+                        // {
+                        //     if (!setting.SOR_Instead)
+                        //         uRecNewBuf[iCell].m() +=
+                        //             relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCell].m()));
+                        //     else
+                        //         uRec[iCell].m() +=
+                        //             relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCell].m()));
+                        // }
+                        // else
+                        // {
+                        //     assert(false);
+                        // }
+                        // ! unfinished mat-mult
+                    }
+                }
+            }
+        }
 
         void Initialization();
         void Initialization_RenewBase();

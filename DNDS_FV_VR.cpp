@@ -2,6 +2,7 @@
 
 void DNDS::VRFiniteVolume2D::Initialization()
 {
+    SOR_InitRedBlack();
     initIntScheme();
 #ifdef USE_LOCAL_COORD_CURVILINEAR
     initUcurve(); // needed before using FDiffBase

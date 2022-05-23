@@ -447,6 +447,12 @@ namespace DNDS
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.SOR_InverseScanning = " << config.vfvSetting.SOR_InverseScanning << std::endl;
                 }
+                if (doc["vfvSetting"]["SOR_RedBlack"].IsBool())
+                {
+                    config.vfvSetting.SOR_RedBlack = doc["vfvSetting"]["SOR_RedBlack"].GetBool();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.SOR_RedBlack = " << config.vfvSetting.SOR_RedBlack << std::endl;
+                }
                 if (doc["vfvSetting"]["JacobiRelax"].IsNumber())
                 {
                     config.vfvSetting.JacobiRelax = doc["vfvSetting"]["JacobiRelax"].GetDouble();
@@ -461,6 +467,13 @@ namespace DNDS
                         log() << "JSON: vfvSetting.tangWeight = " << config.vfvSetting.tangWeight << std::endl;
                 }
 
+                if (doc["vfvSetting"]["anistropicLengths"].IsBool())
+                {
+                    config.vfvSetting.anistropicLengths = doc["vfvSetting"]["anistropicLengths"].GetBool();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.anistropicLengths = " << config.vfvSetting.anistropicLengths << std::endl;
+                }
+
                 if (doc["vfvSetting"]["baseCenterType"].IsString())
                 {
                     std::string centerOpt = doc["vfvSetting"]["baseCenterType"].GetString();
@@ -473,6 +486,22 @@ namespace DNDS
                         assert(false);
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.baseCenterType = " << config.vfvSetting.baseCenterTypeName << std::endl;
+                }
+
+                if (doc["vfvSetting"]["weightSchemeGeom"].IsString())
+                {
+                    std::string centerOpt = doc["vfvSetting"]["weightSchemeGeom"].GetString();
+                    config.vfvSetting.weightSchemeGeomName = centerOpt;
+                    if (centerOpt == "None")
+                        config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::None;
+                    else if (centerOpt == "D")
+                        config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::D;
+                    else if (centerOpt == "S")
+                        config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::S;
+                    else
+                        assert(false);
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.weightSchemeGeom = " << config.vfvSetting.weightSchemeGeomName << std::endl;
                 }
 
                 if (doc["vfvSetting"]["scaleMLargerPortion"].IsNumber())
@@ -684,6 +713,7 @@ namespace DNDS
                 if ((curvilinearStepper == config.curvilinearOneStep && curvilinearNum == 0) ||
                     (curvilinearStepper == config.curvilinearRepeatInterval && (curvilinearNum > 0 && curvilinearNum < config.curvilinearRepeatNum)))
                 {
+                    assert(!vfv->setting.anistropicLengths);
                     curvilinearStepper = 0;
                     curvilinearNum++;
 
