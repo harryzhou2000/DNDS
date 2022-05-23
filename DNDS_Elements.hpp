@@ -1404,7 +1404,10 @@ namespace DNDS
 
         inline tPoint Jacobi2LineNorm2D(const tJacobi &Jacobi)
         {
+            if (Jacobi(0, 2) != 0.0)
+                std::cout << Jacobi << std::endl;
             assert(Jacobi(0, 2) == 0.0);
+
             return tPoint{Jacobi(0, 1), -Jacobi(0, 0), 0.0};
         }
 

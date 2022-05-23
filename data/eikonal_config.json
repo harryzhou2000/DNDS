@@ -6,8 +6,8 @@
     "nDataOut": 500,
     "CFL": 0.5,
     "useLocalDt": true,
-    "meshRotZ":45,
-    "meshFile": "data/mesh/NACA0012_WIDE_H3_O2_F.msh",
+    "meshRotZ": 0,
+    "meshFile": "data/mesh/30P30N_H2.msh",
     "comment_meshFileList": [
         "data/mesh/NACA0012_WIDE_H3.msh",
         "data/mesh/NACA0012_WIDE_H3_O2.msh",
@@ -22,7 +22,8 @@
         "data/mesh/CylinderBM_U2_DE.msh",
         "data/mesh/UniformU.msh",
         "data/mesh/UniformUL.msh",
-        "data/mesh/SimpleHoleU.msh"
+        "data/mesh/SimpleHoleU.msh",
+        "data/mesh/30P30N_H2.msh"
     ],
     "outPltName": "data/out/test_9_45",
     "outLogName": "data/out/test_9_45",
@@ -34,7 +35,7 @@
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
         "anistropicLengths": false,
-        "tangWeight": 5e-3,
+        "tangWeight": 5e-2,
         "wallWeight": 10,
         "farWeight": 1,
         "weightSchemeGeom": "None",
@@ -43,7 +44,7 @@
         "curvilinearOrder": 2
     },
     "eikonalSetting": {
-        "visScale": 2
+        "visScale": 10
     },
     "curvilinearOneStep": 1000,
     "curvilinearRestartNstep": 100,
