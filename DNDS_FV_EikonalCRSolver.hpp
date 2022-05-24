@@ -23,6 +23,11 @@ namespace DNDS
         struct Setting
         {
             real visScale = 1;
+            real visScaleIn = 1;
+            real isiScale = 1;
+            real isiScaleIn = 1;
+            real isiCutDown = 0.5;
+            real ekCutDown = 0.5;
         } settings;
 
         EikonalEvaluator(CompactFacedMeshSerialRW *Nmesh, ImplicitFiniteVolume2D *Nfv, VRFiniteVolume2D *Nvfv, CRFiniteVolume2D *Ncfv)
@@ -98,6 +103,7 @@ namespace DNDS
                         vrGrad({0, 1}) = cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
                         crGrad({0, 1}) = cellDiBjGaussBatchElemCR.m(ig)({1, 2}, Eigen::all).rightCols(uRecCR[iCell].m().rows()) * uRecCR[iCell].m();
                         inc = 1 - std::fabs(vrGrad.dot(crGrad));
+                        // inc = 1 - std::fabs(crGrad.dot(crGrad));
                         inc *= vfv->cellGaussJacobiDets[iCell][ig];
                     });
                 rhs[iCell](0) = rhsValue / fv->volumeLocal[iCell];
@@ -123,24 +129,43 @@ namespace DNDS
                     flux,
                     [&](real &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
                     {
+                        int nDiff = vfv->faceWeights->operator[](iFace).size();
                         Elem::tPoint unitNorm = vfv->faceNorms[iFace][ig].normalized();
-                        Eigen::Vector3d uRecVal{0, 0, 0}, uRecValL{0, 0, 0}, uRecValR{0, 0, 0}; // 2-d specific, no gradient z!
-                        uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({0, 1, 2}, Eigen::all).rightCols(uRec[f2c[0]].m().rows()) * uRec[f2c[0]].m();
+                        Eigen::VectorXd uRecVal(nDiff), uRecValL(nDiff), uRecValR(nDiff), uRecValJump(nDiff); // 2-d specific, no gradient z!
+                        uRecVal.setZero(), uRecValJump.setZero();
+                        uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[f2c[0]].m().rows()) * uRec[f2c[0]].m();
+
                         if (f2c[1] != FACE_2_VOL_EMPTY)
                         {
-                            uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({0, 1, 2}, Eigen::all).rightCols(uRec[f2c[1]].m().rows()) * uRec[f2c[1]].m();
+                            uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[f2c[1]].m().rows()) * uRec[f2c[1]].m();
                             uRecVal = (uRecValL + uRecValR) * 0.5;
+                            uRecValJump = (uRecValL - uRecValR) * 0.5;
                         }
+
+                        Eigen::MatrixXd IJI, ISI;
+                        vfv->FFaceFunctional(iFace, ig, uRecVal, uRecVal, (*vfv->faceWeights)[iFace], ISI);
+                        vfv->FFaceFunctional(iFace, ig, uRecValJump, uRecValJump, (*vfv->faceWeights)[iFace], IJI);
+                        // std::cout << "===" << IJI << ISI << std::endl;
+
                         Elem::tPoint gradC{uRecVal(1), uRecVal(2), 0}; // 2-d specific, no gradient z!
 
-                        real visEta = std::min(2. / 5. / (kAv * kAv), std::abs(1 - gradC.squaredNorm()));
-                        if (visEta < 1. / 5. / (kAv * kAv))
+                        real visEta = std::min(2. / 5. / (kAv * kAv) * settings.visScaleIn, std::abs(1 - gradC.squaredNorm()));
+                        if (visEta < 2. / 5. / (kAv * kAv) * settings.ekCutDown * settings.visScaleIn)
                             visEta = 0.;
-                        real visGam = 0.5;
                         visEta *= settings.visScale;
+
+                        real visEta2 = std::min(std::pow(IJI(0, 0) / (ISI(0, 0) + 1e-8), 0.75), 2. / 5. / (kAv * kAv) * settings.isiScaleIn);
+                        if (visEta2 < 2. / 5. / (kAv * kAv) * settings.isiCutDown * settings.isiScaleIn)
+                            visEta2 = 0.;
+                        visEta2 *= settings.isiScale;
+
+                        visEta += visEta2;
+
                         // visEta = settings.visScale * 2. / 5. / (kAv * kAv);
 
-                        finc = visEta * visGam * (dist * unitNorm.dot(gradC) + (uRecValR(0) - uRecValL(0)) * .5);
+                        real visGam = 0.5;
+
+                        finc = visEta * visGam * (dist * unitNorm.dot(gradC) + (uRecValR(0) - uRecValL(0)) * .0);
                         finc *= vfv->faceNorms[iFace][ig].norm(); // don't forget this
                     });
                 rhs[f2c[0]](0) += flux / fv->volumeLocal[f2c[0]];
@@ -355,6 +380,9 @@ namespace DNDS
             real res_base = 0;
 
             VRFiniteVolume2D::Setting vfvSetting;
+
+            int nDropVisScale;
+            real vDropVisScale;
             EikonalEvaluator::Setting eikonalSetting;
 
             int curvilinearOneStep = 500;
@@ -365,6 +393,7 @@ namespace DNDS
             real curvilinearRange = 0.1;
 
             bool useLocalDt = true;
+            int nForceLocalStartStep = -1;
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -445,6 +474,13 @@ namespace DNDS
             config.useLocalDt = doc["useLocalDt"].GetBool();
             if (mpi.rank == 0)
                 log() << "JSON: useLocalDt = " << config.useLocalDt << std::endl;
+
+            assert(doc["nForceLocalStartStep"].IsInt());
+            config.nForceLocalStartStep = doc["nForceLocalStartStep"].GetInt();
+            if (mpi.rank == 0)
+            {
+                log() << "JSON: nForceLocalStartStep = " << config.nForceLocalStartStep << std::endl;
+            }
 
             if (doc["vfvSetting"].IsObject())
             {
@@ -542,6 +578,19 @@ namespace DNDS
                         log() << "JSON: vfvSetting.curvilinearOrder = " << config.vfvSetting.curvilinearOrder << std::endl;
                 }
             }
+            if (doc["nDropVisScale"].IsInt())
+            {
+                config.nDropVisScale = doc["nDropVisScale"].GetInt();
+                if (mpi.rank == 0)
+                    log() << "JSON: nDropVisScale = " << config.nDropVisScale << std::endl;
+            }
+
+            if (doc["vDropVisScale"].IsNumber())
+            {
+                config.vDropVisScale = doc["vDropVisScale"].GetDouble();
+                if (mpi.rank == 0)
+                    log() << "JSON: vDropVisScale = " << config.vDropVisScale << std::endl;
+            }
 
             if (doc["eikonalSetting"].IsObject())
             {
@@ -550,6 +599,36 @@ namespace DNDS
                     config.eikonalSetting.visScale = doc["eikonalSetting"]["visScale"].GetDouble();
                     if (mpi.rank == 0)
                         log() << "JSON: eikonalSetting.visScale = " << config.eikonalSetting.visScale << std::endl;
+                }
+                if (doc["eikonalSetting"]["visScaleIn"].IsNumber())
+                {
+                    config.eikonalSetting.visScaleIn = doc["eikonalSetting"]["visScaleIn"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: eikonalSetting.visScaleIn = " << config.eikonalSetting.visScaleIn << std::endl;
+                }
+                if (doc["eikonalSetting"]["ekCutDown"].IsNumber())
+                {
+                    config.eikonalSetting.ekCutDown = doc["eikonalSetting"]["ekCutDown"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: eikonalSetting.ekCutDown = " << config.eikonalSetting.ekCutDown << std::endl;
+                }
+                if (doc["eikonalSetting"]["isiScale"].IsNumber())
+                {
+                    config.eikonalSetting.isiScale = doc["eikonalSetting"]["isiScale"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: eikonalSetting.isiScale = " << config.eikonalSetting.isiScale << std::endl;
+                }
+                if (doc["eikonalSetting"]["isiScaleIn"].IsNumber())
+                {
+                    config.eikonalSetting.isiScaleIn = doc["eikonalSetting"]["isiScaleIn"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: eikonalSetting.isiScaleIn = " << config.eikonalSetting.isiScaleIn << std::endl;
+                }
+                if (doc["eikonalSetting"]["isiCutDown"].IsNumber())
+                {
+                    config.eikonalSetting.isiCutDown = doc["eikonalSetting"]["isiCutDown"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: eikonalSetting.isiCutDown = " << config.eikonalSetting.isiCutDown << std::endl;
                 }
             }
 
@@ -602,7 +681,7 @@ namespace DNDS
             uRecNew.Copy(uRec);
             cfv->BuildRec(uRecCR);
 
-            u.setConstant(0.0);
+            u.setConstant(0);
 
             outDist = std::make_shared<decltype(outDist)::element_type>(
                 decltype(outDist)::element_type::tContext(mesh->cell2faceLocal.dist->size()), mpi);
@@ -612,12 +691,14 @@ namespace DNDS
             outSerial->initPersistentPull();
 
             err = std::make_shared<EikonalErrorEvaluator>(mesh.get(), fv.get(), vfv.get(), config.err_dMax);
+            forEachInArray(*u.dist, [&](decltype(u.dist)::element_type::tComponent &e, index iCell)
+                           { e.p()(0) = err->sResult[iCell] * 0; });
         }
 
         void RunExplicitSSPRK4()
         {
 
-            ODE::ExplicitSSPRK4LocalDt<decltype(u)> ode(
+            ODE::ExplicitSSPRK3LocalDt<decltype(u)> ode(
                 u.dist->size(),
                 [&](decltype(u) &data)
                 {
@@ -639,6 +720,11 @@ namespace DNDS
             int curvilinearStepper = 0;
             for (int step = 1; step <= config.nTimeStep; step++)
             {
+                if (step == config.nForceLocalStartStep)
+                    config.useLocalDt = true;
+                if (step == config.nDropVisScale)
+                    eval.settings.visScale *= config.vDropVisScale;
+
                 curvilinearStepper++;
                 ode.Step(
                     u,

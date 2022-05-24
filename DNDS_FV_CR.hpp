@@ -278,6 +278,65 @@ namespace DNDS
                 auto matrixBatchElem = (*matrixBatch)[iCell];
                 auto vectorBatchElem = (*vectorBatch)[iCell];
 
+                Elem::tPoint gradAll{0, 0, 0};
+                bool hasUpper = false;
+
+                // for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                // {
+                //     // this is a repeated code block START
+                //     index iFace = c2f[ic2f];
+                //     auto &f2c = (*mesh->face2cellPair)[iFace];
+                //     index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                //     index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                //     auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                //     auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
+                //     auto faceDiBjCenterBatchElemVR = (*VFV->faceDiBjCenterBatch)[iFace];
+                //     auto faceDiBjGaussBatchElemVR = (*VFV->faceDiBjGaussBatch)[iFace];
+
+                //     Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+                //     Eigen::MatrixXd fcoords;
+                //     mesh->LoadCoords(mesh->face2nodeLocal[iFace], fcoords);
+                //     // Elem::tPoint faceL = fcoords(Eigen::all, 1) - fcoords(Eigen::all, 0);
+                //     // Elem::tPoint faceN{faceL(1), -faceL(0), 0.0}; // 2-d specific //pointing from left to right
+                //     Elem::tPoint faceN = faceNormCenter[iFace];
+
+                //     Elem::tPoint gradL{0, 0, 0};
+                //     // gradL({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m()
+                //     //                             : VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m();
+                //     gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m();
+
+                //     if (iCellOther != FACE_2_VOL_EMPTY)
+                //     {
+                //         auto &cellRAOther = cellRecAtrLocal[iCellOther][0];
+                //         auto &cellVRRAOther = VFV->cellRecAtrLocal[iCellOther][0];
+
+                //         Elem::tPoint gradR{0, 0, 0}; // ! 2d here!!
+                //         // gradR({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m()
+                //         //                             : VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m();
+                //         gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1 - iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m();
+
+                //         gradL = 0.5 * (gradL + gradR);
+                //         Elem::tPoint convVelocity = 0.5 * (gradL + gradR);
+                //         // Elem::tPoint convVelocity = gradAll;
+                //         real signLR = ((convVelocity.dot(faceN) > 0) == (iCellAtFace == 0)) ? 1.0 : -1.0;
+                //         if (convVelocity.norm() < 0.00001)
+                //             signLR = 0;
+                //         if(signLR < 0)
+                //             hasUpper = true;
+
+                //     }
+                //     else
+                //     {
+                //         if (faceAttribute.iPhy == BoundaryType::Wall)
+                //         {
+                //            hasUpper = true;
+                //         }
+                //     }
+                //     gradAll += gradL;
+                // }
+                // if(!hasUpper)
+                //     break;
+
                 for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                 {
                     // this is a repeated code block START
@@ -295,7 +354,7 @@ namespace DNDS
                     mesh->LoadCoords(mesh->face2nodeLocal[iFace], fcoords);
                     // Elem::tPoint faceL = fcoords(Eigen::all, 1) - fcoords(Eigen::all, 0);
                     // Elem::tPoint faceN{faceL(1), -faceL(0), 0.0}; // 2-d specific //pointing from left to right
-                    Elem::tPoint faceN = faceNormCenter[iFace];
+                    Elem::tPoint faceN = faceNormCenter[iFace].normalized();
 
                     Elem::tPoint gradL{0, 0, 0};
                     // gradL({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m()
@@ -313,7 +372,14 @@ namespace DNDS
                         gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1 - iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m();
 
                         Elem::tPoint convVelocity = 0.5 * (gradL + gradR);
-                        real signLR = ((convVelocity.dot(faceN) > 0) == (iCellAtFace == 0)) ? 1.0 : -1.0;
+                        // Elem::tPoint convVelocity = gradAll;
+                        real convFace = convVelocity.dot(faceN);
+                        real signLR = ((convFace > 0) == (iCellAtFace == 0)) ? 1.0 : -1.0;
+                        // if (convVelocity.norm() < 0.1)
+                        //     signLR = 0;
+                        if (std::abs(convFace) < 0.1)
+                            signLR = 0;
+
                         // eFace.Integration(
                         //     bi,
                         //     [&](Eigen::VectorXd &biInc, int ig, Elem::tPoint pParam, Elem::tDiFj &DiNj)
@@ -330,8 +396,13 @@ namespace DNDS
                         //     });
                         if (signLR > 0)
                             bi += matrixBatchElem.m(1 + ic2f * 2 + 0) * uRec[iCell].m();
-                        else
+                        else if (signLR < 0)
                             bi += matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther].m() + vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther].p() - u[iCell].p());
+                        else
+                            bi += 0.5 *
+                                  (matrixBatchElem.m(1 + ic2f * 2 + 0) * uRec[iCell].m() +
+                                   matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther].m() +
+                                   vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther].p() - u[iCell].p()));
                         //! don't forget the mean value between them
                     }
                     else

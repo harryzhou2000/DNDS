@@ -131,6 +131,7 @@ namespace DNDS
                             index inode;
                             Elem::tPoint p;
                             lineStream >> inode >> p[0] >> p[1] >> p[2];
+                            p[2] = 0;//! could be erronous
                             inode--; // to 0 based
                             readPoints[inode] = p;
                         }
