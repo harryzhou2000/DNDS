@@ -178,6 +178,202 @@ namespace DNDS
             }
         }
 
+        void PoissonInit(ArrayDOF<1u> &u, ArrayDOF<1u> &unew, int nIter, real alpha = 0.1)
+        {
+            for (int step = 1; step <= nIter; step++)
+            {
+                real incMax = 0;
+                u.StartPersistentPullClean();
+                u.WaitPersistentPullClean();
+                for (index iCell = 0; iCell < u.dist->size(); iCell++)
+                {
+                    auto &c2f = mesh->cell2faceLocal[iCell];
+
+                    Elem::tPoint gradAll{0, 0, 0};
+                    bool hasUpper = false;
+                    auto &cLeft = vfv->cellCenters[iCell];
+                    real aC = 0;
+                    real aRHSU = 0;
+                    real uC = u[iCell](0);
+                    real uDMax = 0;
+                    real dmin = veryLargeReal;
+                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                    {
+                        // this is a repeated code block START
+                        index iFace = c2f[ic2f];
+                        auto &f2c = (*mesh->face2cellPair)[iFace];
+                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                        auto &cFace = vfv->faceCenters[iFace];
+                        auto fN = vfv->faceNormCenter[iFace].normalized() * (iCellAtFace == 0 ? 1. : -1.);
+
+                        if (iCellOther != FACE_2_VOL_EMPTY)
+                        {
+                            real D = std::abs((cLeft - vfv->cellCenters[iCellOther]).dot(fN));
+                            dmin = std::min(D, dmin);
+                            // std::cout << u.dist->size() << " " << u.ghost->size() << " "
+                            //           << iCell << " " << iCellOther << " " << u[iCellOther](0) << " " << uC << std::endl;
+                            // if (u[iCellOther](0) != 0)
+                            // {
+                            //     forEachInArrayPair(*u.pair, [&](decltype(u.dist)::element_type::tComponent &e, index iCell)
+                            //                           { std::cout << "UPPair: " << e << std::endl; });
+                            //     exit(0);
+                            // }
+                            // inc += (u[iCellOther](0) - uC) / D * fv->faceArea[iFace];
+                            aRHSU += u[iCellOther](0) / D * fv->faceArea[iFace];
+                            aC += 1 / D * fv->faceArea[iFace];
+                            uDMax = std::max(uDMax, std::abs(u[iCellOther](0) - uC));
+                        }
+                        else
+                        {
+                            real D = (cLeft - cFace).norm() * 2;
+                            dmin = std::min(D, dmin);
+                            // std::cout << D << std::endl;
+                            if (faceAttribute.iPhy == BoundaryType::Wall)
+                            {
+                                aRHSU += 0 / D * fv->faceArea[iFace];
+                                aC += 1 / D * fv->faceArea[iFace];
+                                uDMax = std::max(uDMax, std::abs(0 - uC));
+                            }
+                            else if (faceAttribute.iPhy == BoundaryType::Farfield)
+                            {
+                                // inc += (0 - uC) / D * fv->faceArea[iFace];
+                                // uDMax = std::max(uDMax, std::abs(0 - uC));
+                                aRHSU += uC / D * fv->faceArea[iFace];
+                                aC += 1 / D * fv->faceArea[iFace];
+                            }
+                            else
+                            {
+                                assert(false);
+                            }
+                        }
+                    }
+                    // real vinc = ((inc) / fv->volumeLocal[iCell] - 1);
+                    // unew[iCell](0) += std::min(alpha, uDMax / (std::abs(vinc) + 1e-10)) * vinc;
+                    // unew[iCell](0) += dmin * dmin * alpha * vinc;
+                    u[iCell](0) = (1 - alpha) * u[iCell](0) + alpha * (aRHSU + fv->volumeLocal[iCell] * 1) / aC;
+                    // std::cout << " great" << unew[iCell](0) << " ";
+                    incMax = std::max(std::abs(uC - u[iCell](0)), incMax);
+                }
+                // for (index iCell = 0; iCell < u.dist->size(); iCell++)
+                //     u[iCell] = unew[iCell];
+
+                real incMaxR;
+                // std::cout << incMax << std::endl;
+                MPI_Allreduce(&incMax, &incMaxR, 1, DNDS_MPI_REAL, MPI_MAX, u.ghost->getMPI().comm);
+
+                if (u.ghost->getMPI().rank == 0 && step % 100 == 0)
+                    log() << "Poisson Solve Step [" << step << "]: RHSMax = [" << incMaxR << "]" << std::endl;
+            }
+
+            u.StartPersistentPullClean();
+            u.WaitPersistentPullClean();
+            for (index iCell = 0; iCell < u.dist->size(); iCell++)
+            {
+                auto &c2f = mesh->cell2faceLocal[iCell];
+                Elem::tPoint grad{0, 0, 0};
+                real uC = u[iCell](0);
+
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    // this is a repeated code block START
+                    index iFace = c2f[ic2f];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                    auto &cFace = vfv->faceCenters[iFace];
+                    auto &cLeft = vfv->cellCenters[iCell];
+                    auto fN = vfv->faceNormCenter[iFace].normalized() * (iCellAtFace == 0 ? 1. : -1.);
+
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        real D = std::abs((cLeft - vfv->cellCenters[iCellOther]).dot(fN));
+                        grad += ((u[iCellOther](0) + uC) * 0.5 * fv->faceArea[iFace]) * fN;
+                    }
+                    else
+                    {
+                        real D = (cLeft - cFace).norm() * 2;
+                        if (faceAttribute.iPhy == BoundaryType::Wall)
+                        {
+                            grad += ((0 + uC) * 0.5 * fv->faceArea[iFace]) * fN;
+                        }
+                        else if (faceAttribute.iPhy == BoundaryType::Farfield)
+                        {
+                            grad += ((uC + uC) * 0.5 * fv->faceArea[iFace]) * fN;
+                        }
+                        else
+                        {
+                            assert(false);
+                        }
+                    }
+                }
+                grad.array() /= fv->volumeLocal[iCell];
+                real nGrad = grad.squaredNorm();
+                unew[iCell](0) = std::sqrt(std::max(nGrad + 2 * u[iCell](0), 0.0)) - std::sqrt(nGrad);
+                // unew[iCell] = u[iCell];
+                // std::cout << "out " << u[iCell];
+            }
+
+            
+
+            for (int i = 0; i < 10; i++)
+            {
+                unew.StartPersistentPullClean();
+                unew.WaitPersistentPullClean();
+                for (index iCell = 0; iCell < u.dist->size(); iCell++)
+                {
+                    auto &c2f = mesh->cell2faceLocal[iCell];
+                    Elem::tPoint grad{0, 0, 0};
+                    real uC = unew[iCell](0);
+
+                    real uSum{0}, nSum{0};
+
+                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                    {
+                        // this is a repeated code block START
+                        index iFace = c2f[ic2f];
+                        auto &f2c = (*mesh->face2cellPair)[iFace];
+                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                        auto &cFace = vfv->faceCenters[iFace];
+                        auto &cLeft = vfv->cellCenters[iCell];
+                        auto fN = vfv->faceNormCenter[iFace].normalized() * (iCellAtFace == 0 ? 1. : -1.);
+
+                        if (iCellOther != FACE_2_VOL_EMPTY)
+                        {
+                            uSum += unew[iCellOther](0);
+                            nSum += 1;
+                        }
+                        else
+                        {
+                            real D = (cLeft - cFace).norm() * 2;
+                            if (faceAttribute.iPhy == BoundaryType::Wall)
+                            {
+                                uSum += 0;
+                                nSum += 1;
+                            }
+                            else if (faceAttribute.iPhy == BoundaryType::Farfield)
+                            {
+                                uSum += uC;
+                                nSum += 1;
+                            }
+                            else
+                            {
+                                assert(false);
+                            }
+                        }
+                    }
+                    u[iCell](0) = uSum / nSum;
+                }
+                for (index iCell = 0; iCell < u.dist->size(); iCell++)
+                    unew[iCell] = u[iCell];
+            }
+            
+        }
+
         void EvaluateResidual(real &res, ArrayDOF<1u> &rhs, real P = 1.)
         {
 
@@ -349,7 +545,7 @@ namespace DNDS
         std::shared_ptr<CRFiniteVolume2D> cfv;
         std::shared_ptr<EikonalErrorEvaluator> err;
 
-        ArrayDOF<1u> u;
+        ArrayDOF<1u> u, uPoisson;
         ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
 
         static const int nOUTS = 4;
@@ -677,11 +873,13 @@ namespace DNDS
             cfv->Initialization();
 
             fv->BuildMean(u);
+            fv->BuildMean(uPoisson);
             vfv->BuildRec(uRec);
             uRecNew.Copy(uRec);
             cfv->BuildRec(uRecCR);
 
             u.setConstant(0);
+            uPoisson.setConstant(0);
 
             outDist = std::make_shared<decltype(outDist)::element_type>(
                 decltype(outDist)::element_type::tContext(mesh->cell2faceLocal.dist->size()), mpi);
@@ -715,6 +913,18 @@ namespace DNDS
             double trec{0}, treccr{0}, tcomm{0}, trhs{0};
             int stepCount = 0;
             real resBaseC = config.res_base;
+
+            // Doing Poisson Init:
+            uPoisson.InitPersistentPullClean();
+            // forEachInArrayPair(*uPoisson.pair, [&](decltype(uPoisson.dist)::element_type::tComponent &e, index iCell)
+            //                    { std::cout << "UPPair: " << e << std::endl; });
+            eval.PoissonInit(uPoisson, u, 10000, 1);
+            for (int iRec = 0; iRec < 20; iRec++)
+            {
+                vfv->ReconstructionJacobiStep(u, uRec, uRecNew);
+                uRec.StartPersistentPullClean();
+                uRec.WaitPersistentPullClean();
+            }
 
             int curvilinearNum = 0;
             int curvilinearStepper = 0;
