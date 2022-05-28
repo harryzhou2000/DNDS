@@ -5,6 +5,10 @@ namespace DNDS
     void CompactFacedMeshSerialRWBuild(MPIInfo mpi, const std::string &gmshFile, const std::string &distDebugFile,
                                        std::shared_ptr<CompactFacedMeshSerialRW> &mesh, real RotZ)
     {
+        if (mpi.rank == 0)
+            log() << "=== CompactFacedMeshSerialRWBuild ===" << std::endl
+                  << "File name: \"" << gmshFile
+                  << "\"" << std::endl;
         DNDS::SerialGmshReader2d gmshReader2D;
         if (mpi.rank == 0)
         {
@@ -21,9 +25,12 @@ namespace DNDS
         // mesh.LogStatusDistPart();
         (mesh)->ClearSerial();
         (mesh)->BuildSerialOut(0);
-        (mesh)->PrintSerialPartPltASCIIDBG(distDebugFile, 0);
+        if (!distDebugFile.empty())
+            (mesh)->PrintSerialPartPltASCIIDBG(distDebugFile, 0);
         // InsertCheck(mpi, "PB1");
         (mesh)->BuildGhosts();
         // InsertCheck(mpi, "PBEND");
+        if (mpi.rank == 0)
+            log() << "=== CompactFacedMeshSerialRWBuild ===" << std::endl;
     }
 }

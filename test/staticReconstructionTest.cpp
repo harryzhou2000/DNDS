@@ -1,12 +1,26 @@
 #include "../DNDS_FV_VR.hpp"
 #include "../DNDS_FV_CR.hpp"
 
+#include <cstdlib>
+#include <iomanip>
+
 int main(int argn, char *argv[])
 {
     MPI_Init(&argn, &argv);
     using namespace DNDS;
     DNDS::MPIInfo mpi;
     mpi.setWorld();
+
+    int nIter;
+    double R;
+    if (argn != 3)
+        std::abort();
+
+    nIter = atoi(argv[1]);
+    R = atof(argv[2]);
+    if (mpi.rank == 0)
+        std::cout << "N iter = " << nIter << " R = " << R << std::endl;
+
     // Debug::MPIDebugHold(mpi);
 
     auto fDiffs = [](Elem::tPoint p) -> Eigen::VectorXd
@@ -20,15 +34,21 @@ int main(int argn, char *argv[])
         d(5) = std::cos(p(1) * 2 * pi) * (1 - std::cos(p(0) * 2 * pi)) * 2 * pi * 2 * pi;
         return d;
     };
+    // std::vector<std::string> meshNames = {
+    //     "data/mesh/Uniform/UniformA0.msh",
+    //     "data/mesh/Uniform/UniformA1.msh",
+    //     "data/mesh/Uniform/UniformA2.msh",
+    //     "data/mesh/Uniform/UniformA3.msh",
+    //     "data/mesh/Uniform/UniformB0.msh",
+    //     "data/mesh/Uniform/UniformB1.msh",
+    //     "data/mesh/Uniform/UniformB2.msh",
+    //     "data/mesh/Uniform/UniformB3.msh",
+    // };
     std::vector<std::string> meshNames = {
-        "data/mesh/Uniform/UniformA0.msh",
-        "data/mesh/Uniform/UniformA1.msh",
-        "data/mesh/Uniform/UniformA2.msh",
-        "data/mesh/Uniform/UniformA3.msh",
-        "data/mesh/Uniform/UniformB0.msh",
-        "data/mesh/Uniform/UniformB1.msh",
-        "data/mesh/Uniform/UniformB2.msh",
-        "data/mesh/Uniform/UniformB3.msh",
+        "data/mesh/Uniform/UniformAR00_0.msh",
+        "data/mesh/Uniform/UniformAR00_1.msh",
+        "data/mesh/Uniform/UniformAR00_2.msh",
+        "data/mesh/Uniform/UniformAR00_3.msh",
     };
     std::vector<Eigen::VectorXd> norms;
     norms.resize(meshNames.size() * 3);
@@ -37,7 +57,7 @@ int main(int argn, char *argv[])
     {
         auto &mName = meshNames[iCase];
         std::shared_ptr<CompactFacedMeshSerialRW> mesh;
-        CompactFacedMeshSerialRWBuild(mpi, mName, "data/out/debugmeshSO.plt", mesh);
+        CompactFacedMeshSerialRWBuild(mpi, mName, "data/out/debugmeshSO.plt", mesh, R);
         // InsertCheck(mpi, "AfterRead1");
         ImplicitFiniteVolume2D fv(mesh.get());
         VRFiniteVolume2D vfv(mesh.get(), &fv);
@@ -88,7 +108,7 @@ int main(int argn, char *argv[])
         uRec.InitPersistentPullClean();
         // InsertCheck(mpi, "BeforeRec");
         double tstart = MPI_Wtime();
-        for (int i = 0; i < 500; i++)
+        for (int i = 0; i < nIter; i++)
         {
             u.StartPersistentPullClean();
             uRec.StartPersistentPullClean();
@@ -124,7 +144,7 @@ int main(int argn, char *argv[])
                     recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().abs().matrix();
-                    inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
+                    // inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();//! not doing to acquire element-wise error
                     normInf = normInf.array().cwiseMax((vReal - rec.topRows(6)).array().abs());
                 });
             eCell.Integration(
@@ -140,7 +160,7 @@ int main(int argn, char *argv[])
                     recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().pow(2).matrix();
-                    inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
+                    // inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();//! not doing to acquire element-wise error
                 });
         }
         // Eigen::VectorXd norm1R(6);
@@ -170,7 +190,7 @@ int main(int argn, char *argv[])
         if (mpi.rank == 0)
         {
             std::cout << "=== === === === === === === === === === === === === === === === === === ===" << std::endl;
-            std::cout << "Name: " << mName
+            std::cout << "Name: " << mName << std::scientific << std::setprecision(6)
                       //   << "  \nnorm1 " << norm1R[0] << norm1R[1] << norm1R[2]
                       //   << "  \nnorm2 " << norm2R[0] << norm2R[1] << norm2R[2]
                       //   << "  \nnormInf " << normInfR[0] << normInfR[1] << normInfR[2] << std::endl;

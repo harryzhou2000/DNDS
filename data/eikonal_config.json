@@ -1,9 +1,9 @@
 {
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 1,
+    "nTimeStep": 10000,
     "nConsoleCheck": 10,
-    "nDataOut": 1,
+    "nDataOut": 1000,
     "CFL": 0.5,
     "useLocalDt": true,
     "nForceLocalStartStep": 75000,
@@ -50,9 +50,9 @@
     "eikonalSetting": {
         "comment_settingNotes":"for scheme 8 30p30n: 32 2 2 4",
         "comment_settingNotesA": "for scheme 8 30p30n with poisson init: 1 1 4 2",
-        "visScale": 1,
+        "visScale": 32,
         "visScaleIn": 1,
-        "isiScale": 4,
+        "isiScale": 6,
         "isiScaleIn": 2,
         "ekCutDown": 0.5,
         "isiCutDown": 0.5

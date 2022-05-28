@@ -130,10 +130,11 @@ namespace DNDS
         // std::vector<std::vector<Eigen::MatrixXd>> faceDiBjGaussCache;                 // DiBjCache[i].m(iGauss * 2 + 0/1) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
         // std::vector<std::pair<Eigen::MatrixXd, Eigen::MatrixXd>> faceDiBjCenterCache; // center, only order 0, 1 diffs
 
-        std::shared_ptr<Array<SmallMatricesBatch>> cellDiBjGaussBatch;  // DiBjCache[i].m(iGauss) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
-        std::shared_ptr<Array<SmallMatricesBatch>> cellDiBjCenterBatch; // center, only order 0, 1 diffs
-        std::shared_ptr<Array<SmallMatricesBatch>> faceDiBjGaussBatch;  // DiBjCache[i].m(iGauss * 2 + 0/1) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
-        std::shared_ptr<Array<SmallMatricesBatch>> faceDiBjCenterBatch; // center, only order 0, 1 diffs
+        std::shared_ptr<Array<SmallMatricesBatch>> cellDiBjGaussBatch;   // DiBjCache[i].m(iGauss) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
+        std::shared_ptr<Array<SmallMatricesBatch>> cellDiBjCenterBatch;  // center, only order 0, 1 diffs
+        std::shared_ptr<Array<SmallMatricesBatch>> faceDiBjGaussBatch;   // DiBjCache[i].m(iGauss * 2 + 0/1) = Di(Bj) at this gaussPoint, Di is diff according to diffOperatorOrderList2D[i][:]
+        std::shared_ptr<Array<SmallMatricesBatch>> faceDiBjCenterBatch;  // center, all diffs
+        std::shared_ptr<Array<SmallMatricesBatch>> matrixSecondaryBatch; // for secondary rec
 
         std::vector<Eigen::VectorXd> baseMoments; // full dofs, like baseMoment[i].v()(0) == 1
         std::vector<Elem::tPoint> cellCenters;
@@ -156,10 +157,10 @@ namespace DNDS
 
         struct Setting
         {
-            real wallWeight = 5.0;
+            real wallWeight = 1.0;
             real farWeight = 0.0;
 
-            real tangWeight = 0;
+            real tangWeight = 5e-3;
             // center type
             std::string baseCenterTypeName = "Bary";
             enum BaseCenterType
@@ -322,32 +323,32 @@ namespace DNDS
             real scaleL0 = pJacobi.col(0).norm();
             real scaleL1 = pJacobi.col(1).norm();
             Eigen::Matrix2d invPJacobi;
-            
-                pJacobi.col(0) = pJacobi.col(0).normalized();
-                pJacobi.col(1) = pJacobi.col(1).normalized();
 
-                invPJacobi = pJacobi.inverse();
+            pJacobi.col(0) = pJacobi.col(0).normalized();
+            pJacobi.col(1) = pJacobi.col(1).normalized();
 
-                auto ncoords = (invPJacobi * coordsC.topRows(2));
-                auto nSizes = ncoords.rowwise().maxCoeff() - ncoords.rowwise().minCoeff();
+            invPJacobi = pJacobi.inverse();
 
-                scaleL0 = nSizes(0);
-                scaleL1 = nSizes(1);
-                // std::cout << scaleM << "\t" << scaleL0 << "\t" << scaleL1 << "\t" << std::endl;
-                // abort();
-                real scaleUni = std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
-                if (!setting.anistropicLengths)
-                {
-                    pJacobi.col(0) = pJacobi.col(0) * scaleUni;
-                    pJacobi.col(1) = pJacobi.col(1) * scaleUni;
-                    simpleScale(0) = simpleScale(1) = scaleUni;
-                }
-                else
-                {
-                    pJacobi.col(0) = pJacobi.col(0) * scaleL0;
-                    pJacobi.col(1) = pJacobi.col(1) * scaleL1;
-                    simpleScale(0) = simpleScale(1) = scaleUni;
-                }
+            auto ncoords = (invPJacobi * coordsC.topRows(2));
+            auto nSizes = ncoords.rowwise().maxCoeff() - ncoords.rowwise().minCoeff();
+
+            scaleL0 = nSizes(0);
+            scaleL1 = nSizes(1);
+            // std::cout << scaleM << "\t" << scaleL0 << "\t" << scaleL1 << "\t" << std::endl;
+            // abort();
+            real scaleUni = std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
+            if (!setting.anistropicLengths)
+            {
+                pJacobi.col(0) = pJacobi.col(0) * scaleUni;
+                pJacobi.col(1) = pJacobi.col(1) * scaleUni;
+                simpleScale(0) = simpleScale(1) = scaleUni;
+            }
+            else
+            {
+                pJacobi.col(0) = pJacobi.col(0) * scaleL0;
+                pJacobi.col(1) = pJacobi.col(1) * scaleL1;
+                simpleScale(0) = simpleScale(1) = scaleUni;
+            }
 
             invPJacobi = pJacobi.inverse();
 
@@ -1463,6 +1464,58 @@ namespace DNDS
                     mesh->face2cellLocal.size()),
                 mpi);
 
+            // *Allocate space for matrixSecondaryBatch
+            auto fGetMatrixSecondarySize = [&](int &nmat, std::vector<int> &matSizes, index iFace)
+            {
+                auto faceRecAtr = faceRecAtrLocal[iFace][0];
+                auto faceAtr = mesh->faceAtrLocal[iFace][0];
+                Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
+                auto f2n = mesh->face2nodeLocal[iFace];
+                auto f2c = mesh->face2cellLocal[iFace];
+                nmat = 2;
+                matSizes.resize(nmat * 2, 0);
+
+                DNDS::RecAtr *cellRecAtrL{nullptr};
+                DNDS::RecAtr *cellRecAtrR{nullptr};
+                DNDS::ElemAttributes *cellAtrL{nullptr};
+                DNDS::ElemAttributes *cellAtrR{nullptr};
+                cellRecAtrL = &cellRecAtrLocal[f2c[0]][0];
+                cellAtrL = &mesh->cellAtrLocal[f2c[0]][0];
+                if (f2c[1] != FACE_2_VOL_EMPTY)
+                {
+                    cellRecAtrR = &cellRecAtrLocal[f2c[1]][0];
+                    cellAtrR = &mesh->cellAtrLocal[f2c[1]][0];
+                }
+
+                if (f2c[1] != FACE_2_VOL_EMPTY)
+                {
+                    matSizes[0 * 2 + 0] = cellRecAtrL->NDOF - 1;
+                    matSizes[0 * 2 + 1] = cellRecAtrR->NDOF - 1;
+                    matSizes[1 * 2 + 0] = cellRecAtrR->NDOF - 1;
+                    matSizes[1 * 2 + 1] = cellRecAtrL->NDOF - 1;
+                }
+            };
+            matrixSecondaryBatch = std::make_shared<decltype(matrixSecondaryBatch)::element_type>(
+                decltype(matrixSecondaryBatch)::element_type::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetMatrixSecondarySize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
+                    },
+                    [&](uint8_t *data, index siz, index i)
+                    {
+                        int nmats = -123;
+                        std::vector<int> matSizes;
+                        fGetMatrixSecondarySize(nmats, matSizes, i);
+                        assert(matSizes.size() == nmats * 2);
+                        DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
+                    },
+                    mesh->face2cellLocal.size()),
+                mpi);
+
             forEachInArrayPair(
                 *mesh->face2cellLocal.pair,
                 [&](tAdjStatic2Array::tComponent &f2c, index iFace)
@@ -1473,6 +1526,7 @@ namespace DNDS
                     auto f2n = mesh->face2nodeLocal[iFace];
                     auto faceDiBjCenterBatchElem = (*faceDiBjCenterBatch)[iFace];
                     auto faceDiBjGaussBatchElem = (*faceDiBjGaussBatch)[iFace];
+                    auto matrixSecondaryBatchElem = (*matrixSecondaryBatch)[iFace];
 
                     // faceDiBjGaussCache[iFace].resize(eFace.getNInt() * 2); // note the 2x size
                     faceNorms[iFace].resize(eFace.getNInt());
@@ -1539,6 +1593,22 @@ namespace DNDS
                                        baseMoments[iCell], faceDiBjCenterBatchElem.m(1));
                         // Elem::tPoint pCellRPhy = cellCoordsR * cellDiNj({0}, Eigen::all).transpose();
                         // std::cout << " " << pCellLPhy.transpose() << " " << pCellRPhy.transpose() << std::endl;
+
+                        // deal with matrixSecondaryBatch
+                        {
+                            Eigen::MatrixXd msR2L, msL2R;
+                            std::cout << faceDiBjCenterBatchElem.m(0) << std::endl;
+                            int nColL = faceDiBjCenterBatchElem.m(0).cols();
+                            int nRowL = faceDiBjCenterBatchElem.m(0).rows();
+                            int nColR = faceDiBjCenterBatchElem.m(1).cols();
+                            int nRowR = faceDiBjCenterBatchElem.m(1).rows();
+                            HardEigen::EigenLeastSquareSolve(faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1),
+                                                             faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1), msR2L);
+                            HardEigen::EigenLeastSquareSolve(faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1),
+                                                             faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1), msL2R);
+                            matrixSecondaryBatchElem.m(0) = msR2L;
+                            matrixSecondaryBatchElem.m(1) = msL2R;
+                        }
                     }
 
                     /*******************************************/
@@ -2180,6 +2250,90 @@ namespace DNDS
         void ReconstructionJacobiStep(ArrayLocal<VecStaticBatch<1>> &u,
                                       ArrayLocal<SemiVarMatrix<1>> &uRec,
                                       ArrayLocal<SemiVarMatrix<1>> &uRecNewBuf);
+
+        //TODO: WBAP: facial
+
+        template <typename TinC, typename Tin, typename Tout>
+        inline void FWBAP(const TinC &uC, const Tin &uOther, Tout &uOut)
+        { 
+            //! TODO:
+        }
+
+        /**
+         * @brief
+         * \pre u need to StartPersistentPullClean()
+         * \post u,uR need to WaitPersistentPullClean();
+         */
+        template <uint32_t vsize, typename TFM, typename TFMI>
+        // static const int vsize = 1; // intellisense helper: give example...
+        void ReconstructionWBAPLimit(ArrayLocal<SemiVarMatrix<vsize>> &uRec,
+                                     ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf,
+                                     std::vector<Eigen::Matrix<real, vsize, vsize>> &mProjection,
+                                     TFM&& FM, TFMI&& FMI)
+        {
+
+            static int icount = 0;
+            // InsertCheck(mpi, "ReconstructionJacobiStep Start");
+            //! TODO:
+            int cPOrder = P_ORDER;
+            for (; cPOrder >= 1; cPOrder--)
+            {
+                int LimStart, LimEnd; // End is inclusive
+                switch (cPOrder)
+                {
+                case 3:
+                    LimStart = 5;
+                    LimEnd = 8;
+                    break;
+                case 2:
+                    LimStart = 2;
+                    LimEnd = 4;
+                    break;
+                case 1:
+                    LimStart = 0;
+                    LimEnd = 1;
+                    break;
+
+                default:
+                    assert(false);
+                    break;
+                }
+                for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
+                {
+                    index iCell = iScan;
+                    auto &c2f = mesh->cell2faceLocal[iCell];
+
+                    auto matrixBatchElem = (*matrixBatch)[iCell];
+                    auto vectorBatchElem = (*vectorBatch)[iCell];
+
+                    Eigen::MatrixXd uOther(vsize, c2f.size());
+                    int iFillu = 0;
+
+                    // Eigen::MatrixXd coords;
+                    // mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
+                    // std::cout << "COORDS" << coords << std::endl;
+                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                    {
+                        index iFace = c2f[ic2f];
+                        auto &f2c = (*mesh->face2cellPair)[iFace];
+                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                        auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
+                        Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+
+                        if (iCellOther != FACE_2_VOL_EMPTY)
+                        {
+                            uOther(Eigen::all, iFillu) = uRec[iCellOther].m();
+                            iFillu++;
+                        }
+                        else
+                        {
+                        }
+                    }
+                }
+            }
+        }
 
         template <uint32_t vsize>
         void RecMatMulVec(ArrayLocal<SemiVarMatrix<vsize>> &x,

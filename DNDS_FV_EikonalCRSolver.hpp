@@ -346,6 +346,9 @@ namespace DNDS
                         {
                             uSum += unew[iCellOther](0);
                             nSum += 1;
+
+                            uSum += uC;
+                            nSum += 1;
                         }
                         else
                         {
@@ -354,9 +357,15 @@ namespace DNDS
                             {
                                 uSum += 0;
                                 nSum += 1;
+
+                                uSum += uC;
+                                nSum += 1;
                             }
                             else if (faceAttribute.iPhy == BoundaryType::Farfield)
                             {
+                                uSum += uC;
+                                nSum += 1;
+
                                 uSum += uC;
                                 nSum += 1;
                             }

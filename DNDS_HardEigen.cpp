@@ -9,7 +9,7 @@ namespace DNDS
         // #define EIGEN_USE_LAPACKE
         void EigenLeastSquareInverse(const Eigen::MatrixXd &A, Eigen::MatrixXd &AI)
         {
-            static const double sVmin = 1e-12;
+            // static const double sVmin = 1e-12;
             // auto SVDResult = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
             auto SVDResult = A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
             AI = SVDResult.solve(Eigen::MatrixXd::Identity(A.rows(), A.rows()));
@@ -39,6 +39,12 @@ namespace DNDS
             Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver;
             solver.compute(A);
             return (solver.eigenvectors() * solver.eigenvalues().array().abs().sqrt().matrix().asDiagonal())(Eigen::all, {2, 1, 0});
+        }
+
+        void EigenLeastSquareSolve(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B, Eigen::MatrixXd &AIB)
+        {
+            auto SVDResult = A.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+            AIB = SVDResult.solve(B);
         }
     }
 }
