@@ -13,16 +13,18 @@ int main(int argn, char *argv[])
 
     int nIter;
     double R;
-    if (argn != 3)
+    int ifLimit;
+    if (argn != 4)
     {
-        std::cout << "need 2 args: num_iter, and Rot angle !!\n";
+        std::cout << "need 3 args: num_iter, and Rot angle, and ifLimit !!\n";
         std::abort();
     }
 
     nIter = atoi(argv[1]);
     R = atof(argv[2]);
+    ifLimit = atoi(argv[3]);
     if (mpi.rank == 0)
-        std::cout << "N iter = " << nIter << " R = " << R << std::endl;
+        std::cout << "N iter = " << nIter << " R = " << R << " ifLimit = " << ifLimit << std::endl;
 
     // Debug::MPIDebugHold(mpi);
 
@@ -89,6 +91,11 @@ int main(int argn, char *argv[])
         vfv.BuildRecFacial(uRecF1);
         uRecF2.Copy(uRecF1);
 
+        // Eigen::MatrixXd U1{{0,0,0}};
+        // Eigen::MatrixXd U2{{0,0,0}};;
+        // vfv.FWBAP_L2_Biway();
+
+
         forEachInArrayPair(
             *u.pair,
             [&](decltype(u.dist)::element_type::tComponent &e, DNDS::index iCell)
@@ -128,20 +135,24 @@ int main(int argn, char *argv[])
             u.WaitPersistentPullClean();
             uRec.WaitPersistentPullClean();
             vfv.ReconstructionJacobiStep(u, uRec, uRecNew);
-            
+
+            if (ifLimit)
+            {
+                double tstartA = MPI_Wtime();
+                vfv.ReconstructionWBAPLimitFacial(
+                    u, uRec, uRec, uRecF1, uRecF2,
+                    [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+                    {
+                        return Eigen::MatrixXd::Identity(1, 1);
+                    },
+                    [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+                    {
+                        return Eigen::MatrixXd::Identity(1, 1);
+                    });
+                tLimiter += MPI_Wtime() - tstartA;
+            }
         }
-        double tstartA = MPI_Wtime();
-        vfv.ReconstructionWBAPLimitFacial(
-            u, uRec, uRec, uRecF1, uRecF2,
-            [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
-            {
-                return Eigen::MatrixXd::Identity(1, 1);
-            },
-            [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
-            {
-                return Eigen::MatrixXd::Identity(1, 1);
-            });
-        tLimiter += MPI_Wtime() - tstartA;
+        
 
         if (mpi.rank == 0)
             std::cout << "=== Rec time: " << MPI_Wtime() - tstart << "  === within: limiter time: " << tLimiter << std::endl;

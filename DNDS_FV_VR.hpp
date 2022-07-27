@@ -2275,11 +2275,20 @@ namespace DNDS
 
             for (int iOther = 0; iOther < Nother; iOther++)
             {
-                auto thetaInverse = uC / uMax / (uOthers[iOther] / uMax + uOthers[iOther].sign() * verySmallReal_pDiP);
+                auto thetaInverse = (uC / uMax) /
+                                    (uOthers[iOther].sign() * (uOthers[iOther].abs() / uMax + verySmallReal_pDiP) +
+                                     verySmallReal_pDiP);
                 uDown += thetaInverse.pow(p);
                 uUp += thetaInverse.pow(p - 1);
             }
             uOut = uOut * uUp / (uDown + verySmallReal);
+            if (uOut.hasNaN())
+            {
+                std::cout << uMax.transpose() << std::endl;
+                std::cout << uUp.transpose() << std::endl;
+                std::cout << uDown.transpose() << std::endl;
+                abort();
+            }
         }
 
         /**
@@ -2288,8 +2297,9 @@ namespace DNDS
         template <typename Tin1, typename Tin2, typename Tout>
         inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut)
         {
-            const int p = 4;
-            auto uMax = u1.max(u2);
+            static const int p = 4;
+            static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+            auto uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
             auto u1p = (u1 / uMax).pow(p);
             auto u2p = (u2 / uMax).pow(p);
             uOut = (u1p * u2 + u2p * u1) / (u1p + u2p + verySmallReal);
@@ -2449,12 +2459,20 @@ namespace DNDS
 
                             Eigen::ArrayXd uLimOutArray;
                             FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray);
+                            if (uLimOutArray.hasNaN())
+                            {
+                                std::cout << uThisIn.array().transpose() << std::endl;
+                                std::cout << uOtherIn.array().transpose() << std::endl;
+                                std::cout << uLimOutArray.transpose() << std::endl;
+                                std::abort();
+                            }
 
-                            uRecFacialNewBuf[iCell].m()(
-                                Eigen::seq(
-                                    ic2f * NRecDOF + LimStart,
-                                    ic2f * NRecDOF + LimEnd),
-                                Eigen::all) = uLimOutArray.matrix();
+                            uRecFacialNewBuf[iCell]
+                                .m()(
+                                    Eigen::seq(
+                                        ic2f * NRecDOF + LimStart,
+                                        ic2f * NRecDOF + LimEnd),
+                                    Eigen::all) = uLimOutArray.matrix();
                         }
                         else
                         {
@@ -2544,12 +2562,19 @@ namespace DNDS
                 }
                 // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 2-1");
                 Eigen::ArrayXd uLimOutArray;
-                // for (auto e : uOthers)
-                //     std::cout << "E: \n"
-                //               << e << std::endl;
+
                 Eigen::ArrayXd uBefore = uRec[iCell].m();
 
                 FWBAP_L2_Multiway(uRec[iCell].m().array(), uOthers, uOthers.size(), uLimOutArray);
+                if (uLimOutArray.hasNaN())
+                {
+                    std::cout << uRec[iCell].m().array().transpose() << std::endl;
+                    for (auto e : uOthers)
+                        std::cout << "E: \n"
+                                  << e.transpose() << std::endl;
+                    std::cout << uLimOutArray.transpose() << std::endl;
+                    std::abort();
+                }
                 uRecNewBuf[iCell].m() = uLimOutArray.matrix();
 
                 // std::cout << "new Old" << std::endl;
