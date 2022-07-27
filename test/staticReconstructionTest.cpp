@@ -14,7 +14,10 @@ int main(int argn, char *argv[])
     int nIter;
     double R;
     if (argn != 3)
+    {
+        std::cout << "need 2 args: num_iter, and Rot angle !!\n";
         std::abort();
+    }
 
     nIter = atoi(argv[1]);
     R = atof(argv[2]);
@@ -32,6 +35,13 @@ int main(int argn, char *argv[])
         d(3) = std::cos(p(0) * 2 * pi) * (1 - std::cos(p(1) * 2 * pi)) * 2 * pi * 2 * pi;
         d(4) = std::sin(p(0) * 2 * pi) * std::sin(p(1) * 2 * pi) * 2 * pi * 2 * pi;
         d(5) = std::cos(p(1) * 2 * pi) * (1 - std::cos(p(0) * 2 * pi)) * 2 * pi * 2 * pi;
+        d(0) = p(0) > 0.2 && p(0) < 0.8 && p(1) > 0.2 && p(1) < 0.8 ? 1 : 0;
+        d(1) = 0;
+        d(2) = 0;
+        d(3) = 0;
+        d(4) = 0;
+        d(5) = 0;
+
         return d;
     };
     std::vector<std::string> meshNames = {
@@ -39,10 +49,10 @@ int main(int argn, char *argv[])
         "data/mesh/Uniform/UniformA1.msh",
         "data/mesh/Uniform/UniformA2.msh",
         "data/mesh/Uniform/UniformA3.msh",
-        "data/mesh/Uniform/UniformB0.msh",
-        "data/mesh/Uniform/UniformB1.msh",
-        "data/mesh/Uniform/UniformB2.msh",
-        "data/mesh/Uniform/UniformB3.msh",
+        // "data/mesh/Uniform/UniformB0.msh",
+        // "data/mesh/Uniform/UniformB1.msh",
+        // "data/mesh/Uniform/UniformB2.msh",
+        // "data/mesh/Uniform/UniformB3.msh",
     };
     // std::vector<std::string> meshNames = {
     //     "data/mesh/Uniform/UniformAR00_0.msh",
@@ -69,13 +79,15 @@ int main(int argn, char *argv[])
 
         CRFiniteVolume2D cfv(vfv); //! mind the order!
         cfv.initReconstructionMatVec();
-
+        InsertCheck(mpi, "SDF 1");
         ArrayLocal<VecStaticBatch<1u>> u;
-        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
+        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR, uRecF1, uRecF2;
         fv.BuildMean(u);
         vfv.BuildRec(uRec);
         uRecNew.Copy(uRec);
         cfv.BuildRec(uRecCR);
+        vfv.BuildRecFacial(uRecF1);
+        uRecF2.Copy(uRecF1);
 
         forEachInArrayPair(
             *u.pair,
@@ -108,6 +120,7 @@ int main(int argn, char *argv[])
         uRec.InitPersistentPullClean();
         // InsertCheck(mpi, "BeforeRec");
         double tstart = MPI_Wtime();
+        double tLimiter = 0;
         for (int i = 0; i < nIter; i++)
         {
             u.StartPersistentPullClean();
@@ -115,9 +128,23 @@ int main(int argn, char *argv[])
             u.WaitPersistentPullClean();
             uRec.WaitPersistentPullClean();
             vfv.ReconstructionJacobiStep(u, uRec, uRecNew);
+            
         }
+        double tstartA = MPI_Wtime();
+        vfv.ReconstructionWBAPLimitFacial(
+            u, uRec, uRec, uRecF1, uRecF2,
+            [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+            {
+                return Eigen::MatrixXd::Identity(1, 1);
+            },
+            [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+            {
+                return Eigen::MatrixXd::Identity(1, 1);
+            });
+        tLimiter += MPI_Wtime() - tstartA;
+
         if (mpi.rank == 0)
-            std::cout << "=== Rec time: " << MPI_Wtime() - tstart << std::endl;
+            std::cout << "=== Rec time: " << MPI_Wtime() - tstart << "  === within: limiter time: " << tLimiter << std::endl;
 
         cfv.Reconstruction(u, uRec, uRecCR);
         Eigen::VectorXd norm1(6);
@@ -144,7 +171,7 @@ int main(int argn, char *argv[])
                     recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().abs().matrix();
-                    inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();//! not doing to acquire element-wise error
+                    inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant(); //! not doing to acquire element-wise error
                     normInf = normInf.array().cwiseMax((vReal - rec.topRows(6)).array().abs());
                 });
             eCell.Integration(
@@ -160,7 +187,7 @@ int main(int argn, char *argv[])
                     recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().pow(2).matrix();
-                    inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();//! not doing to acquire element-wise error
+                    inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant(); //! not doing to acquire element-wise error
                 });
         }
         // Eigen::VectorXd norm1R(6);

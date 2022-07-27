@@ -1,6 +1,6 @@
-make.exe --dry-run --always-make --keep-going --print-directory
-make.exe: Entering directory 'e:/projects/DNDS'
-echo `mpicxx --showme`
-echo test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe test/staticReconstructionTest.exe test/eikonal.exe
-make.exe: Leaving directory 'e:/projects/DNDS'
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory '/home/harry/projects/DNDS'
+echo `mpicxx.openmpi --showme`
+echo test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe test/staticReconstructionTest.exe test/eikonal.exe test/staticReconstructionTestJR.exe
+make: Leaving directory '/home/harry/projects/DNDS'
  
