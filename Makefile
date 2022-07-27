@@ -28,13 +28,13 @@ CXX_COMPILE_FLAGS=${INCLUDE} -std=c++14 -Wall -Wno-comment -Wno-unused-variable 
 CXX_LINK_FLAGS=${LINK}
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe test/staticReconstructionTest.exe\
-test/eikonal.exe
+test/eikonal.exe test/staticReconstructionTestJR.exe
 
 
-PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o
+PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o
 PREBUILD_DEP:=$(PREBUILD:.o=.d)
 
-PREBUILD_FAST=DNDS_Mesh.o DNDS_HardEigen.o DNDS_FV_VR.o DNDS_FV_CR.o
+PREBUILD_FAST=DNDS_Mesh.o DNDS_HardEigen.o
 PREBUILD_FAST_DEP:=$(PREBUILD_FAST:.o=.d)
 
 HEADERS=$(wildcard *.hpp *.h)
@@ -44,7 +44,7 @@ HEADERS=$(wildcard *.hpp *.h)
 FLAGS=-g
 # FLAGS=-Os
 # FLAGS=-O2
-FLAGS=-Og -g
+# FLAGS=-Og -g
 FLAGS=-O3
 # FLAGS=-O3 -DNDEBUG
 

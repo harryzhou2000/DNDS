@@ -961,7 +961,7 @@ namespace DNDS
             return;
 #endif
 
-            if (Weights.size() == 10)
+            if (Weights.size() == 10) // ! warning : NORM_FUNCTIONAL only implemented for 4th order
             {
                 const real epsR = 1e-50;
                 real w2r, w3r, length;
@@ -976,7 +976,9 @@ namespace DNDS
                     w2r = w3r = 0.0;
                     length = 0;
                 }
-                Eigen::Vector2d fNorm = faceNorms[iFace][iGauss]({0, 1}).stableNormalized() * length;
+                Eigen::Vector2d fNorm = iGauss >= 0 ? faceNorms[iFace][iGauss]({0, 1}).stableNormalized() * length
+                                                    : faceNormCenter[iFace]({0, 1}).stableNormalized() * length;
+
                 Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
                 fTang *= setting.tangWeight;
                 real n0 = fNorm(0), n1 = fNorm(1);
@@ -1597,7 +1599,7 @@ namespace DNDS
                         // deal with matrixSecondaryBatch
                         {
                             Eigen::MatrixXd msR2L, msL2R;
-                            std::cout << faceDiBjCenterBatchElem.m(0) << std::endl;
+                            // std::cout << faceDiBjCenterBatchElem.m(0) << std::endl;
                             int nColL = faceDiBjCenterBatchElem.m(0).cols();
                             int nRowL = faceDiBjCenterBatchElem.m(0).rows();
                             int nColR = faceDiBjCenterBatchElem.m(1).cols();
@@ -1845,8 +1847,8 @@ namespace DNDS
                     }
 
                     Eigen::MatrixXd Ainv;
-                    // HardEigen::EigenLeastSquareInverse(A, Ainv);
-                    HardEigen::EigenLeastSquareInverse_Filtered(A, Ainv);
+                    HardEigen::EigenLeastSquareInverse(A, Ainv);
+                    // HardEigen::EigenLeastSquareInverse_Filtered(A, Ainv);
                     matrixAii->operator[](iCell) = A;
                     matrixBatchElem.m(0) = Ainv;
                     // if (iCell == 71)
@@ -2213,15 +2215,6 @@ namespace DNDS
                 }
             }
 
-            if (!setting.SOR_Instead)
-            {
-                for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
-                {
-                    auto &uRecE = uRec[iCell];
-                    uRecE.m() = uRecNewBuf[iCell].m();
-                }
-            }
-
 #ifdef PRINT_EVERY_VR_JACOBI_ITER_INCREMENT
             real vall = 0;
             real nall = 0;
@@ -2244,6 +2237,15 @@ namespace DNDS
                 log().setf(fmt);
             }
 #endif
+
+            if (!setting.SOR_Instead)
+            {
+                for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
+                {
+                    auto &uRecE = uRec[iCell];
+                    uRecE.m() = uRecNewBuf[iCell].m();
+                }
+            }
             icount++;
         }
 
@@ -2251,12 +2253,104 @@ namespace DNDS
                                       ArrayLocal<SemiVarMatrix<1>> &uRec,
                                       ArrayLocal<SemiVarMatrix<1>> &uRecNewBuf);
 
-        //TODO: WBAP: facial
+        // TODO: WBAP: facial
 
-        template <typename TinC, typename Tin, typename Tout>
-        inline void FWBAP(const TinC &uC, const Tin &uOther, Tout &uOut)
-        { 
+        /**
+         * @brief input eigen array and vector<array>
+         */
+        template <typename TinC, typename TinOthers, typename Tout>
+        inline void FWBAP_L2(const TinC &uC, const TinOthers &uOthers, int Nother, Tout &uOut, real n)
+        {
+            const real p = 4.0;
+            uOut = uC;
+            auto uUp = uC;
+            uUp.setConstant(n);
+            auto uDown = uUp;
+            for (int iOther = 0; iOther < Nother; iOther++)
+            {
+                thetaInverse = uC / (uOthers[iOther] + uOthers[iOther].sign() * smallReal);
+                uDown += thetaInverse.pow(p);
+                uUp += thetaInverse.pow(p - 1);
+            }
+            uOut *= uUp / uDown;
+        }
+
+        /**
+         * @brief
+         * \pre u need to StartPersistentPullClean()
+         * \post u,uR need to WaitPersistentPullClean();
+         */
+        template <uint32_t vsize, typename TFM, typename TFMI>
+        // static const int vsize = 1; // intellisense helper: give example...
+        void ReconstructionWBAPLimitFacial(ArrayLocal<SemiVarMatrix<vsize>> &uRec,
+                                           ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf,
+                                           TFM &&FM, TFMI &&FMI)
+        {
+            static int icount = 0;
+            // InsertCheck(mpi, "ReconstructionJacobiStep Start");
             //! TODO:
+            int cPOrder = P_ORDER;
+            for (; cPOrder >= 1; cPOrder--)
+            {
+                int LimStart, LimEnd; // End is inclusive
+                switch (cPOrder)
+                {
+                case 3:
+                    LimStart = 5;
+                    LimEnd = 8;
+                    break;
+                case 2:
+                    LimStart = 2;
+                    LimEnd = 4;
+                    break;
+                case 1:
+                    LimStart = 0;
+                    LimEnd = 1;
+                    break;
+
+                default:
+                    assert(false);
+                    break;
+                }
+                for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
+                {
+                    index iCell = iScan;
+                    auto &c2f = mesh->cell2faceLocal[iCell];
+
+                    Eigen::MatrixXd uOther(vsize, c2f.size());
+                    // int iFillu = 0;
+
+                    // Eigen::MatrixXd coords;
+                    // mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
+                    // std::cout << "COORDS" << coords << std::endl;
+                    auto &uCIn = uRec[iCell].m()(Eigen::all, Eigen::seq(LimStart, LimEnd));
+                    std::vector<Eigen::Array<real, vsize, -1>> uOtherMid;
+                    
+                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                    {
+                        index iFace = c2f[ic2f];
+                        auto &f2c = (*mesh->face2cellPair)[iFace];
+                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                        // auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
+                        // auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
+                        // Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+
+                        if (iCellOther != FACE_2_VOL_EMPTY)
+                        {
+                            // uOther(Eigen::all, iFillu) = uRec[iCellOther].m();
+                            // iFillu++;
+                            Eigen::MatrixXd a;
+                            a.;
+                            const auto &uOtherIn = uRec[iCellOther].m()(Eigen::all, Eigen::seq(LimStart, LimEnd));
+
+                        }
+                        else
+                        {
+                        }
+                    }
+                }
+            }
         }
 
         /**
@@ -2269,7 +2363,7 @@ namespace DNDS
         void ReconstructionWBAPLimit(ArrayLocal<SemiVarMatrix<vsize>> &uRec,
                                      ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf,
                                      std::vector<Eigen::Matrix<real, vsize, vsize>> &mProjection,
-                                     TFM&& FM, TFMI&& FMI)
+                                     TFM &&FM, TFMI &&FMI)
         {
 
             static int icount = 0;

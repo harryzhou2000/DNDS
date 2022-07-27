@@ -246,8 +246,8 @@ namespace DNDS
                         }
                     }
                     Eigen::MatrixXd Ainv, AinvFilterd;
-                    // HardEigen::EigenLeastSquareInverse(A, Ainv);
-                    HardEigen::EigenLeastSquareInverse_Filtered(A, Ainv);
+                    HardEigen::EigenLeastSquareInverse(A, Ainv);
+                    // HardEigen::EigenLeastSquareInverse_Filtered(A, Ainv);
 
                     matrixBatchElem.m(0) = Ainv;
                     // exit(0);
@@ -350,8 +350,8 @@ namespace DNDS
                     auto faceDiBjGaussBatchElemVR = (*VFV->faceDiBjGaussBatch)[iFace];
 
                     Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
-                    Eigen::MatrixXd fcoords;
-                    mesh->LoadCoords(mesh->face2nodeLocal[iFace], fcoords);
+                    // Eigen::MatrixXd fcoords;
+                    // mesh->LoadCoords(mesh->face2nodeLocal[iFace], fcoords);
                     // Elem::tPoint faceL = fcoords(Eigen::all, 1) - fcoords(Eigen::all, 0);
                     // Elem::tPoint faceN{faceL(1), -faceL(0), 0.0}; // 2-d specific //pointing from left to right
                     Elem::tPoint faceN = faceNormCenter[iFace].normalized();
@@ -402,7 +402,7 @@ namespace DNDS
                             bi += 0.5 *
                                   (matrixBatchElem.m(1 + ic2f * 2 + 0) * uRec[iCell].m() +
                                    matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther].m() +
-                                   vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther].p() - u[iCell].p()));
+                                   vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther].p() - u[iCell].p()).transpose());
                         //! don't forget the mean value between them
                     }
                     else

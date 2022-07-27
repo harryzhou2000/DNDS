@@ -32,6 +32,8 @@ namespace DNDS
 
     const real veryLargeReal = 3e300;
     const real largeReal = 3e100;
+    const real verySmallReal = 1e-300;
+    const real smallReal = 1e-100;
 
     const real pi = std::acos(-1);
 

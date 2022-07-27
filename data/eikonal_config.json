@@ -50,9 +50,9 @@
     "eikonalSetting": {
         "comment_settingNotes":"for scheme 8 30p30n: 32 2 2 4",
         "comment_settingNotesA": "for scheme 8 30p30n with poisson init: 1 1 4 2",
-        "visScale": 32,
-        "visScaleIn": 1,
-        "isiScale": 6,
+        "visScale": 8,
+        "visScaleIn": 4,
+        "isiScale": 4,
         "isiScaleIn": 2,
         "ekCutDown": 0.5,
         "isiCutDown": 0.5

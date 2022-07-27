@@ -1,5 +1,5 @@
-#include "../DNDS_FV_VR.hpp"
-#include "../DNDS_FV_CR.hpp"
+
+#include "../DNDS_FV_JR.hpp"
 
 #include <cstdlib>
 #include <iomanip>
@@ -20,6 +20,7 @@ int main(int argn, char *argv[])
     R = atof(argv[2]);
     if (mpi.rank == 0)
         std::cout << "N iter = " << nIter << " R = " << R << std::endl;
+    // R in degrees
 
     // Debug::MPIDebugHold(mpi);
 
@@ -55,27 +56,34 @@ int main(int argn, char *argv[])
 
     for (int iCase = 0; iCase < meshNames.size(); iCase++)
     {
+
         auto &mName = meshNames[iCase];
         std::shared_ptr<CompactFacedMeshSerialRW> mesh;
         CompactFacedMeshSerialRWBuild(mpi, mName, "data/out/debugmeshSO.plt", mesh, R);
         // InsertCheck(mpi, "AfterRead1");
         ImplicitFiniteVolume2D fv(mesh.get());
-        VRFiniteVolume2D vfv(mesh.get(), &fv);
+        // VRFiniteVolume2D vfv(mesh.get(), &fv);
+        JRFiniteVolume2D jfv(mesh.get(), &fv);
 
-        vfv.initIntScheme();
-        vfv.initMoment();
-        vfv.initBaseDiffCache();
-        vfv.initReconstructionMatVec();
-
-        CRFiniteVolume2D cfv(vfv); //! mind the order!
-        cfv.initReconstructionMatVec();
+        // vfv.initIntScheme();
+        // vfv.initMoment();
+        // vfv.initBaseDiffCache();
+        // vfv.initReconstructionMatVec();
+        jfv.initIntScheme();
+        // InsertCheck(mpi, "FUCK A");
+        jfv.initMoment();
+        // InsertCheck(mpi, "FUCK B");
+        jfv.initBaseDiffCache();
+        // InsertCheck(mpi, "FUCK C");
+        jfv.initReconstructionMatVec();
+        // InsertCheck(mpi, "FUCK D");
 
         ArrayLocal<VecStaticBatch<1u>> u;
-        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
+        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew;
         fv.BuildMean(u);
-        vfv.BuildRec(uRec);
+        // vfv.BuildRec(uRec);
+        jfv.BuildRec(uRec);
         uRecNew.Copy(uRec);
-        cfv.BuildRec(uRecCR);
 
         forEachInArrayPair(
             *u.pair,
@@ -84,7 +92,7 @@ int main(int argn, char *argv[])
                 auto c2n = mesh->cell2nodeLocal[iCell];
                 Eigen::MatrixXd coords;
                 mesh->LoadCoords(c2n, coords);
-                Elem::ElementManager eCell(mesh->cellAtrLocal[iCell][0].type, vfv.cellRecAtrLocal[iCell][0].intScheme);
+                Elem::ElementManager eCell(mesh->cellAtrLocal[iCell][0].type, jfv.cellRecAtrLocal[iCell][0].intScheme);
                 double um = 0;
                 eCell.Integration(
                     um,
@@ -114,12 +122,11 @@ int main(int argn, char *argv[])
             uRec.StartPersistentPullClean();
             u.WaitPersistentPullClean();
             uRec.WaitPersistentPullClean();
-            vfv.ReconstructionJacobiStep(u, uRec, uRecNew);
+            jfv.Reconstruction(u, uRec, uRecNew);
         }
         if (mpi.rank == 0)
             std::cout << "=== Rec time: " << MPI_Wtime() - tstart << std::endl;
 
-        cfv.Reconstruction(u, uRec, uRecCR);
         Eigen::VectorXd norm1(6);
         Eigen::VectorXd norm2(6);
         Eigen::VectorXd normInf(6);
@@ -130,18 +137,16 @@ int main(int argn, char *argv[])
             auto c2n = mesh->cell2nodeLocal[iCell];
             Eigen::MatrixXd coords;
             mesh->LoadCoords(c2n, coords);
-            Elem::ElementManager eCell(mesh->cellAtrLocal[iCell][0].type, vfv.cellRecAtrLocal[iCell][0].intScheme);
+            Elem::ElementManager eCell(mesh->cellAtrLocal[iCell][0].type, jfv.cellRecAtrLocal[iCell][0].intScheme);
             eCell.Integration(
                 norm1,
                 [&](Eigen::VectorXd &inc, int ng, Elem::tPoint &p, Elem::tDiFj &DiNj)
                 {
                     Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
-                    int ndof = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
-                    int ndofCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
-                    Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
-                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell].m();
+                    int ndof = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
+                    Eigen::MatrixXd rec = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
+
                     rec(0) += u[iCell].p()(0);
-                    recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().abs().matrix();
                     inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();//! not doing to acquire element-wise error
@@ -152,12 +157,9 @@ int main(int argn, char *argv[])
                 [&](Eigen::VectorXd &inc, int ng, Elem::tPoint &p, Elem::tDiFj &DiNj)
                 {
                     Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
-                    int ndof = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
-                    int ndofCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
-                    Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
-                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell].m();
+                    int ndof = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
+                    Eigen::MatrixXd rec = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
                     rec(0) += u[iCell].p()(0);
-                    recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().pow(2).matrix();
                     inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();//! not doing to acquire element-wise error

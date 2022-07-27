@@ -6,7 +6,7 @@ namespace DNDS
     {
 
 #include <iostream>
-#if defined(linux) || defined(_UNIX)
+#if defined(linux) || defined(_UNIX) || defined(__linux__)
 #include <sys/ptrace.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -41,7 +41,7 @@ namespace DNDS
 
         void MPIDebugHold(const MPIInfo &mpi)
         {
-#if defined(linux) || defined(_UNIX)
+#if defined(linux) || defined(_UNIX) || defined(__linux__)
             MPISerialDo(mpi, [&]
                         { log() << "Rank " << mpi.rank << " PID: " << getpid() << std::endl; });
 #endif
