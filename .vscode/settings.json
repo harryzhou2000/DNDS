@@ -6,6 +6,7 @@
     "files.associations": {
         "*.cu": "cpp",
         "*.f90": "FortranFreeForm",
+        "*.hypara": "csharp",
         "ostream": "cpp",
         "array": "cpp",
         "atomic": "cpp",
@@ -91,6 +92,12 @@
         "mutex": "cpp",
         "unordered_set": "cpp",
         "tensor": "cpp",
-        "skylineproduct.h": "c"
+        "skylineproduct.h": "c",
+        "strstream": "cpp",
+        "optional": "cpp",
+        "shared_mutex": "cpp",
+        "cfenv": "cpp",
+        "typeindex": "cpp",
+        "variant": "cpp"
     }
 }
