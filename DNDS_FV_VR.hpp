@@ -2259,36 +2259,117 @@ namespace DNDS
          * @brief input eigen array and vector<array>
          */
         template <typename TinC, typename TinOthers, typename Tout>
-        inline void FWBAP_L2(const TinC &uC, const TinOthers &uOthers, int Nother, Tout &uOut, real n)
+        inline void FWBAP_L2_Multiway(const TinC &uC, const TinOthers &uOthers, int Nother, Tout &uOut)
         {
-            const real p = 4.0;
+            static const int p = 4;
+            static const real n = 10.0;
+            static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
             uOut = uC;
-            auto uUp = uC;
+            Eigen::ArrayXd uUp = uC; //* copy!
             uUp.setConstant(n);
-            auto uDown = uUp;
+            Eigen::ArrayXd uDown = uUp; //* copy!
+
+            Eigen::ArrayXd uMax = uC.abs() + verySmallReal;
+            for (int iOther = 0; iOther < Nother; iOther++)
+                uMax = uMax.max(uOthers[iOther].abs());
+
             for (int iOther = 0; iOther < Nother; iOther++)
             {
-                thetaInverse = uC / (uOthers[iOther] + uOthers[iOther].sign() * smallReal);
+                auto thetaInverse = uC / uMax / (uOthers[iOther] / uMax + uOthers[iOther].sign() * verySmallReal_pDiP);
                 uDown += thetaInverse.pow(p);
                 uUp += thetaInverse.pow(p - 1);
             }
-            uOut *= uUp / uDown;
+            uOut = uOut * uUp / (uDown + verySmallReal);
         }
 
         /**
-         * @brief
-         * \pre u need to StartPersistentPullClean()
-         * \post u,uR need to WaitPersistentPullClean();
+         * @brief input eigen arrays
          */
-        template <uint32_t vsize, typename TFM, typename TFMI>
+        template <typename Tin1, typename Tin2, typename Tout>
+        inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut)
+        {
+            const int p = 4;
+            auto uMax = u1.max(u2);
+            auto u1p = (u1 / uMax).pow(p);
+            auto u2p = (u2 / uMax).pow(p);
+            uOut = (u1p * u2 + u2p * u1) / (u1p + u2p + verySmallReal);
+        }
+
+        template <uint32_t vsize>
         // static const int vsize = 1; // intellisense helper: give example...
-        void ReconstructionWBAPLimitFacial(ArrayLocal<SemiVarMatrix<vsize>> &uRec,
+        void BuildRecFacial(ArrayLocal<SemiVarMatrix<vsize>> &uR)
+        {
+            index nCellDist = mesh->cell2nodeLocal.dist->size();
+            InsertCheck(mpi, "BuildRecFacial Start");
+            uR.dist = std::make_shared<typename decltype(uR.dist)::element_type>(
+                typename decltype(uR.dist)::element_type::tContext(
+                    [&](index i) -> rowsize
+                    {
+                        index nface = mesh->cell2faceLocal[i].size();
+                        return vsize * (cellRecAtrLocal[i][0].NDOF - 1) * nface; // !!note - 1!!
+                    },
+                    nCellDist),
+                mpi);
+            uR.CreateGhostCopyComm(mesh->cellAtrLocal);
+            uR.InitPersistentPullClean();
+        }
+
+        /**
+         * @brief FM(uLeft,uRight,norm) gives vsize * vsize mat of Left Eigen Vectors
+         *
+         */
+        template <uint32_t vsize = 1, typename TFM, typename TFMI>
+        // static const int vsize = 1; // intellisense helper: give example...
+        void ReconstructionWBAPLimitFacial(ArrayLocal<VecStaticBatch<vsize>> &u,
+                                           ArrayLocal<SemiVarMatrix<vsize>> &uRec,
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf,
+                                           ArrayLocal<SemiVarMatrix<vsize>> &uRecFacialBuf,
+                                           ArrayLocal<SemiVarMatrix<vsize>> &uRecFacialNewBuf,
                                            TFM &&FM, TFMI &&FMI)
         {
             static int icount = 0;
-            // InsertCheck(mpi, "ReconstructionJacobiStep Start");
-            //! TODO:
+
+            // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Start");
+            //* Step 0: prepare the facial buf
+            for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
+            {
+                index iCell = iScan;
+                index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
+                auto &c2f = mesh->cell2faceLocal[iCell];
+
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        auto uL = iCellAtFace ? u[iCell].p() : u[iCellOther].p();
+                        auto uR = iCellAtFace ? u[iCellOther].p() : u[iCell].p();
+                        auto M = FM(uL, uR, faceNormCenter[iFace].stableNormalized());
+                        Eigen::MatrixXd V = uRec[iCell].m();
+                        V = (M * V.transpose()).transpose();
+                        uRecFacialBuf[iCell]
+                            .m()(
+                                Eigen::seq(ic2f * NRecDOF, ic2f * NRecDOF + NRecDOF - 1),
+                                Eigen::all) = V;
+                    }
+                    else
+                    {
+                        uRecFacialBuf[iCell]
+                            .m()(
+                                Eigen::seq(ic2f * NRecDOF, ic2f * NRecDOF + NRecDOF - 1),
+                                Eigen::all)
+                            .setConstant(UnInitReal);
+                    }
+                }
+            }
+            uRecFacialBuf.StartPersistentPullClean();
+            uRecFacialBuf.WaitPersistentPullClean();
+
+            // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 1");
+            //* Step 1: facial hierachical limiting
             int cPOrder = P_ORDER;
             for (; cPOrder >= 1; cPOrder--)
             {
@@ -2312,44 +2393,170 @@ namespace DNDS
                     assert(false);
                     break;
                 }
+
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
                 {
                     index iCell = iScan;
+                    index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
 
-                    Eigen::MatrixXd uOther(vsize, c2f.size());
-                    // int iFillu = 0;
-
-                    // Eigen::MatrixXd coords;
-                    // mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
-                    // std::cout << "COORDS" << coords << std::endl;
-                    auto &uCIn = uRec[iCell].m()(Eigen::all, Eigen::seq(LimStart, LimEnd));
                     std::vector<Eigen::Array<real, vsize, -1>> uOtherMid;
-                    
+
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                     {
                         index iFace = c2f[ic2f];
                         auto &f2c = (*mesh->face2cellPair)[iFace];
                         index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                         index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                        // auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
-                        // auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
-                        // Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
+
+                        auto matrixSecondaryBatchElem = (*matrixSecondaryBatch)[iFace];
 
                         if (iCellOther != FACE_2_VOL_EMPTY)
                         {
-                            // uOther(Eigen::all, iFillu) = uRec[iCellOther].m();
-                            // iFillu++;
-                            Eigen::MatrixXd a;
-                            a.;
-                            const auto &uOtherIn = uRec[iCellOther].m()(Eigen::all, Eigen::seq(LimStart, LimEnd));
+                            index NRecDOFOther = cellRecAtrLocal[iCellOther][0].NDOF - 1;
+                            if (NRecDOFOther < (LimEnd + 1) || NRecDOF < (LimEnd + 1))
+                                continue; // reserved for p-adaption
+                            auto &cOther2f = mesh->cell2faceLocal[iCellOther];
+                            index icOther2f = 0;
+                            //* find icOther2f
+                            for (; icOther2f < cOther2f.size(); icOther2f++)
+                                if (iFace == cOther2f[icOther2f])
+                                    break;
+                            assert(icOther2f < cOther2f.size());
 
+                            const auto &matrixSecondary =
+                                iCellAtFace
+                                    ? matrixSecondaryBatchElem.m(0)
+                                    : matrixSecondaryBatchElem.m(1);
+
+                            auto uOtherIn =
+                                (matrixSecondary *
+                                 uRecFacialBuf[iCellOther].m()(
+                                     Eigen::seq(
+                                         icOther2f * NRecDOFOther + 0,
+                                         icOther2f * NRecDOFOther + NRecDOFOther - 1),
+                                     Eigen::all))(
+                                    Eigen::seq(
+                                        LimStart,
+                                        LimEnd),
+                                    Eigen::all);
+                            auto uThisIn =
+                                uRecFacialBuf[iCell].m()(
+                                    Eigen::seq(
+                                        ic2f * NRecDOF + LimStart,
+                                        ic2f * NRecDOF + LimEnd),
+                                    Eigen::all);
+
+                            Eigen::ArrayXd uLimOutArray;
+                            FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray);
+
+                            uRecFacialNewBuf[iCell].m()(
+                                Eigen::seq(
+                                    ic2f * NRecDOF + LimStart,
+                                    ic2f * NRecDOF + LimEnd),
+                                Eigen::all) = uLimOutArray.matrix();
                         }
                         else
                         {
                         }
                     }
                 }
+
+                for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
+                {
+                    index iCell = iScan;
+                    index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
+                    auto &c2f = mesh->cell2faceLocal[iCell];
+
+                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                    {
+                        index iFace = c2f[ic2f];
+                        auto &f2c = (*mesh->face2cellPair)[iFace];
+                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+
+                        auto matrixSecondaryBatchElem = (*matrixSecondaryBatch)[iFace];
+
+                        if (iCellOther != FACE_2_VOL_EMPTY)
+                        {
+                            index NRecDOFOther = cellRecAtrLocal[iCellOther][0].NDOF - 1;
+                            if (NRecDOFOther < (LimEnd + 1) || NRecDOF < (LimEnd + 1))
+                                continue; // reserved for p-adaption
+
+                            uRecFacialBuf[iCell].m()(
+                                Eigen::seq(
+                                    ic2f * NRecDOF + LimStart,
+                                    ic2f * NRecDOF + LimEnd),
+                                Eigen::all) =
+                                uRecFacialNewBuf[iCell].m()(
+                                    Eigen::seq(
+                                        ic2f * NRecDOF + LimStart,
+                                        ic2f * NRecDOF + LimEnd),
+                                    Eigen::all);
+                        }
+                        else
+                        {
+                        }
+                    }
+                }
+
+                uRecFacialBuf.StartPersistentPullClean();
+                uRecFacialBuf.WaitPersistentPullClean();
+            }
+
+            // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 2");
+            //* Step 2: facial V 2 U
+            for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
+            {
+                index iCell = iScan;
+                index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
+                auto &c2f = mesh->cell2faceLocal[iCell];
+
+                std::vector<Eigen::Array<real, -1, vsize>> uOthers;
+                // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 2-0");
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+
+                        auto uL = iCellAtFace ? u[iCell].p() : u[iCellOther].p();
+                        auto uR = iCellAtFace ? u[iCellOther].p() : u[iCell].p();
+                        auto MI = FMI(uL, uR, faceNormCenter[iFace].stableNormalized());
+                        Eigen::ArrayXd uOther;
+                        uOther = (MI * uRecFacialBuf[iCell]
+                                           .m()(
+                                               Eigen::seq(ic2f * NRecDOF, ic2f * NRecDOF + NRecDOF - 1),
+                                               Eigen::all)
+                                           .transpose())
+                                     .transpose()
+                                     .array();
+                        // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 2-0-0");
+                        uOthers.push_back(uOther);
+                        // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 2-0-1");
+                    }
+                    else
+                    {
+                    }
+                }
+                // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 2-1");
+                Eigen::ArrayXd uLimOutArray;
+                // for (auto e : uOthers)
+                //     std::cout << "E: \n"
+                //               << e << std::endl;
+                Eigen::ArrayXd uBefore = uRec[iCell].m();
+
+                FWBAP_L2_Multiway(uRec[iCell].m().array(), uOthers, uOthers.size(), uLimOutArray);
+                uRecNewBuf[iCell].m() = uLimOutArray.matrix();
+
+                // std::cout << "new Old" << std::endl;
+                // std::cout << std::setprecision(10) << uRecNewBuf[iCell].m().transpose() << std::endl;
+                // std::cout << std::setprecision(10) << uBefore.transpose() << std::endl;
+                // std::cout << std::setprecision(10) << (uBefore - uRecNewBuf[iCell].m()).transpose() << std::endl;
+                // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 2-2");
             }
         }
 

@@ -55,7 +55,8 @@
             "intelliSenseMode": "${default}",
             "cStandard": "${default}",
             "cppStandard": "${default}",
-            "compilerPath": "${default}"
+            "compilerPath": "${default}",
+            "configurationProvider": "ms-vscode.makefile-tools"
         }
     ],
     "version": 4
