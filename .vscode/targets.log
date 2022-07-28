@@ -6,7 +6,7 @@ make all --print-data-base --no-builtin-variables --no-builtin-rules --question
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Wed Jul 27 23:01:07 2022
+# Make data base, printed on Thu Jul 28 14:14:55 2022
 
 # Variables
 
@@ -141,7 +141,7 @@ LC_MONETARY = zh_CN.UTF-8
 # environment
 LC_TIME = zh_CN.UTF-8
 # environment
-SSH_CLIENT = 101.5.230.214 54442 22
+SSH_CLIENT = 101.5.226.80 55547 22
 # environment
 LC_TELEPHONE = zh_CN.UTF-8
 # environment
@@ -187,7 +187,7 @@ LC_PAPER = zh_CN.UTF-8
 # environment
 XDG_RUNTIME_DIR = /run/user/1004
 # environment
-VSCODE_IPC_HOOK_CLI = /run/user/1004/vscode-ipc-c4701500-778e-4f7b-af72-c904f7dfe947.sock
+VSCODE_IPC_HOOK_CLI = /run/user/1004/vscode-ipc-1edcab2c-b7b7-42da-b5f3-d71a25b00d9d.sock
 # environment
 XDG_SESSION_CLASS = user
 # environment
@@ -197,7 +197,7 @@ HOME = /home/harry
 # environment
 ELECTRON_RUN_AS_NODE = 1
 # environment
-XDG_SESSION_ID = 1353
+XDG_SESSION_ID = 1423
 # default
 .RECIPEPREFIX := 
 # automatic
@@ -209,9 +209,9 @@ SUFFIXES :=
 # environment
 LC_IDENTIFICATION = zh_CN.UTF-8
 # environment
-SSH_CONNECTION = 101.5.230.214 54442 101.6.32.209 22
+SSH_CONNECTION = 101.5.226.80 55547 101.6.32.209 22
 # variable set hash-table stats:
-# Load=100/1024=10%, Rehash=0, Collisions=5/166=3%
+# Load=100/1024=10%, Rehash=0, Collisions=5/174=3%
 
 # Pattern-specific Variable Values
 
@@ -241,6 +241,7 @@ Eigen/src/Core/Transpositions.h:
 # Not a target:
 Eigen/src/Core/util/ReshapedHelper.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-03 17:11:13.871018531
 #  File has been updated.
 #  Successfully updated.
@@ -311,7 +312,7 @@ Eigen/src/Core/ArrayBase.h:
 # Not a target:
 Experimentals.h:
 #  Implicit rule search has been done.
-#  Last modified 2022-06-29 10:58:57.521543524
+#  Last modified 2022-07-28 09:21:52.13609235
 #  File has been updated.
 #  Successfully updated.
 
@@ -451,13 +452,12 @@ Eigen/src/Core/EigenBase.h:
 # Not a target:
 DNDS_Defines.h:
 #  Implicit rule search has been done.
-#  Last modified 2022-07-27 10:38:44.279919307
+#  Last modified 2022-07-28 11:35:10.645689483
 #  File has been updated.
 #  Successfully updated.
 
 # Not a target:
 unsupported/Eigen/CXX11/src/Tensor/TensorContractionGpu.h:
- 
 #  Implicit rule search has been done.
 #  Last modified 2022-05-13 02:16:27.928483533
 #  File has been updated.
@@ -505,10 +505,11 @@ Eigen/src/Geometry/RotationBase.h:
 #  File has been updated.
 #  Successfully updated.
 
+ 
 DNDS_Elements.o: DNDS_Elements.cpp DNDS_Elements.cpp DNDS_Elements.hpp DNDS_Defines.h DNDS_Macros.h Experimentals.h Eigen/Dense Eigen/Core Eigen/src/Core/util/DisableStupidWarnings.h Eigen/src/Core/util/Macros.h Eigen/src/Core/util/ConfigureVectorization.h Eigen/src/Core/util/MKL_support.h Eigen/src/Core/util/../../misc/blas.h Eigen/src/Core/util/Constants.h Eigen/src/Core/util/Meta.h Eigen/src/Core/util/ForwardDeclarations.h Eigen/src/Core/util/StaticAssert.h Eigen/src/Core/util/XprHelper.h Eigen/src/Core/util/Memory.h Eigen/src/Core/util/IntegralConstant.h Eigen/src/Core/util/SymbolicIndex.h Eigen/src/Core/NumTraits.h Eigen/src/Core/MathFunctions.h Eigen/src/Core/GenericPacketMath.h Eigen/src/Core/MathFunctionsImpl.h Eigen/src/Core/arch/Default/ConjHelper.h Eigen/src/Core/arch/Default/Half.h Eigen/src/Core/arch/Default/BFloat16.h Eigen/src/Core/arch/Default/TypeCasting.h Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h Eigen/src/Core/arch/SSE/PacketMath.h Eigen/src/Core/arch/SSE/TypeCasting.h Eigen/src/Core/arch/SSE/MathFunctions.h Eigen/src/Core/arch/SSE/Complex.h Eigen/src/Core/arch/Default/Settings.h Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h Eigen/src/Core/functors/TernaryFunctors.h Eigen/src/Core/functors/BinaryFunctors.h Eigen/src/Core/functors/UnaryFunctors.h Eigen/src/Core/functors/NullaryFunctors.h Eigen/src/Core/functors/StlFunctors.h Eigen/src/Core/functors/AssignmentFunctors.h Eigen/src/Core/util/IndexedViewHelper.h Eigen/src/Core/util/ReshapedHelper.h Eigen/src/Core/ArithmeticSequence.h Eigen/src/Core/IO.h Eigen/src/Core/DenseCoeffsBase.h Eigen/src/Core/DenseBase.h Eigen/src/Core/../plugins/CommonCwiseUnaryOps.h Eigen/src/Core/../plugins/BlockMethods.h Eigen/src/Core/../plugins/IndexedViewMethods.h Eigen/src/Core/../plugins/ReshapedMethods.h Eigen/src/Core/MatrixBase.h Eigen/src/Core/../plugins/CommonCwiseBinaryOps.h Eigen/src/Core/../plugins/MatrixCwiseUnaryOps.h Eigen/src/Core/../plugins/MatrixCwiseBinaryOps.h Eigen/src/Core/EigenBase.h Eigen/src/Core/Product.h Eigen/src/Core/CoreEvaluators.h Eigen/src/Core/AssignEvaluator.h Eigen/src/Core/Assign.h Eigen/src/Core/ArrayBase.h Eigen/src/Core/../plugins/ArrayCwiseUnaryOps.h Eigen/src/Core/../plugins/ArrayCwiseBinaryOps.h Eigen/src/Core/util/BlasUtil.h Eigen/src/Core/DenseStorage.h Eigen/src/Core/NestByValue.h Eigen/src/Core/ReturnByValue.h Eigen/src/Core/NoAlias.h Eigen/src/Core/PlainObjectBase.h Eigen/src/Core/Matrix.h Eigen/src/Core/Array.h Eigen/src/Core/CwiseTernaryOp.h Eigen/src/Core/CwiseBinaryOp.h Eigen/src/Core/CwiseUnaryOp.h Eigen/src/Core/CwiseNullaryOp.h Eigen/src/Core/CwiseUnaryView.h Eigen/src/Core/SelfCwiseBinaryOp.h Eigen/src/Core/Dot.h Eigen/src/Core/StableNorm.h Eigen/src/Core/Stride.h Eigen/src/Core/MapBase.h Eigen/src/Core/Map.h Eigen/src/Core/Ref.h Eigen/src/Core/Block.h Eigen/src/Core/VectorBlock.h Eigen/src/Core/IndexedView.h Eigen/src/Core/Reshaped.h Eigen/src/Core/Transpose.h Eigen/src/Core/DiagonalMatrix.h Eigen/src/Core/Diagonal.h Eigen/src/Core/DiagonalProduct.h Eigen/src/Core/Redux.h Eigen/src/Core/Visitor.h Eigen/src/Core/Fuzzy.h Eigen/src/Core/Swap.h Eigen/src/Core/CommaInitializer.h Eigen/src/Core/GeneralProduct.h Eigen/src/Core/Solve.h Eigen/src/Core/Inverse.h Eigen/src/Core/SolverBase.h Eigen/src/Core/PermutationMatrix.h Eigen/src/Core/Transpositions.h Eigen/src/Core/TriangularMatrix.h Eigen/src/Core/SelfAdjointView.h Eigen/src/Core/products/GeneralBlockPanelKernel.h Eigen/src/Core/products/Parallelizer.h Eigen/src/Core/ProductEvaluators.h Eigen/src/Core/products/GeneralMatrixVector.h Eigen/src/Core/products/GeneralMatrixMatrix.h Eigen/src/Core/SolveTriangular.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h Eigen/src/Core/products/SelfadjointMatrixVector.h Eigen/src/Core/products/SelfadjointMatrixMatrix.h Eigen/src/Core/products/SelfadjointProduct.h Eigen/src/Core/products/SelfadjointRank2Update.h Eigen/src/Core/products/TriangularMatrixVector.h Eigen/src/Core/products/TriangularMatrixMatrix.h Eigen/src/Core/products/TriangularSolverMatrix.h Eigen/src/Core/products/TriangularSolverVector.h Eigen/src/Core/BandMatrix.h Eigen/src/Core/CoreIterators.h Eigen/src/Core/ConditionEstimator.h Eigen/src/Core/BooleanRedux.h Eigen/src/Core/Select.h Eigen/src/Core/VectorwiseOp.h Eigen/src/Core/PartialReduxEvaluator.h Eigen/src/Core/Random.h Eigen/src/Core/Replicate.h Eigen/src/Core/Reverse.h Eigen/src/Core/ArrayWrapper.h Eigen/src/Core/StlIterators.h Eigen/src/Core/products/GeneralMatrixMatrix_BLAS.h Eigen/src/Core/products/GeneralMatrixVector_BLAS.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular_BLAS.h Eigen/src/Core/products/SelfadjointMatrixMatrix_BLAS.h Eigen/src/Core/products/SelfadjointMatrixVector_BLAS.h Eigen/src/Core/products/TriangularMatrixMatrix_BLAS.h Eigen/src/Core/products/TriangularMatrixVector_BLAS.h Eigen/src/Core/products/TriangularSolverMatrix_BLAS.h Eigen/src/Core/GlobalFunctions.h Eigen/src/Core/util/ReenableStupidWarnings.h Eigen/LU Eigen/src/misc/Kernel.h Eigen/src/misc/Image.h Eigen/src/LU/FullPivLU.h Eigen/src/LU/PartialPivLU.h Eigen/src/misc/lapacke.h Eigen/src/Core/util/../../misc/lapacke_mangling.h Eigen/src/LU/PartialPivLU_LAPACKE.h Eigen/src/LU/Determinant.h Eigen/src/LU/InverseImpl.h Eigen/src/LU/arch/InverseSize4.h Eigen/Cholesky Eigen/Jacobi Eigen/src/Jacobi/Jacobi.h Eigen/src/Cholesky/LLT.h Eigen/src/Cholesky/LDLT.h Eigen/src/Cholesky/LLT_LAPACKE.h Eigen/QR Eigen/Householder Eigen/src/Householder/Householder.h Eigen/src/Householder/HouseholderSequence.h Eigen/src/Householder/BlockHouseholder.h Eigen/src/QR/HouseholderQR.h Eigen/src/QR/FullPivHouseholderQR.h Eigen/src/QR/ColPivHouseholderQR.h Eigen/src/QR/CompleteOrthogonalDecomposition.h Eigen/src/QR/HouseholderQR_LAPACKE.h Eigen/src/QR/ColPivHouseholderQR_LAPACKE.h Eigen/SVD Eigen/src/misc/RealSvd2x2.h Eigen/src/SVD/UpperBidiagonalization.h Eigen/src/SVD/SVDBase.h Eigen/src/SVD/JacobiSVD.h Eigen/src/SVD/BDCSVD.h Eigen/Geometry Eigen/src/Geometry/OrthoMethods.h Eigen/src/Geometry/EulerAngles.h Eigen/src/Geometry/Homogeneous.h Eigen/src/Geometry/RotationBase.h Eigen/src/Geometry/Rotation2D.h Eigen/src/Geometry/Quaternion.h Eigen/src/Geometry/AngleAxis.h Eigen/src/Geometry/Transform.h Eigen/src/Geometry/Translation.h Eigen/src/Geometry/Scaling.h Eigen/src/Geometry/Hyperplane.h Eigen/src/Geometry/ParametrizedLine.h Eigen/src/Geometry/AlignedBox.h Eigen/src/Geometry/Umeyama.h Eigen/src/Geometry/arch/Geometry_SIMD.h Eigen/Eigenvalues Eigen/src/Eigenvalues/Tridiagonalization.h Eigen/src/Eigenvalues/RealSchur.h Eigen/src/Eigenvalues/./HessenbergDecomposition.h Eigen/src/Eigenvalues/EigenSolver.h Eigen/src/Eigenvalues/./RealSchur.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h Eigen/src/Eigenvalues/./Tridiagonalization.h Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h Eigen/src/Eigenvalues/HessenbergDecomposition.h Eigen/src/Eigenvalues/ComplexSchur.h Eigen/src/Eigenvalues/ComplexEigenSolver.h Eigen/src/Eigenvalues/./ComplexSchur.h Eigen/src/Eigenvalues/RealQZ.h Eigen/src/Eigenvalues/GeneralizedEigenSolver.h Eigen/src/Eigenvalues/./RealQZ.h Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h Eigen/src/Eigenvalues/RealSchur_LAPACKE.h Eigen/src/Eigenvalues/ComplexSchur_LAPACKE.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver_LAPACKE.h EigenTensor.hpp
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'DNDS_Elements'
-#  Last modified 2022-07-27 16:54:55.407177483
+#  Last modified 2022-07-28 11:35:18.933742611
 #  File has been updated.
 #  Successfully updated.
 #  recipe to execute (from 'Makefile', line 64):
@@ -715,6 +716,7 @@ unsupported/Eigen/CXX11/src/Tensor/TensorEvalTo.h:
 # Not a target:
 Eigen/src/Geometry/AngleAxis.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-03 17:11:15.283027237
 #  File has been updated.
 #  Successfully updated.
@@ -742,7 +744,7 @@ test/testTensor.cpp:
 # Not a target:
 DNDS_Mesh.d:
 #  Implicit rule search has been done.
-#  Last modified 2022-07-27 16:59:05.351704935
+#  Last modified 2022-07-28 11:35:26.669792226
 #  File has been updated.
 #  Successfully updated.
 
@@ -787,7 +789,6 @@ unsupported/Eigen/CXX11/src/util/MaxSizeVector.h:
 #  Last modified 2022-05-13 02:16:29.440492751
 #  File has been updated.
 #  Successfully updated.
- 
 
 # Not a target:
 /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype_inln.h:
@@ -944,7 +945,8 @@ unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsArrayAPI.h:
 # Not a target:
 DNDS_FV_CR.d:
 #  Implicit rule search has been done.
-#  Last modified 2022-07-27 22:58:48.423252814
+ 
+#  Last modified 2022-07-28 11:41:05.027980905
 #  File has been updated.
 #  Successfully updated.
 
@@ -1025,7 +1027,6 @@ unsupported/Eigen/CXX11/../../../Eigen/src/Core/util/DisableStupidWarnings.h:
 #  File has been updated.
 #  Successfully updated.
 
- 
 # Not a target:
 unsupported/Eigen/CXX11/src/Tensor/TensorFunctors.h:
 #  Implicit rule search has been done.
@@ -1036,7 +1037,7 @@ unsupported/Eigen/CXX11/src/Tensor/TensorFunctors.h:
 DNDS_Defines.o: DNDS_Defines.cpp DNDS_Defines.cpp DNDS_Defines.h DNDS_Macros.h Experimentals.h
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'DNDS_Defines'
-#  Last modified 2022-07-27 16:54:53.303165282
+#  Last modified 2022-07-28 11:35:17.38173266
 #  File has been updated.
 #  Successfully updated.
 #  recipe to execute (from 'Makefile', line 64):
@@ -1048,6 +1049,7 @@ Eigen/src/Geometry/arch/Geometry_SIMD.h:
 #  Last modified 2022-05-03 17:11:15.339027582
 #  File has been updated.
 #  Successfully updated.
+ 
 
 # Not a target:
 unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsImpl.h:
@@ -1117,6 +1119,7 @@ Eigen/src/Geometry/Quaternion.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-03-04 20:35:12
 #  File has been updated.
+ 
 #  Successfully updated.
 
 # Not a target:
@@ -1128,9 +1131,10 @@ Eigen/src/Core/util/BlasUtil.h:
 
 # Not a target:
 DNDS_Mesh.cpp:
-#  Implicit rule search has not been done.
-#  Modification time never checked.
-#  File has not been updated.
+#  Implicit rule search has been done.
+#  Last modified 2022-05-28 13:36:10.963452815
+#  File has been updated.
+#  Successfully updated.
 
 # Not a target:
 unsupported/Eigen/CXX11/../SpecialFunctions:
@@ -1178,6 +1182,7 @@ Eigen/Eigenvalues:
 Eigen/src/Core/PlainObjectBase.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-05-03 17:11:08.73098683
+ 
 #  File has been updated.
 #  Successfully updated.
 
@@ -1303,7 +1308,6 @@ Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h:
 #  Successfully updated.
 
 # Not a target:
- 
 Eigen/src/LU/PartialPivLU.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-05-03 17:11:17.739042387
@@ -1319,9 +1323,10 @@ unsupported/Eigen/CXX11/src/Tensor/TensorInitializer.h:
 
 # Not a target:
 DNDS_FV_CR.cpp:
-#  Implicit rule search has not been done.
-#  Modification time never checked.
-#  File has not been updated.
+#  Implicit rule search has been done.
+#  Last modified 2022-05-05 15:44:21.917299153
+#  File has been updated.
+#  Successfully updated.
 
 # Not a target:
 unsupported/Eigen/CXX11/src/Tensor/TensorCustomOp.h:
@@ -1334,6 +1339,7 @@ unsupported/Eigen/CXX11/src/Tensor/TensorCustomOp.h:
 Eigen/src/Core/Random.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-05-03 17:11:11.723005285
+ 
 #  File has been updated.
 #  Successfully updated.
 
@@ -1403,7 +1409,6 @@ unsupported/Eigen/CXX11/src/Tensor/TensorBlock.h:
 # Not a target:
 Eigen/src/LU/Determinant.h:
 #  Implicit rule search has been done.
- 
 #  Last modified 2022-05-03 17:11:17.563041302
 #  File has been updated.
 #  Successfully updated.
@@ -1433,6 +1438,7 @@ unsupported/Eigen/CXX11/src/Tensor/TensorImagePatch.h:
 Eigen/src/Core/util/../../misc/lapacke_mangling.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-05-03 17:11:19.383052524
+ 
 #  File has been updated.
 #  Successfully updated.
 
@@ -1526,13 +1532,13 @@ unsupported/Eigen/CXX11/src/Tensor/TensorConcatenation.h:
 #  File has been updated.
 #  Successfully updated.
 
- 
 test/staticReconstructionTest.exe: test/staticReconstructionTest.cpp DNDS_Array.hpp DNDS_BasicTypes.hpp DNDS_DerivedArray.hpp DNDS_DerivedTypes.hpp DNDS_Elements.hpp DNDS_FV_CR.hpp DNDS_FV_EikonalCRSolver.hpp DNDS_FV_JR.hpp DNDS_FV_VR.hpp DNDS_Gas.hpp DNDS_IndexMapping.hpp DNDS_MPI.hpp DNDS_Mesh.hpp DNDS_ODE.hpp DNDS_Scripting.hpp EigenTensor.hpp SmallTensor.hpp DNDS_Defines.h DNDS_HardEigen.h DNDS_Macros.h Experimentals.h DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_Mesh.o DNDS_HardEigen.o
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'test/staticReconstructionTest'
 #  Modification time never checked.
 #  File has not been updated.
 #  recipe to execute (from 'Makefile', line 84):
+ 
 	${CPC} -o $@ $(filter %.cpp , $^) ${PREBUILD} ${PREBUILD_FAST} $(FLAGS) $(CXX_COMPILE_FLAGS) $(CXX_LINK_FLAGS)
 
 # Not a target:
@@ -1670,6 +1676,7 @@ Eigen/src/Core/ArrayWrapper.h:
 # Not a target:
 Eigen/src/Core/arch/Default/BFloat16.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-03 17:11:01.114939852
 #  File has been updated.
 #  Successfully updated.
@@ -1691,8 +1698,9 @@ DNDS_Elements.cpp:
 DNDS_FV_CR.o: DNDS_FV_CR.cpp DNDS_FV_CR.cpp DNDS_FV_CR.hpp DNDS_FV_VR.hpp DNDS_Mesh.hpp DNDS_Defines.h DNDS_Macros.h Experimentals.h DNDS_Elements.hpp Eigen/Dense Eigen/Core Eigen/src/Core/util/DisableStupidWarnings.h Eigen/src/Core/util/Macros.h Eigen/src/Core/util/ConfigureVectorization.h Eigen/src/Core/util/MKL_support.h Eigen/src/Core/util/../../misc/blas.h Eigen/src/Core/util/Constants.h Eigen/src/Core/util/Meta.h Eigen/src/Core/util/ForwardDeclarations.h Eigen/src/Core/util/StaticAssert.h Eigen/src/Core/util/XprHelper.h Eigen/src/Core/util/Memory.h Eigen/src/Core/util/IntegralConstant.h Eigen/src/Core/util/SymbolicIndex.h Eigen/src/Core/NumTraits.h Eigen/src/Core/MathFunctions.h Eigen/src/Core/GenericPacketMath.h Eigen/src/Core/MathFunctionsImpl.h Eigen/src/Core/arch/Default/ConjHelper.h Eigen/src/Core/arch/Default/Half.h Eigen/src/Core/arch/Default/BFloat16.h Eigen/src/Core/arch/Default/TypeCasting.h Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h Eigen/src/Core/arch/SSE/PacketMath.h Eigen/src/Core/arch/SSE/TypeCasting.h Eigen/src/Core/arch/SSE/MathFunctions.h Eigen/src/Core/arch/SSE/Complex.h Eigen/src/Core/arch/Default/Settings.h Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h Eigen/src/Core/functors/TernaryFunctors.h Eigen/src/Core/functors/BinaryFunctors.h Eigen/src/Core/functors/UnaryFunctors.h Eigen/src/Core/functors/NullaryFunctors.h Eigen/src/Core/functors/StlFunctors.h Eigen/src/Core/functors/AssignmentFunctors.h Eigen/src/Core/util/IndexedViewHelper.h Eigen/src/Core/util/ReshapedHelper.h Eigen/src/Core/ArithmeticSequence.h Eigen/src/Core/IO.h Eigen/src/Core/DenseCoeffsBase.h Eigen/src/Core/DenseBase.h Eigen/src/Core/../plugins/CommonCwiseUnaryOps.h Eigen/src/Core/../plugins/BlockMethods.h Eigen/src/Core/../plugins/IndexedViewMethods.h Eigen/src/Core/../plugins/ReshapedMethods.h Eigen/src/Core/MatrixBase.h Eigen/src/Core/../plugins/CommonCwiseBinaryOps.h Eigen/src/Core/../plugins/MatrixCwiseUnaryOps.h Eigen/src/Core/../plugins/MatrixCwiseBinaryOps.h Eigen/src/Core/EigenBase.h Eigen/src/Core/Product.h Eigen/src/Core/CoreEvaluators.h Eigen/src/Core/AssignEvaluator.h Eigen/src/Core/Assign.h Eigen/src/Core/ArrayBase.h Eigen/src/Core/../plugins/ArrayCwiseUnaryOps.h Eigen/src/Core/../plugins/ArrayCwiseBinaryOps.h Eigen/src/Core/util/BlasUtil.h Eigen/src/Core/DenseStorage.h Eigen/src/Core/NestByValue.h Eigen/src/Core/ReturnByValue.h Eigen/src/Core/NoAlias.h Eigen/src/Core/PlainObjectBase.h Eigen/src/Core/Matrix.h Eigen/src/Core/Array.h Eigen/src/Core/CwiseTernaryOp.h Eigen/src/Core/CwiseBinaryOp.h Eigen/src/Core/CwiseUnaryOp.h Eigen/src/Core/CwiseNullaryOp.h Eigen/src/Core/CwiseUnaryView.h Eigen/src/Core/SelfCwiseBinaryOp.h Eigen/src/Core/Dot.h Eigen/src/Core/StableNorm.h Eigen/src/Core/Stride.h Eigen/src/Core/MapBase.h Eigen/src/Core/Map.h Eigen/src/Core/Ref.h Eigen/src/Core/Block.h Eigen/src/Core/VectorBlock.h Eigen/src/Core/IndexedView.h Eigen/src/Core/Reshaped.h Eigen/src/Core/Transpose.h Eigen/src/Core/DiagonalMatrix.h Eigen/src/Core/Diagonal.h Eigen/src/Core/DiagonalProduct.h Eigen/src/Core/Redux.h Eigen/src/Core/Visitor.h Eigen/src/Core/Fuzzy.h Eigen/src/Core/Swap.h Eigen/src/Core/CommaInitializer.h Eigen/src/Core/GeneralProduct.h Eigen/src/Core/Solve.h Eigen/src/Core/Inverse.h Eigen/src/Core/SolverBase.h Eigen/src/Core/PermutationMatrix.h Eigen/src/Core/Transpositions.h Eigen/src/Core/TriangularMatrix.h Eigen/src/Core/SelfAdjointView.h Eigen/src/Core/products/GeneralBlockPanelKernel.h Eigen/src/Core/products/Parallelizer.h Eigen/src/Core/ProductEvaluators.h Eigen/src/Core/products/GeneralMatrixVector.h Eigen/src/Core/products/GeneralMatrixMatrix.h Eigen/src/Core/SolveTriangular.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h Eigen/src/Core/products/SelfadjointMatrixVector.h Eigen/src/Core/products/SelfadjointMatrixMatrix.h Eigen/src/Core/products/SelfadjointProduct.h Eigen/src/Core/products/SelfadjointRank2Update.h Eigen/src/Core/products/TriangularMatrixVector.h Eigen/src/Core/products/TriangularMatrixMatrix.h Eigen/src/Core/products/TriangularSolverMatrix.h Eigen/src/Core/products/TriangularSolverVector.h Eigen/src/Core/BandMatrix.h Eigen/src/Core/CoreIterators.h Eigen/src/Core/ConditionEstimator.h Eigen/src/Core/BooleanRedux.h Eigen/src/Core/Select.h Eigen/src/Core/VectorwiseOp.h Eigen/src/Core/PartialReduxEvaluator.h Eigen/src/Core/Random.h Eigen/src/Core/Replicate.h Eigen/src/Core/Reverse.h Eigen/src/Core/ArrayWrapper.h Eigen/src/Core/StlIterators.h Eigen/src/Core/products/GeneralMatrixMatrix_BLAS.h Eigen/src/Core/products/GeneralMatrixVector_BLAS.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular_BLAS.h Eigen/src/Core/products/SelfadjointMatrixMatrix_BLAS.h Eigen/src/Core/products/SelfadjointMatrixVector_BLAS.h Eigen/src/Core/products/TriangularMatrixMatrix_BLAS.h Eigen/src/Core/products/TriangularMatrixVector_BLAS.h Eigen/src/Core/products/TriangularSolverMatrix_BLAS.h Eigen/src/Core/GlobalFunctions.h Eigen/src/Core/util/ReenableStupidWarnings.h Eigen/LU Eigen/src/misc/Kernel.h Eigen/src/misc/Image.h Eigen/src/LU/FullPivLU.h Eigen/src/LU/PartialPivLU.h Eigen/src/misc/lapacke.h Eigen/src/Core/util/../../misc/lapacke_mangling.h Eigen/src/LU/PartialPivLU_LAPACKE.h Eigen/src/LU/Determinant.h Eigen/src/LU/InverseImpl.h Eigen/src/LU/arch/InverseSize4.h Eigen/Cholesky Eigen/Jacobi Eigen/src/Jacobi/Jacobi.h Eigen/src/Cholesky/LLT.h Eigen/src/Cholesky/LDLT.h Eigen/src/Cholesky/LLT_LAPACKE.h Eigen/QR Eigen/Householder Eigen/src/Householder/Householder.h Eigen/src/Householder/HouseholderSequence.h Eigen/src/Householder/BlockHouseholder.h Eigen/src/QR/HouseholderQR.h Eigen/src/QR/FullPivHouseholderQR.h Eigen/src/QR/ColPivHouseholderQR.h Eigen/src/QR/CompleteOrthogonalDecomposition.h Eigen/src/QR/HouseholderQR_LAPACKE.h Eigen/src/QR/ColPivHouseholderQR_LAPACKE.h Eigen/SVD Eigen/src/misc/RealSvd2x2.h Eigen/src/SVD/UpperBidiagonalization.h Eigen/src/SVD/SVDBase.h Eigen/src/SVD/JacobiSVD.h Eigen/src/SVD/BDCSVD.h Eigen/Geometry Eigen/src/Geometry/OrthoMethods.h Eigen/src/Geometry/EulerAngles.h Eigen/src/Geometry/Homogeneous.h Eigen/src/Geometry/RotationBase.h Eigen/src/Geometry/Rotation2D.h Eigen/src/Geometry/Quaternion.h Eigen/src/Geometry/AngleAxis.h Eigen/src/Geometry/Transform.h Eigen/src/Geometry/Translation.h Eigen/src/Geometry/Scaling.h Eigen/src/Geometry/Hyperplane.h Eigen/src/Geometry/ParametrizedLine.h Eigen/src/Geometry/AlignedBox.h Eigen/src/Geometry/Umeyama.h Eigen/src/Geometry/arch/Geometry_SIMD.h Eigen/Eigenvalues Eigen/src/Eigenvalues/Tridiagonalization.h Eigen/src/Eigenvalues/RealSchur.h Eigen/src/Eigenvalues/./HessenbergDecomposition.h Eigen/src/Eigenvalues/EigenSolver.h Eigen/src/Eigenvalues/./RealSchur.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h Eigen/src/Eigenvalues/./Tridiagonalization.h Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h Eigen/src/Eigenvalues/HessenbergDecomposition.h Eigen/src/Eigenvalues/ComplexSchur.h Eigen/src/Eigenvalues/ComplexEigenSolver.h Eigen/src/Eigenvalues/./ComplexSchur.h Eigen/src/Eigenvalues/RealQZ.h Eigen/src/Eigenvalues/GeneralizedEigenSolver.h Eigen/src/Eigenvalues/./RealQZ.h Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h Eigen/src/Eigenvalues/RealSchur_LAPACKE.h Eigen/src/Eigenvalues/ComplexSchur_LAPACKE.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver_LAPACKE.h EigenTensor.hpp DNDS_Array.hpp DNDS_MPI.hpp /usr/lib/x86_64-linux-gnu/openmpi/include/mpi.h /usr/lib/x86_64-linux-gnu/openmpi/include/mpi_portable_platform.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/mpicxx.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/constants.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/exception.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file_inln.h DNDS_IndexMapping.hpp DNDS_BasicTypes.hpp DNDS_DerivedTypes.hpp DNDS_DerivedArray.hpp DNDS_HardEigen.h unsupported/Eigen/CXX11/Tensor unsupported/Eigen/CXX11/../../../Eigen/Core unsupported/Eigen/CXX11/../SpecialFunctions unsupported/Eigen/CXX11/../../../Eigen/src/Core/util/DisableStupidWarnings.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsImpl.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsBFloat16.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsHalf.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsPacketMath.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsFunctors.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsArrayAPI.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsImpl.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsBFloat16.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsHalf.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsPacketMath.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsFunctors.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsArrayAPI.h unsupported/Eigen/CXX11/../../../Eigen/src/Core/util/ReenableStupidWarnings.h unsupported/Eigen/CXX11/src/util/CXX11Meta.h unsupported/Eigen/CXX11/src/util/EmulateArray.h unsupported/Eigen/CXX11/src/util/CXX11Workarounds.h unsupported/Eigen/CXX11/src/util/MaxSizeVector.h unsupported/Eigen/CXX11/src/Tensor/TensorMacros.h unsupported/Eigen/CXX11/src/Tensor/TensorForwardDeclarations.h unsupported/Eigen/CXX11/src/Tensor/TensorMeta.h unsupported/Eigen/CXX11/src/Tensor/TensorFunctors.h unsupported/Eigen/CXX11/src/Tensor/TensorCostModel.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceDefault.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceThreadPool.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h unsupported/Eigen/CXX11/src/Tensor/TensorIndexList.h unsupported/Eigen/CXX11/src/Tensor/TensorDimensionList.h unsupported/Eigen/CXX11/src/Tensor/TensorDimensions.h unsupported/Eigen/CXX11/src/Tensor/TensorInitializer.h unsupported/Eigen/CXX11/src/Tensor/TensorTraits.h unsupported/Eigen/CXX11/src/Tensor/TensorRandom.h unsupported/Eigen/CXX11/src/Tensor/TensorUInt128.h unsupported/Eigen/CXX11/src/Tensor/TensorIntDiv.h unsupported/Eigen/CXX11/src/Tensor/TensorGlobalFunctions.h unsupported/Eigen/CXX11/src/Tensor/TensorBase.h unsupported/Eigen/CXX11/src/Tensor/TensorBlock.h unsupported/Eigen/CXX11/src/Tensor/TensorEvaluator.h unsupported/Eigen/CXX11/src/Tensor/TensorExpr.h unsupported/Eigen/CXX11/src/Tensor/TensorReduction.h unsupported/Eigen/CXX11/src/Tensor/TensorReductionGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorArgMax.h unsupported/Eigen/CXX11/src/Tensor/TensorConcatenation.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionMapper.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionBlocking.h unsupported/Eigen/CXX11/src/Tensor/TensorContraction.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionThreadPool.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorConversion.h unsupported/Eigen/CXX11/src/Tensor/TensorConvolution.h unsupported/Eigen/CXX11/src/Tensor/TensorFFT.h unsupported/Eigen/CXX11/src/Tensor/TensorPatch.h unsupported/Eigen/CXX11/src/Tensor/TensorImagePatch.h unsupported/Eigen/CXX11/src/Tensor/TensorVolumePatch.h unsupported/Eigen/CXX11/src/Tensor/TensorBroadcasting.h unsupported/Eigen/CXX11/src/Tensor/TensorChipping.h unsupported/Eigen/CXX11/src/Tensor/TensorInflation.h unsupported/Eigen/CXX11/src/Tensor/TensorLayoutSwap.h unsupported/Eigen/CXX11/src/Tensor/TensorMorphing.h unsupported/Eigen/CXX11/src/Tensor/TensorPadding.h unsupported/Eigen/CXX11/src/Tensor/TensorReverse.h unsupported/Eigen/CXX11/src/Tensor/TensorShuffling.h unsupported/Eigen/CXX11/src/Tensor/TensorStriding.h unsupported/Eigen/CXX11/src/Tensor/TensorCustomOp.h unsupported/Eigen/CXX11/src/Tensor/TensorEvalTo.h unsupported/Eigen/CXX11/src/Tensor/TensorForcedEval.h unsupported/Eigen/CXX11/src/Tensor/TensorGenerator.h unsupported/Eigen/CXX11/src/Tensor/TensorAssign.h unsupported/Eigen/CXX11/src/Tensor/TensorScan.h unsupported/Eigen/CXX11/src/Tensor/TensorTrace.h unsupported/Eigen/CXX11/src/Tensor/TensorExecutor.h unsupported/Eigen/CXX11/src/Tensor/TensorDevice.h unsupported/Eigen/CXX11/src/Tensor/TensorStorage.h unsupported/Eigen/CXX11/src/Tensor/Tensor.h unsupported/Eigen/CXX11/src/Tensor/TensorFixedSize.h unsupported/Eigen/CXX11/src/Tensor/TensorMap.h unsupported/Eigen/CXX11/src/Tensor/TensorRef.h unsupported/Eigen/CXX11/src/Tensor/TensorIO.h
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'DNDS_FV_CR'
-#  Modification time never checked.
-#  File has not been updated.
+#  Last modified 2022-07-28 11:41:05.027980905
+#  File has been updated.
+#  Successfully updated.
 #  recipe to execute (from 'Makefile', line 64):
 	$(CPC) $< -c -o $@ $(FLAGS) $(CXX_COMPILE_FLAGS) -MMD 
 
@@ -1708,6 +1716,7 @@ test/test.exe: test/test.cpp DNDS_Array.hpp DNDS_BasicTypes.hpp DNDS_DerivedArra
 Eigen/src/Core/VectorwiseOp.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-05-03 17:11:14.455022132
+ 
 #  File has been updated.
 #  Successfully updated.
 
@@ -1825,6 +1834,7 @@ unsupported/Eigen/CXX11/src/Tensor/TensorArgMax.h:
 # Not a target:
 /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-03-04 20:35:12
 #  File has been updated.
 #  Successfully updated.
@@ -1850,18 +1860,34 @@ Eigen/src/SVD/JacobiSVD.h:
 #  File has been updated.
 #  Successfully updated.
 
- 
 test/mpitest.exe: test/mpitest.cpp DNDS_Array.hpp DNDS_BasicTypes.hpp DNDS_DerivedArray.hpp DNDS_DerivedTypes.hpp DNDS_Elements.hpp DNDS_FV_CR.hpp DNDS_FV_EikonalCRSolver.hpp DNDS_FV_JR.hpp DNDS_FV_VR.hpp DNDS_Gas.hpp DNDS_IndexMapping.hpp DNDS_MPI.hpp DNDS_Mesh.hpp DNDS_ODE.hpp DNDS_Scripting.hpp EigenTensor.hpp SmallTensor.hpp DNDS_Defines.h DNDS_HardEigen.h DNDS_Macros.h Experimentals.h DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_Mesh.o DNDS_HardEigen.o
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'test/mpitest'
 #  File does not exist.
 #  File has been updated.
 #  Needs to be updated (-q is set).
+# automatic
+# @ := test/mpitest.exe
+# automatic
+# * := test/mpitest
+# automatic
+# < := test/mpitest.cpp
+# automatic
+# + := test/mpitest.cpp DNDS_Array.hpp DNDS_BasicTypes.hpp DNDS_DerivedArray.hpp DNDS_DerivedTypes.hpp DNDS_Elements.hpp DNDS_FV_CR.hpp DNDS_FV_EikonalCRSolver.hpp DNDS_FV_JR.hpp DNDS_FV_VR.hpp DNDS_Gas.hpp DNDS_IndexMapping.hpp DNDS_MPI.hpp DNDS_Mesh.hpp DNDS_ODE.hpp DNDS_Scripting.hpp EigenTensor.hpp SmallTensor.hpp DNDS_Defines.h DNDS_HardEigen.h DNDS_Macros.h Experimentals.h DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_Mesh.o DNDS_HardEigen.o
+# automatic
+# % := 
+# automatic
+# ^ := test/mpitest.cpp DNDS_Array.hpp DNDS_BasicTypes.hpp DNDS_DerivedArray.hpp DNDS_DerivedTypes.hpp DNDS_Elements.hpp DNDS_FV_CR.hpp DNDS_FV_EikonalCRSolver.hpp DNDS_FV_JR.hpp DNDS_FV_VR.hpp DNDS_Gas.hpp DNDS_IndexMapping.hpp DNDS_MPI.hpp DNDS_Mesh.hpp DNDS_ODE.hpp DNDS_Scripting.hpp EigenTensor.hpp SmallTensor.hpp DNDS_Defines.h DNDS_HardEigen.h DNDS_Macros.h Experimentals.h DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_Mesh.o DNDS_HardEigen.o
+# automatic
+# ? := test/mpitest.cpp DNDS_Array.hpp DNDS_BasicTypes.hpp DNDS_DerivedArray.hpp DNDS_DerivedTypes.hpp DNDS_Elements.hpp DNDS_FV_CR.hpp DNDS_FV_EikonalCRSolver.hpp DNDS_FV_JR.hpp DNDS_FV_VR.hpp DNDS_Gas.hpp DNDS_IndexMapping.hpp DNDS_MPI.hpp DNDS_Mesh.hpp DNDS_ODE.hpp DNDS_Scripting.hpp EigenTensor.hpp SmallTensor.hpp DNDS_Defines.h DNDS_HardEigen.h DNDS_Macros.h Experimentals.h DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_Mesh.o DNDS_HardEigen.o
+# automatic
+# | := 
 # variable set hash-table stats:
-# Load=0/32=0%, Rehash=0, Collisions=0/11=0%
+# Load=8/32=25%, Rehash=0, Collisions=7/29=24%
 #  recipe to execute (from 'Makefile', line 84):
 	${CPC} -o $@ $(filter %.cpp , $^) ${PREBUILD} ${PREBUILD_FAST} $(FLAGS) $(CXX_COMPILE_FLAGS) $(CXX_LINK_FLAGS)
 
+ 
 # Not a target:
 test/mpitest.cpp:
 #  Implicit rule search has been done.
@@ -1883,7 +1909,7 @@ all: test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/mes
 #  File has been updated.
 #  Needs to be updated (-q is set).
 # variable set hash-table stats:
-# Load=0/32=0%, Rehash=0, Collisions=0/11=0%
+# Load=0/32=0%, Rehash=0, Collisions=0/19=0%
 
 # Not a target:
 Eigen/src/misc/Kernel.h:
@@ -1925,6 +1951,7 @@ Eigen/src/Core/GeneralProduct.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-05-03 17:11:07.69098042
 #  File has been updated.
+ 
 #  Successfully updated.
 
 # Not a target:
@@ -1979,6 +2006,7 @@ Eigen/src/Householder/Householder.h:
 # Not a target:
 Eigen/src/Core/util/IntegralConstant.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-03 17:11:13.39101557
 #  File has been updated.
 #  Successfully updated.
@@ -1986,8 +2014,9 @@ Eigen/src/Core/util/IntegralConstant.h:
 DNDS_Mesh.o: DNDS_Mesh.cpp DNDS_Mesh.cpp DNDS_Mesh.hpp DNDS_Defines.h DNDS_Macros.h Experimentals.h DNDS_Elements.hpp Eigen/Dense Eigen/Core Eigen/src/Core/util/DisableStupidWarnings.h Eigen/src/Core/util/Macros.h Eigen/src/Core/util/ConfigureVectorization.h Eigen/src/Core/util/MKL_support.h Eigen/src/Core/util/../../misc/blas.h Eigen/src/Core/util/Constants.h Eigen/src/Core/util/Meta.h Eigen/src/Core/util/ForwardDeclarations.h Eigen/src/Core/util/StaticAssert.h Eigen/src/Core/util/XprHelper.h Eigen/src/Core/util/Memory.h Eigen/src/Core/util/IntegralConstant.h Eigen/src/Core/util/SymbolicIndex.h Eigen/src/Core/NumTraits.h Eigen/src/Core/MathFunctions.h Eigen/src/Core/GenericPacketMath.h Eigen/src/Core/MathFunctionsImpl.h Eigen/src/Core/arch/Default/ConjHelper.h Eigen/src/Core/arch/Default/Half.h Eigen/src/Core/arch/Default/BFloat16.h Eigen/src/Core/arch/Default/TypeCasting.h Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h Eigen/src/Core/arch/SSE/PacketMath.h Eigen/src/Core/arch/SSE/TypeCasting.h Eigen/src/Core/arch/SSE/MathFunctions.h Eigen/src/Core/arch/SSE/Complex.h Eigen/src/Core/arch/Default/Settings.h Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h Eigen/src/Core/functors/TernaryFunctors.h Eigen/src/Core/functors/BinaryFunctors.h Eigen/src/Core/functors/UnaryFunctors.h Eigen/src/Core/functors/NullaryFunctors.h Eigen/src/Core/functors/StlFunctors.h Eigen/src/Core/functors/AssignmentFunctors.h Eigen/src/Core/util/IndexedViewHelper.h Eigen/src/Core/util/ReshapedHelper.h Eigen/src/Core/ArithmeticSequence.h Eigen/src/Core/IO.h Eigen/src/Core/DenseCoeffsBase.h Eigen/src/Core/DenseBase.h Eigen/src/Core/../plugins/CommonCwiseUnaryOps.h Eigen/src/Core/../plugins/BlockMethods.h Eigen/src/Core/../plugins/IndexedViewMethods.h Eigen/src/Core/../plugins/ReshapedMethods.h Eigen/src/Core/MatrixBase.h Eigen/src/Core/../plugins/CommonCwiseBinaryOps.h Eigen/src/Core/../plugins/MatrixCwiseUnaryOps.h Eigen/src/Core/../plugins/MatrixCwiseBinaryOps.h Eigen/src/Core/EigenBase.h Eigen/src/Core/Product.h Eigen/src/Core/CoreEvaluators.h Eigen/src/Core/AssignEvaluator.h Eigen/src/Core/Assign.h Eigen/src/Core/ArrayBase.h Eigen/src/Core/../plugins/ArrayCwiseUnaryOps.h Eigen/src/Core/../plugins/ArrayCwiseBinaryOps.h Eigen/src/Core/util/BlasUtil.h Eigen/src/Core/DenseStorage.h Eigen/src/Core/NestByValue.h Eigen/src/Core/ReturnByValue.h Eigen/src/Core/NoAlias.h Eigen/src/Core/PlainObjectBase.h Eigen/src/Core/Matrix.h Eigen/src/Core/Array.h Eigen/src/Core/CwiseTernaryOp.h Eigen/src/Core/CwiseBinaryOp.h Eigen/src/Core/CwiseUnaryOp.h Eigen/src/Core/CwiseNullaryOp.h Eigen/src/Core/CwiseUnaryView.h Eigen/src/Core/SelfCwiseBinaryOp.h Eigen/src/Core/Dot.h Eigen/src/Core/StableNorm.h Eigen/src/Core/Stride.h Eigen/src/Core/MapBase.h Eigen/src/Core/Map.h Eigen/src/Core/Ref.h Eigen/src/Core/Block.h Eigen/src/Core/VectorBlock.h Eigen/src/Core/IndexedView.h Eigen/src/Core/Reshaped.h Eigen/src/Core/Transpose.h Eigen/src/Core/DiagonalMatrix.h Eigen/src/Core/Diagonal.h Eigen/src/Core/DiagonalProduct.h Eigen/src/Core/Redux.h Eigen/src/Core/Visitor.h Eigen/src/Core/Fuzzy.h Eigen/src/Core/Swap.h Eigen/src/Core/CommaInitializer.h Eigen/src/Core/GeneralProduct.h Eigen/src/Core/Solve.h Eigen/src/Core/Inverse.h Eigen/src/Core/SolverBase.h Eigen/src/Core/PermutationMatrix.h Eigen/src/Core/Transpositions.h Eigen/src/Core/TriangularMatrix.h Eigen/src/Core/SelfAdjointView.h Eigen/src/Core/products/GeneralBlockPanelKernel.h Eigen/src/Core/products/Parallelizer.h Eigen/src/Core/ProductEvaluators.h Eigen/src/Core/products/GeneralMatrixVector.h Eigen/src/Core/products/GeneralMatrixMatrix.h Eigen/src/Core/SolveTriangular.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h Eigen/src/Core/products/SelfadjointMatrixVector.h Eigen/src/Core/products/SelfadjointMatrixMatrix.h Eigen/src/Core/products/SelfadjointProduct.h Eigen/src/Core/products/SelfadjointRank2Update.h Eigen/src/Core/products/TriangularMatrixVector.h Eigen/src/Core/products/TriangularMatrixMatrix.h Eigen/src/Core/products/TriangularSolverMatrix.h Eigen/src/Core/products/TriangularSolverVector.h Eigen/src/Core/BandMatrix.h Eigen/src/Core/CoreIterators.h Eigen/src/Core/ConditionEstimator.h Eigen/src/Core/BooleanRedux.h Eigen/src/Core/Select.h Eigen/src/Core/VectorwiseOp.h Eigen/src/Core/PartialReduxEvaluator.h Eigen/src/Core/Random.h Eigen/src/Core/Replicate.h Eigen/src/Core/Reverse.h Eigen/src/Core/ArrayWrapper.h Eigen/src/Core/StlIterators.h Eigen/src/Core/products/GeneralMatrixMatrix_BLAS.h Eigen/src/Core/products/GeneralMatrixVector_BLAS.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular_BLAS.h Eigen/src/Core/products/SelfadjointMatrixMatrix_BLAS.h Eigen/src/Core/products/SelfadjointMatrixVector_BLAS.h Eigen/src/Core/products/TriangularMatrixMatrix_BLAS.h Eigen/src/Core/products/TriangularMatrixVector_BLAS.h Eigen/src/Core/products/TriangularSolverMatrix_BLAS.h Eigen/src/Core/GlobalFunctions.h Eigen/src/Core/util/ReenableStupidWarnings.h Eigen/LU Eigen/src/misc/Kernel.h Eigen/src/misc/Image.h Eigen/src/LU/FullPivLU.h Eigen/src/LU/PartialPivLU.h Eigen/src/misc/lapacke.h Eigen/src/Core/util/../../misc/lapacke_mangling.h Eigen/src/LU/PartialPivLU_LAPACKE.h Eigen/src/LU/Determinant.h Eigen/src/LU/InverseImpl.h Eigen/src/LU/arch/InverseSize4.h Eigen/Cholesky Eigen/Jacobi Eigen/src/Jacobi/Jacobi.h Eigen/src/Cholesky/LLT.h Eigen/src/Cholesky/LDLT.h Eigen/src/Cholesky/LLT_LAPACKE.h Eigen/QR Eigen/Householder Eigen/src/Householder/Householder.h Eigen/src/Householder/HouseholderSequence.h Eigen/src/Householder/BlockHouseholder.h Eigen/src/QR/HouseholderQR.h Eigen/src/QR/FullPivHouseholderQR.h Eigen/src/QR/ColPivHouseholderQR.h Eigen/src/QR/CompleteOrthogonalDecomposition.h Eigen/src/QR/HouseholderQR_LAPACKE.h Eigen/src/QR/ColPivHouseholderQR_LAPACKE.h Eigen/SVD Eigen/src/misc/RealSvd2x2.h Eigen/src/SVD/UpperBidiagonalization.h Eigen/src/SVD/SVDBase.h Eigen/src/SVD/JacobiSVD.h Eigen/src/SVD/BDCSVD.h Eigen/Geometry Eigen/src/Geometry/OrthoMethods.h Eigen/src/Geometry/EulerAngles.h Eigen/src/Geometry/Homogeneous.h Eigen/src/Geometry/RotationBase.h Eigen/src/Geometry/Rotation2D.h Eigen/src/Geometry/Quaternion.h Eigen/src/Geometry/AngleAxis.h Eigen/src/Geometry/Transform.h Eigen/src/Geometry/Translation.h Eigen/src/Geometry/Scaling.h Eigen/src/Geometry/Hyperplane.h Eigen/src/Geometry/ParametrizedLine.h Eigen/src/Geometry/AlignedBox.h Eigen/src/Geometry/Umeyama.h Eigen/src/Geometry/arch/Geometry_SIMD.h Eigen/Eigenvalues Eigen/src/Eigenvalues/Tridiagonalization.h Eigen/src/Eigenvalues/RealSchur.h Eigen/src/Eigenvalues/./HessenbergDecomposition.h Eigen/src/Eigenvalues/EigenSolver.h Eigen/src/Eigenvalues/./RealSchur.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h Eigen/src/Eigenvalues/./Tridiagonalization.h Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h Eigen/src/Eigenvalues/HessenbergDecomposition.h Eigen/src/Eigenvalues/ComplexSchur.h Eigen/src/Eigenvalues/ComplexEigenSolver.h Eigen/src/Eigenvalues/./ComplexSchur.h Eigen/src/Eigenvalues/RealQZ.h Eigen/src/Eigenvalues/GeneralizedEigenSolver.h Eigen/src/Eigenvalues/./RealQZ.h Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h Eigen/src/Eigenvalues/RealSchur_LAPACKE.h Eigen/src/Eigenvalues/ComplexSchur_LAPACKE.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver_LAPACKE.h EigenTensor.hpp DNDS_Array.hpp DNDS_MPI.hpp /usr/lib/x86_64-linux-gnu/openmpi/include/mpi.h /usr/lib/x86_64-linux-gnu/openmpi/include/mpi_portable_platform.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/mpicxx.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/constants.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/exception.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file_inln.h DNDS_IndexMapping.hpp DNDS_BasicTypes.hpp DNDS_DerivedTypes.hpp DNDS_DerivedArray.hpp
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'DNDS_Mesh'
-#  Modification time never checked.
-#  File has not been updated.
+#  Last modified 2022-07-28 11:35:26.661792175
+#  File has been updated.
+#  Successfully updated.
 #  recipe to execute (from 'Makefile', line 69):
 	$(CPC) $< -c -o $@ $(FLAGS_FAST)  $(CXX_COMPILE_FLAGS)  -MMD 
 
@@ -2004,6 +2033,7 @@ Eigen/src/Core/SelfCwiseBinaryOp.h:
 #  Last modified 2022-03-04 20:35:12
 #  File has been updated.
 #  Successfully updated.
+ 
 
 # Not a target:
 Eigen/src/Core/ReturnByValue.h:
@@ -2061,7 +2091,6 @@ test/staticReconstructionTest.cpp:
 #  File has not been updated.
 
 # Not a target:
- 
 /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm_inln.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-03-04 20:35:12
@@ -2092,6 +2121,7 @@ Eigen/src/Core/arch/SSE/TypeCasting.h:
 # Not a target:
 unsupported/Eigen/CXX11/src/Tensor/TensorDimensionList.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-13 02:16:28.252485508
 #  File has been updated.
 #  Successfully updated.
@@ -2160,6 +2190,7 @@ DNDS_HardEigen.d:
 #  Successfully updated.
 
 # Not a target:
+ 
 Eigen/src/Core/products/SelfadjointMatrixMatrix_BLAS.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-05-03 17:11:10.046994947
@@ -2207,6 +2238,7 @@ Eigen/src/Core/CoreEvaluators.h:
 #  Last modified 2022-05-03 17:11:05.370966107
 #  File has been updated.
 #  Successfully updated.
+ 
 
 # Not a target:
 /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group_inln.h:
@@ -2240,7 +2272,6 @@ Eigen/src/Core/util/../../misc/blas.h:
 # Not a target:
 Eigen/src/Eigenvalues/EigenSolver.h:
 #  Implicit rule search has been done.
- 
 #  Last modified 2022-05-03 17:11:14.731023834
 #  File has been updated.
 #  Successfully updated.
@@ -2262,6 +2293,7 @@ Eigen/src/Geometry/Umeyama.h:
 # Not a target:
 DNDS_Elements.hpp:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-23 17:27:01.319159349
 #  File has been updated.
 #  Successfully updated.
@@ -2308,6 +2340,7 @@ Eigen/src/QR/ColPivHouseholderQR.h:
 #  File has been updated.
 #  Successfully updated.
 
+ 
 # Not a target:
 Eigen/src/Core/util/Macros.h:
 #  Implicit rule search has been done.
@@ -2360,11 +2393,11 @@ Eigen/src/Core/../plugins/MatrixCwiseBinaryOps.h:
 # Not a target:
 Eigen/src/Geometry/Homogeneous.h:
 #  Implicit rule search has been done.
- 
 #  Last modified 2022-05-03 17:11:15.427028126
 #  File has been updated.
 #  Successfully updated.
 
+ 
 test/staticReconstructionTestJR.exe: test/staticReconstructionTestJR.cpp DNDS_Array.hpp DNDS_BasicTypes.hpp DNDS_DerivedArray.hpp DNDS_DerivedTypes.hpp DNDS_Elements.hpp DNDS_FV_CR.hpp DNDS_FV_EikonalCRSolver.hpp DNDS_FV_JR.hpp DNDS_FV_VR.hpp DNDS_Gas.hpp DNDS_IndexMapping.hpp DNDS_MPI.hpp DNDS_Mesh.hpp DNDS_ODE.hpp DNDS_Scripting.hpp EigenTensor.hpp SmallTensor.hpp DNDS_Defines.h DNDS_HardEigen.h DNDS_Macros.h Experimentals.h DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_Mesh.o DNDS_HardEigen.o
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'test/staticReconstructionTestJR'
@@ -2383,7 +2416,7 @@ unsupported/Eigen/CXX11/src/Tensor/TensorGenerator.h:
 # Not a target:
 DNDS_FV_VR.d:
 #  Implicit rule search has been done.
-#  Last modified 2022-07-27 22:58:50.011264848
+#  Last modified 2022-07-28 11:41:05.715985385
 #  File has been updated.
 #  Successfully updated.
 
@@ -2401,11 +2434,13 @@ Eigen/src/Eigenvalues/./ComplexSchur.h:
 #  File has been updated.
 #  Successfully updated.
 
-DNDS_HardEigen.o: DNDS_HardEigen.cpp DNDS_HardEigen.cpp DNDS_HardEigen.h DNDS_Macros.h Eigen/Dense Eigen/Core Eigen/src/Core/util/DisableStupidWarnings.h Eigen/src/Core/util/Macros.h Eigen/src/Core/util/ConfigureVectorization.h Eigen/src/Core/util/MKL_support.h Eigen/src/Core/util/../../misc/blas.h Eigen/src/Core/util/Constants.h Eigen/src/Core/util/Meta.h Eigen/src/Core/util/ForwardDeclarations.h Eigen/src/Core/util/StaticAssert.h Eigen/src/Core/util/XprHelper.h Eigen/src/Core/util/Memory.h Eigen/src/Core/util/IntegralConstant.h Eigen/src/Core/util/SymbolicIndex.h Eigen/src/Core/NumTraits.h Eigen/src/Core/MathFunctions.h Eigen/src/Core/GenericPacketMath.h Eigen/src/Core/MathFunctionsImpl.h Eigen/src/Core/arch/Default/ConjHelper.h Eigen/src/Core/arch/Default/Half.h Eigen/src/Core/arch/Default/BFloat16.h Eigen/src/Core/arch/Default/TypeCasting.h Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h Eigen/src/Core/arch/SSE/PacketMath.h Eigen/src/Core/arch/SSE/TypeCasting.h Eigen/src/Core/arch/SSE/MathFunctions.h Eigen/src/Core/arch/SSE/Complex.h Eigen/src/Core/arch/Default/Settings.h Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h Eigen/src/Core/functors/TernaryFunctors.h Eigen/src/Core/functors/BinaryFunctors.h Eigen/src/Core/functors/UnaryFunctors.h Eigen/src/Core/functors/NullaryFunctors.h Eigen/src/Core/functors/StlFunctors.h Eigen/src/Core/functors/AssignmentFunctors.h Eigen/src/Core/util/IndexedViewHelper.h Eigen/src/Core/util/ReshapedHelper.h Eigen/src/Core/ArithmeticSequence.h Eigen/src/Core/IO.h Eigen/src/Core/DenseCoeffsBase.h Eigen/src/Core/DenseBase.h Eigen/src/Core/../plugins/CommonCwiseUnaryOps.h Eigen/src/Core/../plugins/BlockMethods.h Eigen/src/Core/../plugins/IndexedViewMethods.h Eigen/src/Core/../plugins/ReshapedMethods.h Eigen/src/Core/MatrixBase.h Eigen/src/Core/../plugins/CommonCwiseBinaryOps.h Eigen/src/Core/../plugins/MatrixCwiseUnaryOps.h Eigen/src/Core/../plugins/MatrixCwiseBinaryOps.h Eigen/src/Core/EigenBase.h Eigen/src/Core/Product.h Eigen/src/Core/CoreEvaluators.h Eigen/src/Core/AssignEvaluator.h Eigen/src/Core/Assign.h Eigen/src/Core/ArrayBase.h Eigen/src/Core/../plugins/ArrayCwiseUnaryOps.h Eigen/src/Core/../plugins/ArrayCwiseBinaryOps.h Eigen/src/Core/util/BlasUtil.h Eigen/src/Core/DenseStorage.h Eigen/src/Core/NestByValue.h Eigen/src/Core/ReturnByValue.h Eigen/src/Core/NoAlias.h Eigen/src/Core/PlainObjectBase.h Eigen/src/Core/Matrix.h Eigen/src/Core/Array.h Eigen/src/Core/CwiseTernaryOp.h Eigen/src/Core/CwiseBinaryOp.h Eigen/src/Core/CwiseUnaryOp.h Eigen/src/Core/CwiseNullaryOp.h Eigen/src/Core/CwiseUnaryView.h Eigen/src/Core/SelfCwiseBinaryOp.h Eigen/src/Core/Dot.h Eigen/src/Core/StableNorm.h Eigen/src/Core/Stride.h Eigen/src/Core/MapBase.h Eigen/src/Core/Map.h Eigen/src/Core/Ref.h Eigen/src/Core/Block.h Eigen/src/Core/VectorBlock.h Eigen/src/Core/IndexedView.h Eigen/src/Core/Reshaped.h Eigen/src/Core/Transpose.h Eigen/src/Core/DiagonalMatrix.h Eigen/src/Core/Diagonal.h Eigen/src/Core/DiagonalProduct.h Eigen/src/Core/Redux.h Eigen/src/Core/Visitor.h Eigen/src/Core/Fuzzy.h Eigen/src/Core/Swap.h Eigen/src/Core/CommaInitializer.h Eigen/src/Core/GeneralProduct.h Eigen/src/Core/Solve.h Eigen/src/Core/Inverse.h Eigen/src/Core/SolverBase.h Eigen/src/Core/PermutationMatrix.h Eigen/src/Core/Transpositions.h Eigen/src/Core/TriangularMatrix.h Eigen/src/Core/SelfAdjointView.h Eigen/src/Core/products/GeneralBlockPanelKernel.h Eigen/src/Core/products/Parallelizer.h Eigen/src/Core/ProductEvaluators.h Eigen/src/Core/products/GeneralMatrixVector.h Eigen/src/Core/products/GeneralMatrixMatrix.h Eigen/src/Core/SolveTriangular.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h Eigen/src/Core/products/SelfadjointMatrixVector.h Eigen/src/Core/products/SelfadjointMatrixMatrix.h Eigen/src/Core/products/SelfadjointProduct.h Eigen/src/Core/products/SelfadjointRank2Update.h Eigen/src/Core/products/TriangularMatrixVector.h Eigen/src/Core/products/TriangularMatrixMatrix.h Eigen/src/Core/products/TriangularSolverMatrix.h Eigen/src/Core/products/TriangularSolverVector.h Eigen/src/Core/BandMatrix.h Eigen/src/Core/CoreIterators.h Eigen/src/Core/ConditionEstimator.h Eigen/src/Core/BooleanRedux.h Eigen/src/Core/Select.h Eigen/src/Core/VectorwiseOp.h Eigen/src/Core/PartialReduxEvaluator.h Eigen/src/Core/Random.h Eigen/src/Core/Replicate.h Eigen/src/Core/Reverse.h Eigen/src/Core/ArrayWrapper.h Eigen/src/Core/StlIterators.h Eigen/src/Core/products/GeneralMatrixMatrix_BLAS.h Eigen/src/Core/products/GeneralMatrixVector_BLAS.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular_BLAS.h Eigen/src/Core/products/SelfadjointMatrixMatrix_BLAS.h Eigen/src/Core/products/SelfadjointMatrixVector_BLAS.h Eigen/src/Core/products/TriangularMatrixMatrix_BLAS.h Eigen/src/Core/products/TriangularMatrixVector_BLAS.h Eigen/src/Core/products/TriangularSolverMatrix_BLAS.h Eigen/src/Core/GlobalFunctions.h Eigen/src/Core/util/ReenableStupidWarnings.h Eigen/LU Eigen/src/misc/Kernel.h Eigen/src/misc/Image.h Eigen/src/LU/FullPivLU.h Eigen/src/LU/PartialPivLU.h Eigen/src/misc/lapacke.h Eigen/src/Core/util/../../misc/lapacke_mangling.h Eigen/src/LU/PartialPivLU_LAPACKE.h Eigen/src/LU/Determinant.h Eigen/src/LU/InverseImpl.h Eigen/src/LU/arch/InverseSize4.h Eigen/Cholesky Eigen/Jacobi Eigen/src/Jacobi/Jacobi.h Eigen/src/Cholesky/LLT.h Eigen/src/Cholesky/LDLT.h Eigen/src/Cholesky/LLT_LAPACKE.h Eigen/QR Eigen/Householder Eigen/src/Householder/Householder.h Eigen/src/Householder/HouseholderSequence.h Eigen/src/Householder/BlockHouseholder.h Eigen/src/QR/HouseholderQR.h Eigen/src/QR/FullPivHouseholderQR.h Eigen/src/QR/ColPivHouseholderQR.h Eigen/src/QR/CompleteOrthogonalDecomposition.h Eigen/src/QR/HouseholderQR_LAPACKE.h Eigen/src/QR/ColPivHouseholderQR_LAPACKE.h Eigen/SVD Eigen/src/misc/RealSvd2x2.h Eigen/src/SVD/UpperBidiagonalization.h Eigen/src/SVD/SVDBase.h Eigen/src/SVD/JacobiSVD.h Eigen/src/SVD/BDCSVD.h Eigen/Geometry Eigen/src/Geometry/OrthoMethods.h Eigen/src/Geometry/EulerAngles.h Eigen/src/Geometry/Homogeneous.h Eigen/src/Geometry/RotationBase.h Eigen/src/Geometry/Rotation2D.h Eigen/src/Geometry/Quaternion.h Eigen/src/Geometry/AngleAxis.h Eigen/src/Geometry/Transform.h Eigen/src/Geometry/Translation.h Eigen/src/Geometry/Scaling.h Eigen/src/Geometry/Hyperplane.h Eigen/src/Geometry/ParametrizedLine.h Eigen/src/Geometry/AlignedBox.h Eigen/src/Geometry/Umeyama.h Eigen/src/Geometry/arch/Geometry_SIMD.h Eigen/Eigenvalues Eigen/src/Eigenvalues/Tridiagonalization.h Eigen/src/Eigenvalues/RealSchur.h Eigen/src/Eigenvalues/./HessenbergDecomposition.h Eigen/src/Eigenvalues/EigenSolver.h Eigen/src/Eigenvalues/./RealSchur.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h Eigen/src/Eigenvalues/./Tridiagonalization.h Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h Eigen/src/Eigenvalues/HessenbergDecomposition.h Eigen/src/Eigenvalues/ComplexSchur.h Eigen/src/Eigenvalues/ComplexEigenSolver.h Eigen/src/Eigenvalues/./ComplexSchur.h Eigen/src/Eigenvalues/RealQZ.h Eigen/src/Eigenvalues/GeneralizedEigenSolver.h Eigen/src/Eigenvalues/./RealQZ.h Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h Eigen/src/Eigenvalues/RealSchur_LAPACKE.h Eigen/src/Eigenvalues/ComplexSchur_LAPACKE.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver_LAPACKE.h
+DNDS_HardEigen.o: DNDS_HardEigen.cpp DNDS_HardEigen.cpp DNDS_HardEigen.h DNDS_Macros.h Eigen/Dense Eigen/Core Eigen/src/Core/util/DisableStupidWarnings.h Eigen/src/Core/util/Macros.h Eigen/src/Core/util/ConfigureVectorization.h Eigen/src/Core/util/MKL_support.h Eigen/src/Core/util/../../misc/blas.h Eigen/src/Core/util/Constants.h Eigen/src/Core/util/Meta.h Eigen/src/Core/util/ForwardDeclarations.h Eigen/src/Core/util/StaticAssert.h Eigen/src/Core/util/XprHelper.h Eigen/src/Core/util/Memory.h Eigen/src/Core/util/IntegralConstant.h Eigen/src/Core/util/SymbolicIndex.h Eigen/src/Core/NumTraits.h Eigen/src/Core/MathFunctions.h Eigen/src/Core/GenericPacketMath.h Eigen/src/Core/MathFunctionsImpl.h Eigen/src/Core/arch/Default/ConjHelper.h Eigen/src/Core/arch/Default/Half.h Eigen/src/Core/arch/Default/BFloat16.h Eigen/src/Core/arch/Default/TypeCasting.h Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h Eigen/src/Core/arch/SSE/PacketMath.h Eigen/src/Core/arch/SSE/TypeCasting.h Eigen/src/Core/arch/SSE/MathFunctions.h Eigen/src/Core/arch/SSE/Complex.h Eigen/src/Core/arch/Default/Settings.h Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h Eigen/src/Core/functors/TernaryFunctors.h Eigen/src/Core/functors/BinaryFunctors.h Eigen/src/Core/functors/UnaryFunctors.h Eigen/src/Core/functors/NullaryFunctors.h Eigen/src/Core/functors/StlFunctors.h Eigen/src/Core/functors/AssignmentFunctors.h Eigen/src/Core/util/IndexedViewHelper.h Eigen/src/Core/util/ReshapedHelper.h Eigen/src/Core/ArithmeticSequence.h Eigen/src/Core/IO.h Eigen/src/Core/DenseCoeffsBase.h Eigen/src/Core/DenseBase.h Eigen/src/Core/../plugins/CommonCwiseUnaryOps.h Eigen/src/Core/../plugins/BlockMethods.h Eigen/src/Core/../plugins/IndexedViewMethods.h Eigen/src/Core/../plugins/ReshapedMethods.h Eigen/src/Core/MatrixBase.h Eigen/src/Core/../plugins/CommonCwiseBinaryOps.h Eigen/src/Core/../plugins/MatrixCwiseUnaryOps.h Eigen/src/Core/../plugins/MatrixCwiseBinaryOps.h Eigen/src/Core/EigenBase.h Eigen/src/Core/Product.h Eigen/src/Core/CoreEvaluators.h Eigen/src/Core/AssignEvaluator.h Eigen/src/Core/Assign.h Eigen/src/Core/ArrayBase.h Eigen/src/Core/../plugins/ArrayCwiseUnaryOps.h Eigen/src/Core/../plugins/ArrayCwiseBinaryOps.h Eigen/src/Core/util/BlasUtil.h Eigen/src/Core/DenseStorage.h Eigen/src/Core/NestByValue.h Eigen/src/Core/ReturnByValue.h Eigen/src/Core/NoAlias.h Eigen/src/Core/PlainObjectBase.h Eigen/src/Core/Matrix.h Eigen/src/Core/Array.h Eigen/src/Core/CwiseTernaryOp.h Eigen/src/Core/CwiseBinaryOp.h Eigen/src/Core/CwiseUnaryOp.h Eigen/src/Core/CwiseNullaryOp.h Eigen/src/Core/CwiseUnaryView.h Eigen/src/Core/SelfCwiseBinaryOp.h Eigen/src/Core/Dot.h Eigen/src/Core/StableNorm.h Eigen/src/Core/Stride.h Eigen/src/Core/MapBase.h Eigen/src/Core/Map.h Eigen/src/Core/Ref.h Eigen/src/Core/Block.h Eigen/src/Core/VectorBlock.h Eigen/src/Core/IndexedView.h Eigen/src/Core/Reshaped.h Eigen/src/Core/Transpose.h Eigen/src/Core/DiagonalMatrix.h Eigen/src/Core/Diagonal.h Eigen/src/Core/DiagonalProduct.h Eigen/src/Core/Redux.h Eigen/src/Core/Visitor.h Eigen/src/Core/Fuzzy.h Eigen/src/Core/Swap.h Eigen/src/Core/CommaInitializer.h Eigen/src/Core/GeneralProduct.h Eigen/src/Core/Solve.h Eigen/src/Core/Inverse.h Eigen/src/Core/SolverBase.h Eigen/src/Core/PermutationMatrix.h Eigen/src/Core/Transpositions.h Eigen/src/Core/TriangularMatrix.h Eigen/src/Core/SelfAdjointView.h Eigen/src/Core/products/GeneralBlockPanelKernel.h Eigen/src/Core/products/Parallelizer.h Eigen/src/Core/ProductEvaluators.h Eigen/src/Core/products/GeneralMatrixVector.h Eigen/src/Core/products/GeneralMatrixMatrix.h Eigen/src/Core/SolveTriangular.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h Eigen/src/Core/products/SelfadjointMatrixVector.h Eigen/src/Core/products/SelfadjointMatrixMatrix.h Eigen/src/Core/products/SelfadjointProduct.h Eigen/src/Core/products/SelfadjointRank2Update.h Eigen/src/Core/products/TriangularMatrixVector.h Eigen/src/Core/products/TriangularMatrixMatrix.h Eigen/src/Core/products/TriangularSolverMatrix.h Eigen/src/Core/products/TriangularSolverVector.h Eigen/src/Core/BandMatrix.h E 
+igen/src/Core/CoreIterators.h Eigen/src/Core/ConditionEstimator.h Eigen/src/Core/BooleanRedux.h Eigen/src/Core/Select.h Eigen/src/Core/VectorwiseOp.h Eigen/src/Core/PartialReduxEvaluator.h Eigen/src/Core/Random.h Eigen/src/Core/Replicate.h Eigen/src/Core/Reverse.h Eigen/src/Core/ArrayWrapper.h Eigen/src/Core/StlIterators.h Eigen/src/Core/products/GeneralMatrixMatrix_BLAS.h Eigen/src/Core/products/GeneralMatrixVector_BLAS.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular_BLAS.h Eigen/src/Core/products/SelfadjointMatrixMatrix_BLAS.h Eigen/src/Core/products/SelfadjointMatrixVector_BLAS.h Eigen/src/Core/products/TriangularMatrixMatrix_BLAS.h Eigen/src/Core/products/TriangularMatrixVector_BLAS.h Eigen/src/Core/products/TriangularSolverMatrix_BLAS.h Eigen/src/Core/GlobalFunctions.h Eigen/src/Core/util/ReenableStupidWarnings.h Eigen/LU Eigen/src/misc/Kernel.h Eigen/src/misc/Image.h Eigen/src/LU/FullPivLU.h Eigen/src/LU/PartialPivLU.h Eigen/src/misc/lapacke.h Eigen/src/Core/util/../../misc/lapacke_mangling.h Eigen/src/LU/PartialPivLU_LAPACKE.h Eigen/src/LU/Determinant.h Eigen/src/LU/InverseImpl.h Eigen/src/LU/arch/InverseSize4.h Eigen/Cholesky Eigen/Jacobi Eigen/src/Jacobi/Jacobi.h Eigen/src/Cholesky/LLT.h Eigen/src/Cholesky/LDLT.h Eigen/src/Cholesky/LLT_LAPACKE.h Eigen/QR Eigen/Householder Eigen/src/Householder/Householder.h Eigen/src/Householder/HouseholderSequence.h Eigen/src/Householder/BlockHouseholder.h Eigen/src/QR/HouseholderQR.h Eigen/src/QR/FullPivHouseholderQR.h Eigen/src/QR/ColPivHouseholderQR.h Eigen/src/QR/CompleteOrthogonalDecomposition.h Eigen/src/QR/HouseholderQR_LAPACKE.h Eigen/src/QR/ColPivHouseholderQR_LAPACKE.h Eigen/SVD Eigen/src/misc/RealSvd2x2.h Eigen/src/SVD/UpperBidiagonalization.h Eigen/src/SVD/SVDBase.h Eigen/src/SVD/JacobiSVD.h Eigen/src/SVD/BDCSVD.h Eigen/Geometry Eigen/src/Geometry/OrthoMethods.h Eigen/src/Geometry/EulerAngles.h Eigen/src/Geometry/Homogeneous.h Eigen/src/Geometry/RotationBase.h Eigen/src/Geometry/Rotation2D.h Eigen/src/Geometry/Quaternion.h Eigen/src/Geometry/AngleAxis.h Eigen/src/Geometry/Transform.h Eigen/src/Geometry/Translation.h Eigen/src/Geometry/Scaling.h Eigen/src/Geometry/Hyperplane.h Eigen/src/Geometry/ParametrizedLine.h Eigen/src/Geometry/AlignedBox.h Eigen/src/Geometry/Umeyama.h Eigen/src/Geometry/arch/Geometry_SIMD.h Eigen/Eigenvalues Eigen/src/Eigenvalues/Tridiagonalization.h Eigen/src/Eigenvalues/RealSchur.h Eigen/src/Eigenvalues/./HessenbergDecomposition.h Eigen/src/Eigenvalues/EigenSolver.h Eigen/src/Eigenvalues/./RealSchur.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h Eigen/src/Eigenvalues/./Tridiagonalization.h Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h Eigen/src/Eigenvalues/HessenbergDecomposition.h Eigen/src/Eigenvalues/ComplexSchur.h Eigen/src/Eigenvalues/ComplexEigenSolver.h Eigen/src/Eigenvalues/./ComplexSchur.h Eigen/src/Eigenvalues/RealQZ.h Eigen/src/Eigenvalues/GeneralizedEigenSolver.h Eigen/src/Eigenvalues/./RealQZ.h Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h Eigen/src/Eigenvalues/RealSchur_LAPACKE.h Eigen/src/Eigenvalues/ComplexSchur_LAPACKE.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver_LAPACKE.h
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'DNDS_HardEigen'
-#  Modification time never checked.
-#  File has not been updated.
+#  Last modified 2022-05-28 19:54:08.939275164
+#  File has been updated.
+#  Successfully updated.
 #  recipe to execute (from 'Makefile', line 69):
 	$(CPC) $< -c -o $@ $(FLAGS_FAST)  $(CXX_COMPILE_FLAGS)  -MMD 
 
@@ -2432,9 +2467,10 @@ Eigen/src/misc/RealSvd2x2.h:
 
 # Not a target:
 DNDS_HardEigen.cpp:
-#  Implicit rule search has not been done.
-#  Modification time never checked.
-#  File has not been updated.
+#  Implicit rule search has been done.
+#  Last modified 2022-05-28 19:48:55.289144897
+#  File has been updated.
+#  Successfully updated.
 
 # Not a target:
 Eigen/src/Core/Visitor.h:
@@ -2446,7 +2482,7 @@ Eigen/src/Core/Visitor.h:
 DNDS_MPI.o: DNDS_MPI.cpp DNDS_MPI.cpp DNDS_MPI.hpp DNDS_Defines.h DNDS_Macros.h Experimentals.h /usr/lib/x86_64-linux-gnu/openmpi/include/mpi.h /usr/lib/x86_64-linux-gnu/openmpi/include/mpi_portable_platform.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/mpicxx.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/constants.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/exception.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file_inln.h
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'DNDS_MPI'
-#  Last modified 2022-07-27 16:54:55.895180312
+#  Last modified 2022-07-28 11:35:17.589733993
 #  File has been updated.
 #  Successfully updated.
 #  recipe to execute (from 'Makefile', line 64):
@@ -2469,6 +2505,7 @@ Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h:
 # Not a target:
 Eigen/src/Core/products/GeneralMatrixVector.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-03 17:11:09.634992406
 #  File has been updated.
 #  Successfully updated.
@@ -2476,28 +2513,9 @@ Eigen/src/Core/products/GeneralMatrixVector.h:
 DNDS_FV_VR.o: DNDS_FV_VR.cpp DNDS_FV_VR.cpp DNDS_FV_VR.hpp DNDS_Mesh.hpp DNDS_Defines.h DNDS_Macros.h Experimentals.h DNDS_Elements.hpp Eigen/Dense Eigen/Core Eigen/src/Core/util/DisableStupidWarnings.h Eigen/src/Core/util/Macros.h Eigen/src/Core/util/ConfigureVectorization.h Eigen/src/Core/util/MKL_support.h Eigen/src/Core/util/../../misc/blas.h Eigen/src/Core/util/Constants.h Eigen/src/Core/util/Meta.h Eigen/src/Core/util/ForwardDeclarations.h Eigen/src/Core/util/StaticAssert.h Eigen/src/Core/util/XprHelper.h Eigen/src/Core/util/Memory.h Eigen/src/Core/util/IntegralConstant.h Eigen/src/Core/util/SymbolicIndex.h Eigen/src/Core/NumTraits.h Eigen/src/Core/MathFunctions.h Eigen/src/Core/GenericPacketMath.h Eigen/src/Core/MathFunctionsImpl.h Eigen/src/Core/arch/Default/ConjHelper.h Eigen/src/Core/arch/Default/Half.h Eigen/src/Core/arch/Default/BFloat16.h Eigen/src/Core/arch/Default/TypeCasting.h Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h Eigen/src/Core/arch/SSE/PacketMath.h Eigen/src/Core/arch/SSE/TypeCasting.h Eigen/src/Core/arch/SSE/MathFunctions.h Eigen/src/Core/arch/SSE/Complex.h Eigen/src/Core/arch/Default/Settings.h Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h Eigen/src/Core/functors/TernaryFunctors.h Eigen/src/Core/functors/BinaryFunctors.h Eigen/src/Core/functors/UnaryFunctors.h Eigen/src/Core/functors/NullaryFunctors.h Eigen/src/Core/functors/StlFunctors.h Eigen/src/Core/functors/AssignmentFunctors.h Eigen/src/Core/util/IndexedViewHelper.h Eigen/src/Core/util/ReshapedHelper.h Eigen/src/Core/ArithmeticSequence.h Eigen/src/Core/IO.h Eigen/src/Core/DenseCoeffsBase.h Eigen/src/Core/DenseBase.h Eigen/src/Core/../plugins/CommonCwiseUnaryOps.h Eigen/src/Core/../plugins/BlockMethods.h Eigen/src/Core/../plugins/IndexedViewMethods.h Eigen/src/Core/../plugins/ReshapedMethods.h Eigen/src/Core/MatrixBase.h Eigen/src/Core/../plugins/CommonCwiseBinaryOps.h Eigen/src/Core/../plugins/MatrixCwiseUnaryOps.h Eigen/src/Core/../plugins/MatrixCwiseBinaryOps.h Eigen/src/Core/EigenBase.h Eigen/src/Core/Product.h Eigen/src/Core/CoreEvaluators.h Eigen/src/Core/AssignEvaluator.h Eigen/src/Core/Assign.h Eigen/src/Core/ArrayBase.h Eigen/src/Core/../plugins/ArrayCwiseUnaryOps.h Eigen/src/Core/../plugins/ArrayCwiseBinaryOps.h Eigen/src/Core/util/BlasUtil.h Eigen/src/Core/DenseStorage.h Eigen/src/Core/NestByValue.h Eigen/src/Core/ReturnByValue.h Eigen/src/Core/NoAlias.h Eigen/src/Core/PlainObjectBase.h Eigen/src/Core/Matrix.h Eigen/src/Core/Array.h Eigen/src/Core/CwiseTernaryOp.h Eigen/src/Core/CwiseBinaryOp.h Eigen/src/Core/CwiseUnaryOp.h Eigen/src/Core/CwiseNullaryOp.h Eigen/src/Core/CwiseUnaryView.h Eigen/src/Core/SelfCwiseBinaryOp.h Eigen/src/Core/Dot.h Eigen/src/Core/StableNorm.h Eigen/src/Core/Stride.h Eigen/src/Core/MapBase.h Eigen/src/Core/Map.h Eigen/src/Core/Ref.h Eigen/src/Core/Block.h Eigen/src/Core/VectorBlock.h Eigen/src/Core/IndexedView.h Eigen/src/Core/Reshaped.h Eigen/src/Core/Transpose.h Eigen/src/Core/DiagonalMatrix.h Eigen/src/Core/Diagonal.h Eigen/src/Core/DiagonalProduct.h Eigen/src/Core/Redux.h Eigen/src/Core/Visitor.h Eigen/src/Core/Fuzzy.h Eigen/src/Core/Swap.h Eigen/src/Core/CommaInitializer.h Eigen/src/Core/GeneralProduct.h Eigen/src/Core/Solve.h Eigen/src/Core/Inverse.h Eigen/src/Core/SolverBase.h Eigen/src/Core/PermutationMatrix.h Eigen/src/Core/Transpositions.h Eigen/src/Core/TriangularMatrix.h Eigen/src/Core/SelfAdjointView.h Eigen/src/Core/products/GeneralBlockPanelKernel.h Eigen/src/Core/products/Parallelizer.h Eigen/src/Core/ProductEvaluators.h Eigen/src/Core/products/GeneralMatrixVector.h Eigen/src/Core/products/GeneralMatrixMatrix.h Eigen/src/Core/SolveTriangular.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h Eigen/src/Core/products/SelfadjointMatrixVector.h Eigen/src/Core/products/SelfadjointMatrixMatrix.h Eigen/src/Core/products/SelfadjointProduct.h Eigen/src/Core/products/SelfadjointRank2Update.h Eigen/src/Core/products/TriangularMatrixVector.h Eigen/src/Core/products/TriangularMatrixMatrix.h Eigen/src/Core/products/TriangularSolverMatrix.h Eigen/src/Core/products/TriangularSolverVector.h Eigen/src/Core/BandMatrix.h Eigen/src/Core/CoreIterators.h Eigen/src/Core/ConditionEstimator.h Eigen/src/Core/BooleanRedux.h Eigen/src/Core/Select.h Eigen/src/Core/VectorwiseOp.h Eigen/src/Core/PartialReduxEvaluator.h Eigen/src/Core/Random.h Eigen/src/Core/Replicate.h Eigen/src/Core/Reverse.h Eigen/src/Core/ArrayWrapper.h Eigen/src/Core/StlIterators.h Eigen/src/Core/products/GeneralMatrixMatrix_BLAS.h Eigen/src/Core/products/GeneralMatrixVector_BLAS.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular_BLAS.h Eigen/src/Core/products/SelfadjointMatrixMatrix_BLAS.h Eigen/src/Core/products/SelfadjointMatrixVector_BLAS.h Eigen/src/Core/products/TriangularMatrixMatrix_BLAS.h Eigen/src/Core/products/TriangularMatrixVector_BLAS.h Eigen/src/Core/products/TriangularSolverMatrix_BLAS.h Eigen/src/Core/GlobalFunctions.h Eigen/src/Core/util/ReenableStupidWarnings.h Eigen/LU Eigen/src/misc/Kernel.h Eigen/src/misc/Image.h Eigen/src/LU/FullPivLU.h Eigen/src/LU/PartialPivLU.h Eigen/src/misc/lapacke.h Eigen/src/Core/util/../../misc/lapacke_mangling.h Eigen/src/LU/PartialPivLU_LAPACKE.h Eigen/src/LU/Determinant.h Eigen/src/LU/InverseImpl.h Eigen/src/LU/arch/InverseSize4.h Eigen/Cholesky Eigen/Jacobi Eigen/src/Jacobi/Jacobi.h Eigen/src/Cholesky/LLT.h Eigen/src/Cholesky/LDLT.h Eigen/src/Cholesky/LLT_LAPACKE.h Eigen/QR Eigen/Householder Eigen/src/Householder/Householder.h Eigen/src/Householder/HouseholderSequence.h Eigen/src/Householder/BlockHouseholder.h Eigen/src/QR/HouseholderQR.h Eigen/src/QR/FullPivHouseholderQR.h Eigen/src/QR/ColPivHouseholderQR.h Eigen/src/QR/CompleteOrthogonalDecomposition.h Eigen/src/QR/HouseholderQR_LAPACKE.h Eigen/src/QR/ColPivHouseholderQR_LAPACKE.h Eigen/SVD Eigen/src/misc/RealSvd2x2.h Eigen/src/SVD/UpperBidiagonalization.h Eigen/src/SVD/SVDBase.h Eigen/src/SVD/JacobiSVD.h Eigen/src/SVD/BDCSVD.h Eigen/Geometry Eigen/src/Geometry/OrthoMethods.h Eigen/src/Geometry/EulerAngles.h Eigen/src/Geometry/Homogeneous.h Eigen/src/Geometry/RotationBase.h Eigen/src/Geometry/Rotation2D.h Eigen/src/Geometry/Quaternion.h Eigen/src/Geometry/AngleAxis.h Eigen/src/Geometry/Transform.h Eigen/src/Geometry/Translation.h Eigen/src/Geometry/Scaling.h Eigen/src/Geometry/Hyperplane.h Eigen/src/Geometry/ParametrizedLine.h Eigen/src/Geometry/AlignedBox.h Eigen/src/Geometry/Umeyama.h Eigen/src/Geometry/arch/Geometry_SIMD.h Eigen/Eigenvalues Eigen/src/Eigenvalues/Tridiagonalization.h Eigen/src/Eigenvalues/RealSchur.h Eigen/src/Eigenvalues/./HessenbergDecomposition.h Eigen/src/Eigenvalues/EigenSolver.h Eigen/src/Eigenvalues/./RealSchur.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h Eigen/src/Eigenvalues/./Tridiagonalization.h Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h Eigen/src/Eigenvalues/HessenbergDecomposition.h Eigen/src/Eigenvalues/ComplexSchur.h Eigen/src/Eigenvalues/ComplexEigenSolver.h Eigen/src/Eigenvalues/./ComplexSchur.h Eigen/src/Eigenvalues/RealQZ.h Eigen/src/Eigenvalues/GeneralizedEigenSolver.h Eigen/src/Eigenvalues/./RealQZ.h Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h Eigen/src/Eigenvalues/RealSchur_LAPACKE.h Eigen/src/Eigenvalues/ComplexSchur_LAPACKE.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver_LAPACKE.h EigenTensor.hpp DNDS_Array.hpp DNDS_MPI.hpp /usr/lib/x86_64-linux-gnu/openmpi/include/mpi.h /usr/lib/x86_64-linux-gnu/openmpi/include/mpi_portable_platform.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/mpicxx.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/constants.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/exception.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file_inln.h DNDS_IndexMapping.hpp DNDS_BasicTypes.hpp DNDS_DerivedTypes.hpp DNDS_DerivedArray.hpp DNDS_HardEigen.h unsupported/Eigen/CXX11/Tensor unsupported/Eigen/CXX11/../../../Eigen/Core unsupported/Eigen/CXX11/../SpecialFunctions unsupported/Eigen/CXX11/../../../Eigen/src/Core/util/DisableStupidWarnings.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsImpl.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsBFloat16.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsHalf.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsPacketMath.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsFunctors.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsArrayAPI.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsImpl.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsBFloat16.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsHalf.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsPacketMath.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsFunctors.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsArrayAPI.h unsupported/Eigen/CXX11/../../../Eigen/src/Core/util/ReenableStupidWarnings.h unsupported/Eigen/CXX11/src/util/CXX11Meta.h unsupported/Eigen/CXX11/src/util/EmulateArray.h unsupported/Eigen/CXX11/src/util/CXX11Workarounds.h unsupported/Eigen/CXX11/src/util/MaxSizeVector.h unsupported/Eigen/CXX11/src/Tensor/TensorMacros.h unsupported/Eigen/CXX11/src/Tensor/TensorForwardDeclarations.h unsupported/Eigen/CXX11/src/Tensor/TensorMeta.h unsupported/Eigen/CXX11/src/Tensor/TensorFunctors.h unsupported/Eigen/CXX11/src/Tensor/TensorCostModel.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceDefault.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceThreadPool.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h unsupported/Eigen/CXX11/src/Tensor/TensorIndexList.h unsupported/Eigen/CXX11/src/Tensor/TensorDimensionList.h unsupported/Eigen/CXX11/src/Tensor/TensorDimensions.h unsupported/Eigen/CXX11/src/Tensor/TensorInitializer.h unsupported/Eigen/CXX11/src/Tensor/TensorTraits.h unsupported/Eigen/CXX11/src/Tensor/TensorRandom.h unsupported/Eigen/CXX11/src/Tensor/TensorUInt128.h unsupported/Eigen/CXX11/src/Tensor/TensorIntDiv.h unsupported/Eigen/CXX11/src/Tensor/TensorGlobalFunctions.h unsupported/Eigen/CXX11/src/Tensor/TensorBase.h unsupported/Eigen/CXX11/src/Tensor/TensorBlock.h unsupported/Eigen/CXX11/src/Tensor/TensorEvaluator.h unsupported/Eigen/CXX11/src/Tensor/TensorExpr.h unsupported/Eigen/CXX11/src/Tensor/TensorReduction.h unsupported/Eigen/CXX11/src/Tensor/TensorReductionGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorArgMax.h unsupported/Eigen/CXX11/src/Tensor/TensorConcatenation.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionMapper.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionBlocking.h unsupported/Eigen/CXX11/src/Tensor/TensorContraction.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionThreadPool.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorConversion.h unsupported/Eigen/CXX11/src/Tensor/TensorConvolution.h unsupported/Eigen/CXX11/src/Tensor/TensorFFT.h unsupported/Eigen/CXX11/src/Tensor/TensorPatch.h unsupported/Eigen/CXX11/src/Tensor/TensorImagePatch.h unsupported/Eigen/CXX11/src/Tensor/TensorVolumePatch.h unsupported/Eigen/CXX11/src/Tensor/TensorBroadcasting.h unsupported/Eigen/CXX11/src/Tensor/TensorChipping.h unsupported/Eigen/CXX11/src/Tensor/TensorInflation.h unsupported/Eigen/CXX11/src/Tensor/TensorLayoutSwap.h unsupported/Eigen/CXX11/src/Tensor/TensorMorphing.h unsupported/Eigen/CXX11/src/Tensor/TensorPadding.h unsupported/Eigen/CXX11/src/Tensor/TensorReverse.h unsupported/Eigen/CXX11/src/Tensor/TensorShuffling.h unsupported/Eigen/CXX11/src/Tensor/TensorStriding.h unsupported/Eigen/CXX11/src/Tensor/TensorCustomOp.h unsupported/Eigen/CXX11/src/Tensor/TensorEvalTo.h unsupported/Eigen/CXX11/src/Tensor/TensorForcedEval.h unsupported/Eigen/CXX11/src/Tensor/TensorGenerator.h unsupported/Eigen/CXX11/src/Tensor/TensorAssign.h unsupported/Eigen/CXX11/src/Tensor/TensorScan.h unsupported/Eigen/CXX11/src/Tensor/TensorTrace.h unsupported/Eigen/CXX11/src/Tensor/TensorExecutor.h unsupported/Eigen/CXX11/src/Tensor/TensorDevice.h unsupported/Eigen/CXX11/src/Tensor/TensorStorage.h unsupported/Eigen/CXX11/src/Tensor/Tensor.h unsupported/Eigen/CXX11/src/Tensor/TensorFixedSize.h unsupported/Eigen/CXX11/src/Tensor/TensorMap.h unsupported/Eigen/CXX11/src/Tensor/TensorRef.h unsupported/Eigen/CXX11/src/Tensor/TensorIO.h
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: 'DNDS_FV_VR'
-#  Last modified 2022-07-27 22:58:50.007264817
+#  Last modified 2022-07-28 11:41:05.71198536
 #  File has been updated.
-#  Needs to be updated (-q is set).
-# automatic
-# @ := DNDS_FV_VR.o
-# automatic
-# * := DNDS_FV_VR
-# automatic
-# < := DNDS_FV_VR.cpp
-# automatic
-# + := DNDS_FV_VR.cpp DNDS_FV_VR.cpp DNDS_FV_VR.hpp DNDS_Mesh.hpp DNDS_Defines.h DNDS_Macros.h Experimentals.h DNDS_Elements.hpp Eigen/Dense Eigen/Core Eigen/src/Core/util/DisableStupidWarnings.h Eigen/src/Core/util/Macros.h Eigen/src/Core/util/ConfigureVectorization.h Eigen/src/Core/util/MKL_support.h Eigen/src/Core/util/../../misc/blas.h Eigen/src/Core/util/Constants.h Eigen/src/Core/util/Meta.h Eigen/src/Core/util/ForwardDeclarations.h Eigen/src/Core/util/StaticAssert.h Eigen/src/Core/util/XprHelper.h Eigen/src/Core/util/Memory.h Eigen/src/Core/util/IntegralConstant.h Eigen/src/Core/util/SymbolicIndex.h Eigen/src/Core/NumTraits.h Eigen/src/Core/MathFunctions.h Eigen/src/Core/GenericPacketMath.h Eigen/src/Core/MathFunctionsImpl.h Eigen/src/Core/arch/Default/ConjHelper.h Eigen/src/Core/arch/Default/Half.h Eigen/src/Core/arch/Default/BFloat16.h Eigen/src/Core/arch/Default/TypeCasting.h Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h Eigen/src/Core/arch/SSE/PacketMath.h Eigen/src/Core/arch/SSE/TypeCasting.h Eigen/src/Core/arch/SSE/MathFunctions.h Eigen/src/Core/arch/SSE/Complex.h Eigen/src/Core/arch/Default/Settings.h Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h Eigen/src/Core/functors/TernaryFunctors.h Eigen/src/Core/functors/BinaryFunctors.h Eigen/src/Core/functors/UnaryFunctors.h Eigen/src/Core/functors/NullaryFunctors.h Eigen/src/Core/functors/StlFunctors.h Eigen/src/Core/functors/AssignmentFunctors.h Eigen/src/Core/util/IndexedViewHelper.h Eigen/src/Core/util/ReshapedHelper.h Eigen/src/Core/ArithmeticSequence.h Eigen/src/Core/IO.h Eigen/src/Core/DenseCoeffsBase.h Eigen/src/Core/DenseBase.h Eigen/src/Core/../plugins/CommonCwiseUnaryOps.h Eigen/src/Core/../plugins/BlockMethods.h Eigen/src/Core/../plugins/IndexedViewMethods.h Eigen/src/Core/../plugins/ReshapedMethods.h Eigen/src/Core/MatrixBase.h Eigen/src/Core/../plugins/CommonCwiseBinaryOps.h Eigen/src/Core/../plugins/MatrixCwiseUnaryOps.h Eigen/src/Core/../plugins/MatrixCwiseBinaryOps.h Eigen/src/Core/EigenBase.h Eigen/src/Core/Product.h Eigen/src/Core/CoreEvaluators.h Eigen/src/Core/AssignEvaluator.h Eigen/src/Core/Assign.h Eigen/src/Core/ArrayBase.h Eigen/src/Core/../plugins/ArrayCwiseUnaryOps.h Eigen/src/Core/../plugins/ArrayCwiseBinaryOps.h Eigen/src/Core/util/BlasUtil.h Eigen/src/Core/DenseStorage.h Eigen/src/Core/NestByValue.h Eigen/src/Core/ReturnByValue.h Eigen/src/Core/NoAlias.h Eigen/src/Core/PlainObjectBase.h Eigen/src/Core/Matrix.h Eigen/src/Core/Array.h Eigen/src/Core/CwiseTernaryOp.h Eigen/src/Core/CwiseBinaryOp.h Eigen/src/Core/CwiseUnaryOp.h Eigen/src/Core/CwiseNullaryOp.h Eigen/src/Core/CwiseUnaryView.h Eigen/src/Core/SelfCwiseBinaryOp.h Eigen/src/Core/Dot.h Eigen/src/Core/StableNorm.h Eigen/src/Core/Stride.h Eigen/src/Core/MapBase.h Eigen/src/Core/Map.h Eigen/src/Core/Ref.h Eigen/src/Core/Block.h Eigen/src/Core/VectorBlock.h Eigen/src/Core/IndexedView.h Eigen/src/Core/Reshaped.h Eigen/src/Core/Transpose.h Eigen/src/Core/DiagonalMatrix.h Eigen/src/Core/Diagonal.h Eigen/src/Core/DiagonalProduct.h Eigen/src/Core/Redux.h Eigen/src/Core/Visitor.h Eigen/src/Core/Fuzzy.h Eigen/src/Core/Swap.h Eigen/src/Core/CommaInitializer.h Eigen/src/Core/GeneralProduct.h Eigen/src/Core/Solve.h Eigen/src/Core/Inverse.h Eigen/src/Core/SolverBase.h Eigen/src/Core/PermutationMatrix.h Eigen/src/Core/Transpositions.h Eigen/src/Core/TriangularMatrix.h Eigen/src/Core/SelfAdjointView.h Eigen/src/Core/products/GeneralBlockPanelKernel.h Eigen/src/Core/products/Parallelizer.h Eigen/src/Core/ProductEvaluators.h Eigen/src/Core/products/GeneralMatrixVector.h Eigen/src/Core/products/GeneralMatrixMatrix.h Eigen/src/Core/SolveTriangular.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h Eigen/src/Core/products/SelfadjointMatrixVector.h Eigen/src/Core/products/SelfadjointMatrixMatrix.h Eigen/src/Core/products/SelfadjointProduct.h Eigen/src/Core/products/SelfadjointRank2Update.h Eigen/src/Core/products/TriangularMatrixVector.h Eigen/src/Core/products/TriangularMatrixMatrix.h Eigen/src/Core/products/TriangularSolverMatrix.h Eigen/src/Core/products/TriangularSolverVector.h Eigen/src/Core/BandMatrix.h Eigen/src/Core/CoreIterators.h Eigen/src/Core/ConditionEstimator.h Eigen/src/Core/BooleanRedux.h Eigen/src/Core/Select.h Eigen/src/Core/VectorwiseOp.h Eigen/src/Core/PartialReduxEvaluator.h Eigen/src/Core/Random.h Eigen/src/Core/Replicate.h Eigen/src/Core/Reverse.h Eigen/src/Core/ArrayWrapper.h Eigen/src/Core/StlIterators.h Eigen/src/Core/products/GeneralMatrixMatrix_BLAS.h Eigen/src/Core/products/GeneralMatrixVector_BLAS.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular_BLAS.h Eigen/src/Core/products/SelfadjointMatrixMatrix_BLAS.h Eigen/src/Core/products/SelfadjointMatrixVector_BLAS.h Eigen/src/Core/products/TriangularMatrixMatrix_BLAS.h Eigen/src/Core/products/TriangularMatrixVector_BLAS.h Eigen/src/Core/products/TriangularSolverMatrix_BLAS.h Eigen/src/Core/GlobalFunctions.h Eigen/src/Core/util/ReenableStupidWarnings.h Eigen/LU Eigen/src/misc/Kernel.h Eigen/src/misc/Image.h Eigen/src/LU/FullPivLU.h Eigen/src/LU/PartialPivLU.h Eigen/src/misc/lapacke.h Eigen/src/Core/util/../../misc/lapacke_mangling.h Eigen/src/LU/PartialPivLU_LAPACKE.h Eigen/src/LU/Determinant.h Eigen/src/LU/InverseImpl.h Eigen/src/LU/arch/InverseSize4.h Eigen/Cholesky Eigen/Jacobi Eigen/src/Jacobi/Jacobi.h Eigen/src/Cholesky/LLT.h Eigen/src/Cholesky/LDLT.h Eigen/src/Cholesky/LLT_LAPACKE.h Eigen/QR Eigen/Householder Eigen/src/Householder/Householder.h Eigen/src/Householder/HouseholderSequence.h Eigen/src/Householder/BlockHouseholder.h Eigen/src/QR/HouseholderQR.h Eigen/src/QR/FullPivHouseholderQR.h Eigen/src/QR/ColPivHouseholderQR.h Eigen/src/QR/CompleteOrthogonalDecomposition.h Eigen/src/QR/HouseholderQR_LAPACKE.h Eigen/src/QR/ColPivHouseholderQR_LAPACKE.h Eigen/SVD Eigen/src/misc/RealSvd2x2.h Eigen/src/SVD/UpperBidiagonalization.h Eigen/src/SVD/SVDBase.h Eigen/src/SVD/JacobiSVD.h Eigen/src/SVD/BDCSVD.h Eigen/Geometry Eigen/src/Geometry/OrthoMethods.h Eigen/src/Geometry/EulerAngles.h Eigen/src/Geometry/Homogeneous.h Eigen/src/Geometry/RotationBase.h Eigen/src/Geometry/Rotation2D.h Eigen/src/Geometry/Quaternion.h Eigen/src/Geometry/AngleAxis.h Eigen/src/Geometry/Transform.h Eigen/src/Geometry/Translation.h Eigen/src/Geometry/Scaling.h Eigen/src/Geometry/Hyperplane.h Eigen/src/Geometry/ParametrizedLine.h Eigen/src/Geometry/AlignedBox.h Eigen/src/Geometry/Umeyama.h Eigen/src/Geometry/arch/Geometry_SIMD.h Eigen/Eigenvalues Eigen/src/Eigenvalues/Tridiagonalization.h Eigen/src/Eigenvalues/RealSchur.h Eigen/src/Eigenvalues/./HessenbergDecomposition.h Eigen/src/Eigenvalues/EigenSolver.h Eigen/src/Eigenvalues/./RealSchur.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h Eigen/src/Eigenvalues/./Tridiagonalization.h Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h Eigen/src/Eigenvalues/HessenbergDecomposition.h Eigen/src/Eigenvalues/ComplexSchur.h Eigen/src/Eigenvalues/ComplexEigenSolver.h Eigen/src/Eigenvalues/./ComplexSchur.h Eigen/src/Eigenvalues/RealQZ.h Eigen/src/Eigenvalues/GeneralizedEigenSolver.h Eigen/src/Eigenvalues/./RealQZ.h Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h Eigen/src/Eigenvalues/RealSchur_LAPACKE.h Eigen/src/Eigenvalues/ComplexSchur_LAPACKE.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver_LAPACKE.h EigenTensor.hpp DNDS_Array.hpp DNDS_MPI.hpp /usr/lib/x86_64-linux-gnu/openmpi/include/mpi.h /usr/lib/x86_64-linux-gnu/openmpi/include/mpi_portable_platform.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/mpicxx.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/constants.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/exception.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file_inln.h DNDS_IndexMapping.hpp DNDS_BasicTypes.hpp DNDS_DerivedTypes.hpp DNDS_DerivedArray.hpp DNDS_HardEigen.h unsupported/Eigen/CXX11/Tensor unsupported/Eigen/CXX11/../../../Eigen/Core unsupported/Eigen/CXX11/../SpecialFunctions unsupported/Eigen/CXX11/../../../Eigen/src/Core/util/DisableStupidWarnings.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsImpl.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsBFloat16.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsHalf.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsPacketMath.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsFunctors.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsArrayAPI.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsImpl.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsBFloat16.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsHalf.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsPacketMath.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsFunctors.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsArrayAPI.h unsupported/Eigen/CXX11/../../../Eigen/src/Core/util/ReenableStupidWarnings.h unsupported/Eigen/CXX11/src/util/CXX11Meta.h unsupported/Eigen/CXX11/src/util/EmulateArray.h unsupported/Eigen/CXX11/src/util/CXX11Workarounds.h unsupported/Eigen/CXX11/src/util/MaxSizeVector.h unsupported/Eigen/CXX11/src/Tensor/TensorMacros.h unsupported/Eigen/CXX11/src/Tensor/TensorForwardDeclarations.h unsupported/Eigen/CXX11/src/Tensor/TensorMeta.h unsupported/Eigen/CXX11/src/Tensor/TensorFunctors.h unsupported/Eigen/CXX11/src/Tensor/TensorCostModel.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceDefault.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceThreadPool.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h unsupported/Eigen/CXX11/src/Tensor/TensorIndexList.h unsupported/Eigen/CXX11/src/Tensor/TensorDimensionList.h unsupported/Eigen/CXX11/src/Tensor/TensorDimensions.h unsupported/Eigen/CXX11/src/Tensor/TensorInitializer.h unsupported/Eigen/CXX11/src/Tensor/TensorTraits.h unsupported/Eigen/CXX11/src/Tensor/TensorRandom.h unsupported/Eigen/CXX11/src/Tensor/TensorUInt128.h unsupported/Eigen/CXX11/src/Tensor/TensorIntDiv.h unsupported/Eigen/CXX11/src/Tensor/TensorGlobalFunctions.h unsupported/Eigen/CXX11/src/Tensor/TensorBase.h unsupported/Eigen/CXX11/src/Tensor/TensorBlock.h unsuppor 
-ted/Eigen/CXX11/src/Tensor/TensorEvaluator.h unsupported/Eigen/CXX11/src/Tensor/TensorExpr.h unsupported/Eigen/CXX11/src/Tensor/TensorReduction.h unsupported/Eigen/CXX11/src/Tensor/TensorReductionGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorArgMax.h unsupported/Eigen/CXX11/src/Tensor/TensorConcatenation.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionMapper.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionBlocking.h unsupported/Eigen/CXX11/src/Tensor/TensorContraction.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionThreadPool.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorConversion.h unsupported/Eigen/CXX11/src/Tensor/TensorConvolution.h unsupported/Eigen/CXX11/src/Tensor/TensorFFT.h unsupported/Eigen/CXX11/src/Tensor/TensorPatch.h unsupported/Eigen/CXX11/src/Tensor/TensorImagePatch.h unsupported/Eigen/CXX11/src/Tensor/TensorVolumePatch.h unsupported/Eigen/CXX11/src/Tensor/TensorBroadcasting.h unsupported/Eigen/CXX11/src/Tensor/TensorChipping.h unsupported/Eigen/CXX11/src/Tensor/TensorInflation.h unsupported/Eigen/CXX11/src/Tensor/TensorLayoutSwap.h unsupported/Eigen/CXX11/src/Tensor/TensorMorphing.h unsupported/Eigen/CXX11/src/Tensor/TensorPadding.h unsupported/Eigen/CXX11/src/Tensor/TensorReverse.h unsupported/Eigen/CXX11/src/Tensor/TensorShuffling.h unsupported/Eigen/CXX11/src/Tensor/TensorStriding.h unsupported/Eigen/CXX11/src/Tensor/TensorCustomOp.h unsupported/Eigen/CXX11/src/Tensor/TensorEvalTo.h unsupported/Eigen/CXX11/src/Tensor/TensorForcedEval.h unsupported/Eigen/CXX11/src/Tensor/TensorGenerator.h unsupported/Eigen/CXX11/src/Tensor/TensorAssign.h unsupported/Eigen/CXX11/src/Tensor/TensorScan.h unsupported/Eigen/CXX11/src/Tensor/TensorTrace.h unsupported/Eigen/CXX11/src/Tensor/TensorExecutor.h unsupported/Eigen/CXX11/src/Tensor/TensorDevice.h unsupported/Eigen/CXX11/src/Tensor/TensorStorage.h unsupported/Eigen/CXX11/src/Tensor/Tensor.h unsupported/Eigen/CXX11/src/Tensor/TensorFixedSize.h unsupported/Eigen/CXX11/src/Tensor/TensorMap.h unsupported/Eigen/CXX11/src/Tensor/TensorRef.h unsupported/Eigen/CXX11/src/Tensor/TensorIO.h
-# automatic
-# % := 
-# automatic
-# ^ := DNDS_FV_VR.cpp DNDS_FV_VR.hpp DNDS_Mesh.hpp DNDS_Defines.h DNDS_Macros.h Experimentals.h DNDS_Elements.hpp Eigen/Dense Eigen/Core Eigen/src/Core/util/DisableStupidWarnings.h Eigen/src/Core/util/Macros.h Eigen/src/Core/util/ConfigureVectorization.h Eigen/src/Core/util/MKL_support.h Eigen/src/Core/util/../../misc/blas.h Eigen/src/Core/util/Constants.h Eigen/src/Core/util/Meta.h Eigen/src/Core/util/ForwardDeclarations.h Eigen/src/Core/util/StaticAssert.h Eigen/src/Core/util/XprHelper.h Eigen/src/Core/util/Memory.h Eigen/src/Core/util/IntegralConstant.h Eigen/src/Core/util/SymbolicIndex.h Eigen/src/Core/NumTraits.h Eigen/src/Core/MathFunctions.h Eigen/src/Core/GenericPacketMath.h Eigen/src/Core/MathFunctionsImpl.h Eigen/src/Core/arch/Default/ConjHelper.h Eigen/src/Core/arch/Default/Half.h Eigen/src/Core/arch/Default/BFloat16.h Eigen/src/Core/arch/Default/TypeCasting.h Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h Eigen/src/Core/arch/SSE/PacketMath.h Eigen/src/Core/arch/SSE/TypeCasting.h Eigen/src/Core/arch/SSE/MathFunctions.h Eigen/src/Core/arch/SSE/Complex.h Eigen/src/Core/arch/Default/Settings.h Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h Eigen/src/Core/functors/TernaryFunctors.h Eigen/src/Core/functors/BinaryFunctors.h Eigen/src/Core/functors/UnaryFunctors.h Eigen/src/Core/functors/NullaryFunctors.h Eigen/src/Core/functors/StlFunctors.h Eigen/src/Core/functors/AssignmentFunctors.h Eigen/src/Core/util/IndexedViewHelper.h Eigen/src/Core/util/ReshapedHelper.h Eigen/src/Core/ArithmeticSequence.h Eigen/src/Core/IO.h Eigen/src/Core/DenseCoeffsBase.h Eigen/src/Core/DenseBase.h Eigen/src/Core/../plugins/CommonCwiseUnaryOps.h Eigen/src/Core/../plugins/BlockMethods.h Eigen/src/Core/../plugins/IndexedViewMethods.h Eigen/src/Core/../plugins/ReshapedMethods.h Eigen/src/Core/MatrixBase.h Eigen/src/Core/../plugins/CommonCwiseBinaryOps.h Eigen/src/Core/../plugins/MatrixCwiseUnaryOps.h Eigen/src/Core/../plugins/MatrixCwiseBinaryOps.h Eigen/src/Core/EigenBase.h Eigen/src/Core/Product.h Eigen/src/Core/CoreEvaluators.h Eigen/src/Core/AssignEvaluator.h Eigen/src/Core/Assign.h Eigen/src/Core/ArrayBase.h Eigen/src/Core/../plugins/ArrayCwiseUnaryOps.h Eigen/src/Core/../plugins/ArrayCwiseBinaryOps.h Eigen/src/Core/util/BlasUtil.h Eigen/src/Core/DenseStorage.h Eigen/src/Core/NestByValue.h Eigen/src/Core/ReturnByValue.h Eigen/src/Core/NoAlias.h Eigen/src/Core/PlainObjectBase.h Eigen/src/Core/Matrix.h Eigen/src/Core/Array.h Eigen/src/Core/CwiseTernaryOp.h Eigen/src/Core/CwiseBinaryOp.h Eigen/src/Core/CwiseUnaryOp.h Eigen/src/Core/CwiseNullaryOp.h Eigen/src/Core/CwiseUnaryView.h Eigen/src/Core/SelfCwiseBinaryOp.h Eigen/src/Core/Dot.h Eigen/src/Core/StableNorm.h Eigen/src/Core/Stride.h Eigen/src/Core/MapBase.h Eigen/src/Core/Map.h Eigen/src/Core/Ref.h Eigen/src/Core/Block.h Eigen/src/Core/VectorBlock.h Eigen/src/Core/IndexedView.h Eigen/src/Core/Reshaped.h Eigen/src/Core/Transpose.h Eigen/src/Core/DiagonalMatrix.h Eigen/src/Core/Diagonal.h Eigen/src/Core/DiagonalProduct.h Eigen/src/Core/Redux.h Eigen/src/Core/Visitor.h Eigen/src/Core/Fuzzy.h Eigen/src/Core/Swap.h Eigen/src/Core/CommaInitializer.h Eigen/src/Core/GeneralProduct.h Eigen/src/Core/Solve.h Eigen/src/Core/Inverse.h Eigen/src/Core/SolverBase.h Eigen/src/Core/PermutationMatrix.h Eigen/src/Core/Transpositions.h Eigen/src/Core/TriangularMatrix.h Eigen/src/Core/SelfAdjointView.h Eigen/src/Core/products/GeneralBlockPanelKernel.h Eigen/src/Core/products/Parallelizer.h Eigen/src/Core/ProductEvaluators.h Eigen/src/Core/products/GeneralMatrixVector.h Eigen/src/Core/products/GeneralMatrixMatrix.h Eigen/src/Core/SolveTriangular.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h Eigen/src/Core/products/SelfadjointMatrixVector.h Eigen/src/Core/products/SelfadjointMatrixMatrix.h Eigen/src/Core/products/SelfadjointProduct.h Eigen/src/Core/products/SelfadjointRank2Update.h Eigen/src/Core/products/TriangularMatrixVector.h Eigen/src/Core/products/TriangularMatrixMatrix.h Eigen/src/Core/products/TriangularSolverMatrix.h Eigen/src/Core/products/TriangularSolverVector.h Eigen/src/Core/BandMatrix.h Eigen/src/Core/CoreIterators.h Eigen/src/Core/ConditionEstimator.h Eigen/src/Core/BooleanRedux.h Eigen/src/Core/Select.h Eigen/src/Core/VectorwiseOp.h Eigen/src/Core/PartialReduxEvaluator.h Eigen/src/Core/Random.h Eigen/src/Core/Replicate.h Eigen/src/Core/Reverse.h Eigen/src/Core/ArrayWrapper.h Eigen/src/Core/StlIterators.h Eigen/src/Core/products/GeneralMatrixMatrix_BLAS.h Eigen/src/Core/products/GeneralMatrixVector_BLAS.h Eigen/src/Core/products/GeneralMatrixMatrixTriangular_BLAS.h Eigen/src/Core/products/SelfadjointMatrixMatrix_BLAS.h Eigen/src/Core/products/SelfadjointMatrixVector_BLAS.h Eigen/src/Core/products/TriangularMatrixMatrix_BLAS.h Eigen/src/Core/products/TriangularMatrixVector_BLAS.h Eigen/src/Core/products/TriangularSolverMatrix_BLAS.h Eigen/src/Core/GlobalFunctions.h Eigen/src/Core/util/ReenableStupidWarnings.h Eigen/LU Eigen/src/misc/Kernel.h Eigen/src/misc/Image.h Eigen/src/LU/FullPivLU.h Eigen/src/LU/PartialPivLU.h Eigen/src/misc/lapacke.h Eigen/src/Core/util/../../misc/lapacke_mangling.h Eigen/src/LU/PartialPivLU_LAPACKE.h Eigen/src/LU/Determinant.h Eigen/src/LU/InverseImpl.h Eigen/src/LU/arch/InverseSize4.h Eigen/Cholesky Eigen/Jacobi Eigen/src/Jacobi/Jacobi.h Eigen/src/Cholesky/LLT.h Eigen/src/Cholesky/LDLT.h Eigen/src/Cholesky/LLT_LAPACKE.h Eigen/QR Eigen/Householder Eigen/src/Householder/Householder.h Eigen/src/Householder/HouseholderSequence.h Eigen/src/Householder/BlockHouseholder.h Eigen/src/QR/HouseholderQR.h Eigen/src/QR/FullPivHouseholderQR.h Eigen/src/QR/ColPivHouseholderQR.h Eigen/src/QR/CompleteOrthogonalDecomposition.h Eigen/src/QR/HouseholderQR_LAPACKE.h Eigen/src/QR/ColPivHouseholderQR_LAPACKE.h Eigen/SVD Eigen/src/misc/RealSvd2x2.h Eigen/src/SVD/UpperBidiagonalization.h Eigen/src/SVD/SVDBase.h Eigen/src/SVD/JacobiSVD.h Eigen/src/SVD/BDCSVD.h Eigen/Geometry Eigen/src/Geometry/OrthoMethods.h Eigen/src/Geometry/EulerAngles.h Eigen/src/Geometry/Homogeneous.h Eigen/src/Geometry/RotationBase.h Eigen/src/Geometry/Rotation2D.h Eigen/src/Geometry/Quaternion.h Eigen/src/Geometry/AngleAxis.h Eigen/src/Geometry/Transform.h Eigen/src/Geometry/Translation.h Eigen/src/Geometry/Scaling.h Eigen/src/Geometry/Hyperplane.h Eigen/src/Geometry/ParametrizedLine.h Eigen/src/Geometry/AlignedBox.h Eigen/src/Geometry/Umeyama.h Eigen/src/Geometry/arch/Geometry_SIMD.h Eigen/Eigenvalues Eigen/src/Eigenvalues/Tridiagonalization.h Eigen/src/Eigenvalues/RealSchur.h Eigen/src/Eigenvalues/./HessenbergDecomposition.h Eigen/src/Eigenvalues/EigenSolver.h Eigen/src/Eigenvalues/./RealSchur.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h Eigen/src/Eigenvalues/./Tridiagonalization.h Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h Eigen/src/Eigenvalues/HessenbergDecomposition.h Eigen/src/Eigenvalues/ComplexSchur.h Eigen/src/Eigenvalues/ComplexEigenSolver.h Eigen/src/Eigenvalues/./ComplexSchur.h Eigen/src/Eigenvalues/RealQZ.h Eigen/src/Eigenvalues/GeneralizedEigenSolver.h Eigen/src/Eigenvalues/./RealQZ.h Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h Eigen/src/Eigenvalues/RealSchur_LAPACKE.h Eigen/src/Eigenvalues/ComplexSchur_LAPACKE.h Eigen/src/Eigenvalues/SelfAdjointEigenSolver_LAPACKE.h EigenTensor.hpp DNDS_Array.hpp DNDS_MPI.hpp /usr/lib/x86_64-linux-gnu/openmpi/include/mpi.h /usr/lib/x86_64-linux-gnu/openmpi/include/mpi_portable_platform.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/mpicxx.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/constants.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/exception.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/functions_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/request_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/comm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intracomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/topology_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/intercomm_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/group_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/op_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/errhandler_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/status_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/info_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/win_inln.h /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/file_inln.h DNDS_IndexMapping.hpp DNDS_BasicTypes.hpp DNDS_DerivedTypes.hpp DNDS_DerivedArray.hpp DNDS_HardEigen.h unsupported/Eigen/CXX11/Tensor unsupported/Eigen/CXX11/../../../Eigen/Core unsupported/Eigen/CXX11/../SpecialFunctions unsupported/Eigen/CXX11/../../../Eigen/src/Core/util/DisableStupidWarnings.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsImpl.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsBFloat16.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsHalf.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsPacketMath.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsFunctors.h unsupported/Eigen/CXX11/../src/SpecialFunctions/BesselFunctionsArrayAPI.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsImpl.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsBFloat16.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsHalf.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsPacketMath.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsFunctors.h unsupported/Eigen/CXX11/../src/SpecialFunctions/SpecialFunctionsArrayAPI.h unsupported/Eigen/CXX11/../../../Eigen/src/Core/util/ReenableStupidWarnings.h unsupported/Eigen/CXX11/src/util/CXX11Meta.h unsupported/Eigen/CXX11/src/util/EmulateArray.h unsupported/Eigen/CXX11/src/util/CXX11Workarounds.h unsupported/Eigen/CXX11/src/util/MaxSizeVector.h unsupported/Eigen/CXX11/src/Tensor/TensorMacros.h unsupported/Eigen/CXX11/src/Tensor/TensorForwardDeclarations.h unsupported/Eigen/CXX11/src/Tensor/TensorMeta.h unsupported/Eigen/CXX11/src/Tensor/TensorFunctors.h unsupported/Eigen/CXX11/src/Tensor/TensorCostModel.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceDefault.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceThreadPool.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorDeviceSycl.h unsupported/Eigen/CXX11/src/Tensor/TensorIndexList.h unsupported/Eigen/CXX11/src/Tensor/TensorDimensionList.h unsupported/Eigen/CXX11/src/Tensor/TensorDimensions.h unsupported/Eigen/CXX11/src/Tensor/TensorInitializer.h unsupported/Eigen/CXX11/src/Tensor/TensorTraits.h unsupported/Eigen/CXX11/src/Tensor/TensorRandom.h unsupported/Eigen/CXX11/src/Tensor/TensorUInt128.h unsupported/Eigen/CXX11/src/Tensor/TensorIntDiv.h unsupported/Eigen/CXX11/src/Tensor/TensorGlobalFunctions.h unsupported/Eigen/CXX11/src/Tensor/TensorBase.h unsupported/Eigen/CXX11/src/Tensor/TensorBlock.h unsupported/Eigen/CXX11/src/Tensor/TensorEvaluator.h unsupported/Eigen/CXX11/src/Tensor/TensorExpr.h unsupported/Eigen/CXX11/src/Tensor/TensorReduction.h unsupported/Eigen/CXX11/src/Tensor/TensorReductionGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorArgMax.h unsupported/Eigen/CXX11/src/Tensor/TensorConcatenation.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionMapper.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionBlocking.h unsupported/Eigen/CXX11/src/Tensor/TensorContraction.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionThreadPool.h unsupported/Eigen/CXX11/src/Tensor/TensorContractionGpu.h unsupported/Eigen/CXX11/src/Tensor/TensorConversion.h unsupported/Eigen/CXX11/src/Tensor/TensorConvolution.h unsupported/Eigen/CXX11/src/Tensor/TensorFFT.h unsupported/Eigen/CXX11/src/Tensor/TensorPatch.h unsupported/Eigen/CXX11/src/Tensor/TensorImagePatch.h unsupported/Eigen/CXX11/src/Tensor/TensorVolumePatch.h unsupported/Eigen/CXX11/src/Tensor/TensorBroadcasting.h unsupported/Eigen/CXX11/src/Tensor/TensorChipping.h unsupported/Eigen/CXX11/src/Tensor/TensorInflation.h unsupported/Eigen/CXX11/src/Tensor/TensorLayoutSwap.h unsupported/Eigen/CXX11/src/Tensor/TensorMorphing.h unsupported/Eigen/CXX11/src/Tensor/TensorPadding.h unsupported/Eigen/CXX11/src/Tensor/TensorReverse.h unsupported/Eigen/CXX11/src/Tensor/TensorShuffling.h unsupported/Eigen/CXX11/src/Tensor/TensorStriding.h unsupported/Eigen/CXX11/src/Tensor/TensorCustomOp.h unsupported/Eigen/CXX11/src/Tensor/TensorEvalTo.h unsupported/Eigen/CXX11/src/Tensor/TensorForcedEval.h unsupported/Eigen/CXX11/src/Tensor/TensorGenerator.h unsupported/Eigen/CXX11/src/Tensor/TensorAssign.h unsupported/Eigen/CXX11/src/Tensor/TensorScan.h unsupported/Eigen/CXX11/src/Tensor/TensorTrace.h unsupported/Eigen/CXX11/src/Tensor/TensorExecutor.h unsupported/Eigen/CXX11/src/Tensor/TensorDevice.h unsupported/Eigen/CXX11/src/Tensor/TensorStorage.h unsupported/Eigen/CXX11/src/Tensor/Tensor.h unsupported/Eigen/CXX11/src/Tensor/TensorFixedSize.h unsupported/Eigen/CXX11/src/Tensor/TensorMap.h unsupported/Eigen/CXX11/src/Tensor/TensorRef.h unsupported/Eigen/CXX11/src/Tensor/TensorIO.h
-# automatic
-# ? := DNDS_FV_VR.hpp
-# automatic
-# | := 
-# variable set hash-table stats:
-# Load=8/32=25%, Rehash=0, Collisions=4/21=19%
+#  Successfully updated.
 #  recipe to execute (from 'Makefile', line 64):
 	$(CPC) $< -c -o $@ $(FLAGS) $(CXX_COMPILE_FLAGS) -MMD 
 
@@ -2530,6 +2548,7 @@ Eigen/src/Core/products/TriangularSolverVector.h:
 #  Successfully updated.
 
 # Not a target:
+ 
 unsupported/Eigen/CXX11/src/Tensor/TensorReduction.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-05-13 02:16:28.780488727
@@ -2602,11 +2621,10 @@ Eigen/src/Core/Dot.h:
 # Not a target:
 DNDS_Defines.d:
 #  Implicit rule search has been done.
-#  Last modified 2022-07-27 16:54:53.303165282
+#  Last modified 2022-07-28 11:35:17.38173266
 #  File has been updated.
 #  Successfully updated.
 
- 
 # Not a target:
 unsupported/Eigen/CXX11/src/Tensor/TensorMorphing.h:
 #  Implicit rule search has been done.
@@ -2619,12 +2637,13 @@ test/testTensor.exe: test/testTensor.cpp SmallTensor.hpp
 #  Modification time never checked.
 #  File has not been updated.
 #  recipe to execute (from 'Makefile', line 87):
+ 
 	g++ $< -o $@ -std=c++14
 
 # Not a target:
 DNDS_FV_VR.hpp:
 #  Implicit rule search has been done.
-#  Last modified 2022-07-27 22:59:02.22335733
+#  Last modified 2022-07-28 11:40:51.31589164
 #  File has been updated.
 #  Successfully updated.
 
@@ -2680,6 +2699,7 @@ Eigen/src/Core/products/GeneralMatrixMatrixTriangular_BLAS.h:
 # Not a target:
 Eigen/src/Core/CwiseTernaryOp.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-03 17:11:05.550967216
 #  File has been updated.
 #  Successfully updated.
@@ -2734,6 +2754,7 @@ Eigen/src/Core/util/ForwardDeclarations.h:
 
 # Not a target:
 Eigen/src/Core/../plugins/BlockMethods.h:
+ 
 #  Implicit rule search has been done.
 #  Last modified 2022-05-03 17:11:20.335058393
 #  File has been updated.
@@ -2795,6 +2816,7 @@ Eigen/src/Geometry/Transform.h:
 # Not a target:
 Eigen/src/Core/products/TriangularSolverMatrix_BLAS.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-03 17:11:11.155001782
 #  File has been updated.
 #  Successfully updated.
@@ -2816,8 +2838,7 @@ Eigen/src/Core/Reshaped.h:
 # Not a target:
 DNDS_MPI.d:
 #  Implicit rule search has been done.
- 
-#  Last modified 2022-07-27 16:54:55.895180312
+#  Last modified 2022-07-28 11:35:17.589733993
 #  File has been updated.
 #  Successfully updated.
 
@@ -2854,6 +2875,7 @@ Eigen/Core:
 #  Last modified 2022-05-03 17:10:57.978920509
 #  File has been updated.
 #  Successfully updated.
+ 
 
 # Not a target:
 Eigen/src/Core/SolveTriangular.h:
@@ -2886,7 +2908,7 @@ Eigen/src/Core/CwiseUnaryOp.h:
 # Not a target:
 DNDS_Elements.d:
 #  Implicit rule search has been done.
-#  Last modified 2022-07-27 16:54:55.411177506
+#  Last modified 2022-07-28 11:35:18.933742611
 #  File has been updated.
 #  Successfully updated.
 
@@ -2900,6 +2922,7 @@ Eigen/src/Core/../plugins/ReshapedMethods.h:
 # Not a target:
 Eigen/src/Core/CommaInitializer.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-03 17:11:05.266965466
 #  File has been updated.
 #  Successfully updated.
@@ -2921,7 +2944,6 @@ Eigen/src/Core/SelfAdjointView.h:
 # Not a target:
 Eigen/src/QR/FullPivHouseholderQR.h:
 #  Implicit rule search has been done.
- 
 #  Last modified 2022-05-03 17:11:21.351064656
 #  File has been updated.
 #  Successfully updated.
@@ -2948,6 +2970,7 @@ unsupported/Eigen/CXX11/src/Tensor/TensorExecutor.h:
 #  Successfully updated.
 
 # Not a target:
+ 
 Eigen/src/Core/CwiseUnaryView.h:
 #  Implicit rule search has been done.
 #  Last modified 2022-05-03 17:11:05.626967684
@@ -2999,6 +3022,7 @@ Eigen/src/Core/CoreIterators.h:
 # Not a target:
 Eigen/src/Core/functors/StlFunctors.h:
 #  Implicit rule search has been done.
+ 
 #  Last modified 2022-05-03 17:11:06.866975337
 #  File has been updated.
 #  Successfully updated.
@@ -3020,6 +3044,6 @@ Eigen/src/Core/functors/StlFunctors.h:
 # strcache performance: lookups = 1631 / hit rate = 72%
 # hash-table stats:
 # Load=446/8192=5%, Rehash=0, Collisions=19/1631=1%
-# Finished Make data base on Wed Jul 27 23:01:07 2022
+# Finished Make data base on Thu Jul 28 14:14:55 2022
 
  

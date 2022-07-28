@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <iomanip>
 
+
+
 int main(int argn, char *argv[])
 {
     MPI_Init(&argn, &argv);
@@ -14,21 +16,28 @@ int main(int argn, char *argv[])
     int nIter;
     double R;
     int ifLimit;
-    if (argn != 4)
+    int ifLimitIn;
+    double jump;
+    if (argn != 6)
     {
-        std::cout << "need 3 args: num_iter, and Rot angle, and ifLimit !!\n";
+        std::cout << "need 5 args: num_iter, Rot angle, ifLimit, iflimitIn, jump !!\n";
         std::abort();
     }
 
     nIter = atoi(argv[1]);
     R = atof(argv[2]);
     ifLimit = atoi(argv[3]);
+    ifLimitIn = atoi(argv[4]);
+    jump = atof(argv[5]);
     if (mpi.rank == 0)
-        std::cout << "N iter = " << nIter << " R = " << R << " ifLimit = " << ifLimit << std::endl;
+        std::cout << "N iter = " << nIter << " R = " << R
+                  << " ifLimit = " << ifLimit
+                  << " ifLimitIn = " << ifLimitIn
+                  << " jump = " << jump << std::endl;
 
     // Debug::MPIDebugHold(mpi);
 
-    auto fDiffs = [](Elem::tPoint p) -> Eigen::VectorXd
+    auto fDiffs = [&](Elem::tPoint p) -> Eigen::VectorXd
     {
         Eigen::VectorXd d(6);
         d(0) = (1 - std::cos(p(0) * 2 * pi)) * (1 - std::cos(p(1) * 2 * pi));
@@ -37,12 +46,14 @@ int main(int argn, char *argv[])
         d(3) = std::cos(p(0) * 2 * pi) * (1 - std::cos(p(1) * 2 * pi)) * 2 * pi * 2 * pi;
         d(4) = std::sin(p(0) * 2 * pi) * std::sin(p(1) * 2 * pi) * 2 * pi * 2 * pi;
         d(5) = std::cos(p(1) * 2 * pi) * (1 - std::cos(p(0) * 2 * pi)) * 2 * pi * 2 * pi;
-        d(0) = p(0) > 0.2 && p(0) < 0.8 && p(1) > 0.2 && p(1) < 0.8 ? 1 : 0;
-        d(1) = 0;
-        d(2) = 0;
-        d(3) = 0;
-        d(4) = 0;
-        d(5) = 0;
+
+        //* use below as discontinuity test
+        d(0) += p(0) > 0.2 && p(0) < 0.8 && p(1) > 0.2 && p(1) < 0.8 ? jump : 0;
+        d(1) += 0;
+        d(2) += 0;
+        d(3) += 0;
+        d(4) += 0;
+        d(5) += 0;
 
         return d;
     };
@@ -51,6 +62,7 @@ int main(int argn, char *argv[])
         "data/mesh/Uniform/UniformA1.msh",
         "data/mesh/Uniform/UniformA2.msh",
         "data/mesh/Uniform/UniformA3.msh",
+        "data/mesh/Uniform/UniformA4.msh",
         // "data/mesh/Uniform/UniformB0.msh",
         // "data/mesh/Uniform/UniformB1.msh",
         // "data/mesh/Uniform/UniformB2.msh",
@@ -81,7 +93,7 @@ int main(int argn, char *argv[])
 
         CRFiniteVolume2D cfv(vfv); //! mind the order!
         cfv.initReconstructionMatVec();
-        InsertCheck(mpi, "SDF 1");
+        // InsertCheck(mpi, "SDF 1");
         ArrayLocal<VecStaticBatch<1u>> u;
         ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR, uRecF1, uRecF2;
         fv.BuildMean(u);
@@ -91,10 +103,14 @@ int main(int argn, char *argv[])
         vfv.BuildRecFacial(uRecF1);
         uRecF2.Copy(uRecF1);
 
-        // Eigen::MatrixXd U1{{0,0,0}};
-        // Eigen::MatrixXd U2{{0,0,0}};;
-        // vfv.FWBAP_L2_Biway();
-
+        // Eigen::ArrayXXd U1{{0,1,-1}};
+        // Eigen::ArrayXXd U2{{1,0,1}};
+        // std::cout << U1 << std::endl;
+        // std::cout << U2 << std::endl;
+        // Eigen::ArrayXXd U3;
+        // vfv.FWBAP_L2_Biway(U1, U2, U3);
+        // std::cout << U3 << std::endl;
+        // // std::abort();
 
         forEachInArrayPair(
             *u.pair,
@@ -136,7 +152,7 @@ int main(int argn, char *argv[])
             uRec.WaitPersistentPullClean();
             vfv.ReconstructionJacobiStep(u, uRec, uRecNew);
 
-            if (ifLimit)
+            if (ifLimitIn)
             {
                 double tstartA = MPI_Wtime();
                 vfv.ReconstructionWBAPLimitFacial(
@@ -149,10 +165,25 @@ int main(int argn, char *argv[])
                     {
                         return Eigen::MatrixXd::Identity(1, 1);
                     });
+
                 tLimiter += MPI_Wtime() - tstartA;
             }
         }
-        
+        if (ifLimit)
+        {
+            double tstartA = MPI_Wtime();
+            vfv.ReconstructionWBAPLimitFacial(
+                u, uRec, uRec, uRecF1, uRecF2,
+                [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+                {
+                    return Eigen::MatrixXd::Identity(1, 1);
+                },
+                [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+                {
+                    return Eigen::MatrixXd::Identity(1, 1);
+                });
+            tLimiter += MPI_Wtime() - tstartA;
+        }
 
         if (mpi.rank == 0)
             std::cout << "=== Rec time: " << MPI_Wtime() - tstart << "  === within: limiter time: " << tLimiter << std::endl;
@@ -233,7 +264,7 @@ int main(int argn, char *argv[])
                       //   << "  \nnorm2 " << norm2R[0] << norm2R[1] << norm2R[2]
                       //   << "  \nnormInf " << normInfR[0] << normInfR[1] << normInfR[2] << std::endl;
                       << "  \nnorm1 " << norms[iCase * 3 + 0].transpose()
-                      << "  \nnorm2 " << norms[iCase * 3 + 1].transpose()
+                      << "  \nnorm2 " << norms[iCase * 3 + 1].transpose().array().sqrt()
                       << "  \nnormInf " << norms[iCase * 3 + 2].transpose() << std::endl;
             std::cout << "=== === === === === === === === === === === === === === === === === === ===" << std::endl
                       << std::endl

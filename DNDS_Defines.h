@@ -30,9 +30,9 @@ namespace DNDS
 
     const real UnInitReal = std::acos(-1) * 1e299;
 
-    const real veryLargeReal = 3e300;
+    const real veryLargeReal = 3e200;
     const real largeReal = 3e10;
-    const real verySmallReal = 1e-300;
+    const real verySmallReal = 1e-200;
     const real smallReal = 1e-10;
 
     const real pi = std::acos(-1);

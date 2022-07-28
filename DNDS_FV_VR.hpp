@@ -1610,6 +1610,8 @@ namespace DNDS
                                                              faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1), msL2R);
                             matrixSecondaryBatchElem.m(0) = msR2L;
                             matrixSecondaryBatchElem.m(1) = msL2R;
+                            // std::cout << msR2L << std::endl;
+                            // std::abort();
                         }
                     }
 
@@ -2256,34 +2258,35 @@ namespace DNDS
         // TODO: WBAP: facial
 
         /**
-         * @brief input eigen array and vector<array>
+         * @brief input vector<Eigen::Array-like>
          */
-        template <typename TinC, typename TinOthers, typename Tout>
-        inline void FWBAP_L2_Multiway(const TinC &uC, const TinOthers &uOthers, int Nother, Tout &uOut)
+        template <typename TinOthers, typename Tout>
+        inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut)
         {
             static const int p = 4;
-            static const real n = 10.0;
             static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
-            uOut = uC;
-            Eigen::ArrayXd uUp = uC; //* copy!
-            uUp.setConstant(n);
-            Eigen::ArrayXd uDown = uUp; //* copy!
 
-            Eigen::ArrayXd uMax = uC.abs() + verySmallReal;
+            Eigen::ArrayXXd uUp; //* copy!
+            uUp.resizeLike(uOthers[0]);
+            uUp.setZero();
+            Eigen::ArrayXXd uDown = uUp; //* copy!
+            Eigen::ArrayXXd uMax = uDown + verySmallReal;
+
             for (int iOther = 0; iOther < Nother; iOther++)
                 uMax = uMax.max(uOthers[iOther].abs());
+            uOut = uMax;
 
             for (int iOther = 0; iOther < Nother; iOther++)
             {
-                auto thetaInverse = (uC / uMax) /
-                                    (uOthers[iOther].sign() * (uOthers[iOther].abs() / uMax + verySmallReal_pDiP) +
-                                     verySmallReal_pDiP);
+                auto thetaInverse = uMax / (uOthers[iOther].sign() * (uOthers[iOther].abs() + verySmallReal_pDiP) +
+                                         verySmallReal_pDiP * 2);
                 uDown += thetaInverse.pow(p);
                 uUp += thetaInverse.pow(p - 1);
             }
-            uOut = uOut * uUp / (uDown + verySmallReal);
+            uOut *= uUp / (uDown + verySmallReal);
             if (uOut.hasNaN())
             {
+                std::cout << "Limiter FWBAP_L2_Multiway Failed" << std::endl;
                 std::cout << uMax.transpose() << std::endl;
                 std::cout << uUp.transpose() << std::endl;
                 std::cout << uDown.transpose() << std::endl;
@@ -2298,11 +2301,27 @@ namespace DNDS
         inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut)
         {
             static const int p = 4;
+            static const real n = 10.0;
             static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
             auto uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
             auto u1p = (u1 / uMax).pow(p);
             auto u2p = (u2 / uMax).pow(p);
-            uOut = (u1p * u2 + u2p * u1) / (u1p + u2p + verySmallReal);
+            // std::cout << u1 << std::endl;
+
+            uOut = (u1p * u2 + n * u2p * u1) / ((u1p + n * u2p) + verySmallReal);
+            // std::cout << u2 << std::endl;
+        }
+
+        template <typename TinC, typename TinOthers, typename Tout>
+        inline void FWBAP_LE_Multiway(const TinC &uC, const TinOthers &uOthers, int Nother, Tout &uOut)
+        {
+            static const int p = 4;
+            static const real n = 100.0;
+            static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+            static const real eps = 5;
+
+            //! TODO:
+            // static_assert(false, "Incomplete Implementation");
         }
 
         template <uint32_t vsize>
@@ -2310,7 +2329,7 @@ namespace DNDS
         void BuildRecFacial(ArrayLocal<SemiVarMatrix<vsize>> &uR)
         {
             index nCellDist = mesh->cell2nodeLocal.dist->size();
-            InsertCheck(mpi, "BuildRecFacial Start");
+            // InsertCheck(mpi, "BuildRecFacial Start");
             uR.dist = std::make_shared<typename decltype(uR.dist)::element_type>(
                 typename decltype(uR.dist)::element_type::tContext(
                     [&](index i) -> rowsize
@@ -2355,8 +2374,8 @@ namespace DNDS
                     index iCellAtFace = f2c[0] == iCell ? 0 : 1;
                     if (iCellOther != FACE_2_VOL_EMPTY)
                     {
-                        auto uL = iCellAtFace ? u[iCell].p() : u[iCellOther].p();
-                        auto uR = iCellAtFace ? u[iCellOther].p() : u[iCell].p();
+                        auto uR = iCellAtFace ? u[iCell].p() : u[iCellOther].p();
+                        auto uL = iCellAtFace ? u[iCellOther].p() : u[iCell].p();
                         auto M = FM(uL, uR, faceNormCenter[iFace].stableNormalized());
                         Eigen::MatrixXd V = uRec[iCell].m();
                         V = (M * V.transpose()).transpose();
@@ -2436,8 +2455,9 @@ namespace DNDS
 
                             const auto &matrixSecondary =
                                 iCellAtFace
-                                    ? matrixSecondaryBatchElem.m(0)
-                                    : matrixSecondaryBatchElem.m(1);
+                                    ? matrixSecondaryBatchElem.m(1)
+                                    : matrixSecondaryBatchElem.m(0);
+                            //! note that when false == bool(iCellAtFace), this cell is at left of the face 
 
                             auto uOtherIn =
                                 (matrixSecondary *
@@ -2457,7 +2477,7 @@ namespace DNDS
                                         ic2f * NRecDOF + LimEnd),
                                     Eigen::all);
 
-                            Eigen::ArrayXd uLimOutArray;
+                            Eigen::ArrayXXd uLimOutArray;
                             FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray);
                             if (uLimOutArray.hasNaN())
                             {
@@ -2541,10 +2561,10 @@ namespace DNDS
                     if (iCellOther != FACE_2_VOL_EMPTY)
                     {
 
-                        auto uL = iCellAtFace ? u[iCell].p() : u[iCellOther].p();
-                        auto uR = iCellAtFace ? u[iCellOther].p() : u[iCell].p();
+                        auto uR = iCellAtFace ? u[iCell].p() : u[iCellOther].p();
+                        auto uL = iCellAtFace ? u[iCellOther].p() : u[iCell].p();
                         auto MI = FMI(uL, uR, faceNormCenter[iFace].stableNormalized());
-                        Eigen::ArrayXd uOther;
+                        Eigen::ArrayXXd uOther;
                         uOther = (MI * uRecFacialBuf[iCell]
                                            .m()(
                                                Eigen::seq(ic2f * NRecDOF, ic2f * NRecDOF + NRecDOF - 1),
@@ -2561,14 +2581,14 @@ namespace DNDS
                     }
                 }
                 // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 2-1");
-                Eigen::ArrayXd uLimOutArray;
+                Eigen::ArrayXXd uLimOutArray;
 
-                Eigen::ArrayXd uBefore = uRec[iCell].m();
+                Eigen::ArrayXXd uBefore = uRec[iCell].m();
 
-                FWBAP_L2_Multiway(uRec[iCell].m().array(), uOthers, uOthers.size(), uLimOutArray);
+                FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray);
                 if (uLimOutArray.hasNaN())
                 {
-                    std::cout << uRec[iCell].m().array().transpose() << std::endl;
+                    // std::cout << uRec[iCell].m().array().transpose() << std::endl;
                     for (auto e : uOthers)
                         std::cout << "E: \n"
                                   << e.transpose() << std::endl;
