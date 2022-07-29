@@ -2222,7 +2222,7 @@ namespace DNDS
                                 [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
                                 {
                                     // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
-                                    auto &diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
+                                    auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
                                     Eigen::Vector<real, vsize> uBV;
                                     Eigen::Vector<real, vsize> uBL = (diffI.row(0).rightCols(uRec[iCell].m().rows()) *
                                                                       uRec[iCell].m())
@@ -2236,7 +2236,7 @@ namespace DNDS
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell].p()).transpose();
                                     Eigen::MatrixXd rowDiffI = diffI.row(0);
-                                    FFaceFunctional(iFace, rowDiffI, rowUD, faceWeights[iFace]({0}), corInc);
+                                    FFaceFunctional(iFace, ig, rowDiffI, rowUD, (*faceWeights)[iFace]({0}), corInc);
                                     corInc *= faceNorms[iFace][ig].norm();
                                 });
                             if (!setting.SOR_Instead)

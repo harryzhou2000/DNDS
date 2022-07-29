@@ -19,3 +19,4 @@ pulldata.sh
 *.ppt*
 *.doc*
 *.pdf*
+*.log

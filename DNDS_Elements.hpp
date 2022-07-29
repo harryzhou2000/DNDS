@@ -1425,6 +1425,7 @@ namespace DNDS
                 base({0, 1, 2}, 1) = -uNorm.cross(tPoint{0, 1, 0}).normalized();
 
             base({0, 1, 2}, 2) = base({0, 1, 2}, 0).cross(base({0, 1, 2}, 1)).normalized();
+            return base;
         }
 
         template <class TMat>

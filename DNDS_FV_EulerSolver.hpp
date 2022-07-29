@@ -24,6 +24,7 @@ namespace DNDS
             struct IdealGasProperty
             {
                 real gamma = 1.4;
+                real Rgas = 289;
             } idealGasProperty;
             real visScale = 1;
             real visScaleIn = 1;
@@ -61,7 +62,7 @@ namespace DNDS
                 if (f2c[1] != FACE_2_VOL_EMPTY)
                     uMean = (uMean + u[f2c[1]].p()) * 0.5;
                 assert(uMean(0) > 0);
-                auto veloMean = uMean({1, 2, 3}) / uMean(0);
+                auto veloMean = (uMean({1, 2, 3}).array() / uMean(0)).matrix();
                 real veloNMean = veloMean.dot(unitNorm);
                 real pMean, asqrMean, HMean;
                 Gas::IdealGasThermal(uMean(4), uMean(0), veloMean.squaredNorm(),
@@ -417,12 +418,14 @@ namespace DNDS
         std::shared_ptr<VRFiniteVolume2D> vfv;
 
         ArrayDOF<5u> u, uPoisson;
-        ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew, uRecCR;
+        ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew;
 
-        static const int nOUTS = 6;
-        // rho u v w p T
+        static const int nOUTS = 7;
+        // rho u v w p T M
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outDist;
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outSerial;
+
+        ArrayLocal<SemiVarMatrix<5u>> uF0, uF1;
 
     public:
         EulerSolver(const MPIInfo &nmpi) : mpi(nmpi)
@@ -660,43 +663,60 @@ namespace DNDS
                     log() << "JSON: vDropVisScale = " << config.vDropVisScale << std::endl;
             }
 
-            if (doc["eikonalSetting"].IsObject())
+            if (doc["eulerSetting"].IsObject())
             {
-                if (doc["eikonalSetting"]["visScale"].IsNumber())
+                if (doc["eulerSetting"]["visScale"].IsNumber())
                 {
-                    config.eikonalSetting.visScale = doc["eikonalSetting"]["visScale"].GetDouble();
+                    config.eulerSetting.visScale = doc["eulerSetting"]["visScale"].GetDouble();
                     if (mpi.rank == 0)
-                        log() << "JSON: eikonalSetting.visScale = " << config.eikonalSetting.visScale << std::endl;
+                        log() << "JSON: eulerSetting.visScale = " << config.eulerSetting.visScale << std::endl;
                 }
-                if (doc["eikonalSetting"]["visScaleIn"].IsNumber())
+                if (doc["eulerSetting"]["visScaleIn"].IsNumber())
                 {
-                    config.eikonalSetting.visScaleIn = doc["eikonalSetting"]["visScaleIn"].GetDouble();
+                    config.eulerSetting.visScaleIn = doc["eulerSetting"]["visScaleIn"].GetDouble();
                     if (mpi.rank == 0)
-                        log() << "JSON: eikonalSetting.visScaleIn = " << config.eikonalSetting.visScaleIn << std::endl;
+                        log() << "JSON: eulerSetting.visScaleIn = " << config.eulerSetting.visScaleIn << std::endl;
                 }
-                if (doc["eikonalSetting"]["ekCutDown"].IsNumber())
+                if (doc["eulerSetting"]["ekCutDown"].IsNumber())
                 {
-                    config.eikonalSetting.ekCutDown = doc["eikonalSetting"]["ekCutDown"].GetDouble();
+                    config.eulerSetting.ekCutDown = doc["eulerSetting"]["ekCutDown"].GetDouble();
                     if (mpi.rank == 0)
-                        log() << "JSON: eikonalSetting.ekCutDown = " << config.eikonalSetting.ekCutDown << std::endl;
+                        log() << "JSON: eulerSetting.ekCutDown = " << config.eulerSetting.ekCutDown << std::endl;
                 }
-                if (doc["eikonalSetting"]["isiScale"].IsNumber())
+                if (doc["eulerSetting"]["isiScale"].IsNumber())
                 {
-                    config.eikonalSetting.isiScale = doc["eikonalSetting"]["isiScale"].GetDouble();
+                    config.eulerSetting.isiScale = doc["eulerSetting"]["isiScale"].GetDouble();
                     if (mpi.rank == 0)
-                        log() << "JSON: eikonalSetting.isiScale = " << config.eikonalSetting.isiScale << std::endl;
+                        log() << "JSON: eulerSetting.isiScale = " << config.eulerSetting.isiScale << std::endl;
                 }
-                if (doc["eikonalSetting"]["isiScaleIn"].IsNumber())
+                if (doc["eulerSetting"]["isiScaleIn"].IsNumber())
                 {
-                    config.eikonalSetting.isiScaleIn = doc["eikonalSetting"]["isiScaleIn"].GetDouble();
+                    config.eulerSetting.isiScaleIn = doc["eulerSetting"]["isiScaleIn"].GetDouble();
                     if (mpi.rank == 0)
-                        log() << "JSON: eikonalSetting.isiScaleIn = " << config.eikonalSetting.isiScaleIn << std::endl;
+                        log() << "JSON: eulerSetting.isiScaleIn = " << config.eulerSetting.isiScaleIn << std::endl;
                 }
-                if (doc["eikonalSetting"]["isiCutDown"].IsNumber())
+                if (doc["eulerSetting"]["isiCutDown"].IsNumber())
                 {
-                    config.eikonalSetting.isiCutDown = doc["eikonalSetting"]["isiCutDown"].GetDouble();
+                    config.eulerSetting.isiCutDown = doc["eulerSetting"]["isiCutDown"].GetDouble();
                     if (mpi.rank == 0)
-                        log() << "JSON: eikonalSetting.isiCutDown = " << config.eikonalSetting.isiCutDown << std::endl;
+                        log() << "JSON: eulerSetting.isiCutDown = " << config.eulerSetting.isiCutDown << std::endl;
+                }
+                if (doc["eulerSetting"]["idealGasProperty"].IsObject())
+                {
+                    if (doc["eulerSetting"]["idealGasProperty"]["gamma"].IsNumber())
+                    {
+                        config.eulerSetting.idealGasProperty.gamma = doc["eulerSetting"]["idealGasProperty"]["gamma"].GetDouble();
+                        if (mpi.rank == 0)
+                            log() << "JSON: eulerSetting.idealGasProperty.gamma = " << config.eulerSetting.idealGasProperty.gamma << std::endl;
+                    }
+                    if (doc["eulerSetting"]["farFieldStaticValue"].IsArray())
+                    {
+                        assert(doc["eulerSetting"]["farFieldStaticValue"].GetArray().Size() == 5);
+                        for (int i = 0; i < 5; i++)
+                            config.eulerSetting.farFieldStaticValue(i) = doc["eulerSetting"]["farFieldStaticValue"].GetArray()[i].GetDouble();
+                        if (mpi.rank == 0)
+                            log() << "JSON: eulerSetting.farFieldStaticValue = [ " << config.eulerSetting.farFieldStaticValue.transpose() << " ]" << std::endl;
+                    }
                 }
             }
 
@@ -741,14 +761,12 @@ namespace DNDS
             vfv->setting = config.vfvSetting; //* currently only copies, could upgrade to referencing
             vfv->Initialization();
 
-            cfv = std::make_shared<CRFiniteVolume2D>(*vfv);
-            cfv->Initialization();
-
             fv->BuildMean(u);
             fv->BuildMean(uPoisson);
             vfv->BuildRec(uRec);
+            vfv->BuildRecFacial(uF0);
             uRecNew.Copy(uRec);
-            cfv->BuildRec(uRecCR);
+            uF1.Copy(uF1);
 
             u.setConstant(0);
             uPoisson.setConstant(0);
@@ -759,10 +777,6 @@ namespace DNDS
             outSerial->BorrowGGIndexing(*mesh->cell2node);
             outSerial->createMPITypes();
             outSerial->initPersistentPull();
-
-            err = std::make_shared<EikonalErrorEvaluator>(mesh.get(), fv.get(), vfv.get(), config.err_dMax);
-            forEachInArray(*u.dist, [&](decltype(u.dist)::element_type::tComponent &e, index iCell)
-                           { e.p()(0) = err->sResult[iCell] * 0; });
         }
 
         void RunExplicitSSPRK4()
@@ -775,28 +789,19 @@ namespace DNDS
                     data.resize(u.dist->size(), u.dist->getMPI());
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                 });
-            EikonalEvaluator eval(mesh.get(), fv.get(), vfv.get(), cfv.get());
+            EulerEvaluator eval(mesh.get(), fv.get(), vfv.get());
             std::ofstream logErr(config.outLogName + ".log");
-            eval.settings = config.eikonalSetting;
+            eval.settings = config.eulerSetting;
             uRec.InitPersistentPullClean();
             u.InitPersistentPullClean();
             // u.StartPersistentPullClean();
             double tstart = MPI_Wtime();
-            double trec{0}, treccr{0}, tcomm{0}, trhs{0};
+            double trec{0}, tcomm{0}, trhs{0};
             int stepCount = 0;
-            real resBaseC = config.res_base;
+            Eigen::Vector<real, 5> resBaseC;
+            resBaseC.setConstant(config.res_base);
 
             // Doing Poisson Init:
-            uPoisson.InitPersistentPullClean();
-            // forEachInArrayPair(*uPoisson.pair, [&](decltype(uPoisson.dist)::element_type::tComponent &e, index iCell)
-            //                    { std::cout << "UPPair: " << e << std::endl; });
-            eval.PoissonInit(uPoisson, u, 10000, 1);
-            for (int iRec = 0; iRec < 20; iRec++)
-            {
-                vfv->ReconstructionJacobiStep(u, uRec, uRecNew);
-                uRec.StartPersistentPullClean();
-                uRec.WaitPersistentPullClean();
-            }
 
             int curvilinearNum = 0;
             int curvilinearStepper = 0;
@@ -810,7 +815,7 @@ namespace DNDS
                 curvilinearStepper++;
                 ode.Step(
                     u,
-                    [&](ArrayDOF<1u> &crhs, ArrayDOF<1u> &cx)
+                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx)
                     {
                         double tstartC = MPI_Wtime();
                         u.StartPersistentPullClean();
@@ -833,13 +838,25 @@ namespace DNDS
                             uRec.WaitPersistentPullClean();
                             tcomm += MPI_Wtime() - tstartG;
                         }
+                        vfv->ReconstructionWBAPLimitFacial(
+                            cx, uRec, uRecNew, uF0, uF1,
+                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                auto normBase = Elem::NormBuildLocalBaseV(n);
+                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                        double tstartD = MPI_Wtime();
-                        cfv->Reconstruction(cx, uRec, uRecCR);
-                        treccr += MPI_Wtime() - tstartD;
+                                return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                            },
+                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                auto normBase = Elem::NormBuildLocalBaseV(n);
+                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+
+                                return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                            });
 
                         double tstartE = MPI_Wtime();
-                        eval.EvaluateRHS(crhs, cx, uRec, uRecCR);
+                        eval.EvaluateRHS(crhs, cx, uRecNew);
                         trhs += MPI_Wtime() - tstartE;
                     },
                     [&](std::vector<real> &dt)
@@ -858,38 +875,30 @@ namespace DNDS
                         uRec.WaitPersistentPullClean();
                         tcomm += MPI_Wtime() - tstartG;
 
-                        eval.EvaluateDt(dt, uRec, config.CFL, 1e100, config.useLocalDt);
+                        eval.EvaluateDt(dt, u, config.CFL, 1e100, config.useLocalDt);
                     });
-                real res;
+                Eigen::Vector<real, 5> res;
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
-                if (stepCount == 0 && resBaseC == 0)
+                if (stepCount == 0 && resBaseC.norm() == 0)
                     resBaseC = res;
-
-                real error, errorMax;
 
                 if (step % config.nConsoleCheck == 0)
                 {
-                    err->EvaluateError(error, errorMax, u, uRec);
                     double telapsed = MPI_Wtime() - tstart;
                     if (mpi.rank == 0)
                     {
                         auto fmt = log().flags();
                         log() << std::setprecision(6) << std::scientific
                               << "=== Step [" << step << "]   "
-                              << "res \033[91m[" << res / resBaseC << "]\033[39m   "
-                              << "err \033[93m[" << error << "]\033[39m   "
-                              << "errM \033[93m[" << errorMax << "]\033[39m   "
+                              << "res \033[91m[" << (res.array() / resBaseC.array()).transpose() << "]\033[39m   "
                               << std::setprecision(3) << std::fixed
-                              << "Time [" << telapsed << "]   recTime [" << trec << "]   reccrTime [" << treccr
-                              << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  " << std::endl;
+                              << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  " << std::endl;
                         log().setf(fmt);
                         logErr << step << "\t" << std::setprecision(9) << std::scientific
-                               << res / resBaseC << "\t"
-                               << error << "\t"
-                               << errorMax << std::endl;
+                               << (res.array() / resBaseC.array()).transpose() << std::endl;
                     }
                     tstart = MPI_Wtime();
-                    trec = tcomm = treccr = trhs = 0.;
+                    trec = tcomm = trhs = 0.;
                 }
                 if (step % config.nDataOut == 0)
                 {
@@ -1042,16 +1051,30 @@ namespace DNDS
         {
             for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
-                Eigen::MatrixXd recval = vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0, 1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
-                (*outDist)[iCell][0] = recval(0) + u[iCell](0);
-                (*outDist)[iCell][1] = recval(1);
-                (*outDist)[iCell][2] = recval(2);
-                (*outDist)[iCell][3] = err->sResult[iCell];
+                Eigen::Vector<real, 5> recu =
+                    vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0}, Eigen::all).rightCols(uRec[iCell].m().rows()) *
+                    uRec[iCell].m();
+                assert(recu(0) > 0);
+                Gas::tVec velo = (recu({1, 2, 3}).array() / recu(0)).matrix();
+                real vsqr = velo.squaredNorm();
+                real asqr, p, H;
+                Gas::IdealGasThermal(recu(4), recu(0), vsqr, config.eulerSetting.idealGasProperty.gamma, p, asqr, H);
+                assert(asqr > 0);
+                real M = std::sqrt(vsqr / asqr);
+                real T = p / recu(0) / config.eulerSetting.idealGasProperty.Rgas;
+
+                (*outDist)[iCell][0] = recu(0);
+                (*outDist)[iCell][1] = velo(0);
+                (*outDist)[iCell][2] = velo(1);
+                (*outDist)[iCell][3] = velo(2);
+                (*outDist)[iCell][4] = p;
+                (*outDist)[iCell][5] = T;
+                (*outDist)[iCell][6] = M;
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();
             const static std::vector<std::string> names{
-                "sln", "dx", "dy", "sR"};
+                "R", "U", "V", "W", "P", "T", "M"};
             mesh->PrintSerialPartPltASCIIDataArray(
                 fname, 0, nOUTS, //! oprank = 0
                 [&](int idata)
