@@ -3,6 +3,7 @@
 #include "DNDS_Mesh.hpp"
 #include "DNDS_HardEigen.h"
 #include "unsupported/Eigen/CXX11/Tensor"
+#include "DNDS_Gas.hpp"
 
 #include <set>
 
@@ -1679,6 +1680,13 @@ namespace DNDS
                         (*faceWeights)[iFace][0] = setting.farWeight;
                         delta = pFace - cellBaries[f2c[0]];
                     }
+                    else if (faceAtr.iPhy == BoundaryType::Wall_Euler)
+                    {
+                        (*faceWeights)[iFace].setConstant(0.0);
+                        (*faceWeights)[iFace][0] = setting.wallWeight;
+                        delta = pFace - cellBaries[f2c[0]];
+                        delta *= 1.0;
+                    }
                     else
                     {
                         log() << faceAtr.iPhy << std::endl;
@@ -1739,7 +1747,9 @@ namespace DNDS
                         matSizes[(ic2f + 1) * 2 + 0] = cellRecAttribute.NDOF - 1;
                         matSizes[(ic2f + 1) * 2 + 1] = cellRecAttributeOther.NDOF - 1;
                     }
-                    else if (faceAttribute.iPhy == BoundaryType::Wall || faceAttribute.iPhy == BoundaryType::Farfield)
+                    else if (faceAttribute.iPhy == BoundaryType::Wall ||
+                             faceAttribute.iPhy == BoundaryType::Farfield ||
+                             faceAttribute.iPhy == BoundaryType::Wall_Euler)
                     {
                         matSizes[(ic2f + 1) * 2 + 0] = cellRecAttribute.NDOF - 1;
                         matSizes[(ic2f + 1) * 2 + 1] = cellRecAttribute.NDOF - 1;
@@ -1896,7 +1906,8 @@ namespace DNDS
                                 });
                             matrixBatchElem.m(ic2f + 1) = Ainv * B;
                         }
-                        else if (faceAttribute.iPhy == BoundaryType::Wall)
+                        else if (faceAttribute.iPhy == BoundaryType::Wall ||
+                                 faceAttribute.iPhy == BoundaryType::Wall_Euler)
                         {
                             matrixBatchElem.m(ic2f + 1).setZero(); // the other 'cell' has no rec
                         }
@@ -2154,8 +2165,7 @@ namespace DNDS
                     auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
                     auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
                     Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
-                    Eigen::MatrixXd BCCorrection;
-                    BCCorrection.resizeLike(uRec[iCell].m());
+                    auto faceDiBjGaussBatchElem = (*faceDiBjGaussBatch)[iFace];
 
                     if (iCellOther != FACE_2_VOL_EMPTY)
                     {
@@ -2201,6 +2211,40 @@ namespace DNDS
                             else
                                 uRec[iCell].m() +=
                                     relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCell].m()));
+                        }
+                        else if (faceAttribute.iPhy == BoundaryType::Wall_Euler)
+                        {
+                            Eigen::MatrixXd BCCorrection;
+                            BCCorrection.resizeLike(uRec[iCell].m());
+                            BCCorrection.setZero();
+                            eFace.Integration(
+                                BCCorrection,
+                                [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
+                                {
+                                    // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
+                                    auto &diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
+                                    Eigen::Vector<real, vsize> uBV;
+                                    Eigen::Vector<real, vsize> uBL = (diffI.row(0).rightCols(uRec[iCell].m().rows()) *
+                                                                      uRec[iCell].m())
+                                                                         .transpose();
+                                    uBV.setZero();
+                                    uBV(0) = uBL(0);
+                                    Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
+                                    auto uBLMomentum = uBL({1, 2, 3});
+                                    uBV({1, 2, 3}) = uBLMomentum - normOut * (normOut.dot(uBLMomentum));
+                                    uBV(4) = uBL(4);
+
+                                    Eigen::MatrixXd rowUD = (uBV - u[iCell].p()).transpose();
+                                    Eigen::MatrixXd rowDiffI = diffI.row(0);
+                                    FFaceFunctional(iFace, rowDiffI, rowUD, faceWeights[iFace]({0}), corInc);
+                                    corInc *= faceNorms[iFace][ig].norm();
+                                });
+                            if (!setting.SOR_Instead)
+                                uRecNewBuf[iCell].m() +=
+                                    relax * matrixBatchElem.m(0) * BCCorrection;
+                            else
+                                uRec[iCell].m() +=
+                                    relax * matrixBatchElem.m(0) * BCCorrection;
                         }
                         else
                         {
@@ -2279,7 +2323,7 @@ namespace DNDS
             for (int iOther = 0; iOther < Nother; iOther++)
             {
                 auto thetaInverse = uMax / (uOthers[iOther].sign() * (uOthers[iOther].abs() + verySmallReal_pDiP) +
-                                         verySmallReal_pDiP * 2);
+                                            verySmallReal_pDiP * 2);
                 uDown += thetaInverse.pow(p);
                 uUp += thetaInverse.pow(p - 1);
             }
@@ -2457,7 +2501,7 @@ namespace DNDS
                                 iCellAtFace
                                     ? matrixSecondaryBatchElem.m(1)
                                     : matrixSecondaryBatchElem.m(0);
-                            //! note that when false == bool(iCellAtFace), this cell is at left of the face 
+                            //! note that when false == bool(iCellAtFace), this cell is at left of the face
 
                             auto uOtherIn =
                                 (matrixSecondary *
