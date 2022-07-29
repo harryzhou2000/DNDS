@@ -1,6 +1,0 @@
-make --dry-run --keep-going --print-directory
-make: Entering directory '/home/harry/projects/DNDS'
-echo `mpicxx.openmpi --showme`
-echo test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe test/staticReconstructionTest.exe test/eikonal.exe test/staticReconstructionTestJR.exe test/euler.exe
-make: Leaving directory '/home/harry/projects/DNDS'
- 
