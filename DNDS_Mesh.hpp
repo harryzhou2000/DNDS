@@ -24,6 +24,7 @@ namespace DNDS
         Unknown = 0,
         Wall = 1,
         Farfield = 2,
+        Wall_Euler = 3
 
     };
 }
@@ -772,6 +773,8 @@ namespace DNDS
                     e.iPhy = index(BoundaryType::Wall);
                 else if (gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name == "bc-2")
                     e.iPhy = index(BoundaryType::Farfield);
+                else if (gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name == "bc-3")
+                    e.iPhy = index(BoundaryType::Wall_Euler);
                 else if (gmshReader.faceElems[iff].phyGrp == -1)
                     e.iPhy = index(BoundaryType::Inner);
                 else

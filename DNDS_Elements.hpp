@@ -1411,6 +1411,22 @@ namespace DNDS
             return tPoint{Jacobi(0, 1), -Jacobi(0, 0), 0.0};
         }
 
+        /**
+         * @brief input uNorm should already be normalized
+         * 
+         */
+        inline tJacobi NormBuildLocalBaseV(const tPoint &uNorm)
+        {
+            tJacobi base;
+            base({0, 1, 2}, 0) = uNorm;
+            if (std::abs(uNorm(2)) < 0.9)
+                base({0, 1, 2}, 1) = -uNorm.cross(tPoint{0, 0, 1}).normalized();
+            else
+                base({0, 1, 2}, 1) = -uNorm.cross(tPoint{0, 1, 0}).normalized();
+
+            base({0, 1, 2}, 2) = base({0, 1, 2}, 0).cross(base({0, 1, 2}, 1)).normalized();
+        }
+
         template <class TMat>
         inline void Convert2dDiffsLinMap(TMat &&mat, const Eigen::Matrix2d &dXijdXi)
         {
