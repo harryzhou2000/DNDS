@@ -195,7 +195,7 @@ namespace DNDS
         {
             assert(U(0) > 0);
             Eigen::Matrix<real, 5, 5> ReV;
-            tVec velo = U({1,2,3})/U(0);
+            tVec velo = (U({1, 2, 3}).array() / U(0)).matrix();
             real vsqr = velo.squaredNorm();
             real asqr, p, H;
             IdealGasThermal(U(4), U(0), vsqr, gamma, p, asqr, H);
@@ -209,7 +209,7 @@ namespace DNDS
         {
             assert(U(0) > 0);
             Eigen::Matrix<real, 5, 5> LeV;
-            tVec velo = U({1, 2, 3}) / U(0);
+            tVec velo = (U({1, 2, 3}).array() / U(0)).matrix();
             real vsqr = velo.squaredNorm();
             real asqr, p, H;
             IdealGasThermal(U(4), U(0), vsqr, gamma, p, asqr, H);
@@ -224,8 +224,8 @@ namespace DNDS
             static real scaleHartenYee = 0.1;
 
             assert(UL(0) > 0 && UR(0) > 0);
-            tVec veloL = UL({1, 2, 3}) / UL(0);
-            tVec veloR = UR({1, 2, 3}) / UR(0);
+            tVec veloL = (UL({1, 2, 3}).array() / UL(0)).matrix();
+            tVec veloR = (UR({1, 2, 3}).array() / UR(0)).matrix();
             real asqrL, asqrR, pL, pR, HL, HR;
             real vsqrL = veloL.squaredNorm();
             real vsqrR = veloR.squaredNorm();
