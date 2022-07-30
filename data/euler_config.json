@@ -1,12 +1,12 @@
 {
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 1000,
-    "nConsoleCheck": 1,
-    "nDataOut": 10,
+    "nTimeStep": 10000,
+    "nConsoleCheck": 5,
+    "nDataOut": 50,
     "tDataOut": 0.01e100,
     "tEnd": 0.1e100,
-    "CFL": 0.5,
+    "CFL": 1,
     "useLocalDt": true,
     "nForceLocalStartStep": 75000,
     "meshRotZ": 0,
@@ -34,7 +34,7 @@
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 0.01
+        "WBAP_SmoothIndicatorScale": 0.3
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
@@ -48,7 +48,7 @@
         "isiScaleIn": 2,
         "ekCutDown": 0.5,
         "isiCutDown": 0.5,
-        "farFieldStaticValue": [2.5, 2, 0, 0, 2.5],
+        "farFieldStaticValue": [1, 0.946572765295939, 0, 0, 2.948],
         "comment_farSatic":[
             [1, 0, 0, 0, 2.5]
         ],
