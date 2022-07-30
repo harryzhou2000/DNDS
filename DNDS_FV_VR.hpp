@@ -2580,7 +2580,7 @@ namespace DNDS
                             real n = setting.WBAP_nStd;
                             if (ifUseLimiter[iCell] > 0.5 * setting.WBAP_SmoothIndicatorScale)
                             {
-                                real eIS = ifUseLimiter[iCell] - 0.5 * setting.WBAP_SmoothIndicatorScale;
+                                real eIS = (ifUseLimiter[iCell] - 0.5 * setting.WBAP_SmoothIndicatorScale) / (0.5 * setting.WBAP_SmoothIndicatorScale);
                                 n *= std::exp(eIS * 2.0 * 10);
                             }
                             FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
