@@ -1,9 +1,9 @@
 {
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 10000,
-    "nConsoleCheck": 5,
-    "nDataOut": 50,
+    "nTimeStep": 20000,
+    "nConsoleCheck": 10,
+    "nDataOut": 100,
     "tDataOut": 0.01e100,
     "tEnd": 0.1e100,
     "CFL": 1,
@@ -34,7 +34,7 @@
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 0.3
+        "WBAP_SmoothIndicatorScale": 1e-10
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,

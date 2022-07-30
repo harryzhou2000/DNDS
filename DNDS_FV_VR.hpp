@@ -2523,7 +2523,7 @@ namespace DNDS
                     index iCell = iScan;
                     // if (!(ifUseLimiter[iCell] & 0x0000000FU))
                     //     continue;
-                    if (ifUseLimiter[iCell] > setting.WBAP_SmoothIndicatorScale)
+                    if (ifUseLimiter[iCell] < setting.WBAP_SmoothIndicatorScale)
                         continue;
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
@@ -2578,10 +2578,10 @@ namespace DNDS
 
                             Eigen::ArrayXXd uLimOutArray;
                             real n = setting.WBAP_nStd;
-                            if (ifUseLimiter[iCell] > 0.5 * setting.WBAP_SmoothIndicatorScale)
+                            if (ifUseLimiter[iCell] < 2 * setting.WBAP_SmoothIndicatorScale)
                             {
-                                real eIS = (ifUseLimiter[iCell] - 0.5 * setting.WBAP_SmoothIndicatorScale) / (0.5 * setting.WBAP_SmoothIndicatorScale);
-                                n *= std::exp(eIS * 2.0 * 10);
+                                real eIS = ( ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / ( setting.WBAP_SmoothIndicatorScale);
+                                n *= std::exp((1 - eIS) *  10);
                             }
                             FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
                             if (uLimOutArray.hasNaN())
@@ -2610,7 +2610,7 @@ namespace DNDS
                     index iCell = iScan;
                     // if (!(ifUseLimiter[iCell] & 0x0000000FU))
                     //     continue;
-                    if (ifUseLimiter[iCell] > setting.WBAP_SmoothIndicatorScale)
+                    if (ifUseLimiter[iCell] < setting.WBAP_SmoothIndicatorScale)
                         continue;
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
@@ -2658,7 +2658,7 @@ namespace DNDS
                 index iCell = iScan;
                 // if (!(ifUseLimiter[iCell] & 0x0000000FU))
                 //     continue;
-                if (ifUseLimiter[iCell] > setting.WBAP_SmoothIndicatorScale)
+                if (ifUseLimiter[iCell] < setting.WBAP_SmoothIndicatorScale)
                     continue;
                 index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                 auto &c2f = mesh->cell2faceLocal[iCell];
