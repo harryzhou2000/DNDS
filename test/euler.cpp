@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 
     {
         EulerSolver solver(mpi);
-        solver.ConfigureFromJson("data/eikonal_config.json");
+        solver.ConfigureFromJson("data/euler_config.json");
         solver.ReadMeshAndInitialize();
         solver.RunExplicitSSPRK4();
     }

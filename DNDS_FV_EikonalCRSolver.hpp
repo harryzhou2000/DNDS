@@ -887,7 +887,7 @@ namespace DNDS
             uRecNew.Copy(uRec);
             cfv->BuildRec(uRecCR);
 
-            u.setConstant(0);
+            u.setConstant(0.0);
             uPoisson.setConstant(0);
 
             outDist = std::make_shared<decltype(outDist)::element_type>(

@@ -218,11 +218,15 @@ namespace DNDS
             return LeV;
         }
 
-        template <typename TUL, typename TUR, typename TF>
-        void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F)
+        template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
+        void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, const TFdumpInfo &dumpInfo)
         {
-            static real scaleHartenYee = 0.1;
+            static real scaleHartenYee = 0.2;
 
+            if (!(UL(0) > 0 && UR(0) > 0))
+            {
+                dumpInfo();
+            }
             assert(UL(0) > 0 && UR(0) > 0);
             tVec veloL = (UL({1, 2, 3}).array() / UL(0)).matrix();
             tVec veloR = (UR({1, 2, 3}).array() / UR(0)).matrix();
@@ -239,6 +243,10 @@ namespace DNDS
             real HRoe = (sqrtRhoL * HL + sqrtRhoR * HR) / (sqrtRhoL + sqrtRhoR);
             real asqrRoe = (gamma - 1) * (HRoe - 0.5 * vsqrRoe);
 
+            if (!(asqrRoe > 0))
+            {
+                dumpInfo();
+            }
             assert(asqrRoe > 0);
             real aRoe = std::sqrt(asqrRoe);
 

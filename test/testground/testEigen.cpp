@@ -19,5 +19,7 @@ int main()
     // auto aa = Eigen::MatrixXd::Random(3,3);
     // testF(aa);
 
+    Eigen::MatrixXd Mres{{1, 0, -1}};
+    std::cout << Mres.array().pow(1.0) << std::endl;
     return 0;
 }

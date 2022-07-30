@@ -44,10 +44,34 @@ namespace DNDS
             // lambdaFace.resize(mesh->face2nodeLocal.size());
         }
 
+        static Eigen::Vector<real, 5> CompressRecPart(const Eigen::Vector<real, 5> &umean, const Eigen::Vector<real, 5> &uRecInc)
+        {
+            real compressT = 0.01;
+            real eFixRatio = 0.0001;
+            Eigen::Vector<real, 5> ret;
+
+            real compress = 1.0;
+            if ((umean(0) + uRecInc(0)) < umean(0) * compressT)
+                compress *= umean(0) * (1 - compressT) / uRecInc(0);
+
+            ret = umean + uRecInc * compress;
+            real Ek = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + ret(0));
+            real eT = eFixRatio * Ek;
+            real e = ret(4) - Ek;
+            if (e < 0)
+                e = eT * 0.5;
+            else if (e < eT)
+                e = (e * e + eT * eT) / (2 * eT);
+            ret(4) = e + Ek;
+
+            return ret;
+        }
+
         void EvaluateDt(std::vector<real> &dt,
                         ArrayLocal<VecStaticBatch<5>> &u,
                         // ArrayLocal<SemiVarMatrix<5>> &uRec,
-                        real CFL, real MaxDt = 1, bool UseLocaldt = false)
+                        real CFL, real &dtMinall, real MaxDt = 1,
+                        bool UseLocaldt = false)
         {
             for (auto &i : lambdaCell)
                 i = 0.0;
@@ -90,7 +114,7 @@ namespace DNDS
                 dt[iCell] = std::min(CFL * fv->volumeLocal[iCell] / (lambdaCell[iCell] + 1e-10), MaxDt);
                 dtMin = std::min(dtMin, dt[iCell]);
             }
-            real dtMinall;
+
             MPI_Allreduce(&dtMin, &dtMinall, 1, DNDS_MPI_REAL, MPI_MIN, u.dist->getMPI().comm);
             // if (uRec.dist->getMPI().rank == 0)
             //     std::cout << "dt min is " << dtMinall << std::endl;
@@ -141,6 +165,8 @@ namespace DNDS
                         Eigen::Vector<real, 5> UL =
                             faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].m().rows()) *
                             uRec[f2c[0]].m();
+                        // UL += u[f2c[0]]; //! do not forget the mean value
+                        UL = CompressRecPart(u[f2c[0]], UL);
                         UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
                         Eigen::Vector<real, 5> UR;
 
@@ -149,6 +175,8 @@ namespace DNDS
                             UR =
                                 faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].m().rows()) *
                                 uRec[f2c[1]].m();
+                            // UR += u[f2c[1]];
+                            UR = CompressRecPart(u[f2c[1]], UR);
                             UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
                         }
                         else if (faceAtr.iPhy == BoundaryType::Farfield)
@@ -171,7 +199,14 @@ namespace DNDS
                             assert(false);
                         }
                         // Eigen::Vector<real, 5> F;
-                        Gas::RoeFlux_IdealGas_HartenYee(UL, UR, settings.idealGasProperty.gamma, finc);
+                        Gas::RoeFlux_IdealGas_HartenYee(
+                            UL, UR, settings.idealGasProperty.gamma, finc,
+                            [&]()
+                            {
+                                std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                                std::cout << "UL" << UL.transpose() << '\n';
+                                std::cout << "UR" << UR.transpose() << std::endl;
+                            });
                         finc({1, 2, 3}) = normBase * finc({1, 2, 3});
                         finc *= -vfv->faceNorms[iFace][ig].norm(); // don't forget this
                     });
@@ -388,16 +423,25 @@ namespace DNDS
             }
         }
 
-        void EvaluateResidual(Eigen::Vector<real, 5> &res, ArrayDOF<5u> &rhs, real P = 1.)
+        void EvaluateResidual(Eigen::Vector<real, 5> &res, ArrayDOF<5u> &rhs, index P = 1)
         {
-            if (P < largeReal)
+            if (P < 3)
             {
                 Eigen::Vector<real, 5> resc;
                 resc.setZero();
+
                 for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+                {
+                    if (rhs[iCell].hasNaN() || (!rhs[iCell].allFinite()))
+                    {
+                        std::cout << rhs[iCell] << std::endl;
+                        assert(false);
+                    }
                     resc += rhs[iCell].array().abs().pow(P).matrix();
+                }
                 MPI_Allreduce(resc.data(), res.data(), res.size(), DNDS_MPI_REAL, MPI_SUM, rhs.dist->getMPI().comm);
                 res = res.array().pow(1.0 / P).matrix();
+                // std::cout << res << std::endl;
             }
             else
             {
@@ -406,6 +450,45 @@ namespace DNDS
                 for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
                     resc = resc.array().max(rhs[iCell].array().abs()).matrix();
                 MPI_Allreduce(resc.data(), res.data(), res.size(), DNDS_MPI_REAL, MPI_MAX, rhs.dist->getMPI().comm);
+            }
+        }
+
+        void FixUMaxFilter(ArrayDOF<5u> &u)
+        {
+            real scaleRhoCutoff = 0.001;
+            real scaleEInternalCutOff = 0.001;
+            real rhoMax = 0.0;
+            for (index iCell = 0; iCell < u.size(); iCell++)
+            {
+                rhoMax = std::max(u[iCell](0), rhoMax);
+            }
+            real rhoMaxR;
+            MPI_Allreduce(&rhoMax, &rhoMaxR, 1, DNDS_MPI_REAL, MPI_MAX, u.dist->getMPI().comm);
+            real eMax = 0.0;
+            real rhoT = scaleRhoCutoff * rhoMaxR;
+            real rhoTSqr = rhoT * rhoT;
+            for (index iCell = 0; iCell < u.size(); iCell++)
+            {
+                if (u[iCell](0) <= 0)
+                    u[iCell](0) = rhoT * 0.5;
+                else if (u[iCell](0) <= rhoT)
+                    u[iCell](0) = (u[iCell](0) * u[iCell](0) + rhoTSqr) / (2 * rhoT);
+                real e = u[iCell](4) - 0.5 * u[iCell]({1, 2, 3}).squaredNorm() / (u[iCell](0) + verySmallReal);
+                eMax = std::max(e, eMax);
+            }
+            real eMaxR;
+            MPI_Allreduce(&eMax, &eMaxR, 1, DNDS_MPI_REAL, MPI_MAX, u.dist->getMPI().comm);
+            real eT = scaleEInternalCutOff * eMaxR;
+            real eTSqr = eT * eT;
+            for (index iCell = 0; iCell < u.size(); iCell++)
+            {
+                real Ek = 0.5 * u[iCell]({1, 2, 3}).squaredNorm() / (u[iCell](0) + verySmallReal);
+                real e = u[iCell](4) - Ek;
+                if (e <= 0)
+                    e = eT * 0.5;
+                else if (e <= eT)
+                    e = (e * e + eTSqr) / (2 * eT);
+                u[iCell](4) = e + Ek;
             }
         }
     };
@@ -420,12 +503,13 @@ namespace DNDS
         ArrayDOF<5u> u, uPoisson;
         ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew;
 
-        static const int nOUTS = 7;
-        // rho u v w p T M
+        static const int nOUTS = 8;
+        // rho u v w p T M ifUseLimiter
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outDist;
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outSerial;
 
         ArrayLocal<SemiVarMatrix<5u>> uF0, uF1;
+        std::vector<uint32_t> ifUseLimiter;
 
     public:
         EulerSolver(const MPIInfo &nmpi) : mpi(nmpi)
@@ -439,6 +523,8 @@ namespace DNDS
             int nTimeStep = 1000;
             int nConsoleCheck = 10;
             int nDataOut = 50;
+            real tDataOut = veryLargeReal;
+            real tEnd = veryLargeReal;
 
             real CFL = 0.5;
 
@@ -505,6 +591,16 @@ namespace DNDS
             config.nDataOut = doc["nDataOut"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nDataOut = " << config.nDataOut << std::endl;
+
+            assert(doc["tDataOut"].IsNumber());
+            config.tDataOut = doc["tDataOut"].GetDouble();
+            if (mpi.rank == 0)
+                log() << "JSON: tDataOut = " << config.tDataOut << std::endl;
+
+            assert(doc["tEnd"].IsNumber());
+            config.tEnd = doc["tEnd"].GetDouble();
+            if (mpi.rank == 0)
+                log() << "JSON: tEnd = " << config.tEnd << std::endl;
 
             assert(doc["CFL"].IsNumber());
             config.CFL = doc["CFL"].GetDouble();
@@ -648,6 +744,12 @@ namespace DNDS
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.curvilinearOrder = " << config.vfvSetting.curvilinearOrder << std::endl;
                 }
+                if (doc["vfvSetting"]["WBAP_SmoothIndicatorScale"].IsNumber())
+                {
+                    config.vfvSetting.WBAP_SmoothIndicatorScale = doc["vfvSetting"]["WBAP_SmoothIndicatorScale"].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: vfvSetting.WBAP_SmoothIndicatorScale = " << config.vfvSetting.WBAP_SmoothIndicatorScale << std::endl;
+                }
             }
             if (doc["nDropVisScale"].IsInt())
             {
@@ -709,14 +811,20 @@ namespace DNDS
                         if (mpi.rank == 0)
                             log() << "JSON: eulerSetting.idealGasProperty.gamma = " << config.eulerSetting.idealGasProperty.gamma << std::endl;
                     }
-                    if (doc["eulerSetting"]["farFieldStaticValue"].IsArray())
+                    if (doc["eulerSetting"]["idealGasProperty"]["Rgas"].IsNumber())
                     {
-                        assert(doc["eulerSetting"]["farFieldStaticValue"].GetArray().Size() == 5);
-                        for (int i = 0; i < 5; i++)
-                            config.eulerSetting.farFieldStaticValue(i) = doc["eulerSetting"]["farFieldStaticValue"].GetArray()[i].GetDouble();
+                        config.eulerSetting.idealGasProperty.Rgas = doc["eulerSetting"]["idealGasProperty"]["Rgas"].GetDouble();
                         if (mpi.rank == 0)
-                            log() << "JSON: eulerSetting.farFieldStaticValue = [ " << config.eulerSetting.farFieldStaticValue.transpose() << " ]" << std::endl;
+                            log() << "JSON: eulerSetting.idealGasProperty.Rgas = " << config.eulerSetting.idealGasProperty.Rgas << std::endl;
                     }
+                }
+                if (doc["eulerSetting"]["farFieldStaticValue"].IsArray())
+                {
+                    assert(doc["eulerSetting"]["farFieldStaticValue"].GetArray().Size() == 5);
+                    for (int i = 0; i < 5; i++)
+                        config.eulerSetting.farFieldStaticValue(i) = doc["eulerSetting"]["farFieldStaticValue"].GetArray()[i].GetDouble();
+                    if (mpi.rank == 0)
+                        log() << "JSON: eulerSetting.farFieldStaticValue = [ " << config.eulerSetting.farFieldStaticValue.transpose() << " ]" << std::endl;
                 }
             }
 
@@ -766,10 +874,10 @@ namespace DNDS
             vfv->BuildRec(uRec);
             vfv->BuildRecFacial(uF0);
             uRecNew.Copy(uRec);
-            uF1.Copy(uF1);
+            uF1.Copy(uF0);
 
-            u.setConstant(0);
-            uPoisson.setConstant(0);
+            u.setConstant(config.eulerSetting.farFieldStaticValue);
+            uPoisson.setConstant(0.0);
 
             outDist = std::make_shared<decltype(outDist)::element_type>(
                 decltype(outDist)::element_type::tContext(mesh->cell2faceLocal.dist->size()), mpi);
@@ -777,6 +885,19 @@ namespace DNDS
             outSerial->BorrowGGIndexing(*mesh->cell2node);
             outSerial->createMPITypes();
             outSerial->initPersistentPull();
+
+
+            // //Box
+            // for (index iCell = 0; iCell < u.dist->size(); iCell++)
+            // {
+            //     auto pos = vfv->cellBaries[iCell];
+            //     if (pos(0) < (0.75 + 1e-5) && pos(0) > (0.25 - 1e-5) && pos(1) < (0.75 + 1e-5) && pos(1) > (0.25 - 1e-5))
+            //     {
+            //         u[iCell] = Eigen::Vector<real, 5>{1, 0, 0, 0, 20};
+            //     }
+            // }
+
+            ifUseLimiter.resize(u.size());
         }
 
         void RunExplicitSSPRK4()
@@ -796,7 +917,7 @@ namespace DNDS
             u.InitPersistentPullClean();
             // u.StartPersistentPullClean();
             double tstart = MPI_Wtime();
-            double trec{0}, tcomm{0}, trhs{0};
+            double trec{0}, tcomm{0}, trhs{0}, tLim{0};
             int stepCount = 0;
             Eigen::Vector<real, 5> resBaseC;
             resBaseC.setConstant(config.res_base);
@@ -805,18 +926,24 @@ namespace DNDS
 
             int curvilinearNum = 0;
             int curvilinearStepper = 0;
+
+            real tsimu = 0.0;
+            real nextTout = 0.0;
+
             for (int step = 1; step <= config.nTimeStep; step++)
             {
                 if (step == config.nForceLocalStartStep)
                     config.useLocalDt = true;
                 if (step == config.nDropVisScale)
                     eval.settings.visScale *= config.vDropVisScale;
-
+                bool ifOutT = false;
+                real curDtMin;
                 curvilinearStepper++;
                 ode.Step(
                     u,
                     [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx)
                     {
+                        eval.FixUMaxFilter(u);
                         double tstartC = MPI_Wtime();
                         u.StartPersistentPullClean();
                         tcomm += MPI_Wtime() - tstartC;
@@ -838,14 +965,17 @@ namespace DNDS
                             uRec.WaitPersistentPullClean();
                             tcomm += MPI_Wtime() - tstartG;
                         }
+                        double tstartH = MPI_Wtime();
+                        
                         vfv->ReconstructionWBAPLimitFacial(
-                            cx, uRec, uRecNew, uF0, uF1,
+                            cx, uRec, uRec, uF0, uF1, ifUseLimiter,
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                 Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
                                 return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                // return Eigen::Matrix<real, 5, 5>::Identity();
                             },
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                 Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
@@ -853,14 +983,17 @@ namespace DNDS
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
                                 return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                // return Eigen::Matrix<real, 5, 5>::Identity();
                             });
+                        tLim += MPI_Wtime() - tstartH;
 
                         double tstartE = MPI_Wtime();
-                        eval.EvaluateRHS(crhs, cx, uRecNew);
+                        eval.EvaluateRHS(crhs, cx, uRec);
                         trhs += MPI_Wtime() - tstartE;
                     },
                     [&](std::vector<real> &dt)
                     {
+                        eval.FixUMaxFilter(u);
                         double tstartC = MPI_Wtime(); //! this also need to update!
                         u.StartPersistentPullClean();
                         tcomm += MPI_Wtime() - tstartC;
@@ -875,8 +1008,16 @@ namespace DNDS
                         uRec.WaitPersistentPullClean();
                         tcomm += MPI_Wtime() - tstartG;
 
-                        eval.EvaluateDt(dt, u, config.CFL, 1e100, config.useLocalDt);
+                        eval.EvaluateDt(dt, u, config.CFL, curDtMin, 1e100, config.useLocalDt);
+                        if (curDtMin + tsimu > nextTout)
+                            curDtMin = nextTout - tsimu, ifOutT = true;
+                        if (!config.useLocalDt)
+                            for (auto &dti : dt)
+                                dti = curDtMin;
                     });
+                tsimu += curDtMin;
+                if (ifOutT)
+                    tsimu = nextTout;
                 Eigen::Vector<real, 5> res;
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
                 if (stepCount == 0 && resBaseC.norm() == 0)
@@ -891,18 +1032,28 @@ namespace DNDS
                         log() << std::setprecision(6) << std::scientific
                               << "=== Step [" << step << "]   "
                               << "res \033[91m[" << (res.array() / resBaseC.array()).transpose() << "]\033[39m   "
+                              << "t,dt(min) \033[92m[" << tsimu << ", " << curDtMin << "]\033[39m   "
                               << std::setprecision(3) << std::fixed
-                              << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  " << std::endl;
+                              << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
                         log().setf(fmt);
                         logErr << step << "\t" << std::setprecision(9) << std::scientific
                                << (res.array() / resBaseC.array()).transpose() << std::endl;
                     }
                     tstart = MPI_Wtime();
-                    trec = tcomm = trhs = 0.;
+                    trec = tcomm = trhs = tLim = 0.;
                 }
                 if (step % config.nDataOut == 0)
                 {
+                    eval.FixUMaxFilter(u);
                     PrintData(config.outPltName + std::to_string(step) + ".plt", ode);
+                }
+                if (ifOutT)
+                {
+                    eval.FixUMaxFilter(u);
+                    PrintData(config.outPltName + "t_" + std::to_string(nextTout) + ".plt", ode);
+                    nextTout += config.tDataOut;
+                    if (nextTout > config.tEnd)
+                        nextTout = config.tEnd;
                 }
 #ifdef USE_LOCAL_COORD_CURVILINEAR
                 if ((curvilinearStepper == config.curvilinearOneStep && curvilinearNum == 0) ||
@@ -1040,6 +1191,9 @@ namespace DNDS
 #endif
 
                 stepCount++;
+
+                if (tsimu == config.tEnd)
+                    break;
             }
 
             // u.WaitPersistentPullClean();
@@ -1049,12 +1203,15 @@ namespace DNDS
         template <typename tODE>
         void PrintData(const std::string &fname, tODE &ode)
         {
+            
             for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
                 Eigen::Vector<real, 5> recu =
                     vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0}, Eigen::all).rightCols(uRec[iCell].m().rows()) *
                     uRec[iCell].m();
-                assert(recu(0) > 0);
+                // recu += u[iCell];
+                // assert(recu(0) > 0);
+                recu = EulerEvaluator::CompressRecPart(u[iCell], recu);
                 Gas::tVec velo = (recu({1, 2, 3}).array() / recu(0)).matrix();
                 real vsqr = velo.squaredNorm();
                 real asqr, p, H;
@@ -1070,11 +1227,12 @@ namespace DNDS
                 (*outDist)[iCell][4] = p;
                 (*outDist)[iCell][5] = T;
                 (*outDist)[iCell][6] = M;
+                (*outDist)[iCell][7] = (bool)(ifUseLimiter[iCell] & 0x0000000FU);
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();
             const static std::vector<std::string> names{
-                "R", "U", "V", "W", "P", "T", "M"};
+                "R", "U", "V", "W", "P", "T", "M", "ifUseLimiter"};
             mesh->PrintSerialPartPltASCIIDataArray(
                 fname, 0, nOUTS, //! oprank = 0
                 [&](int idata)

@@ -3,7 +3,6 @@
 #include "DNDS_Mesh.hpp"
 #include "DNDS_HardEigen.h"
 #include "unsupported/Eigen/CXX11/Tensor"
-#include "DNDS_Gas.hpp"
 
 #include <set>
 
@@ -187,6 +186,8 @@ namespace DNDS
                 D = 1
             } weightSchemeGeom = WeightSchemeGeom::None;
             std::string weightSchemeGeomName;
+
+            real WBAP_SmoothIndicatorScale = 0.5;
 
         } setting;
         // **********************************************************************************************************************
@@ -2227,6 +2228,7 @@ namespace DNDS
                                     Eigen::Vector<real, vsize> uBL = (diffI.row(0).rightCols(uRec[iCell].m().rows()) *
                                                                       uRec[iCell].m())
                                                                          .transpose();
+                                    uBL += u[iCell].p().transpose();
                                     uBV.setZero();
                                     uBV(0) = uBL(0);
                                     Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
@@ -2235,7 +2237,7 @@ namespace DNDS
                                     uBV(4) = uBL(4);
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell].p()).transpose();
-                                    Eigen::MatrixXd rowDiffI = diffI.row(0);
+                                    Eigen::MatrixXd rowDiffI = diffI.row(0).rightCols(uRec[iCell].m().rows());
                                     FFaceFunctional(iFace, ig, rowDiffI, rowUD, (*faceWeights)[iFace]({0}), corInc);
                                     corInc *= faceNorms[iFace][ig].norm();
                                 });
@@ -2398,6 +2400,7 @@ namespace DNDS
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf,
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecFacialBuf,
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecFacialNewBuf,
+                                           std::vector<uint32_t> &ifUseLimiter,
                                            TFM &&FM, TFMI &&FMI)
         {
             static int icount = 0;
@@ -2410,10 +2413,16 @@ namespace DNDS
                 index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                 auto &c2f = mesh->cell2faceLocal[iCell];
 
+                Eigen::Matrix<real, 2, 2> IJIISIsum;
+                IJIISIsum.setZero();
                 for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                 {
                     index iFace = c2f[ic2f];
-                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    auto &faceRecAtr = faceRecAtrLocal[iFace][0];
+                    auto &faceAtr = mesh->faceAtrLocal[iFace][0];
+                    auto f2c = mesh->face2cellLocal[iFace];
+                    auto faceDiBjGaussBatchElemVR = (*faceDiBjGaussBatch)[iFace];
+                    Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
                     index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                     index iCellAtFace = f2c[0] == iCell ? 0 : 1;
                     if (iCellOther != FACE_2_VOL_EMPTY)
@@ -2436,7 +2445,47 @@ namespace DNDS
                                 Eigen::all)
                             .setConstant(UnInitReal);
                     }
+                    Eigen::Matrix<real, 2, 2> IJIISI;
+                    IJIISI.setZero();
+                    eFace.Integration(
+                        IJIISI,
+                        [&](Eigen::Matrix<real, 2, 2> &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+                        {
+                            int nDiff = faceWeights->operator[](iFace).size();
+                            Elem::tPoint unitNorm = faceNorms[iFace][ig].normalized();
+                            //! Taking only rho and E
+                            Eigen::MatrixXd uRecVal(nDiff, 2), uRecValL(nDiff, 2), uRecValR(nDiff, 2), uRecValJump(nDiff, 2);
+                            uRecVal.setZero(), uRecValJump.setZero();
+                            uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[f2c[0]].m().rows()) * uRec[f2c[0]].m()(Eigen::all, {0, 4});
+                            uRecValL(0, Eigen::all) += u[iCell].p()({0, 4}).transpose();
+
+                            if (f2c[1] != FACE_2_VOL_EMPTY)
+                            {
+                                uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[f2c[1]].m().rows()) * uRec[f2c[1]].m()(Eigen::all, {0, 4});
+                                uRecValR(0, Eigen::all) += u[iCellOther].p()({0, 4}).transpose();
+                                uRecVal = (uRecValL + uRecValR) * 0.5;
+                                uRecValJump = (uRecValL - uRecValR) * 0.5;
+                            }
+
+                            Eigen::MatrixXd IJI, ISI;
+                            FFaceFunctional(iFace, ig, uRecVal, uRecVal, (*faceWeights)[iFace], ISI);
+                            FFaceFunctional(iFace, ig, uRecValJump, uRecValJump, (*faceWeights)[iFace], IJI);
+                            finc({0, 1}, 0) = IJI.diagonal();
+                            finc({0, 1}, 1) = ISI.diagonal();
+
+                            finc *= faceNorms[iFace][ig].norm(); // don't forget this
+                        });
+                    IJIISIsum += IJIISI;
                 }
+                Eigen::Vector<real, 2> smoothIndicator =
+                    (IJIISIsum({0, 1}, 0).array() /
+                     (IJIISIsum({0, 1}, 1).array() + verySmallReal))
+                        .matrix();
+                real sImax = smoothIndicator.array().abs().maxCoeff();
+                ifUseLimiter[iCell] = (ifUseLimiter[iCell] << 1) |
+                                      (std::sqrt(sImax) > setting.WBAP_SmoothIndicatorScale / (P_ORDER * P_ORDER)
+                                           ? 0x00000001U
+                                           : 0x00000000U);
             }
             uRecFacialBuf.StartPersistentPullClean();
             uRecFacialBuf.WaitPersistentPullClean();
@@ -2470,6 +2519,8 @@ namespace DNDS
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
                 {
                     index iCell = iScan;
+                    if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                        continue;
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
 
@@ -2547,6 +2598,8 @@ namespace DNDS
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
                 {
                     index iCell = iScan;
+                    if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                        continue;
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
 
@@ -2591,6 +2644,8 @@ namespace DNDS
             for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
             {
                 index iCell = iScan;
+                if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                    continue;
                 index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                 auto &c2f = mesh->cell2faceLocal[iCell];
 

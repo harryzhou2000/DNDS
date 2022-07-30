@@ -31,7 +31,7 @@ namespace DNDS
             }
         }
 
-        T& operator[](index i)
+        T &operator[](index i)
         {
             assert(i >= 0 && i < size());
             // if (i >= arr.size())
@@ -104,6 +104,7 @@ namespace DNDS
 
         void Copy(ArrayLocal<T> &R)
         {
+            assert(&R != this);
             dist = std::make_shared<Array<T>>(*R.dist);
             ghost = std::make_shared<Array<T>>(*R.ghost, dist.get());
             // ghost->BorrowGGIndexing(*R.ghost);
@@ -148,7 +149,7 @@ namespace DNDS
         void ClearPersistentPullClean() { ghost->clearPersistentPull(); }
 
         // index the pair
-        inline T& operator[](index i)
+        inline T &operator[](index i)
         {
             assert(pair && dist && ghost);
             // if (i >= 0)
@@ -206,6 +207,14 @@ namespace DNDS
             assert(base::dist);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p().setConstant(v); });
+        }
+
+        template <typename Tin>
+        void setConstant(const Tin &in)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p() = in; });
         }
 
         void operator=(const ArrayDOF<vsize> &R)
