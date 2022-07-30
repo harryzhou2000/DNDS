@@ -187,7 +187,7 @@ namespace DNDS
             } weightSchemeGeom = WeightSchemeGeom::None;
             std::string weightSchemeGeomName;
 
-            real WBAP_SmoothIndicatorScale = 0.5;
+            real WBAP_SmoothIndicatorScale = 1e-5;
             real WBAP_nStd = 10.0;
 
         } setting;
@@ -2489,6 +2489,9 @@ namespace DNDS
                 //                            : 0x00000000U);
                 ifUseLimiter[iCell] = std::sqrt(sImax) * (P_ORDER * P_ORDER);
             }
+            // assert(u.ghost->commStat.hasPersistentPullReqs);
+            // assert(uRecFacialBuf.ghost->commStat.hasPersistentPullReqs);
+            // exit(0);
             uRecFacialBuf.StartPersistentPullClean();
             uRecFacialBuf.WaitPersistentPullClean();
 
@@ -2527,8 +2530,6 @@ namespace DNDS
                         continue;
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
-
-                    std::vector<Eigen::Array<real, vsize, -1>> uOtherMid;
 
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                     {
@@ -2580,8 +2581,8 @@ namespace DNDS
                             real n = setting.WBAP_nStd;
                             if (ifUseLimiter[iCell] < 2 * setting.WBAP_SmoothIndicatorScale)
                             {
-                                real eIS = ( ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / ( setting.WBAP_SmoothIndicatorScale);
-                                n *= std::exp((1 - eIS) *  10);
+                                real eIS = (ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / (setting.WBAP_SmoothIndicatorScale);
+                                n *= std::exp((1 - eIS) * 10);
                             }
                             FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
                             if (uLimOutArray.hasNaN())
@@ -2604,6 +2605,9 @@ namespace DNDS
                         }
                     }
                 }
+                // uRecFacialNewBuf.StartPersistentPullClean();
+                // uRecFacialNewBuf.WaitPersistentPullClean();
+                //! why ????? need a InitPersistentPullClean() !
 
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
                 {

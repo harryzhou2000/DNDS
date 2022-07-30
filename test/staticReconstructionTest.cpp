@@ -4,8 +4,6 @@
 #include <cstdlib>
 #include <iomanip>
 
-
-
 int main(int argn, char *argv[])
 {
     MPI_Init(&argn, &argv);
@@ -62,7 +60,7 @@ int main(int argn, char *argv[])
         "data/mesh/Uniform/UniformA1.msh",
         "data/mesh/Uniform/UniformA2.msh",
         "data/mesh/Uniform/UniformA3.msh",
-        "data/mesh/Uniform/UniformA4.msh",
+        // "data/mesh/Uniform/UniformA4.msh",
         // "data/mesh/Uniform/UniformB0.msh",
         // "data/mesh/Uniform/UniformB1.msh",
         // "data/mesh/Uniform/UniformB2.msh",
@@ -102,6 +100,7 @@ int main(int argn, char *argv[])
         cfv.BuildRec(uRecCR);
         vfv.BuildRecFacial(uRecF1);
         uRecF2.Copy(uRecF1);
+        uRecF2.InitPersistentPullClean();
 
         // Eigen::ArrayXXd U1{{0,1,-1}};
         // Eigen::ArrayXXd U2{{1,0,1}};
@@ -144,6 +143,8 @@ int main(int argn, char *argv[])
         // InsertCheck(mpi, "BeforeRec");
         double tstart = MPI_Wtime();
         double tLimiter = 0;
+        std::vector<DNDS::real> IS;
+        IS.resize(u.size());
         for (int i = 0; i < nIter; i++)
         {
             u.StartPersistentPullClean();
@@ -156,7 +157,7 @@ int main(int argn, char *argv[])
             {
                 double tstartA = MPI_Wtime();
                 vfv.ReconstructionWBAPLimitFacial(
-                    u, uRec, uRec, uRecF1, uRecF2,
+                    u, uRec, uRec, uRecF1, uRecF2, IS,
                     [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
                     {
                         return Eigen::MatrixXd::Identity(1, 1);
@@ -173,7 +174,7 @@ int main(int argn, char *argv[])
         {
             double tstartA = MPI_Wtime();
             vfv.ReconstructionWBAPLimitFacial(
-                u, uRec, uRec, uRecF1, uRecF2,
+                u, uRec, uRec, uRecF1, uRecF2, IS,
                 [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
                 {
                     return Eigen::MatrixXd::Identity(1, 1);

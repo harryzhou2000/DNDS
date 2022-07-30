@@ -875,7 +875,9 @@ namespace DNDS
             vfv->BuildRec(uRec);
             vfv->BuildRecFacial(uF0);
             uRecNew.Copy(uRec);
-            uF1.Copy(uF0);
+            // uF1.Copy(uF0);
+            // uF1.InitPersistentPullClean();
+            vfv->BuildRecFacial(uF1);//! why copy is bad ??? 
 
             u.setConstant(config.eulerSetting.farFieldStaticValue);
             uPoisson.setConstant(0.0);
@@ -886,7 +888,6 @@ namespace DNDS
             outSerial->BorrowGGIndexing(*mesh->cell2node);
             outSerial->createMPITypes();
             outSerial->initPersistentPull();
-
 
             // //Box
             // for (index iCell = 0; iCell < u.dist->size(); iCell++)
@@ -914,8 +915,11 @@ namespace DNDS
             EulerEvaluator eval(mesh.get(), fv.get(), vfv.get());
             std::ofstream logErr(config.outLogName + ".log");
             eval.settings = config.eulerSetting;
+            // std::cout << uF0.dist->commStat.hasPersistentPullReqs << std::endl;
+            // exit(0);
             uRec.InitPersistentPullClean();
             u.InitPersistentPullClean();
+            // uF0.InitPersistentPullClean();
             // u.StartPersistentPullClean();
             double tstart = MPI_Wtime();
             double trec{0}, tcomm{0}, trhs{0}, tLim{0};
@@ -967,7 +971,10 @@ namespace DNDS
                             tcomm += MPI_Wtime() - tstartG;
                         }
                         double tstartH = MPI_Wtime();
-                        
+
+                        cx.StartPersistentPullClean();
+                        cx.WaitPersistentPullClean();
+
                         vfv->ReconstructionWBAPLimitFacial(
                             cx, uRec, uRec, uF0, uF1, ifUseLimiter,
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
@@ -975,16 +982,16 @@ namespace DNDS
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                // return Eigen::Matrix<real, 5, 5>::Identity();
+                                // return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                return Eigen::Matrix<real, 5, 5>::Identity();
                             },
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                 Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                // return Eigen::Matrix<real, 5, 5>::Identity();
+                                // return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                return Eigen::Matrix<real, 5, 5>::Identity();
                             });
                         tLim += MPI_Wtime() - tstartH;
 
@@ -1204,7 +1211,7 @@ namespace DNDS
         template <typename tODE>
         void PrintData(const std::string &fname, tODE &ode)
         {
-            
+
             for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
                 Eigen::Vector<real, 5> recu =
@@ -1229,7 +1236,7 @@ namespace DNDS
                 (*outDist)[iCell][5] = T;
                 (*outDist)[iCell][6] = M;
                 // (*outDist)[iCell][7] = (bool)(ifUseLimiter[iCell] & 0x0000000FU);
-                (*outDist)[iCell][7] = ifUseLimiter[iCell]/config.vfvSetting.WBAP_SmoothIndicatorScale;
+                (*outDist)[iCell][7] = ifUseLimiter[iCell] / config.vfvSetting.WBAP_SmoothIndicatorScale;
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();
