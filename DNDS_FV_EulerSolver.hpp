@@ -509,7 +509,8 @@ namespace DNDS
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outSerial;
 
         ArrayLocal<SemiVarMatrix<5u>> uF0, uF1;
-        std::vector<uint32_t> ifUseLimiter;
+        // std::vector<uint32_t> ifUseLimiter;
+        std::vector<real> ifUseLimiter;
 
     public:
         EulerSolver(const MPIInfo &nmpi) : mpi(nmpi)
@@ -1227,7 +1228,8 @@ namespace DNDS
                 (*outDist)[iCell][4] = p;
                 (*outDist)[iCell][5] = T;
                 (*outDist)[iCell][6] = M;
-                (*outDist)[iCell][7] = (bool)(ifUseLimiter[iCell] & 0x0000000FU);
+                // (*outDist)[iCell][7] = (bool)(ifUseLimiter[iCell] & 0x0000000FU);
+                (*outDist)[iCell][7] = ifUseLimiter[iCell]/config.vfvSetting.WBAP_SmoothIndicatorScale;
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();

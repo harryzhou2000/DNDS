@@ -188,6 +188,7 @@ namespace DNDS
             std::string weightSchemeGeomName;
 
             real WBAP_SmoothIndicatorScale = 0.5;
+            real WBAP_nStd = 10.0;
 
         } setting;
         // **********************************************************************************************************************
@@ -2344,10 +2345,10 @@ namespace DNDS
          * @brief input eigen arrays
          */
         template <typename Tin1, typename Tin2, typename Tout>
-        inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut)
+        inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
         {
             static const int p = 4;
-            static const real n = 10.0;
+            // static const real n = 10.0;
             static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
             auto uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
             auto u1p = (u1 / uMax).pow(p);
@@ -2400,7 +2401,7 @@ namespace DNDS
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf,
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecFacialBuf,
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecFacialNewBuf,
-                                           std::vector<uint32_t> &ifUseLimiter,
+                                           std::vector<real> &ifUseLimiter,
                                            TFM &&FM, TFMI &&FMI)
         {
             static int icount = 0;
@@ -2482,10 +2483,11 @@ namespace DNDS
                      (IJIISIsum({0, 1}, 1).array() + verySmallReal))
                         .matrix();
                 real sImax = smoothIndicator.array().abs().maxCoeff();
-                ifUseLimiter[iCell] = (ifUseLimiter[iCell] << 1) |
-                                      (std::sqrt(sImax) > setting.WBAP_SmoothIndicatorScale / (P_ORDER * P_ORDER)
-                                           ? 0x00000001U
-                                           : 0x00000000U);
+                // ifUseLimiter[iCell] = (ifUseLimiter[iCell] << 1) |
+                //                       (std::sqrt(sImax) > setting.WBAP_SmoothIndicatorScale / (P_ORDER * P_ORDER)
+                //                            ? 0x00000001U
+                //                            : 0x00000000U);
+                ifUseLimiter[iCell] = std::sqrt(sImax) * (P_ORDER * P_ORDER);
             }
             uRecFacialBuf.StartPersistentPullClean();
             uRecFacialBuf.WaitPersistentPullClean();
@@ -2519,7 +2521,9 @@ namespace DNDS
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
                 {
                     index iCell = iScan;
-                    if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                    // if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                    //     continue;
+                    if (ifUseLimiter[iCell] > setting.WBAP_SmoothIndicatorScale)
                         continue;
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
@@ -2573,7 +2577,13 @@ namespace DNDS
                                     Eigen::all);
 
                             Eigen::ArrayXXd uLimOutArray;
-                            FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray);
+                            real n = setting.WBAP_nStd;
+                            if (ifUseLimiter[iCell] > 0.5 * setting.WBAP_SmoothIndicatorScale)
+                            {
+                                real eIS = (ifUseLimiter[iCell] - 0.5 * setting.WBAP_SmoothIndicatorScale) / (0.5 * setting.WBAP_SmoothIndicatorScale);
+                                n *= std::exp(eIS * 2.0 * 10);
+                            }
+                            FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
                             if (uLimOutArray.hasNaN())
                             {
                                 std::cout << uThisIn.array().transpose() << std::endl;
@@ -2598,7 +2608,9 @@ namespace DNDS
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
                 {
                     index iCell = iScan;
-                    if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                    // if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                    //     continue;
+                    if (ifUseLimiter[iCell] > setting.WBAP_SmoothIndicatorScale)
                         continue;
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
@@ -2644,7 +2656,9 @@ namespace DNDS
             for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
             {
                 index iCell = iScan;
-                if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                // if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                //     continue;
+                if (ifUseLimiter[iCell] > setting.WBAP_SmoothIndicatorScale)
                     continue;
                 index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                 auto &c2f = mesh->cell2faceLocal[iCell];
