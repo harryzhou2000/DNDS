@@ -137,6 +137,7 @@ namespace DNDS
                 fdt(dt);
                 xLast = x;
 
+                //* /////////////////
                 frhs(rhs, x);
                 rhsbuf[0] = rhs;
                 rhs *= dt;
@@ -157,6 +158,7 @@ namespace DNDS
                 x *= Coef[2] / (1 - Coef[2]);
                 x += xLast;
                 x *= 1 - Coef[2];
+                //* /////////////////
 
                 // for (int i = 0; i < 10; i++)
                 // {
@@ -169,6 +171,13 @@ namespace DNDS
                 //     x += xLast;
                 //     x *= (1 - 0.2);
                 // }
+
+                // * /////////////////
+                // frhs(rhs, x);
+                // rhsbuf[0] = rhs;
+                // rhs *= dt;
+                // x += rhs;
+                // * /////////////////
             }
         };
     }

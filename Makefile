@@ -34,7 +34,7 @@ test/eikonal.exe test/staticReconstructionTestJR.exe test/euler.exe
 PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o 
 PREBUILD_DEP:=$(PREBUILD:.o=.d)
 
-PREBUILD_FAST= DNDS_HardEigen.o DNDS_Mesh.o
+PREBUILD_FAST= DNDS_HardEigen.o DNDS_Mesh.o DNDS_Profiling.o
 PREBUILD_FAST_DEP:=$(PREBUILD_FAST:.o=.d)
 
 HEADERS=$(wildcard *.hpp *.h)

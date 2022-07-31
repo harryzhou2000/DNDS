@@ -1,9 +1,9 @@
 {
-    "recOrder": 3,
+    "recOrder": 1,
     "nInternalRecStep": 1,
-    "nTimeStep": 20000,
-    "nConsoleCheck": 10,
-    "nDataOut": 100,
+    "nTimeStep": 15000,
+    "nConsoleCheck": 5,
+    "nDataOut": 1000,
     "tDataOut": 0.01e100,
     "tEnd": 0.1e100,
     "CFL": 1,
@@ -15,7 +15,8 @@
         "data/mesh/Uniform/UniformA4_Euler.msh",
         "data/mesh/Uniform/UniformA6_Euler.msh",
         "data/mesh/NACA0012_WIDE_H3_Euler.msh",
-        "data/mesh/NACA0012_SW_0_Euler.msh"
+        "data/mesh/NACA0012_SW_0_Euler.msh",
+        "data/mesh/NACA0012_SW_UG_Euler.msh"
     ],
     "outPltName": "data/out/test_Euler_",
     "outLogName": "data/out/test_Euler_",
@@ -24,7 +25,7 @@
     "vfvSetting": {
         "SOR_Instead": false,
         "SOR_InverseScanning": false,
-        "SOR_RedBlack": true,
+        "SOR_RedBlack": false,
         "JacobiRelax": 1,
         "anistropicLengths": false,
         "tangWeight": 5e-3,
@@ -34,7 +35,7 @@
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 1e+10
+        "WBAP_SmoothIndicatorScale": 0.2
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,

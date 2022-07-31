@@ -260,7 +260,7 @@ int main(int argn, char *argv[])
         if (mpi.rank == 0)
         {
             std::cout << "=== === === === === === === === === === === === === === === === === === ===" << std::endl;
-            std::cout << "Name: " << mName << std::scientific << std::setprecision(6)
+            std::cout << "Name: " << mName << std::scientific << std::setprecision(15)
                       //   << "  \nnorm1 " << norm1R[0] << norm1R[1] << norm1R[2]
                       //   << "  \nnorm2 " << norm2R[0] << norm2R[1] << norm2R[2]
                       //   << "  \nnormInf " << normInfR[0] << normInfR[1] << normInfR[2] << std::endl;

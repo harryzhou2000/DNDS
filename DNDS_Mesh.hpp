@@ -132,8 +132,8 @@ namespace DNDS
                             index inode;
                             Elem::tPoint p;
                             lineStream >> inode >> p[0] >> p[1] >> p[2];
-                            p[2] = 0;//! could be erronous
-                            inode--; // to 0 based
+                            p[2] = 0; //! could be erronous
+                            inode--;  // to 0 based
                             readPoints[inode] = p;
                         }
                         if (fin.eof())
@@ -1521,6 +1521,119 @@ namespace DNDS
                 });
             fout.close();
         }
+
+        // /**
+        //  * @brief names(idata) data(idata, ivolume)
+        //  *
+        //  */
+        // template <class FNAMES, class FDATA>
+        // void PrintSerialPartPltBinaryDataArray(const std::string &fname, MPI_int oprank,
+        //                                        int arraySiz,
+        //                                        FNAMES &&names,
+        //                                        FDATA &&data) //! supports 2d here
+        // {
+        //     if (mpi.rank != oprank)
+        //         return;
+
+        //     if (!Elem::ElementManager::NBufferInit)
+        //         Elem::ElementManager::InitNBuffer();
+        //     // Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
+        //     // Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_16;
+
+        //     std::ofstream fout(fname, std::ios::binary);
+        //     if (!fout)
+        //     {
+        //         log() << "Error: WriteMeshDebugTecASCII open \"" << fname << "\" failure" << std::endl;
+        //         assert(false);
+        //     }
+        //     const char magic_word[] = "#!TDV112";
+        //     const int b_magic_word = sizeof(magic_word) - 1;
+        //     int32_t intBuf;
+        //     double_t doubleBuf;
+        //     float_t floatBuf;
+        //     fout.write(magic_word, b_magic_word);
+        //     intBuf = 1;
+        //     fout.write(&intBuf, sizeof(intBuf));
+        //     intBuf = 1;
+        //     fout.write(&intBuf, sizeof(intBuf)); // grid_type
+        //     auto writeString = [&](const std::string &title)
+        //     {
+        //         for (auto i : title)
+        //         {
+        //             intBuf = i;
+        //             fout.write(&intBuf, sizeof(intBuf));
+        //         }
+        //         intBuf = 0;
+        //         fout.write(&intBuf, sizeof(intBuf));
+        //     };
+        //     writeString("TitleHahaha");
+        //     intBuf = 3;
+        //     fout.write(&intBuf, sizeof(intBuf));
+        //     writeString("X");
+        //     writeString("Y");
+        //     writeString("Z");
+
+        //     floatBuf = 299.0f;
+        //     fout.write(&floatBuf, sizeof(floatBuf));
+        //     writeString("zone_0")
+
+        //     fout << "VARIABLES = \"x\", \"y\", \"iPart\"";
+        //     for (int idata = 0; idata < arraySiz; idata++)
+        //         fout << ", \"" << names(idata) << "\"";
+        //     fout << "\n" // 2d mesh so only x y
+        //          << "Zone N =" << nodeCoords->size() << ","
+        //          << " E = " << cell2node->size() << ","
+        //          << "VARLOCATION=([1-2]=NODAL,[3-" << arraySiz + 3 << "]=CELLCENTERED)"
+        //          << "\n,"
+        //          << "DATAPACKING=BLOCK, ZONETYPE=FEQUADRILATERAL"
+        //          << "\n";
+        //     fout << std::setprecision(16);
+        //     forEachInArray(
+        //         *nodeCoords,
+        //         [&](tVec3DArray::tComponent &e, index i)
+        //         {
+        //             fout << e.p()(0) << "\n";
+        //         });
+        //     forEachInArray(
+        //         *nodeCoords,
+        //         [&](tVec3DArray::tComponent &e, index i)
+        //         {
+        //             fout << e.p()(1) << "\n";
+        //         });
+        //     for (index iv = 0; iv < numCellGlobal; iv++)
+        //     {
+        //         MPI_int r = -1;
+        //         index v = -1;
+        //         cell2node->pLGlobalMapping->search(iv, r, v);
+        //         fout << r << "\n";
+        //     }
+        //     for (int idata = 0; idata < arraySiz; idata++)
+        //     {
+        //         for (index iv = 0; iv < numCellGlobal; iv++)
+        //         {
+        //             fout << data(idata, iv) << "\n";
+        //         }
+        //     }
+
+        //     forEachInArray(
+        //         *cell2node,
+        //         [&](tAdjArray::tComponent &c2n, index iv)
+        //         {
+        //             Elem::ElementManager elemMan((*cellAtr)[iv][0].type, 0);
+        //             switch (elemMan.getPspace())
+        //             {
+        //             case Elem::ParamSpace::TriSpace:
+        //                 fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[2] + 1 << '\n';
+        //                 break;
+        //             case Elem::ParamSpace::QuadSpace:
+        //                 fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[3] + 1 << '\n';
+        //                 break;
+        //             default:
+        //                 assert(false);
+        //             }
+        //         });
+        //     fout.close();
+        // }
 
         void LogStatusSerialPart()
         {

@@ -5,6 +5,7 @@
 #include "DNDS_IndexMapping.hpp"
 #include "DNDS_BasicTypes.hpp"
 #include "DNDS_DerivedTypes.hpp"
+#include "DNDS_Profiling.h"
 
 #include <memory>
 #include <string>
@@ -608,34 +609,42 @@ namespace DNDS
 
         void startPersistentPush() // collective;
         {
+            PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             assert(commStat.hasPersistentPushReqs && commStat.PersistentPushFinished);
             if (PushReqVec.size())
                 MPI_Startall(PushReqVec.size(), PushReqVec.data());
             commStat.PersistentPushFinished = false;
+            PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
         }
         void startPersistentPull() // collective;
         {
+            PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             assert(commStat.hasPersistentPullReqs && commStat.PersistentPullFinished);
             if (PullReqVec.size())
                 MPI_Startall(PullReqVec.size(), PullReqVec.data());
             commStat.PersistentPullFinished = false;
+            PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
         }
 
         void waitPersistentPush() // collective;
         {
+            PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             // assert(commStat.hasPersistentPushReqs && !commStat.PersistentPushFinished);
             assert(commStat.hasPersistentPushReqs);
             if (PushReqVec.size())
                 MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data());
             commStat.PersistentPushFinished = true;
+            PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
         }
         void waitPersistentPull() // collective;
         {
+            PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             // assert(commStat.hasPersistentPullReqs && !commStat.PersistentPullFinished);
             assert(commStat.hasPersistentPullReqs);
             if (PullReqVec.size())
                 MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data());
             commStat.PersistentPullFinished = true;
+            PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
         }
 
         void clearPersistentPush() // collective;

@@ -20,3 +20,4 @@ pulldata.sh
 *.doc*
 *.pdf*
 *.log
+*.tmp

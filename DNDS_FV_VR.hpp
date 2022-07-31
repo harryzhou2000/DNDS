@@ -187,7 +187,7 @@ namespace DNDS
             } weightSchemeGeom = WeightSchemeGeom::None;
             std::string weightSchemeGeomName;
 
-            real WBAP_SmoothIndicatorScale = 1e-5;
+            real WBAP_SmoothIndicatorScale = 1e-10;
             real WBAP_nStd = 10.0;
 
         } setting;
@@ -2326,11 +2326,15 @@ namespace DNDS
             for (int iOther = 0; iOther < Nother; iOther++)
             {
                 auto thetaInverse = uMax / (uOthers[iOther].sign() * (uOthers[iOther].abs() + verySmallReal_pDiP) +
-                                            verySmallReal_pDiP * 2);
+                                            verySmallReal_pDiP * (-2));
                 uDown += thetaInverse.pow(p);
                 uUp += thetaInverse.pow(p - 1);
             }
             uOut *= uUp / (uDown + verySmallReal);
+            // for (int iOther = 0; iOther < Nother; iOther++)
+            // {
+            //     i
+            // }
             if (uOut.hasNaN())
             {
                 std::cout << "Limiter FWBAP_L2_Multiway Failed" << std::endl;
@@ -2457,12 +2461,12 @@ namespace DNDS
                             //! Taking only rho and E
                             Eigen::MatrixXd uRecVal(nDiff, 2), uRecValL(nDiff, 2), uRecValR(nDiff, 2), uRecValJump(nDiff, 2);
                             uRecVal.setZero(), uRecValJump.setZero();
-                            uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[f2c[0]].m().rows()) * uRec[f2c[0]].m()(Eigen::all, {0, 4});
+                            uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m()(Eigen::all, {0, 4});
                             uRecValL(0, Eigen::all) += u[iCell].p()({0, 4}).transpose();
 
-                            if (f2c[1] != FACE_2_VOL_EMPTY)
+                            if (iCellOther != FACE_2_VOL_EMPTY)
                             {
-                                uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[f2c[1]].m().rows()) * uRec[f2c[1]].m()(Eigen::all, {0, 4});
+                                uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[iCellOther].m().rows()) * uRec[iCellOther].m()(Eigen::all, {0, 4});
                                 uRecValR(0, Eigen::all) += u[iCellOther].p()({0, 4}).transpose();
                                 uRecVal = (uRecValL + uRecValR) * 0.5;
                                 uRecValJump = (uRecValL - uRecValR) * 0.5;
@@ -2483,6 +2487,7 @@ namespace DNDS
                      (IJIISIsum({0, 1}, 1).array() + verySmallReal))
                         .matrix();
                 real sImax = smoothIndicator.array().abs().maxCoeff();
+                // sImax = smoothIndicator(0);
                 // ifUseLimiter[iCell] = (ifUseLimiter[iCell] << 1) |
                 //                       (std::sqrt(sImax) > setting.WBAP_SmoothIndicatorScale / (P_ORDER * P_ORDER)
                 //                            ? 0x00000001U
@@ -2605,8 +2610,8 @@ namespace DNDS
                         }
                     }
                 }
-                // uRecFacialNewBuf.StartPersistentPullClean();
-                // uRecFacialNewBuf.WaitPersistentPullClean();
+                uRecFacialNewBuf.StartPersistentPullClean();
+                uRecFacialNewBuf.WaitPersistentPullClean();
                 //! why ????? need a InitPersistentPullClean() !
 
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)

@@ -21,5 +21,12 @@ int main()
 
     Eigen::MatrixXd Mres{{1, 0, -1}};
     std::cout << Mres.array().pow(1.0) << std::endl;
+
+    std::string t = "test";
+    std::cout << "t size = " << t.size() << std::endl;
+    for (auto c : t)
+        std::cout << int(c) << std::endl;
+
+        
     return 0;
 }

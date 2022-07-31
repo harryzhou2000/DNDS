@@ -55,6 +55,7 @@ namespace DNDS
                 compress *= umean(0) * (1 - compressT) / uRecInc(0);
 
             ret = umean + uRecInc * compress;
+
             real Ek = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + ret(0));
             real eT = eFixRatio * Ek;
             real e = ret(4) - Ek;
@@ -162,6 +163,7 @@ namespace DNDS
                         int nDiff = vfv->faceWeights->operator[](iFace).size();
                         Elem::tPoint unitNorm = vfv->faceNorms[iFace][ig].normalized();
                         Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
+
                         Eigen::Vector<real, 5> UL =
                             faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].m().rows()) *
                             uRec[f2c[0]].m();
@@ -571,7 +573,7 @@ namespace DNDS
             if (mpi.rank == 0)
             {
                 log() << "JSON: recOrder = " << config.recOrder << std::endl;
-                if (config.recOrder < 2 || config.recOrder > 3)
+                if (config.recOrder < 1 || config.recOrder > 3)
                 {
                     log() << "Error: recOrder bad! " << std::endl;
                     abort();
@@ -874,10 +876,13 @@ namespace DNDS
             fv->BuildMean(uPoisson);
             vfv->BuildRec(uRec);
             vfv->BuildRecFacial(uF0);
+
             uRecNew.Copy(uRec);
-            // uF1.Copy(uF0);
-            // uF1.InitPersistentPullClean();
-            vfv->BuildRecFacial(uF1);//! why copy is bad ??? 
+            uF1.Copy(uF0);
+            uF1.InitPersistentPullClean();
+
+            // vfv->BuildRecFacial(uF1);//! why copy is bad ???
+            // vfv->BuildRec(uRecNew);
 
             u.setConstant(config.eulerSetting.farFieldStaticValue);
             uPoisson.setConstant(0.0);
@@ -934,9 +939,10 @@ namespace DNDS
 
             real tsimu = 0.0;
             real nextTout = 0.0;
-
+            PerformanceTimer::Instance().clearAllTimer();
             for (int step = 1; step <= config.nTimeStep; step++)
             {
+                
                 if (step == config.nForceLocalStartStep)
                     config.useLocalDt = true;
                 if (step == config.nDropVisScale)
@@ -949,12 +955,8 @@ namespace DNDS
                     [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx)
                     {
                         eval.FixUMaxFilter(u);
-                        double tstartC = MPI_Wtime();
                         u.StartPersistentPullClean();
-                        tcomm += MPI_Wtime() - tstartC;
-                        double tstartB = MPI_Wtime();
                         u.WaitPersistentPullClean();
-                        tcomm += MPI_Wtime() - tstartB;
 
                         for (int iRec = 0; iRec < config.nInternalRecStep; iRec++)
                         {
@@ -962,18 +964,10 @@ namespace DNDS
                             vfv->ReconstructionJacobiStep(cx, uRec, uRecNew);
                             trec += MPI_Wtime() - tstartA;
 
-                            double tstartF = MPI_Wtime();
                             uRec.StartPersistentPullClean();
-                            tcomm += MPI_Wtime() - tstartF;
-
-                            double tstartG = MPI_Wtime();
                             uRec.WaitPersistentPullClean();
-                            tcomm += MPI_Wtime() - tstartG;
                         }
                         double tstartH = MPI_Wtime();
-
-                        cx.StartPersistentPullClean();
-                        cx.WaitPersistentPullClean();
 
                         vfv->ReconstructionWBAPLimitFacial(
                             cx, uRec, uRec, uF0, uF1, ifUseLimiter,
@@ -982,18 +976,21 @@ namespace DNDS
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                // return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                return Eigen::Matrix<real, 5, 5>::Identity();
+                                return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                // return Eigen::Matrix<real, 5, 5>::Identity();
                             },
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                 Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                // return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                return Eigen::Matrix<real, 5, 5>::Identity();
+                                return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                // return Eigen::Matrix<real, 5, 5>::Identity();
                             });
                         tLim += MPI_Wtime() - tstartH;
+
+                        uRec.StartPersistentPullClean(); //! this also need to update!
+                        uRec.WaitPersistentPullClean();
 
                         double tstartE = MPI_Wtime();
                         eval.EvaluateRHS(crhs, cx, uRec);
@@ -1002,19 +999,10 @@ namespace DNDS
                     [&](std::vector<real> &dt)
                     {
                         eval.FixUMaxFilter(u);
-                        double tstartC = MPI_Wtime(); //! this also need to update!
-                        u.StartPersistentPullClean();
-                        tcomm += MPI_Wtime() - tstartC;
-                        double tstartB = MPI_Wtime();
+                        u.StartPersistentPullClean(); //! this also need to update!
                         u.WaitPersistentPullClean();
-                        tcomm += MPI_Wtime() - tstartB;
-
-                        double tstartF = MPI_Wtime();
                         uRec.StartPersistentPullClean();
-                        tcomm += MPI_Wtime() - tstartF;
-                        double tstartG = MPI_Wtime();
                         uRec.WaitPersistentPullClean();
-                        tcomm += MPI_Wtime() - tstartG;
 
                         eval.EvaluateDt(dt, u, config.CFL, curDtMin, 1e100, config.useLocalDt);
                         if (curDtMin + tsimu > nextTout)
@@ -1023,6 +1011,10 @@ namespace DNDS
                             for (auto &dti : dt)
                                 dti = curDtMin;
                     });
+                // std::cout << "A\n"
+                //           << std::setprecision(15)
+                //           << u[12279].transpose() << "\n"
+                //           << u[12280].transpose() << std::endl;
                 tsimu += curDtMin;
                 if (ifOutT)
                     tsimu = nextTout;
@@ -1036,8 +1028,9 @@ namespace DNDS
                     double telapsed = MPI_Wtime() - tstart;
                     if (mpi.rank == 0)
                     {
+                        tcomm = PerformanceTimer::Instance().getTimer(PerformanceTimer::Comm);
                         auto fmt = log().flags();
-                        log() << std::setprecision(6) << std::scientific
+                        log() << std::setprecision(15) << std::scientific
                               << "=== Step [" << step << "]   "
                               << "res \033[91m[" << (res.array() / resBaseC.array()).transpose() << "]\033[39m   "
                               << "t,dt(min) \033[92m[" << tsimu << ", " << curDtMin << "]\033[39m   "
@@ -1049,6 +1042,7 @@ namespace DNDS
                     }
                     tstart = MPI_Wtime();
                     trec = tcomm = trhs = tLim = 0.;
+                    PerformanceTimer::Instance().clearAllTimer();
                 }
                 if (step % config.nDataOut == 0)
                 {
