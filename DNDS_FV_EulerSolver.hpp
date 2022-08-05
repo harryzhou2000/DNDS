@@ -46,8 +46,8 @@ namespace DNDS
 
         static Eigen::Vector<real, 5> CompressRecPart(const Eigen::Vector<real, 5> &umean, const Eigen::Vector<real, 5> &uRecInc)
         {
-            real compressT = 0.01;
-            real eFixRatio = 0.0001;
+            real compressT = 0.00001;
+            real eFixRatio = 0.00001;
             Eigen::Vector<real, 5> ret;
 
             real compress = 1.0;
@@ -457,40 +457,116 @@ namespace DNDS
 
         void FixUMaxFilter(ArrayDOF<5u> &u)
         {
-            real scaleRhoCutoff = 0.001;
-            real scaleEInternalCutOff = 0.001;
+            // TODO: make spacial filter jacobian
+            real scaleRhoCutoff = 0.0001;
+            real scaleEInternalCutOff = 0.0001;
             real rhoMax = 0.0;
+            real rhoMeanU = 0.0;
+            real rhoMeanL = 0.0;
             for (index iCell = 0; iCell < u.size(); iCell++)
             {
                 rhoMax = std::max(u[iCell](0), rhoMax);
+                rhoMeanU += u[iCell](0);
+                rhoMeanL += 1;
             }
-            real rhoMaxR;
+            real rhoMaxR, rhoMeanUR, rhoMeanLR;
             MPI_Allreduce(&rhoMax, &rhoMaxR, 1, DNDS_MPI_REAL, MPI_MAX, u.dist->getMPI().comm);
+            MPI_Allreduce(&rhoMeanU, &rhoMeanUR, 1, DNDS_MPI_REAL, MPI_SUM, u.dist->getMPI().comm);
+            MPI_Allreduce(&rhoMeanL, &rhoMeanLR, 1, DNDS_MPI_REAL, MPI_SUM, u.dist->getMPI().comm);
             real eMax = 0.0;
-            real rhoT = scaleRhoCutoff * rhoMaxR;
-            real rhoTSqr = rhoT * rhoT;
-            for (index iCell = 0; iCell < u.size(); iCell++)
+            real eMeanU = 0.0;
+            real eMeanL = 0.0;
+            real rhoMean = rhoMeanUR / rhoMeanLR;
+            real rhoTC = scaleRhoCutoff * rhoMean;
+            real rhoTCSqr = rhoTC * rhoTC;
+            for (index iCell = 0; iCell < u.dist->size(); iCell++)
             {
-                if (u[iCell](0) <= 0)
-                    u[iCell](0) = rhoT * 0.5;
-                else if (u[iCell](0) <= rhoT)
-                    u[iCell](0) = (u[iCell](0) * u[iCell](0) + rhoTSqr) / (2 * rhoT);
+                real rhoT = rhoTC;
+                real rhoTSqr = rhoTCSqr;
+
+                auto c2f = mesh->cell2faceLocal[iCell];
+                real rhoMU = 0.0;
+                real rhoML = 0.0;
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto f2c = mesh->face2cellLocal[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        rhoMU += u[iCellOther](0);
+                        rhoML += 1;
+                    }
+                }
+                rhoT = scaleRhoCutoff * rhoMU / rhoML;
+                rhoTSqr = rhoT * rhoT;
+
+                real uScale = 1;
+                real rhoOld = u[iCell](0);
+                if (rhoOld <= 0)
+                    u[iCell](0) = rhoT * 0.5, uScale = 0;
+                else if (rhoOld <= rhoT)
+                {
+                    u[iCell](0) = (rhoOld * rhoOld + rhoTSqr) / (2 * rhoT);
+                    uScale = u[iCell](0) / rhoOld;
+                }
+                u[iCell]({1, 2, 3}) *= uScale;
                 real e = u[iCell](4) - 0.5 * u[iCell]({1, 2, 3}).squaredNorm() / (u[iCell](0) + verySmallReal);
                 eMax = std::max(e, eMax);
+                eMeanU += e;
+                eMeanL += 1;
             }
-            real eMaxR;
+            real eMaxR, eMeanUR, eMeanLR;
             MPI_Allreduce(&eMax, &eMaxR, 1, DNDS_MPI_REAL, MPI_MAX, u.dist->getMPI().comm);
-            real eT = scaleEInternalCutOff * eMaxR;
-            real eTSqr = eT * eT;
-            for (index iCell = 0; iCell < u.size(); iCell++)
+            MPI_Allreduce(&eMeanU, &eMeanUR, 1, DNDS_MPI_REAL, MPI_SUM, u.dist->getMPI().comm);
+            MPI_Allreduce(&eMeanL, &eMeanLR, 1, DNDS_MPI_REAL, MPI_SUM, u.dist->getMPI().comm);
+            real eMean = eMeanUR / eMeanLR;
+            real eTC = scaleEInternalCutOff * eMean;
+            real eTSqrC = eTC * eTC;
+            u.StartPersistentPullClean();
+            u.WaitPersistentPullClean();
+            for (index iCell = 0; iCell < u.dist->size(); iCell++)
             {
+                real eT = eTC;
+                real eTSqr = eTSqrC;
+
+                auto c2f = mesh->cell2faceLocal[iCell];
+                real eMU = 0.0;
+                real eML = 0.0;
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto f2c = mesh->face2cellLocal[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        real EkOther = 0.5 * u[iCellOther]({1, 2, 3}).squaredNorm() / (u[iCellOther](0) + verySmallReal);
+                        eMU += u[iCellOther](4) - EkOther;
+                        eML += 1;
+                    }
+                }
+                eT = scaleEInternalCutOff * eMU / eML;
+                eTSqr = eT * eT;
+
                 real Ek = 0.5 * u[iCell]({1, 2, 3}).squaredNorm() / (u[iCell](0) + verySmallReal);
                 real e = u[iCell](4) - Ek;
                 if (e <= 0)
                     e = eT * 0.5;
                 else if (e <= eT)
                     e = (e * e + eTSqr) / (2 * eT);
-                u[iCell](4) = e + Ek;
+                // eNew + Ek = e + Eknew
+                real EkNew = Ek - e + (u[iCell](4) - Ek);
+                if (EkNew > 0)
+                {
+                    real uScale = sqrt(EkNew / Ek);
+                    u[iCell]({1, 2, 3}) *= uScale;
+                }
+                else
+                {
+                    u[iCell]({1, 2, 3}) *= 0;
+                    u[iCell](4) -= EkNew;
+                }
+                // u[iCell](4) =Ek + e;
             }
         }
     };
@@ -525,7 +601,8 @@ namespace DNDS
             int nInternalRecStep = 1;
             int nTimeStep = 1000;
             int nConsoleCheck = 10;
-            int nDataOut = 50;
+            int nDataOut = 10000;
+            int nDataOutC = 50;
             real tDataOut = veryLargeReal;
             real tEnd = veryLargeReal;
 
@@ -589,6 +666,11 @@ namespace DNDS
             config.nConsoleCheck = doc["nConsoleCheck"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nConsoleCheck = " << config.nConsoleCheck << std::endl;
+
+            assert(doc["nDataOutC"].IsInt());
+            config.nDataOutC = doc["nDataOutC"].GetInt();
+            if (mpi.rank == 0)
+                log() << "JSON: nDataOutC = " << config.nDataOutC << std::endl;
 
             assert(doc["nDataOut"].IsInt());
             config.nDataOut = doc["nDataOut"].GetInt();
@@ -939,10 +1021,12 @@ namespace DNDS
 
             real tsimu = 0.0;
             real nextTout = 0.0;
+            int nextStepOut = config.nDataOut;
+            int nextStepOutC = config.nDataOutC;
             PerformanceTimer::Instance().clearAllTimer();
             for (int step = 1; step <= config.nTimeStep; step++)
             {
-                
+
                 if (step == config.nForceLocalStartStep)
                     config.useLocalDt = true;
                 if (step == config.nDropVisScale)
@@ -1038,16 +1122,24 @@ namespace DNDS
                               << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
                         log().setf(fmt);
                         logErr << step << "\t" << std::setprecision(9) << std::scientific
-                               << (res.array() / resBaseC.array()).transpose() << std::endl;
+                               << (res.array() / resBaseC.array()).transpose() << " "
+                               << tsimu << " " << curDtMin << std::endl;
                     }
                     tstart = MPI_Wtime();
                     trec = tcomm = trhs = tLim = 0.;
                     PerformanceTimer::Instance().clearAllTimer();
                 }
-                if (step % config.nDataOut == 0)
+                if (step == nextStepOut)
                 {
                     eval.FixUMaxFilter(u);
                     PrintData(config.outPltName + std::to_string(step) + ".plt", ode);
+                    nextStepOut += config.nDataOut;
+                }
+                if (step == nextStepOutC)
+                {
+                    eval.FixUMaxFilter(u);
+                    PrintData(config.outPltName + "C" + ".plt", ode);
+                    nextStepOutC += config.nDataOutC;
                 }
                 if (ifOutT)
                 {
@@ -1236,14 +1328,15 @@ namespace DNDS
             outSerial->waitPersistentPull();
             const static std::vector<std::string> names{
                 "R", "U", "V", "W", "P", "T", "M", "ifUseLimiter"};
-            mesh->PrintSerialPartPltASCIIDataArray(
+            mesh->PrintSerialPartPltBinaryDataArray(
                 fname, 0, nOUTS, //! oprank = 0
                 [&](int idata)
                 { return names[idata]; },
                 [&](int idata, index iv)
                 {
                     return (*outSerial)[iv][idata];
-                });
+                },
+                0);
         }
     };
 

@@ -2584,11 +2584,11 @@ namespace DNDS
 
                             Eigen::ArrayXXd uLimOutArray;
                             real n = setting.WBAP_nStd;
-                            if (ifUseLimiter[iCell] < 2 * setting.WBAP_SmoothIndicatorScale)
-                            {
-                                real eIS = (ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / (setting.WBAP_SmoothIndicatorScale);
-                                n *= std::exp((1 - eIS) * 10);
-                            }
+                            // if (ifUseLimiter[iCell] < 2 * setting.WBAP_SmoothIndicatorScale)
+                            // {
+                            //     real eIS = (ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / (setting.WBAP_SmoothIndicatorScale);
+                            //     n *= std::exp((1 - eIS) * 10);
+                            // }
                             FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
                             if (uLimOutArray.hasNaN())
                             {
@@ -2717,7 +2717,14 @@ namespace DNDS
                     std::cout << uLimOutArray.transpose() << std::endl;
                     std::abort();
                 }
-                uRecNewBuf[iCell].m() = uLimOutArray.matrix();
+
+                real relax = 1;
+                if (ifUseLimiter[iCell] < 2 * setting.WBAP_SmoothIndicatorScale)
+                {
+                    real eIS = (ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / (setting.WBAP_SmoothIndicatorScale);
+                    relax = eIS;
+                }
+                uRecNewBuf[iCell].m() = uLimOutArray.matrix() * relax + uRec[iCell].m() * (1-relax); 
 
                 // std::cout << "new Old" << std::endl;
                 // std::cout << std::setprecision(10) << uRecNewBuf[iCell].m().transpose() << std::endl;

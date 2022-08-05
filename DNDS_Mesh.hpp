@@ -1522,118 +1522,189 @@ namespace DNDS
             fout.close();
         }
 
-        // /**
-        //  * @brief names(idata) data(idata, ivolume)
-        //  *
-        //  */
-        // template <class FNAMES, class FDATA>
-        // void PrintSerialPartPltBinaryDataArray(const std::string &fname, MPI_int oprank,
-        //                                        int arraySiz,
-        //                                        FNAMES &&names,
-        //                                        FDATA &&data) //! supports 2d here
-        // {
-        //     if (mpi.rank != oprank)
-        //         return;
+        /**
+         * @brief names(idata) data(idata, ivolume)
+         * https://tecplot.azureedge.net/products/360/current/360_data_format_guide.pdf
+         */
+        template <class FNAMES, class FDATA>
+        void PrintSerialPartPltBinaryDataArray(const std::string &fname, MPI_int oprank,
+                                               int arraySiz,
+                                               FNAMES &&names,
+                                               FDATA &&data,
+                                               double t) //! supports 2d here
+        {
+            if (mpi.rank != oprank)
+                return;
 
-        //     if (!Elem::ElementManager::NBufferInit)
-        //         Elem::ElementManager::InitNBuffer();
-        //     // Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
-        //     // Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_16;
+            if (!Elem::ElementManager::NBufferInit)
+                Elem::ElementManager::InitNBuffer();
+            // Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
+            // Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_16;
 
-        //     std::ofstream fout(fname, std::ios::binary);
-        //     if (!fout)
-        //     {
-        //         log() << "Error: WriteMeshDebugTecASCII open \"" << fname << "\" failure" << std::endl;
-        //         assert(false);
-        //     }
-        //     const char magic_word[] = "#!TDV112";
-        //     const int b_magic_word = sizeof(magic_word) - 1;
-        //     int32_t intBuf;
-        //     double_t doubleBuf;
-        //     float_t floatBuf;
-        //     fout.write(magic_word, b_magic_word);
-        //     intBuf = 1;
-        //     fout.write(&intBuf, sizeof(intBuf));
-        //     intBuf = 1;
-        //     fout.write(&intBuf, sizeof(intBuf)); // grid_type
-        //     auto writeString = [&](const std::string &title)
-        //     {
-        //         for (auto i : title)
-        //         {
-        //             intBuf = i;
-        //             fout.write(&intBuf, sizeof(intBuf));
-        //         }
-        //         intBuf = 0;
-        //         fout.write(&intBuf, sizeof(intBuf));
-        //     };
-        //     writeString("TitleHahaha");
-        //     intBuf = 3;
-        //     fout.write(&intBuf, sizeof(intBuf));
-        //     writeString("X");
-        //     writeString("Y");
-        //     writeString("Z");
+            std::ofstream fout(fname, std::ios::binary);
+            if (!fout)
+            {
+                log() << "Error: WriteMeshDebugTecASCII open \"" << fname << "\" failure" << std::endl;
+                assert(false);
+            }
+            const char magic_word[] = "#!TDV112";
+            const int b_magic_word = sizeof(magic_word) - 1;
+            int32_t intBuf;
+            double_t doubleBuf;
+            float_t floatBuf;
 
-        //     floatBuf = 299.0f;
-        //     fout.write(&floatBuf, sizeof(floatBuf));
-        //     writeString("zone_0")
+            auto writeInt = [&](int d) -> void
+            {
+                intBuf = d;
+                fout.write((char *)(&intBuf), sizeof(intBuf));
+            };
+            auto writeFloat = [&](float_t d) -> void
+            {
+                floatBuf = d;
+                fout.write((char *)(&floatBuf), sizeof(floatBuf));
+            };
+            auto writeDouble = [&](double_t d) -> void
+            {
+                doubleBuf = d;
+                fout.write((char *)(&doubleBuf), sizeof(doubleBuf));
+            };
+            auto writeString = [&](const std::string &title) -> void
+            {
+                for (auto i : title)
+                {
+                    intBuf = i;
+                    fout.write((char *)(&intBuf), sizeof(intBuf));
+                }
+                intBuf = 0;
+                fout.write((char *)(&intBuf), sizeof(intBuf));
+            };
+            fout.write(magic_word, b_magic_word);
+            writeInt(1);
+            writeInt(0); //! full: write both grid and data
+            writeString("TitleHahaha");
+            writeInt(arraySiz + 3 + 1); // nvars
+            writeString("X");
+            writeString("Y");
+            writeString("Z");
+            for (int idata = 0; idata < arraySiz; idata++)
+                writeString(names(idata));
+            writeString("iPart");
 
-        //     fout << "VARIABLES = \"x\", \"y\", \"iPart\"";
-        //     for (int idata = 0; idata < arraySiz; idata++)
-        //         fout << ", \"" << names(idata) << "\"";
-        //     fout << "\n" // 2d mesh so only x y
-        //          << "Zone N =" << nodeCoords->size() << ","
-        //          << " E = " << cell2node->size() << ","
-        //          << "VARLOCATION=([1-2]=NODAL,[3-" << arraySiz + 3 << "]=CELLCENTERED)"
-        //          << "\n,"
-        //          << "DATAPACKING=BLOCK, ZONETYPE=FEQUADRILATERAL"
-        //          << "\n";
-        //     fout << std::setprecision(16);
-        //     forEachInArray(
-        //         *nodeCoords,
-        //         [&](tVec3DArray::tComponent &e, index i)
-        //         {
-        //             fout << e.p()(0) << "\n";
-        //         });
-        //     forEachInArray(
-        //         *nodeCoords,
-        //         [&](tVec3DArray::tComponent &e, index i)
-        //         {
-        //             fout << e.p()(1) << "\n";
-        //         });
-        //     for (index iv = 0; iv < numCellGlobal; iv++)
-        //     {
-        //         MPI_int r = -1;
-        //         index v = -1;
-        //         cell2node->pLGlobalMapping->search(iv, r, v);
-        //         fout << r << "\n";
-        //     }
-        //     for (int idata = 0; idata < arraySiz; idata++)
-        //     {
-        //         for (index iv = 0; iv < numCellGlobal; iv++)
-        //         {
-        //             fout << data(idata, iv) << "\n";
-        //         }
-        //     }
+            writeFloat(299.0f); // 299.0 indicates a v112 zone header, available in v191
+            writeString("zone_0");
+            writeInt(-1);   // ParentZone: No longer used.
+            writeInt(-1);   // StrandID: static strand ID
+            writeDouble(t); // solution time
+            writeInt(-1);   // default zone color
+            writeInt(3);    // !2d: quad zone
+            writeInt(1);    // specifyVarLocation
 
-        //     forEachInArray(
-        //         *cell2node,
-        //         [&](tAdjArray::tComponent &c2n, index iv)
-        //         {
-        //             Elem::ElementManager elemMan((*cellAtr)[iv][0].type, 0);
-        //             switch (elemMan.getPspace())
-        //             {
-        //             case Elem::ParamSpace::TriSpace:
-        //                 fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[2] + 1 << '\n';
-        //                 break;
-        //             case Elem::ParamSpace::QuadSpace:
-        //                 fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[3] + 1 << '\n';
-        //                 break;
-        //             default:
-        //                 assert(false);
-        //             }
-        //         });
-        //     fout.close();
-        // }
+            for (int idim = 0; idim < 3; idim++)
+                writeInt(0); // xyz at node
+            for (int idata = 0; idata < arraySiz; idata++)
+                writeInt(1); // data at center
+            writeInt(1);     // iPart
+
+            writeInt(0); // Are raw local 1-to-1 face neighbors supplied?
+            writeInt(0); // Number of miscellaneous user-defined face
+
+            writeInt(nodeCoords->size()); // node number
+            writeInt(cell2node->size());  // cell number
+            writeInt(0);                  // I dim
+            writeInt(0);                  // J dim
+            writeInt(0);                  // K dim
+            writeInt(0);                  // No more Auxiliary name/value pairs.
+
+            writeFloat(357.0f); // end of header, EOH marker
+
+            writeFloat(299.0f); // 299.0 indicates a v112 zone header, available in v191
+            for (int idim = 0; idim < 3; idim++)
+                writeInt(2); // double for node
+            for (int idata = 0; idata < arraySiz; idata++)
+                writeInt(2); // double for data
+            writeInt(2);     // double for iPart
+
+            writeInt(0);  // no passive
+            writeInt(0);  // no sharing
+            writeInt(-1); // no sharing
+
+            std::vector<double_t> minVal(3 + arraySiz, veryLargeReal);
+            std::vector<double_t> maxVal(3 + arraySiz, -veryLargeReal); // for all non-shared non-passive
+            for (int idim = 0; idim < 3; idim++)
+                forEachInArray(
+                    *nodeCoords,
+                    [&](tVec3DArray::tComponent &e, index i)
+                    {
+                        minVal[idim] = std::min(e.p()(idim), minVal[idim]);
+                        maxVal[idim] = std::max(e.p()(idim), maxVal[idim]);
+                    });
+
+            for (int idata = 0; idata < arraySiz; idata++)
+                for (index iv = 0; iv < numCellGlobal; iv++)
+                {
+                    minVal[3 + idata] = std::min(data(idata, iv), minVal[3 + idata]);
+                    maxVal[3 + idata] = std::max(data(idata, iv), maxVal[3 + idata]);
+                }
+
+            for (int idim = 0; idim < 3; idim++)
+            {
+                writeDouble(minVal[idim]);
+                writeDouble(maxVal[idim]);
+            }
+            for (int idata = 0; idata < arraySiz; idata++)
+            {
+                writeDouble(minVal[3 + idata]);
+                writeDouble(maxVal[3 + idata]);
+            }
+            writeDouble(0);
+            writeDouble(mpi.size);
+            for (int idim = 0; idim < 3; idim++)
+                forEachInArray(
+                    *nodeCoords,
+                    [&](tVec3DArray::tComponent &e, index i)
+                    {
+                        writeDouble(e.p()(idim));
+                    });
+            for (int idata = 0; idata < arraySiz; idata++)
+            {
+                for (index iv = 0; iv < numCellGlobal; iv++)
+                {
+                    writeDouble(data(idata, iv));
+                }
+            }
+            for (index iv = 0; iv < numCellGlobal; iv++)
+            {
+                MPI_int r = -1;
+                index v = -1;
+                cell2node->pLGlobalMapping->search(iv, r, v);
+                writeDouble(r);
+            }
+
+            forEachInArray(
+                *cell2node,
+                [&](tAdjArray::tComponent &c2n, index iv)
+                {
+                    Elem::ElementManager elemMan((*cellAtr)[iv][0].type, 0);
+                    switch (elemMan.getPspace())
+                    {
+                    case Elem::ParamSpace::TriSpace:
+                        writeInt(c2n[0] + 0);
+                        writeInt(c2n[1] + 0);
+                        writeInt(c2n[2] + 0);
+                        writeInt(c2n[2] + 0);
+                        break;
+                    case Elem::ParamSpace::QuadSpace:
+                        writeInt(c2n[0] + 0);
+                        writeInt(c2n[1] + 0);
+                        writeInt(c2n[2] + 0);
+                        writeInt(c2n[3] + 0); // ! note that tis is zero based
+                        break;
+                    default:
+                        assert(false); //! 2d
+                    }
+                });
+            fout.close();
+        }
 
         void LogStatusSerialPart()
         {

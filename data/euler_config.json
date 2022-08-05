@@ -1,25 +1,27 @@
 {
     "recOrder": 1,
-    "nInternalRecStep": 1,
-    "nTimeStep": 15000,
-    "nConsoleCheck": 5,
-    "nDataOut": 1000,
-    "tDataOut": 0.01e100,
-    "tEnd": 0.1e100,
-    "CFL": 1,
-    "useLocalDt": true,
-    "nForceLocalStartStep": 75000,
+    "nInternalRecStep": 2,
+    "nTimeStep": 100000,
+    "nConsoleCheck": 10,
+    "nDataOutC": 500,
+    "nDataOut": 100000000,
+    "tDataOut": 1,
+    "tEnd": 100,
+    "CFL": 0.5,
+    "useLocalDt": false,
+    "nForceLocalStartStep": 750000000,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/NACA0012_SW_0_Euler.msh",
+    "meshFile": "data/mesh/cylinder_flow_euler.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform/UniformA4_Euler.msh",
         "data/mesh/Uniform/UniformA6_Euler.msh",
         "data/mesh/NACA0012_WIDE_H3_Euler.msh",
         "data/mesh/NACA0012_SW_0_Euler.msh",
-        "data/mesh/NACA0012_SW_UG_Euler.msh"
+        "data/mesh/NACA0012_SW_UG_Euler.msh",
+        "data/mesh/cylinder_flow_euler.msh"
     ],
-    "outPltName": "data/out/test_Euler_",
-    "outLogName": "data/out/test_Euler_",
+    "outPltName": "data/out/test_Euler_.cylinder_flow_euler_O2",
+    "outLogName": "data/out/test_Euler_.cylinder_flow_euler_O2",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -40,8 +42,8 @@
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
-        "comment_euler" : "the artificial vis params are unused;",
-        "comment_settingNotes":"for scheme 8 30p30n: 32 2 2 4",
+        "comment_euler": "the artificial vis params are unused;",
+        "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
         "comment_settingNotesA": "for scheme 8 30p30n with poisson init: 1 1 4 2",
         "visScale": 8,
         "visScaleIn": 4,
@@ -49,14 +51,50 @@
         "isiScaleIn": 2,
         "ekCutDown": 0.5,
         "isiCutDown": 0.5,
-        "farFieldStaticValue": [1, 0.946572765295939, 0, 0, 2.948],
-        "comment_farSatic":[
-            [1, 0, 0, 0, 2.5]
+        "farFieldStaticValue": [
+            1,
+            0.591607978309962,
+            0,
+            0,
+            2.67500000000000
         ],
-        "idealGasProperty":
-        {
+        "comment_farSatic": [
+            [
+                "A",
+                1,
+                0,
+                0,
+                0,
+                2.5
+            ],
+            [
+                "0.8M",
+                1,
+                0.946572765295939,
+                0,
+                0,
+                2.948
+            ],
+            [
+                "2M",
+                1,
+                3.54964786985977,
+                0,
+                0,
+                8.80000000000000
+            ],
+            [
+                "0.5M",
+                1,
+                0.591607978309962,
+                0,
+                0,
+                2.67500000000000
+            ]
+        ],
+        "idealGasProperty": {
             "gamma": 1.4,
-            "Rgas" : 289
+            "Rgas": 289
         }
     },
     "curvilinearOneStep": 1000,
