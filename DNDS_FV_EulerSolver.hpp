@@ -25,6 +25,8 @@ namespace DNDS
             {
                 real gamma = 1.4;
                 real Rgas = 289;
+                real muGas = 1;
+                real prGas = 1;
             } idealGasProperty;
             real visScale = 1;
             real visScaleIn = 1;
@@ -637,144 +639,82 @@ namespace DNDS
         {
             rapidjson::Document doc;
             JSON::ReadFile(jsonName, doc);
+            JSON::ParamParser root(mpi);
 
-            assert(doc["nInternalRecStep"].IsInt());
-            config.nInternalRecStep = doc["nInternalRecStep"].GetInt();
-            if (mpi.rank == 0)
+            root.AddInt("nInternalRecStep", &config.nInternalRecStep);
+            root.AddInt("recOrder", &config.recOrder);
+            root.AddInt("nTimeStep", &config.nTimeStep);
+            root.AddInt("nConsoleCheck", &config.nConsoleCheck);
+            root.AddInt("nDataOutC", &config.nDataOutC);
+            root.AddInt("nDataOut", &config.nDataOut);
+            root.AddDNDS_Real("tDataOut", &config.tDataOut);
+            root.AddDNDS_Real("tEnd", &config.tEnd);
+            root.AddDNDS_Real("CFL", &config.CFL);
+            root.AddDNDS_Real("meshRotZ", &config.meshRotZ);
+            root.Addstd_String("meshFile", &config.mName);
+            root.Addstd_String("outLogName", &config.outLogName);
+            root.Addstd_String("outPltName", &config.outPltName);
+            root.AddDNDS_Real("err_dMax", &config.err_dMax);
+            root.AddDNDS_Real("res_base", &config.res_base);
+            root.AddBool("useLocalDt", &config.useLocalDt);
+            root.AddInt("nForceLocalStartStep", &config.nForceLocalStartStep);
+
+            JSON::ParamParser vfvParser(mpi);
+            root.AddObject("vfvSetting", &vfvParser);
             {
-                log() << "JSON: nInternalRecStep = " << config.nInternalRecStep << std::endl;
+                vfvParser.AddBool("SOR_Instead", &config.vfvSetting.SOR_Instead);
+                vfvParser.AddBool("SOR_InverseScanning", &config.vfvSetting.SOR_InverseScanning);
+                vfvParser.AddBool("SOR_RedBlack", &config.vfvSetting.SOR_RedBlack);
+                vfvParser.AddDNDS_Real("JacobiRelax", &config.vfvSetting.JacobiRelax);
+                vfvParser.AddDNDS_Real("tangWeight", &config.vfvSetting.tangWeight);
+                vfvParser.AddBool("anistropicLengths", &config.vfvSetting.anistropicLengths);
+                vfvParser.AddDNDS_Real("scaleMLargerPortion", &config.vfvSetting.scaleMLargerPortion);
+                vfvParser.AddDNDS_Real("farWeight", &config.vfvSetting.farWeight);
+                vfvParser.AddDNDS_Real("wallWeight", &config.vfvSetting.wallWeight);
+                vfvParser.AddInt("curvilinearOrder", &config.vfvSetting.curvilinearOrder);
+                vfvParser.AddDNDS_Real("WBAP_SmoothIndicatorScale", &config.vfvSetting.WBAP_SmoothIndicatorScale);
             }
 
-            assert(doc["recOrder"].IsInt());
-            config.recOrder = doc["recOrder"].GetInt();
-            if (mpi.rank == 0)
+            root.AddInt("nDropVisScale", &config.nDropVisScale);
+            root.AddDNDS_Real("vDropVisScale", &config.vDropVisScale);
+
+            JSON::ParamParser eulerParser(mpi);
+            root.AddObject("eulerSetting", &eulerParser);
             {
-                log() << "JSON: recOrder = " << config.recOrder << std::endl;
-                if (config.recOrder < 1 || config.recOrder > 3)
+                eulerParser.AddDNDS_Real("visScale", &config.eulerSetting.visScale);
+                eulerParser.AddDNDS_Real("visScaleIn", &config.eulerSetting.visScaleIn);
+                eulerParser.AddDNDS_Real("ekCutDown", &config.eulerSetting.ekCutDown);
+                eulerParser.AddDNDS_Real("isiScale", &config.eulerSetting.isiScale);
+                eulerParser.AddDNDS_Real("isiScaleIn", &config.eulerSetting.isiScaleIn);
+                eulerParser.AddDNDS_Real("isiCutDown", &config.eulerSetting.isiCutDown);
+                eulerParser.AddDNDS_Real("visScale", &config.eulerSetting.visScale);
+            }
+            JSON::ParamParser eulerGasParser(mpi);
+            {
+                eulerParser.AddObject("idealGasProperty", &eulerGasParser);
                 {
-                    log() << "Error: recOrder bad! " << std::endl;
-                    abort();
+                    eulerGasParser.AddDNDS_Real("gamma", &config.eulerSetting.idealGasProperty.gamma);
+                    eulerGasParser.AddDNDS_Real("Rgas", &config.eulerSetting.idealGasProperty.Rgas);
                 }
             }
-
-            assert(doc["nTimeStep"].IsInt());
-            config.nTimeStep = doc["nTimeStep"].GetInt();
-            if (mpi.rank == 0)
-                log() << "JSON: nTimeStep = " << config.nTimeStep << std::endl;
-
-            assert(doc["nConsoleCheck"].IsInt());
-            config.nConsoleCheck = doc["nConsoleCheck"].GetInt();
-            if (mpi.rank == 0)
-                log() << "JSON: nConsoleCheck = " << config.nConsoleCheck << std::endl;
-
-            assert(doc["nDataOutC"].IsInt());
-            config.nDataOutC = doc["nDataOutC"].GetInt();
-            if (mpi.rank == 0)
-                log() << "JSON: nDataOutC = " << config.nDataOutC << std::endl;
-
-            assert(doc["nDataOut"].IsInt());
-            config.nDataOut = doc["nDataOut"].GetInt();
-            if (mpi.rank == 0)
-                log() << "JSON: nDataOut = " << config.nDataOut << std::endl;
-
-            assert(doc["tDataOut"].IsNumber());
-            config.tDataOut = doc["tDataOut"].GetDouble();
-            if (mpi.rank == 0)
-                log() << "JSON: tDataOut = " << config.tDataOut << std::endl;
-
-            assert(doc["tEnd"].IsNumber());
-            config.tEnd = doc["tEnd"].GetDouble();
-            if (mpi.rank == 0)
-                log() << "JSON: tEnd = " << config.tEnd << std::endl;
-
-            assert(doc["CFL"].IsNumber());
-            config.CFL = doc["CFL"].GetDouble();
-            if (mpi.rank == 0)
-                log() << "JSON: CFL = " << config.CFL << std::endl;
-
-            assert(doc["meshRotZ"].IsNumber());
-            config.meshRotZ = doc["meshRotZ"].GetDouble();
-            if (mpi.rank == 0)
-                log() << "JSON: meshRotZ = " << config.meshRotZ << std::endl;
-
-            assert(doc["meshFile"].IsString());
-            config.mName = doc["meshFile"].GetString();
-            if (mpi.rank == 0)
-                log() << "JSON: meshFile = " << config.mName << std::endl;
-
-            assert(doc["outLogName"].IsString());
-            config.outLogName = doc["outLogName"].GetString();
-            if (mpi.rank == 0)
-                log() << "JSON: outLogName = " << config.outLogName << std::endl;
-
-            assert(doc["outPltName"].IsString());
-            config.outPltName = doc["outPltName"].GetString();
-            if (mpi.rank == 0)
-                log() << "JSON: outPltName = " << config.outPltName << std::endl;
-
-            assert(doc["err_dMax"].IsNumber());
-            config.err_dMax = doc["err_dMax"].GetDouble();
-            if (mpi.rank == 0)
-                log() << "JSON: err_dMax = " << config.err_dMax << std::endl;
-
-            assert(doc["res_base"].IsNumber());
-            config.res_base = doc["res_base"].GetDouble();
-            if (mpi.rank == 0)
-                log() << "JSON: res_base = " << config.res_base << std::endl;
-
-            assert(doc["useLocalDt"].IsBool());
-            config.useLocalDt = doc["useLocalDt"].GetBool();
-            if (mpi.rank == 0)
-                log() << "JSON: useLocalDt = " << config.useLocalDt << std::endl;
-
-            assert(doc["nForceLocalStartStep"].IsInt());
-            config.nForceLocalStartStep = doc["nForceLocalStartStep"].GetInt();
-            if (mpi.rank == 0)
+            Eigen::VectorXd eulerSetting_farFieldStaticValueBuf;
             {
-                log() << "JSON: nForceLocalStartStep = " << config.nForceLocalStartStep << std::endl;
+                eulerParser.AddEigen_RealVec("farFieldStaticValue", &eulerSetting_farFieldStaticValueBuf);
             }
+            root.AddInt("curvilinearOneStep", &config.curvilinearOneStep);
+            root.AddInt("curvilinearRestartNstep", &config.curvilinearRestartNstep);
+            root.AddInt("curvilinearRepeatInterval", &config.curvilinearRepeatInterval);
+            root.AddInt("curvilinearRepeatNum", &config.curvilinearRepeatNum);
+            root.AddDNDS_Real("curvilinearRange", &config.curvilinearRange);
+
+            root.Parse(doc.GetObject(), 0);
+            assert(eulerSetting_farFieldStaticValueBuf.size() == 5);
+            config.eulerSetting.farFieldStaticValue = eulerSetting_farFieldStaticValueBuf;
+            if (mpi.rank == 0)
+                log() << "JSON: Parse Done" << std::endl;
 
             if (doc["vfvSetting"].IsObject())
             {
-                if (doc["vfvSetting"]["SOR_Instead"].IsBool())
-                {
-                    config.vfvSetting.SOR_Instead = doc["vfvSetting"]["SOR_Instead"].GetBool();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.SOR_Instead = " << config.vfvSetting.SOR_Instead << std::endl;
-                }
-                if (doc["vfvSetting"]["SOR_InverseScanning"].IsBool())
-                {
-                    config.vfvSetting.SOR_InverseScanning = doc["vfvSetting"]["SOR_InverseScanning"].GetBool();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.SOR_InverseScanning = " << config.vfvSetting.SOR_InverseScanning << std::endl;
-                }
-                if (doc["vfvSetting"]["SOR_RedBlack"].IsBool())
-                {
-                    config.vfvSetting.SOR_RedBlack = doc["vfvSetting"]["SOR_RedBlack"].GetBool();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.SOR_RedBlack = " << config.vfvSetting.SOR_RedBlack << std::endl;
-                }
-                if (doc["vfvSetting"]["JacobiRelax"].IsNumber())
-                {
-                    config.vfvSetting.JacobiRelax = doc["vfvSetting"]["JacobiRelax"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.JacobiRelax = " << config.vfvSetting.JacobiRelax << std::endl;
-                }
-
-                if (doc["vfvSetting"]["tangWeight"].IsNumber())
-                {
-                    config.vfvSetting.tangWeight = doc["vfvSetting"]["tangWeight"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.tangWeight = " << config.vfvSetting.tangWeight << std::endl;
-                }
-
-                if (doc["vfvSetting"]["anistropicLengths"].IsBool())
-                {
-                    config.vfvSetting.anistropicLengths = doc["vfvSetting"]["anistropicLengths"].GetBool();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.anistropicLengths = " << config.vfvSetting.anistropicLengths << std::endl;
-                }
-
                 if (doc["vfvSetting"]["baseCenterType"].IsString())
                 {
                     std::string centerOpt = doc["vfvSetting"]["baseCenterType"].GetString();
@@ -804,144 +744,6 @@ namespace DNDS
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.weightSchemeGeom = " << config.vfvSetting.weightSchemeGeomName << std::endl;
                 }
-
-                if (doc["vfvSetting"]["scaleMLargerPortion"].IsNumber())
-                {
-                    config.vfvSetting.scaleMLargerPortion = doc["vfvSetting"]["scaleMLargerPortion"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.scaleMLargerPortion = " << config.vfvSetting.scaleMLargerPortion << std::endl;
-                }
-                if (doc["vfvSetting"]["wallWeight"].IsNumber())
-                {
-                    config.vfvSetting.wallWeight = doc["vfvSetting"]["wallWeight"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.wallWeight = " << config.vfvSetting.wallWeight << std::endl;
-                }
-                if (doc["vfvSetting"]["farWeight"].IsNumber())
-                {
-                    config.vfvSetting.farWeight = doc["vfvSetting"]["farWeight"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.farWeight = " << config.vfvSetting.farWeight << std::endl;
-                }
-                if (doc["vfvSetting"]["curvilinearOrder"].IsInt())
-                {
-                    config.vfvSetting.curvilinearOrder = doc["vfvSetting"]["curvilinearOrder"].GetInt();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.curvilinearOrder = " << config.vfvSetting.curvilinearOrder << std::endl;
-                }
-                if (doc["vfvSetting"]["WBAP_SmoothIndicatorScale"].IsNumber())
-                {
-                    config.vfvSetting.WBAP_SmoothIndicatorScale = doc["vfvSetting"]["WBAP_SmoothIndicatorScale"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.WBAP_SmoothIndicatorScale = " << config.vfvSetting.WBAP_SmoothIndicatorScale << std::endl;
-                }
-            }
-            if (doc["nDropVisScale"].IsInt())
-            {
-                config.nDropVisScale = doc["nDropVisScale"].GetInt();
-                if (mpi.rank == 0)
-                    log() << "JSON: nDropVisScale = " << config.nDropVisScale << std::endl;
-            }
-
-            if (doc["vDropVisScale"].IsNumber())
-            {
-                config.vDropVisScale = doc["vDropVisScale"].GetDouble();
-                if (mpi.rank == 0)
-                    log() << "JSON: vDropVisScale = " << config.vDropVisScale << std::endl;
-            }
-
-            if (doc["eulerSetting"].IsObject())
-            {
-                if (doc["eulerSetting"]["visScale"].IsNumber())
-                {
-                    config.eulerSetting.visScale = doc["eulerSetting"]["visScale"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: eulerSetting.visScale = " << config.eulerSetting.visScale << std::endl;
-                }
-                if (doc["eulerSetting"]["visScaleIn"].IsNumber())
-                {
-                    config.eulerSetting.visScaleIn = doc["eulerSetting"]["visScaleIn"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: eulerSetting.visScaleIn = " << config.eulerSetting.visScaleIn << std::endl;
-                }
-                if (doc["eulerSetting"]["ekCutDown"].IsNumber())
-                {
-                    config.eulerSetting.ekCutDown = doc["eulerSetting"]["ekCutDown"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: eulerSetting.ekCutDown = " << config.eulerSetting.ekCutDown << std::endl;
-                }
-                if (doc["eulerSetting"]["isiScale"].IsNumber())
-                {
-                    config.eulerSetting.isiScale = doc["eulerSetting"]["isiScale"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: eulerSetting.isiScale = " << config.eulerSetting.isiScale << std::endl;
-                }
-                if (doc["eulerSetting"]["isiScaleIn"].IsNumber())
-                {
-                    config.eulerSetting.isiScaleIn = doc["eulerSetting"]["isiScaleIn"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: eulerSetting.isiScaleIn = " << config.eulerSetting.isiScaleIn << std::endl;
-                }
-                if (doc["eulerSetting"]["isiCutDown"].IsNumber())
-                {
-                    config.eulerSetting.isiCutDown = doc["eulerSetting"]["isiCutDown"].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: eulerSetting.isiCutDown = " << config.eulerSetting.isiCutDown << std::endl;
-                }
-                if (doc["eulerSetting"]["idealGasProperty"].IsObject())
-                {
-                    if (doc["eulerSetting"]["idealGasProperty"]["gamma"].IsNumber())
-                    {
-                        config.eulerSetting.idealGasProperty.gamma = doc["eulerSetting"]["idealGasProperty"]["gamma"].GetDouble();
-                        if (mpi.rank == 0)
-                            log() << "JSON: eulerSetting.idealGasProperty.gamma = " << config.eulerSetting.idealGasProperty.gamma << std::endl;
-                    }
-                    if (doc["eulerSetting"]["idealGasProperty"]["Rgas"].IsNumber())
-                    {
-                        config.eulerSetting.idealGasProperty.Rgas = doc["eulerSetting"]["idealGasProperty"]["Rgas"].GetDouble();
-                        if (mpi.rank == 0)
-                            log() << "JSON: eulerSetting.idealGasProperty.Rgas = " << config.eulerSetting.idealGasProperty.Rgas << std::endl;
-                    }
-                }
-                if (doc["eulerSetting"]["farFieldStaticValue"].IsArray())
-                {
-                    assert(doc["eulerSetting"]["farFieldStaticValue"].GetArray().Size() == 5);
-                    for (int i = 0; i < 5; i++)
-                        config.eulerSetting.farFieldStaticValue(i) = doc["eulerSetting"]["farFieldStaticValue"].GetArray()[i].GetDouble();
-                    if (mpi.rank == 0)
-                        log() << "JSON: eulerSetting.farFieldStaticValue = [ " << config.eulerSetting.farFieldStaticValue.transpose() << " ]" << std::endl;
-                }
-            }
-
-            if (doc["curvilinearOneStep"].IsInt())
-            {
-                config.curvilinearOneStep = doc["curvilinearOneStep"].GetInt();
-                if (mpi.rank == 0)
-                    log() << "JSON: curvilinearOneStep = " << config.curvilinearOneStep << std::endl;
-            }
-            if (doc["curvilinearRestartNstep"].IsInt())
-            {
-                config.curvilinearRestartNstep = doc["curvilinearRestartNstep"].GetInt();
-                if (mpi.rank == 0)
-                    log() << "JSON: curvilinearRestartNstep = " << config.curvilinearRestartNstep << std::endl;
-            }
-            if (doc["curvilinearRepeatInterval"].IsInt())
-            {
-                config.curvilinearRepeatInterval = doc["curvilinearRepeatInterval"].GetInt();
-                if (mpi.rank == 0)
-                    log() << "JSON: curvilinearRepeatInterval = " << config.curvilinearRepeatInterval << std::endl;
-            }
-            if (doc["curvilinearRepeatNum"].IsInt())
-            {
-                config.curvilinearRepeatNum = doc["curvilinearRepeatNum"].GetInt();
-                if (mpi.rank == 0)
-                    log() << "JSON: curvilinearRepeatNum = " << config.curvilinearRepeatNum << std::endl;
-            }
-            if (doc["curvilinearRange"].IsNumber())
-            {
-                config.curvilinearRange = doc["curvilinearRange"].GetDouble();
-                if (mpi.rank == 0)
-                    log() << "JSON: curvilinearRange = " << config.curvilinearRange << std::endl;
             }
         }
 
