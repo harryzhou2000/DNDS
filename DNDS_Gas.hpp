@@ -108,7 +108,7 @@ namespace DNDS
         template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, const TFdumpInfo &dumpInfo)
         {
-            static real scaleHartenYee = 0.01;
+            static real scaleHartenYee = 0.1;
 
             if (!(UL(0) > 0 && UR(0) > 0))
             {

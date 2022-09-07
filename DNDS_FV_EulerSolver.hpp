@@ -335,6 +335,11 @@ namespace DNDS
                             Eigen::Vector<real, 5> fInc;
                             {
                                 real p, pN, asqr, asqrN, H, HN;
+                                if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
+                                    std::cout << umeanOther.transpose() << std::endl
+                                              << umeanOtherN.transpose() << std::endl
+                                              << uInc[iCellOther].transpose() << std::endl
+                                              << "i " << iCell << "\t" << iCellOther << std::endl;
                                 assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
                                 auto velo = umeanOther({1, 2, 3}) / umeanOther(0);
                                 auto veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
@@ -356,8 +361,19 @@ namespace DNDS
                         }
                     }
                 }
-                uIncNewBuf /= fpDivisor;
+                uIncNewBuf /= fpDivisor + verySmallReal;
                 uIncNew[iCell] = uIncNewBuf;
+                if (uIncNew[iCell].hasNaN())
+                {
+                    std::cout << uIncNew[iCell].transpose() << std::endl
+                              << fpDivisor << std::endl
+                              << iCell << std::endl;
+                    assert(!uIncNew[iCell].hasNaN());
+                }
+
+                // fix rho increment
+                if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
+                    uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
             }
         }
 
@@ -418,6 +434,10 @@ namespace DNDS
                 }
                 uIncNewBuf /= fpDivisor;
                 uIncNew[iCell] += uIncNewBuf; // backward
+
+                // fix rho increment
+                if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
+                    uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
             }
         }
 
@@ -801,6 +821,7 @@ namespace DNDS
             int nInternalRecStep = 1;
             int nTimeStep = 1000;
             int nConsoleCheck = 10;
+            int nConsoleCheckInternal = 1;
             int nDataOut = 10000;
             int nDataOutC = 50;
             int nDataOutInternal = 1;
@@ -848,6 +869,7 @@ namespace DNDS
             root.AddInt("nTimeStep", &config.nTimeStep);
             root.AddInt("nTimeStepInternal", &config.nTimeStepInternal);
             root.AddInt("nConsoleCheck", &config.nConsoleCheck);
+            root.AddInt("nConsoleCheckInternal", &config.nConsoleCheckInternal);
             root.AddInt("nDataOutC", &config.nDataOutC);
             root.AddInt("nDataOut", &config.nDataOut);
             root.AddInt("nDataOutCInternal", &config.nDataOutCInternal);
@@ -1474,7 +1496,7 @@ namespace DNDS
                         if (iter == 1)
                             resBaseCInternal = res;
                         Eigen::Vector<real, 5> resRel = (res.array() / resBaseCInternal.array()).matrix();
-                        if (iter % config.nConsoleCheck == 0)
+                        if (iter % config.nConsoleCheckInternal == 0)
                         {
                             double telapsed = MPI_Wtime() - tstart;
                             if (mpi.rank == 0)

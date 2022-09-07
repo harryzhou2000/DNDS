@@ -1083,6 +1083,78 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
                     }
             }
+            else if (Weights.size() == 6) // ! warning : NORM_FUNCTIONAL only implemented for 4th order
+            {
+                // std::cout << "2d 3rd order" << std::endl;
+                // std::abort();
+                const real epsR = 1e-50;
+                real w2r, length;
+                if (std::fabs(Weights[1]) >= epsR || std::fabs(Weights[2]) >= epsR)
+                {
+                    w2r = std::fabs(Weights[1]) >= std::fabs(Weights[2]) ? Weights[3] / (Weights[1] * Weights[1]) : Weights[5] / (Weights[2] * Weights[2]);
+                    length = std::sqrt(Weights[1] * Weights[1] + Weights[2] * Weights[2]);
+                }
+                else
+                {
+                    w2r = 0.0;
+                    length = 0;
+                }
+                Eigen::Vector2d fNorm = iGauss >= 0 ? faceNorms[iFace][iGauss]({0, 1}).stableNormalized() * length
+                                                    : faceNormCenter[iFace]({0, 1}).stableNormalized() * length;
+
+                Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
+                fTang *= setting.tangWeight;
+                real n0 = fNorm(0), n1 = fNorm(1);
+                real t0 = fTang(0), t1 = fTang(1);
+                // w2r *= 0.1;
+                // w3r *= 0.1;
+
+                Conj.resize(DiffI.cols(), DiffJ.cols());
+                Conj.setZero();
+                for (int i = 0; i < DiffI.cols(); i++)
+                    for (int j = 0; j < DiffJ.cols(); j++)
+                    {
+                        Conj(i, j) += DiffI(0, i) * DiffJ(0, j) * Weights(0) * Weights(0);
+
+                        real csumA, csumB;
+                        csumA = DiffI(1, i) * n0 + DiffI(2, i) * n1;
+                        csumB = DiffJ(1, j) * n0 + DiffJ(2, j) * n1;
+                        Conj(i, j) += csumA * csumB;
+                        csumA = DiffI(1, i) * t0 + DiffI(2, i) * t1;
+                        csumB = DiffJ(1, j) * t0 + DiffJ(2, j) * t1;
+                        Conj(i, j) += csumA * csumB;
+
+                        csumA = (DiffI(3, i) * n0 * n0 +
+                                 DiffI(4, i) * n0 * n1 * 2 +
+                                 DiffI(5, i) * n1 * n1) *
+                                w2r;
+                        csumB = (DiffJ(3, j) * n0 * n0 +
+                                 DiffJ(4, j) * n0 * n1 * 2 +
+                                 DiffJ(5, j) * n1 * n1) *
+                                w2r;
+                        Conj(i, j) += csumA * csumB;
+
+                        csumA = (DiffI(3, i) * n0 * t0 +
+                                 DiffI(4, i) * n0 * t1 * 2 +
+                                 DiffI(5, i) * n1 * t1) *
+                                w2r;
+                        csumB = (DiffJ(3, j) * n0 * t0 +
+                                 DiffJ(4, j) * n0 * t1 * 2 +
+                                 DiffJ(5, j) * n1 * t1) *
+                                w2r;
+                        Conj(i, j) += csumA * csumB * 2;
+
+                        csumA = (DiffI(3, i) * t0 * t0 +
+                                 DiffI(4, i) * t0 * t1 * 2 +
+                                 DiffI(5, i) * t1 * t1) *
+                                w2r;
+                        csumB = (DiffJ(3, j) * t0 * t0 +
+                                 DiffJ(4, j) * t0 * t1 * 2 +
+                                 DiffJ(5, j) * t1 * t1) *
+                                w2r;
+                        Conj(i, j) += csumA * csumB;
+                    }
+            }
             else
             {
                 Conj = DiffI.transpose() * Weights.asDiagonal() * Weights.asDiagonal() * DiffJ;
@@ -1918,7 +1990,7 @@ namespace DNDS
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Wall ||
                                  faceAttribute.iPhy == BoundaryType::Wall_Euler ||
-                                faceAttribute.iPhy == BoundaryType::Wall_NoSlip)
+                                 faceAttribute.iPhy == BoundaryType::Wall_NoSlip)
                         {
                             matrixBatchElem.m(ic2f + 1).setZero(); // the other 'cell' has no rec
                         }
@@ -2769,7 +2841,7 @@ namespace DNDS
                     real eIS = (ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / (setting.WBAP_SmoothIndicatorScale);
                     relax = eIS;
                 }
-                uRecNewBuf[iCell].m() = uLimOutArray.matrix() * relax + uRec[iCell].m() * (1-relax); 
+                uRecNewBuf[iCell].m() = uLimOutArray.matrix() * relax + uRec[iCell].m() * (1 - relax);
 
                 // std::cout << "new Old" << std::endl;
                 // std::cout << std::setprecision(10) << uRecNewBuf[iCell].m().transpose() << std::endl;
