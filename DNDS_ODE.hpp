@@ -18,12 +18,11 @@ namespace DNDS
 
         public:
             std::vector<real> dt;
-            std::vector<real> t;
             std::vector<TDATA> rhsbuf;
             TDATA rhs;
             TDATA xLast;
             TDATA xInc;
-            int DOF;
+            index DOF;
 
             /**
              * @brief mind that NDOF is the dof of dt
@@ -34,7 +33,6 @@ namespace DNDS
                 index NDOF, Finit &&finit = [](TDATA &) {}) : DOF(NDOF)
             {
                 dt.resize(NDOF);
-                t.resize(NDOF);
                 rhsbuf.resize(3);
                 for (auto &i : rhsbuf)
                     finit(i);
@@ -101,12 +99,11 @@ namespace DNDS
 
         public:
             std::vector<real> dt;
-            std::vector<real> t;
             std::vector<TDATA> rhsbuf;
             TDATA rhs;
             TDATA xLast;
             TDATA xInc;
-            int DOF;
+            index DOF;
 
             /**
              * @brief mind that NDOF is the dof of dt
@@ -117,7 +114,6 @@ namespace DNDS
                 index NDOF, Finit &&finit = [](TDATA &) {}) : DOF(NDOF)
             {
                 dt.resize(NDOF);
-                t.resize(NDOF);
                 rhsbuf.resize(2);
                 for (auto &i : rhsbuf)
                     finit(i);
@@ -178,6 +174,66 @@ namespace DNDS
                 // rhs *= dt;
                 // x += rhs;
                 // * /////////////////
+            }
+        };
+
+        template <class TDATA>
+        class ImplicitEulerDualTimeStep
+        {
+        public:
+            std::vector<real> dTau;
+            std::vector<TDATA> rhsbuf;
+            TDATA rhs;
+            TDATA xLast;
+            TDATA xInc;
+            index DOF;
+
+            /**
+             * @brief mind that NDOF is the dof of dt
+             * finit(TDATA& data)
+             */
+            template <class Finit>
+            ImplicitEulerDualTimeStep(
+                index NDOF, Finit &&finit = [](TDATA &) {}) : DOF(NDOF)
+            {
+                dTau.resize(NDOF);
+                rhsbuf.resize(1);
+                for (auto &i : rhsbuf)
+                    finit(i);
+                finit(rhs);
+                finit(xLast);
+                finit(xInc);
+            }
+
+            /**
+             * @brief
+             * frhs(TDATA &rhs, TDATA &x)
+             * fdt(std::vector<real>& dTau)
+             * fsolve(TDATA &x, TDATA &rhs, std::vector<real>& dTau, real dt, real alphaDiag, TDATA &xinc)
+             * bool fstop(int iter, TDATA &xinc)
+             */
+            template <class Frhs, class Fdt, class Fsolve, class Fstop>
+            void Step(TDATA &x, TDATA &xinc, Frhs &&frhs, Fdt &&fdt, Fsolve &&fsolve,
+                      int maxIter, Fstop &&fstop, real dt)
+            {
+                xLast = x;
+                for (int iter = 1; iter <= maxIter; iter++)
+                {
+                    fdt(dTau);
+
+                    frhs(rhs, x);
+                    rhsbuf[0] = rhs;
+                    rhs = xLast;
+                    rhs -= x;
+                    rhs *= 1.0 / dt;
+                    rhs += rhsbuf[0]; // crhs = rhs + (x_i - x_j) / dt
+
+                    fsolve(x, rhs, dTau, dt, 1.0, xinc);
+                    x += xinc;
+
+                    if (fstop(iter, xinc))
+                        break;
+                }
             }
         };
     }

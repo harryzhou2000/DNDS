@@ -417,7 +417,7 @@ namespace DNDS
                     }
                 }
                 uIncNewBuf /= fpDivisor;
-                uIncNew[iCell] += uIncNewBuf; //backward
+                uIncNew[iCell] += uIncNewBuf; // backward
             }
         }
 
@@ -778,7 +778,7 @@ namespace DNDS
         std::shared_ptr<ImplicitFiniteVolume2D> fv;
         std::shared_ptr<VRFiniteVolume2D> vfv;
 
-        ArrayDOF<5u> u, uPoisson;
+        ArrayDOF<5u> u, uPoisson, uInc;
         ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew;
 
         static const int nOUTS = 8;
@@ -803,10 +803,14 @@ namespace DNDS
             int nConsoleCheck = 10;
             int nDataOut = 10000;
             int nDataOutC = 50;
+            int nDataOutInternal = 1;
+            int nDataOutCInternal = 1;
+            int nTimeStepInternal = 1000;
             real tDataOut = veryLargeReal;
             real tEnd = veryLargeReal;
 
             real CFL = 0.5;
+            real dtImplicit = 1e100;
 
             real meshRotZ = 0;
             std::string mName = "data/mesh/NACA0012_WIDE_H3.msh";
@@ -842,12 +846,16 @@ namespace DNDS
             root.AddInt("nInternalRecStep", &config.nInternalRecStep);
             root.AddInt("recOrder", &config.recOrder);
             root.AddInt("nTimeStep", &config.nTimeStep);
+            root.AddInt("nTimeStepInternal", &config.nTimeStepInternal);
             root.AddInt("nConsoleCheck", &config.nConsoleCheck);
             root.AddInt("nDataOutC", &config.nDataOutC);
             root.AddInt("nDataOut", &config.nDataOut);
+            root.AddInt("nDataOutCInternal", &config.nDataOutCInternal);
+            root.AddInt("nDataOutInternal", &config.nDataOutInternal);
             root.AddDNDS_Real("tDataOut", &config.tDataOut);
             root.AddDNDS_Real("tEnd", &config.tEnd);
             root.AddDNDS_Real("CFL", &config.CFL);
+            root.AddDNDS_Real("dtImplicit", &config.dtImplicit);
             root.AddDNDS_Real("meshRotZ", &config.meshRotZ);
             root.Addstd_String("meshFile", &config.mName);
             root.Addstd_String("outLogName", &config.outLogName);
@@ -957,6 +965,7 @@ namespace DNDS
 
             fv->BuildMean(u);
             fv->BuildMean(uPoisson);
+            fv->BuildMean(uInc);
             vfv->BuildRec(uRec);
             vfv->BuildRecFacial(uF0);
 
@@ -1005,8 +1014,9 @@ namespace DNDS
             eval.settings = config.eulerSetting;
             // std::cout << uF0.dist->commStat.hasPersistentPullReqs << std::endl;
             // exit(0);
-            uRec.InitPersistentPullClean();
-            u.InitPersistentPullClean();
+            // uRec.InitPersistentPullClean();
+            // u.InitPersistentPullClean();
+            // uInc.InitPersistentPullClean();
             // uF0.InitPersistentPullClean();
             // u.StartPersistentPullClean();
             double tstart = MPI_Wtime();
@@ -1312,6 +1322,251 @@ namespace DNDS
                 stepCount++;
 
                 if (tsimu == config.tEnd)
+                    break;
+            }
+
+            // u.WaitPersistentPullClean();
+            logErr.close();
+        }
+
+        void RunImplicitEuler()
+        {
+
+            ODE::ImplicitEulerDualTimeStep<decltype(u)> ode(
+                u.dist->size(),
+                [&](decltype(u) &data)
+                {
+                    data.resize(u.dist->size(), u.dist->getMPI());
+                    data.CreateGhostCopyComm(mesh->cell2faceLocal);
+                });
+            EulerEvaluator eval(mesh.get(), fv.get(), vfv.get());
+            std::ofstream logErr(config.outLogName + ".log");
+            eval.settings = config.eulerSetting;
+            // std::cout << uF0.dist->commStat.hasPersistentPullReqs << std::endl;
+            // exit(0);
+            // uRec.InitPersistentPullClean();
+            // u.InitPersistentPullClean();
+            // uInc.InitPersistentPullClean();
+            // uF0.InitPersistentPullClean();
+            // u.StartPersistentPullClean();
+            double tstart = MPI_Wtime();
+            double trec{0}, tcomm{0}, trhs{0}, tLim{0};
+            int stepCount = 0;
+            Eigen::Vector<real, 5> resBaseC;
+            Eigen::Vector<real, 5> resBaseCInternal;
+            resBaseC.setConstant(config.res_base);
+
+            // Doing Poisson Init:
+
+            int curvilinearNum = 0;
+            int curvilinearStepper = 0;
+
+            real tsimu = 0.0;
+            real nextTout = config.tDataOut;
+            int nextStepOut = config.nDataOut;
+            int nextStepOutC = config.nDataOutC;
+            PerformanceTimer::Instance().clearAllTimer();
+            for (int step = 1; step <= config.nTimeStep; step++)
+            {
+
+                bool ifOutT = false;
+                real curDtMin;
+                real curDtImplicit = config.dtImplicit;
+                if (tsimu + curDtImplicit > nextTout)
+                {
+                    ifOutT = true;
+                    curDtImplicit = (nextTout - tsimu);
+                }
+
+                ode.Step(
+                    u, uInc,
+                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx)
+                    {
+                        eval.FixUMaxFilter(cx);
+                        cx.StartPersistentPullClean();
+                        cx.WaitPersistentPullClean();
+
+                        for (int iRec = 0; iRec < config.nInternalRecStep; iRec++)
+                        {
+                            double tstartA = MPI_Wtime();
+                            vfv->ReconstructionJacobiStep(cx, uRec, uRecNew);
+                            trec += MPI_Wtime() - tstartA;
+
+                            uRec.StartPersistentPullClean();
+                            uRec.WaitPersistentPullClean();
+                        }
+                        double tstartH = MPI_Wtime();
+
+                        vfv->ReconstructionWBAPLimitFacial(
+                            cx, uRec, uRec, uF0, uF1, ifUseLimiter,
+                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                auto normBase = Elem::NormBuildLocalBaseV(n);
+                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+
+                                real ekFixRatio = 0.001;
+                                Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                real vsqr = velo.squaredNorm();
+                                real Ek = vsqr * 0.5 * UC(0);
+                                real Efix = Ek * ekFixRatio;
+                                real e = UC(4) - Ek;
+                                if (e < 0)
+                                    e = 0.5 * Efix;
+                                else if (e < Efix)
+                                    e = (e * e + Efix * Efix) / (2 * Efix);
+                                UC(4) = Ek + e;
+
+                                // return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                return Eigen::Matrix<real, 5, 5>::Identity();
+                            },
+                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                auto normBase = Elem::NormBuildLocalBaseV(n);
+                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+
+                                real ekFixRatio = 0.001;
+                                Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                real vsqr = velo.squaredNorm();
+                                real Ek = vsqr * 0.5 * UC(0);
+                                real Efix = Ek * ekFixRatio;
+                                real e = UC(4) - Ek;
+                                if (e < 0)
+                                    e = 0.5 * Efix;
+                                else if (e < Efix)
+                                    e = (e * e + Efix * Efix) / (2 * Efix);
+                                UC(4) = Ek + e;
+
+                                // return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                return Eigen::Matrix<real, 5, 5>::Identity();
+                            });
+                        tLim += MPI_Wtime() - tstartH;
+
+                        uRec.StartPersistentPullClean(); //! this also need to update!
+                        uRec.WaitPersistentPullClean();
+
+                        double tstartE = MPI_Wtime();
+                        eval.EvaluateRHS(crhs, cx, uRec);
+                        trhs += MPI_Wtime() - tstartE;
+                    },
+                    [&](std::vector<real> &dTau)
+                    {
+                        eval.FixUMaxFilter(u);
+                        u.StartPersistentPullClean(); //! this also need to update!
+                        u.WaitPersistentPullClean();
+                        uRec.StartPersistentPullClean();
+                        uRec.WaitPersistentPullClean();
+
+                        eval.EvaluateDt(dTau, u, config.CFL, curDtMin, 1e100, true);
+                    },
+                    [&](ArrayDOF<5u> &cx, ArrayDOF<5u> &crhs, std::vector<real> &dTau,
+                        real dt, real alphaDiag, ArrayDOF<5u> &cxInc)
+                    {
+                        eval.UpdateLUSGSForward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
+                        cxInc.StartPersistentPullClean();
+                        cxInc.WaitPersistentPullClean();
+                        eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
+                    },
+                    config.nTimeStepInternal,
+                    [&](int iter, ArrayDOF<5u> &cxinc) -> bool
+                    {
+                        Eigen::Vector<real, 5> res;
+                        eval.EvaluateResidual(res, cxinc);
+                        if (iter == 1)
+                            resBaseCInternal = res;
+                        Eigen::Vector<real, 5> resRel = (res.array() / resBaseCInternal.array()).matrix();
+                        if (iter % config.nConsoleCheck == 0)
+                        {
+                            double telapsed = MPI_Wtime() - tstart;
+                            if (mpi.rank == 0)
+                            {
+                                tcomm = PerformanceTimer::Instance().getTimer(PerformanceTimer::Comm);
+                                auto fmt = log().flags();
+                                log() << std::setprecision(15) << std::scientific
+                                      << "\t Internal === Step [" << iter << "]   "
+                                      << "res \033[91m[" << resRel.transpose() << "]\033[39m   "
+                                      << "t,dTaumin \033[92m[" << tsimu << ", " << curDtMin << "]\033[39m   "
+                                      << std::setprecision(3) << std::fixed
+                                      << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
+                                log().setf(fmt);
+                                logErr << step << "\t" << iter << "\t" << std::setprecision(9) << std::scientific
+                                       << resRel << " "
+                                       << tsimu << " " << curDtMin << std::endl;
+                            }
+                            tstart = MPI_Wtime();
+                            trec = tcomm = trhs = tLim = 0.;
+                            PerformanceTimer::Instance().clearAllTimer();
+                        }
+
+                        if (iter % config.nDataOutInternal == 0)
+                        {
+                            eval.FixUMaxFilter(u);
+                            PrintData(config.outPltName + std::to_string(step) + "_" + std::to_string(iter) + ".plt", ode);
+                            nextStepOut += config.nDataOut;
+                        }
+                        if (iter % config.nDataOutCInternal == 0)
+                        {
+                            eval.FixUMaxFilter(u);
+                            PrintData(config.outPltName + "C" + ".plt", ode);
+                            nextStepOutC += config.nDataOutC;
+                        }
+                        return resRel.maxCoeff() < 1e-20;
+                    },
+                    curDtImplicit + verySmallReal);
+
+                tsimu += curDtImplicit;
+                if (ifOutT)
+                    tsimu = nextTout;
+                Eigen::Vector<real, 5> res;
+                eval.EvaluateResidual(res, ode.rhsbuf[0]);
+                if (stepCount == 0 && resBaseC.norm() == 0)
+                    resBaseC = res;
+
+                if (step % config.nConsoleCheck == 0)
+                {
+                    double telapsed = MPI_Wtime() - tstart;
+                    if (mpi.rank == 0)
+                    {
+                        tcomm = PerformanceTimer::Instance().getTimer(PerformanceTimer::Comm);
+                        auto fmt = log().flags();
+                        log() << std::setprecision(15) << std::scientific
+                              << "=== Step [" << step << "]   "
+                              << "res \033[91m[" << (res.array() / resBaseC.array()).transpose() << "]\033[39m   "
+                              << "t,dt(min) \033[92m[" << tsimu << ", " << curDtMin << "]\033[39m   "
+                              << std::setprecision(3) << std::fixed
+                              << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
+                        log().setf(fmt);
+                        logErr << step << "\t" << std::setprecision(9) << std::scientific
+                               << (res.array() / resBaseC.array()).transpose() << " "
+                               << tsimu << " " << curDtMin << std::endl;
+                    }
+                    tstart = MPI_Wtime();
+                    trec = tcomm = trhs = tLim = 0.;
+                    PerformanceTimer::Instance().clearAllTimer();
+                }
+                if (step == nextStepOut)
+                {
+                    eval.FixUMaxFilter(u);
+                    PrintData(config.outPltName + std::to_string(step) + ".plt", ode);
+                    nextStepOut += config.nDataOut;
+                }
+                if (step == nextStepOutC)
+                {
+                    eval.FixUMaxFilter(u);
+                    PrintData(config.outPltName + "C" + ".plt", ode);
+                    nextStepOutC += config.nDataOutC;
+                }
+                if (ifOutT)
+                {
+                    eval.FixUMaxFilter(u);
+                    PrintData(config.outPltName + "t_" + std::to_string(nextTout) + ".plt", ode);
+                    nextTout += config.tDataOut;
+                    if (nextTout > config.tEnd)
+                        nextTout = config.tEnd;
+                }
+
+                stepCount++;
+
+                if (tsimu >= config.tEnd)
                     break;
             }
 

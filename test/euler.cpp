@@ -11,7 +11,8 @@ int main(int argc, char *argv[])
         EulerSolver solver(mpi);
         solver.ConfigureFromJson("data/euler_config.json");
         solver.ReadMeshAndInitialize();
-        solver.RunExplicitSSPRK4();
+        // solver.RunExplicitSSPRK4();
+        solver.RunImplicitEuler();
     }
     MPI_Finalize();
     return 0;

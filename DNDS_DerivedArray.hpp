@@ -230,6 +230,13 @@ namespace DNDS
                            { e.p() += (*R.dist)[i].p(); });
         }
 
+        void operator-=(const ArrayDOF<vsize> &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { e.p() -= (*R.dist)[i].p(); });
+        }
+
         void operator*=(real r)
         {
             assert(base::dist);
