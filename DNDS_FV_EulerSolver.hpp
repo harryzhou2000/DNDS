@@ -17,7 +17,7 @@ namespace DNDS
         int kAv = 0;
 
         std::vector<real> lambdaCell;
-        // std::vector<real> lambdaFace;
+        std::vector<real> lambdaFace;
 
         struct Setting
         {
@@ -44,7 +44,7 @@ namespace DNDS
             : mesh(Nmesh), fv(Nfv), vfv(Nvfv), kAv(Nvfv->P_ORDER + 1)
         {
             lambdaCell.resize(mesh->cell2nodeLocal.size()); // but only dist part are used, ghost part to not judge for it in facial iter
-            // lambdaFace.resize(mesh->face2nodeLocal.size());
+            lambdaFace.resize(mesh->face2nodeLocal.size());
         }
 
         static Eigen::Vector<real, 5> CompressRecPart(const Eigen::Vector<real, 5> &umean, const Eigen::Vector<real, 5> &uRecInc)
@@ -124,10 +124,15 @@ namespace DNDS
 
                 real lamFace = lambdaConvection * fv->faceArea[iFace];
 
-                real areaSqr = fv->faceArea[iFace] * fv->faceArea[iFace];
+                real area = fv->faceArea[iFace];
+                real areaSqr = area * area;
+                real volR = fv->volumeLocal[iCellL];
                 lambdaCell[iCellL] += lamFace + 2 * lamVis * areaSqr / fv->volumeLocal[iCellL];
                 if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
-                    lambdaCell[f2c[1]] += lamFace + 2 * lamVis * areaSqr / fv->volumeLocal[f2c[1]];
+                    lambdaCell[f2c[1]] += lamFace + 2 * lamVis * areaSqr / fv->volumeLocal[f2c[1]],
+                        volR = fv->volumeLocal[f2c[1]];
+
+                lambdaFace[iFace] = lambdaConvection + lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
             }
             real dtMin = veryLargeReal;
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
@@ -291,6 +296,128 @@ namespace DNDS
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
                 rhs[iCell] = rhs[iCell].array().min(1e10).max(-1e10).matrix();
+            }
+        }
+
+        /**
+         * @brief to use LUSGS, use LUSGSForward(..., uInc, uInc); uInc.pull; LUSGSBackward(..., uInc, uInc);
+         * the underlying logic is that for index, ghost > dist, so the forward uses no ghost,
+         * and ghost should be pulled before using backward;
+         * to use Jacobian instead of LUSGS, use LUSGSForward(..., uInc, uIncNew); LUSGSBackward(..., uInc, uIncNew); uIncNew.pull; uInc = uIncNew;
+         * \param uIncNew overwritten;
+         *
+         */
+        void UpdateLUSGSForward(std::vector<real> &dTau, real dt, real alphaDiag,
+                                ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
+        {
+            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+            {
+                auto &c2f = mesh->cell2faceLocal[iCell];
+                Eigen::Vector<real, 5> uIncNewBuf;
+                uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell];
+
+                real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
+
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
+                        if (iCellOther < iCell)
+                        {
+                            auto umeanOther = u[iCellOther];
+                            auto umeanOtherInc = uInc[iCellOther];
+                            Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
+                            Eigen::Vector<real, 5> fInc;
+                            {
+                                real p, pN, asqr, asqrN, H, HN;
+                                assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
+                                auto velo = umeanOther({1, 2, 3}) / umeanOther(0);
+                                auto veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
+                                real vsqr = velo.squaredNorm();
+                                real vsqrN = veloN.squaredNorm();
+
+                                Gas::IdealGasThermal(umeanOther(4), umeanOther(0), vsqr,
+                                                     settings.idealGasProperty.gamma, p, asqr, H);
+                                Gas::IdealGasThermal(umeanOtherN(4), umeanOtherN(0), vsqrN,
+                                                     settings.idealGasProperty.gamma, pN, asqrN, HN);
+                                Eigen::Vector<real, 5> f, fN;
+                                Gas::GasInviscidFlux(umeanOther, velo, p, f);
+                                Gas::GasInviscidFlux(umeanOtherN, veloN, pN, fN);
+                                fInc = fN - f;
+                            }
+
+                            uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
+                                          (fInc - lambdaFace[iFace] * umeanOtherInc);
+                        }
+                    }
+                }
+                uIncNewBuf /= fpDivisor;
+                uIncNew[iCell] = uIncNewBuf;
+            }
+        }
+
+        /**
+         * @brief
+         * \param uIncNew overwritten;
+         *
+         */
+        void UpdateLUSGSBackward(std::vector<real> &dTau, real dt, real alphaDiag,
+                                 ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
+        {
+            for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
+            {
+                index iCell = mesh->cell2nodeLocal.dist->size() - 1 - iScan;
+                auto &c2f = mesh->cell2faceLocal[iCell];
+                Eigen::Vector<real, 5> uIncNewBuf;
+                uIncNewBuf.setZero(); // backward
+
+                real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
+
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
+                        if (iCellOther > iCell) // backward
+                        {
+                            auto umeanOther = u[iCellOther];
+                            auto umeanOtherInc = uInc[iCellOther];
+                            Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
+                            Eigen::Vector<real, 5> fInc;
+                            {
+                                real p, pN, asqr, asqrN, H, HN;
+                                assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
+                                auto velo = umeanOther({1, 2, 3}) / umeanOther(0);
+                                auto veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
+                                real vsqr = velo.squaredNorm();
+                                real vsqrN = veloN.squaredNorm();
+
+                                Gas::IdealGasThermal(umeanOther(4), umeanOther(0), vsqr,
+                                                     settings.idealGasProperty.gamma, p, asqr, H);
+                                Gas::IdealGasThermal(umeanOtherN(4), umeanOtherN(0), vsqrN,
+                                                     settings.idealGasProperty.gamma, pN, asqrN, HN);
+                                Eigen::Vector<real, 5> f, fN;
+                                Gas::GasInviscidFlux(umeanOther, velo, p, f);
+                                Gas::GasInviscidFlux(umeanOtherN, veloN, pN, fN);
+                                fInc = fN - f;
+                            }
+
+                            uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
+                                          (fInc - lambdaFace[iFace] * umeanOtherInc);
+                        }
+                    }
+                }
+                uIncNewBuf /= fpDivisor;
+                uIncNew[iCell] += uIncNewBuf; //backward
             }
         }
 
