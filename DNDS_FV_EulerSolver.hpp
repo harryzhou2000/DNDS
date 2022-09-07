@@ -27,6 +27,7 @@ namespace DNDS
                 real Rgas = 289;
                 real muGas = 1;
                 real prGas = 1;
+                real CpGas = Rgas * gamma / (gamma - 1);
             } idealGasProperty;
             real visScale = 1;
             real visScaleIn = 1;
@@ -91,12 +92,29 @@ namespace DNDS
                 assert(uMean(0) > 0);
                 auto veloMean = (uMean({1, 2, 3}).array() / uMean(0)).matrix();
                 real veloNMean = veloMean.dot(unitNorm);
+
+                real ekFixRatio = 0.001;
+                Eigen::Vector3d velo = uMean({1, 2, 3}) / uMean(0);
+                real vsqr = velo.squaredNorm();
+                real Ek = vsqr * 0.5 * uMean(0);
+                real Efix = Ek * ekFixRatio;
+                real e = uMean(4) - Ek;
+                if (e < 0)
+                    e = 0.5 * Efix;
+                else if (e < Efix)
+                    e = (e * e + Efix * Efix) / (2 * Efix);
+                uMean(4) = Ek + e;
+
                 real pMean, asqrMean, HMean;
                 Gas::IdealGasThermal(uMean(4), uMean(0), veloMean.squaredNorm(),
                                      settings.idealGasProperty.gamma,
                                      pMean, asqrMean, HMean);
-                assert(asqrMean > 0);
+                assert(asqrMean >= 0);
                 real lambdaConvection = std::abs(veloNMean) + std::sqrt(asqrMean);
+
+                real muf = settings.idealGasProperty.muGas;
+                real lamVis = muf / uMean(0) *
+                              std::max(4. / 3., settings.idealGasProperty.gamma / settings.idealGasProperty.prGas);
 
                 // Elem::tPoint gradL{0, 0, 0},gradR{0, 0, 0};
                 // gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(0)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(0).cols() - 1) * uRec[iCellL].m();
@@ -105,9 +123,11 @@ namespace DNDS
                 // Elem::tPoint grad = (gradL + gradR) * 0.5;
 
                 real lamFace = lambdaConvection * fv->faceArea[iFace];
-                lambdaCell[iCellL] += lamFace;
+
+                real areaSqr = fv->faceArea[iFace] * fv->faceArea[iFace];
+                lambdaCell[iCellL] += lamFace + 2 * lamVis * areaSqr / fv->volumeLocal[iCellL];
                 if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
-                    lambdaCell[f2c[1]] += lamFace;
+                    lambdaCell[f2c[1]] += lamFace + 2 * lamVis * areaSqr / fv->volumeLocal[f2c[1]];
             }
             real dtMin = veryLargeReal;
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
@@ -171,8 +191,17 @@ namespace DNDS
                             uRec[f2c[0]].m();
                         // UL += u[f2c[0]]; //! do not forget the mean value
                         UL = CompressRecPart(u[f2c[0]], UL);
+                        Eigen::Vector<real, 5> ULxy = UL;
                         UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
-                        Eigen::Vector<real, 5> UR;
+                        Eigen::Vector<real, 5> UR, URxy;
+
+                        Eigen::Matrix<real, 3, 5> GradULxy, GradURxy;
+                        GradULxy.setZero(), GradURxy.setZero();
+                        GradULxy({0, 1}, {0, 1, 2, 3, 4}) =
+                            faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(1, uRec[f2c[0]].m().rows() + 1 - 1)) *
+                            uRec[f2c[0]].m(); // ! 2d here
+
+                        real minVol = fv->volumeLocal[f2c[0]];
 
                         if (f2c[1] != FACE_2_VOL_EMPTY)
                         {
@@ -181,17 +210,40 @@ namespace DNDS
                                 uRec[f2c[1]].m();
                             // UR += u[f2c[1]];
                             UR = CompressRecPart(u[f2c[1]], UR);
+                            URxy = UR;
                             UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+
+                            GradURxy({0, 1}, {0, 1, 2, 3, 4}) =
+                                faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(1, uRec[f2c[1]].m().rows() + 1 - 1)) *
+                                uRec[f2c[1]].m(); // ! 2d here
+
+                            minVol = std::min(minVol, fv->volumeLocal[f2c[1]]);
                         }
                         else if (faceAtr.iPhy == BoundaryType::Farfield)
                         {
                             UR = settings.farFieldStaticValue;
+                            URxy = UR;
                             UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+
+                            GradURxy = GradULxy;
                         }
                         else if (faceAtr.iPhy == BoundaryType::Wall_Euler)
                         {
                             UR = UL;
                             UR(1) *= -1;
+                            URxy = UR;
+                            URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
+
+                            GradURxy = GradULxy;
+                        }
+                        else if (faceAtr.iPhy == BoundaryType::Wall_NoSlip)
+                        {
+                            UR = UL;
+                            UR({1, 2, 3}) *= -1;
+                            URxy = UR;
+                            URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
+
+                            GradURxy = GradULxy;
                         }
                         else if (faceAtr.iPhy == BoundaryType::Wall)
                         {
@@ -202,6 +254,22 @@ namespace DNDS
                         {
                             assert(false);
                         }
+
+                        real distGRP = minVol / fv->faceArea[iFace] * 2;
+                        Eigen::Vector<real, 5> UMeanXy = 0.5 * (ULxy + URxy);
+                        Eigen::Matrix<real, 3, 5> GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
+                                                                (1.0 / distGRP) *
+                                                                    (unitNorm * (URxy - ULxy).transpose());
+                        Eigen::Matrix<real, 3, 5> VisFlux;
+
+                        real k = settings.idealGasProperty.CpGas * settings.idealGasProperty.muGas / settings.idealGasProperty.prGas;
+                        Gas::ViscousFlux_IdealGas(UMeanXy, GradUMeanXy,
+                                                  settings.idealGasProperty.gamma,
+                                                  settings.idealGasProperty.muGas,
+                                                  k,
+                                                  settings.idealGasProperty.CpGas,
+                                                  VisFlux);
+
                         // Eigen::Vector<real, 5> F;
                         Gas::RoeFlux_IdealGas_HartenYee(
                             UL, UR, settings.idealGasProperty.gamma, finc,
@@ -212,6 +280,7 @@ namespace DNDS
                                 std::cout << "UR" << UR.transpose() << std::endl;
                             });
                         finc({1, 2, 3}) = normBase * finc({1, 2, 3});
+                        finc -= VisFlux.transpose() * unitNorm;
                         finc *= -vfv->faceNorms[iFace][ig].norm(); // don't forget this
                     });
 
@@ -501,6 +570,7 @@ namespace DNDS
                     }
                 }
                 rhoT = scaleRhoCutoff * rhoMU / rhoML;
+                rhoT = rhoTC; //! using global
                 rhoTSqr = rhoT * rhoT;
 
                 real uScale = 1;
@@ -548,6 +618,7 @@ namespace DNDS
                     }
                 }
                 eT = scaleEInternalCutOff * eMU / eML;
+                eT = eTC; //! using global
                 eTSqr = eT * eT;
 
                 real Ek = 0.5 * u[iCell]({1, 2, 3}).squaredNorm() / (u[iCell](0) + verySmallReal);
@@ -695,6 +766,7 @@ namespace DNDS
                 {
                     eulerGasParser.AddDNDS_Real("gamma", &config.eulerSetting.idealGasProperty.gamma);
                     eulerGasParser.AddDNDS_Real("Rgas", &config.eulerSetting.idealGasProperty.Rgas);
+                    eulerGasParser.AddDNDS_Real("muGas", &config.eulerSetting.idealGasProperty.muGas);
                 }
             }
             Eigen::VectorXd eulerSetting_farFieldStaticValueBuf;
@@ -862,16 +934,40 @@ namespace DNDS
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                // return Eigen::Matrix<real, 5, 5>::Identity();
+                                real ekFixRatio = 0.001;
+                                Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                real vsqr = velo.squaredNorm();
+                                real Ek = vsqr * 0.5 * UC(0);
+                                real Efix = Ek * ekFixRatio;
+                                real e = UC(4) - Ek;
+                                if (e < 0)
+                                    e = 0.5 * Efix;
+                                else if (e < Efix)
+                                    e = (e * e + Efix * Efix) / (2 * Efix);
+                                UC(4) = Ek + e;
+
+                                // return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                return Eigen::Matrix<real, 5, 5>::Identity();
                             },
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                 Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                // return Eigen::Matrix<real, 5, 5>::Identity();
+                                real ekFixRatio = 0.001;
+                                Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                real vsqr = velo.squaredNorm();
+                                real Ek = vsqr * 0.5 * UC(0);
+                                real Efix = Ek * ekFixRatio;
+                                real e = UC(4) - Ek;
+                                if (e < 0)
+                                    e = 0.5 * Efix;
+                                else if (e < Efix)
+                                    e = (e * e + Efix * Efix) / (2 * Efix);
+                                UC(4) = Ek + e;
+
+                                // return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                return Eigen::Matrix<real, 5, 5>::Identity();
                             });
                         tLim += MPI_Wtime() - tstartH;
 
