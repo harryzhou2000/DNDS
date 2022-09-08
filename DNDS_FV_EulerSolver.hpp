@@ -26,7 +26,7 @@ namespace DNDS
                 real gamma = 1.4;
                 real Rgas = 289;
                 real muGas = 1;
-                real prGas = 1;
+                real prGas = 0.7;
                 real CpGas = Rgas * gamma / (gamma - 1);
             } idealGasProperty;
             real visScale = 1;
@@ -268,7 +268,7 @@ namespace DNDS
                         Eigen::Matrix<real, 3, 5> VisFlux;
 
                         real k = settings.idealGasProperty.CpGas * settings.idealGasProperty.muGas / settings.idealGasProperty.prGas;
-                        Gas::ViscousFlux_IdealGas(UMeanXy, GradUMeanXy,
+                        Gas::ViscousFlux_IdealGas(UMeanXy, GradUMeanXy, unitNorm, faceAtr.iPhy == BoundaryType::Wall_NoSlip,
                                                   settings.idealGasProperty.gamma,
                                                   settings.idealGasProperty.muGas,
                                                   k,
@@ -354,14 +354,30 @@ namespace DNDS
                                 Gas::GasInviscidFlux(umeanOther, velo, p, f);
                                 Gas::GasInviscidFlux(umeanOtherN, veloN, pN, fN);
                                 fInc = fN - f;
+                                if (fInc.hasNaN() || (!fInc.allFinite()))
+                                {
+                                    std::cout << p << "\t" << pN << std::endl
+                                              << umeanOther.transpose() << std::endl
+                                              << umeanOtherN.transpose() << std::endl
+                                              << umeanOtherInc.transpose() << std::endl
+                                              << vsqr << "\t" << vsqrN << std::endl;
+                                    assert(!(fInc.hasNaN() || (!fInc.allFinite())));
+                                }
                             }
 
                             uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
                                           (fInc - lambdaFace[iFace] * umeanOtherInc);
+                            if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
+                            {
+                                std::cout << rhs[iCell].transpose() << std::endl
+                                          << fInc.transpose() << std::endl
+                                          << umeanOtherInc.transpose() << std::endl;
+                                assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
+                            }
                         }
                     }
                 }
-                uIncNewBuf /= fpDivisor + verySmallReal;
+                uIncNewBuf /= fpDivisor;
                 uIncNew[iCell] = uIncNewBuf;
                 if (uIncNew[iCell].hasNaN())
                 {
@@ -434,6 +450,70 @@ namespace DNDS
                 }
                 uIncNewBuf /= fpDivisor;
                 uIncNew[iCell] += uIncNewBuf; // backward
+
+                // fix rho increment
+                if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
+                    uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
+            }
+        }
+
+        void UpdateSGS(std::vector<real> &dTau, real dt, real alphaDiag,
+                       ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew, bool ifForward)
+        {
+            for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
+            {
+                index iCell;
+                if (ifForward)
+                    iCell = iScan;
+                else
+                    iCell = mesh->cell2nodeLocal.dist->size() - 1 - iScan;
+                auto &c2f = mesh->cell2faceLocal[iCell];
+                Eigen::Vector<real, 5> uIncNewBuf;
+                // uIncNewBuf.setZero(); // backward
+                uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell]; // full
+
+                real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
+
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
+                        if (true) // full
+                        {
+                            auto umeanOther = u[iCellOther];
+                            auto umeanOtherInc = uInc[iCellOther];
+                            Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
+                            Eigen::Vector<real, 5> fInc;
+                            {
+                                real p, pN, asqr, asqrN, H, HN;
+                                assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
+                                auto velo = umeanOther({1, 2, 3}) / umeanOther(0);
+                                auto veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
+                                real vsqr = velo.squaredNorm();
+                                real vsqrN = veloN.squaredNorm();
+
+                                Gas::IdealGasThermal(umeanOther(4), umeanOther(0), vsqr,
+                                                     settings.idealGasProperty.gamma, p, asqr, H);
+                                Gas::IdealGasThermal(umeanOtherN(4), umeanOtherN(0), vsqrN,
+                                                     settings.idealGasProperty.gamma, pN, asqrN, HN);
+                                Eigen::Vector<real, 5> f, fN;
+                                Gas::GasInviscidFlux(umeanOther, velo, p, f);
+                                Gas::GasInviscidFlux(umeanOtherN, veloN, pN, fN);
+                                fInc = fN - f;
+                            }
+
+                            uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
+                                          (fInc - lambdaFace[iFace] * umeanOtherInc);
+                        }
+                    }
+                }
+                uIncNewBuf /= fpDivisor;
+                uIncNew[iCell] = uIncNewBuf; // full
 
                 // fix rho increment
                 if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
@@ -676,8 +756,8 @@ namespace DNDS
         void FixUMaxFilter(ArrayDOF<5u> &u)
         {
             // TODO: make spacial filter jacobian
-            real scaleRhoCutoff = 0.0001;
-            real scaleEInternalCutOff = 0.0001;
+            real scaleRhoCutoff = 0.01;
+            real scaleEInternalCutOff = 0.01;
             real rhoMax = 0.0;
             real rhoMeanU = 0.0;
             real rhoMeanL = 0.0;
@@ -856,6 +936,9 @@ namespace DNDS
 
             bool useLocalDt = true;
             int nForceLocalStartStep = -1;
+            int nCFLRampStart = 1000;
+            int nCFLRampLength = 10000;
+            real CFLRampEnd = 10;
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -886,6 +969,10 @@ namespace DNDS
             root.AddDNDS_Real("res_base", &config.res_base);
             root.AddBool("useLocalDt", &config.useLocalDt);
             root.AddInt("nForceLocalStartStep", &config.nForceLocalStartStep);
+
+            root.AddInt("nCFLRampStart", &config.nCFLRampStart);
+            root.AddInt("nCFLRampLength", &config.nCFLRampLength);
+            root.AddDNDS_Real("CFLRampEnd", &config.CFLRampEnd);
 
             JSON::ParamParser vfvParser(mpi);
             root.AddObject("vfvSetting", &vfvParser);
@@ -1057,6 +1144,7 @@ namespace DNDS
             int nextStepOut = config.nDataOut;
             int nextStepOutC = config.nDataOutC;
             PerformanceTimer::Instance().clearAllTimer();
+            real CFLNow = config.CFL;
             for (int step = 1; step <= config.nTimeStep; step++)
             {
 
@@ -1145,7 +1233,7 @@ namespace DNDS
                         uRec.StartPersistentPullClean();
                         uRec.WaitPersistentPullClean();
 
-                        eval.EvaluateDt(dt, u, config.CFL, curDtMin, 1e100, config.useLocalDt);
+                        eval.EvaluateDt(dt, u, CFLNow, curDtMin, 1e100, config.useLocalDt);
                         if (curDtMin + tsimu > nextTout)
                             curDtMin = nextTout - tsimu, ifOutT = true;
                         if (!config.useLocalDt)
@@ -1388,6 +1476,7 @@ namespace DNDS
             int nextStepOut = config.nDataOut;
             int nextStepOutC = config.nDataOutC;
             PerformanceTimer::Instance().clearAllTimer();
+            real CFLNow = config.CFL;
             for (int step = 1; step <= config.nTimeStep; step++)
             {
 
@@ -1399,7 +1488,7 @@ namespace DNDS
                     ifOutT = true;
                     curDtImplicit = (nextTout - tsimu);
                 }
-
+                CFLNow = config.CFL;
                 ode.Step(
                     u, uInc,
                     [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx)
@@ -1478,7 +1567,7 @@ namespace DNDS
                         uRec.StartPersistentPullClean();
                         uRec.WaitPersistentPullClean();
 
-                        eval.EvaluateDt(dTau, u, config.CFL, curDtMin, 1e100, true);
+                        eval.EvaluateDt(dTau, u, CFLNow, curDtMin, 1e100, true);
                     },
                     [&](ArrayDOF<5u> &cx, ArrayDOF<5u> &crhs, std::vector<real> &dTau,
                         real dt, real alphaDiag, ArrayDOF<5u> &cxInc)
@@ -1487,6 +1576,15 @@ namespace DNDS
                         cxInc.StartPersistentPullClean();
                         cxInc.WaitPersistentPullClean();
                         eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
+                        for (int iIter = 1; iIter <= 0; iIter++)
+                        {
+                            cxInc.StartPersistentPullClean();
+                            cxInc.WaitPersistentPullClean();
+                            eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, true);
+                            cxInc.StartPersistentPullClean();
+                            cxInc.WaitPersistentPullClean();
+                            eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, false);
+                        }
                     },
                     config.nTimeStepInternal,
                     [&](int iter, ArrayDOF<5u> &cxinc) -> bool
@@ -1503,10 +1601,10 @@ namespace DNDS
                             {
                                 tcomm = PerformanceTimer::Instance().getTimer(PerformanceTimer::Comm);
                                 auto fmt = log().flags();
-                                log() << std::setprecision(15) << std::scientific
+                                log() << std::setprecision(3) << std::scientific
                                       << "\t Internal === Step [" << iter << "]   "
                                       << "res \033[91m[" << resRel.transpose() << "]\033[39m   "
-                                      << "t,dTaumin \033[92m[" << tsimu << ", " << curDtMin << "]\033[39m   "
+                                      << "t,dTaumin,CFL \033[92m[" << tsimu << ", " << curDtMin << ", " << CFLNow << "]\033[39m   "
                                       << std::setprecision(3) << std::fixed
                                       << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
                                 log().setf(fmt);
@@ -1531,6 +1629,13 @@ namespace DNDS
                             PrintData(config.outPltName + "C" + ".plt", ode);
                             nextStepOutC += config.nDataOutC;
                         }
+                        if (iter >= config.nCFLRampStart && iter <= config.nCFLRampLength + config.nCFLRampStart)
+                        {
+                            real inter = real(iter - config.nCFLRampStart) / config.nCFLRampLength;
+                            real logCFL = std::log(config.CFL) + (std::log(config.CFLRampEnd / config.CFL) * inter);
+                            CFLNow = std::exp(logCFL);
+                        }
+
                         return resRel.maxCoeff() < 1e-20;
                     },
                     curDtImplicit + verySmallReal);
@@ -1550,7 +1655,7 @@ namespace DNDS
                     {
                         tcomm = PerformanceTimer::Instance().getTimer(PerformanceTimer::Comm);
                         auto fmt = log().flags();
-                        log() << std::setprecision(15) << std::scientific
+                        log() << std::setprecision(3) << std::scientific
                               << "=== Step [" << step << "]   "
                               << "res \033[91m[" << (res.array() / resBaseC.array()).transpose() << "]\033[39m   "
                               << "t,dt(min) \033[92m[" << tsimu << ", " << curDtMin << "]\033[39m   "

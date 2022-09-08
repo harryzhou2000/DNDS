@@ -4,19 +4,22 @@
     "nTimeStep": 100000,
     "nTimeStepInternal": 100000,
     "nConsoleCheck": 1,
-    "nConsoleCheckInternal" : 10,
+    "nConsoleCheckInternal": 10,
     "nDataOutC": 500,
     "nDataOut": 1000000000,
     "nDataOutCInternal": 100,
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 0.5,
+    "CFL": 2,
     "dtImplicit": 1e100,
     "useLocalDt": true,
     "nForceLocalStartStep": 1000000000,
+    "nCFLRampStart": 10000,
+    "nCFLRampLength": 10000,
+    "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/NACA0012_WIDE_H3_NS.msh",
+    "meshFile": "data/mesh/NACA0012_WIDE_H3G_NS.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform/UniformA4_Euler.msh",
         "data/mesh/Uniform/UniformA6_Euler.msh",
@@ -25,30 +28,36 @@
         "data/mesh/NACA0012_SW_UG_Euler.msh",
         "data/mesh/cylinder_flow_euler.msh",
         "data/mesh/NACA0012_SW_0_NS.msh",
-        "data/mesh/NACA0012_WIDE_H3_NS.msh"
+        "data/mesh/NACA0012_WIDE_H3_NS.msh",
+        "data/mesh/NACA0012_WIDE_H3G_NS.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
+    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H3G_NS",
+    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H3G_NS",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
         "SOR_Instead": true,
         "SOR_InverseScanning": false,
         "SOR_RedBlack": false,
-        "JacobiRelax": 0.8,
+        "JacobiRelax": 1.0,
         "anistropicLengths": false,
-        "tangWeight": 1,
-        "wallWeight": 1,
+        "tangWeight": 10,
+        "wallWeight": 2,
         "farWeight": 1,
         "weightSchemeGeom": "None",
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 0.1
+        "WBAP_SmoothIndicatorScale": 1e10
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
+        "idealGasProperty": {
+            "gamma": 1.4,
+            "Rgas": 289,
+            "muGas": 1.1832e-04
+        },
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
         "comment_settingNotesA": "for scheme 8 30p30n with poisson init: 1 1 4 2",
@@ -60,10 +69,10 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            0.946572765295939,
+            0.591607978309962,
             0,
             0,
-            2.948
+            2.67500000000000
         ],
         "comment_farSatic": [
             [
@@ -98,12 +107,7 @@
                 0,
                 2.67500000000000
             ]
-        ],
-        "idealGasProperty": {
-            "gamma": 1.4,
-            "Rgas": 289,
-            "muGas": 1e-6
-        }
+        ]
     },
     "curvilinearOneStep": 1000,
     "curvilinearRestartNstep": 100,

@@ -179,8 +179,8 @@ namespace DNDS
          * GradU is grad of conservatives
          *
          */
-        template <typename TU, typename TGradU, typename TFlux>
-        void ViscousFlux_IdealGas(const TU &U, const TGradU &GradU, real gamma, real mu, real k, real Cp, TFlux &Flux)
+        template <typename TU, typename TGradU, typename TFlux, typename TNorm>
+        void ViscousFlux_IdealGas(const TU &U, const TGradU &GradU, TNorm norm, bool adiabatic, real gamma, real mu, real k, real Cp, TFlux &Flux)
         {
             Eigen::MatrixXd A;
             Eigen::Vector3d velo = U({1, 2, 3}) / U(0);
@@ -197,6 +197,8 @@ namespace DNDS
             real p = (gamma - 1) * (U(4) - U(0) * 0.5 * vSqr);
             Eigen::Vector3d GradT = (gamma / ((gamma - 1) * Cp * U(0) * U(0))) *
                                     (U(0) * GradP - p * GradU({0, 1, 2}, 0));
+            if (adiabatic)
+                GradT -= GradT.dot(norm) * norm;
 
             Flux({0, 1, 2}, 0).setZero();
             Flux({0, 1, 2}, {1, 2, 3}) =
