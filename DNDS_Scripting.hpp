@@ -35,7 +35,7 @@ namespace DNDS
                 DNDS_Real = 2,
                 Bool = 3,
                 std_String = 4,
-                Eigen_RealVec =5
+                Eigen_RealVec = 5
             };
             // rapidjson::Document *doc = nullptr;
             // rapidjson::Value::Object obj;
@@ -116,6 +116,14 @@ namespace DNDS
                     case ItemType::Object:
                     {
                         ParamParser *pParser = (ParamParser *)ptr;
+                        if (!(cObj[name.c_str()].IsObject()))
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not object ===" << std::endl;
+                        }
                         assert(cObj[name.c_str()].IsObject());
                         if (mpi.rank == 0)
                         {
@@ -131,6 +139,14 @@ namespace DNDS
                     case ItemType::Int:
                     {
                         int *dest = (int *)ptr;
+                        if (!(cObj[name.c_str()].IsInt()))
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not int ===" << std::endl;
+                        }
                         assert(cObj[name.c_str()].IsInt());
                         *dest = cObj[name.c_str()].GetInt();
                         if (mpi.rank == 0)
@@ -145,6 +161,14 @@ namespace DNDS
                     case ItemType::DNDS_Real:
                     {
                         real *dest = (real *)ptr;
+                        if (!(cObj[name.c_str()].IsNumber()))
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not real ===" << std::endl;
+                        }
                         assert(cObj[name.c_str()].IsNumber());
                         *dest = cObj[name.c_str()].GetDouble();
                         if (mpi.rank == 0)
@@ -159,6 +183,14 @@ namespace DNDS
                     case ItemType::Bool:
                     {
                         bool *dest = (bool *)ptr;
+                        if (!(cObj[name.c_str()].IsBool()))
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not bool ===" << std::endl;
+                        }
                         assert(cObj[name.c_str()].IsBool());
                         *dest = cObj[name.c_str()].GetBool();
                         if (mpi.rank == 0)
@@ -173,6 +205,14 @@ namespace DNDS
                     case ItemType::Eigen_RealVec:
                     {
                         Eigen::VectorXd *dest = (Eigen::VectorXd *)ptr;
+                        if (!(cObj[name.c_str()].IsArray()))
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not array ===" << std::endl;
+                        }
                         assert(cObj[name.c_str()].IsArray());
                         const auto &arr = cObj[name.c_str()].GetArray();
                         dest->resize(arr.Size());
@@ -196,6 +236,14 @@ namespace DNDS
                     case ItemType::std_String:
                     {
                         std::string *dest = (std::string *)ptr;
+                        if (!(cObj[name.c_str()].IsString()))
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not string ===" << std::endl;
+                        }
                         assert(cObj[name.c_str()].IsString());
                         *dest = cObj[name.c_str()].GetString();
                         if (mpi.rank == 0)

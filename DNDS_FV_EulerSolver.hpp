@@ -912,6 +912,7 @@ namespace DNDS
 
             real CFL = 0.5;
             real dtImplicit = 1e100;
+            real rhsThresholdInternal = 1e-10;
 
             real meshRotZ = 0;
             std::string mName = "data/mesh/NACA0012_WIDE_H3.msh";
@@ -961,6 +962,7 @@ namespace DNDS
             root.AddDNDS_Real("tEnd", &config.tEnd);
             root.AddDNDS_Real("CFL", &config.CFL);
             root.AddDNDS_Real("dtImplicit", &config.dtImplicit);
+            root.AddDNDS_Real("rhsThresholdInternal", &config.rhsThresholdInternal);
             root.AddDNDS_Real("meshRotZ", &config.meshRotZ);
             root.Addstd_String("meshFile", &config.mName);
             root.Addstd_String("outLogName", &config.outLogName);
@@ -1096,14 +1098,14 @@ namespace DNDS
             outSerial->initPersistentPull();
 
             // //Box
-            // for (index iCell = 0; iCell < u.dist->size(); iCell++)
-            // {
-            //     auto pos = vfv->cellBaries[iCell];
-            //     if (pos(0) < (0.75 + 1e-5) && pos(0) > (0.25 - 1e-5) && pos(1) < (0.75 + 1e-5) && pos(1) > (0.25 - 1e-5))
-            //     {
-            //         u[iCell] = Eigen::Vector<real, 5>{1, 0, 0, 0, 20};
-            //     }
-            // }
+            for (index iCell = 0; iCell < u.dist->size(); iCell++)
+            {
+                auto pos = vfv->cellBaries[iCell];
+                if (pos(0) < (0.75 + 1e-5) && pos(0) > (0.25 - 1e-5) && pos(1) < (0.75 + 1e-5) && pos(1) > (0.25 - 1e-5))
+                {
+                    u[iCell] = Eigen::Vector<real, 5>{1, 0, 0, 0, 20};
+                }
+            }
 
             ifUseLimiter.resize(u.size());
         }
@@ -1527,8 +1529,8 @@ namespace DNDS
                                     e = (e * e + Efix * Efix) / (2 * Efix);
                                 UC(4) = Ek + e;
 
-                                // return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                return Eigen::Matrix<real, 5, 5>::Identity();
+                                return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                // return Eigen::Matrix<real, 5, 5>::Identity();
                             },
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                 Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
@@ -1547,8 +1549,8 @@ namespace DNDS
                                     e = (e * e + Efix * Efix) / (2 * Efix);
                                 UC(4) = Ek + e;
 
-                                // return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                return Eigen::Matrix<real, 5, 5>::Identity();
+                                return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                // return Eigen::Matrix<real, 5, 5>::Identity();
                             });
                         tLim += MPI_Wtime() - tstartH;
 
@@ -1636,7 +1638,7 @@ namespace DNDS
                             CFLNow = std::exp(logCFL);
                         }
 
-                        return resRel.maxCoeff() < 1e-20;
+                        return resRel.maxCoeff() < config.rhsThresholdInternal;
                     },
                     curDtImplicit + verySmallReal);
 

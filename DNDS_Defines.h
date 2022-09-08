@@ -11,7 +11,6 @@
 #include <cmath>
 #include <iomanip>
 
-
 namespace DNDS
 {
     typedef double real;
@@ -98,6 +97,27 @@ namespace DNDS
     inline constexpr auto divCeil(TL l, TR r)
     {
         return l / r + (l % r) ? 1 : 0;
+    }
+}
+
+/*
+
+
+
+
+
+
+
+
+
+*/
+
+namespace DNDS
+{
+    template <typename T>
+    inline constexpr T sqr(const T &a)
+    {
+        return a * a;
     }
 }
 

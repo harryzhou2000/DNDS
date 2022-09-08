@@ -1,26 +1,28 @@
 {
-    "recOrder": 2,
+    "recOrder": 3,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
-    "nTimeStepInternal": 100000,
+    "nTimeStepInternal": 100,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
-    "nDataOutC": 500,
-    "nDataOut": 1000000000,
+    "nDataOutC": 1  ,
+    "nDataOut": 1,
     "nDataOutCInternal": 100,
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
     "CFL": 2,
-    "dtImplicit": 1e100,
+    "dtImplicit": 1e-3,
+    "rhsThresholdInternal": 1e-3,
     "useLocalDt": true,
     "nForceLocalStartStep": 1000000000,
     "nCFLRampStart": 10000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/NACA0012_WIDE_H3G_NS.msh",
+    "meshFile": "data/mesh/Uniform512.msh",
     "comment_meshFileList": [
+        "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
         "data/mesh/Uniform/UniformA6_Euler.msh",
         "data/mesh/NACA0012_WIDE_H3_Euler.msh",
@@ -31,8 +33,8 @@
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
         "data/mesh/NACA0012_WIDE_H3G_NS.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H3G_NS",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H3G_NS",
+    "outPltName": "data/out/test_Euler_.Uniform512",
+    "outLogName": "data/out/test_Euler_.Uniform512",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -48,7 +50,7 @@
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 1e10
+        "WBAP_SmoothIndicatorScale": 1e-5
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
@@ -69,10 +71,10 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            0.591607978309962,
             0,
             0,
-            2.67500000000000
+            0,
+            2.5
         ],
         "comment_farSatic": [
             [
