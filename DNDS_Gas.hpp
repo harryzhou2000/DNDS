@@ -69,6 +69,10 @@ namespace DNDS
             H = (E + p) / rho;
         }
 
+        /**
+         * @brief calculates Inviscid Flux for x direction
+         * 
+         */
         template <typename TU, typename TF>
         inline void GasInviscidFlux(const TU &U, const tVec &velo, real p, TF &F)
         {

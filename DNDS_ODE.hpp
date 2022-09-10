@@ -210,7 +210,7 @@ namespace DNDS
              * frhs(TDATA &rhs, TDATA &x)
              * fdt(std::vector<real>& dTau)
              * fsolve(TDATA &x, TDATA &rhs, std::vector<real>& dTau, real dt, real alphaDiag, TDATA &xinc)
-             * bool fstop(int iter, TDATA &xinc)
+             * bool fstop(int iter, TDATA &xinc, int iInternal)
              */
             template <class Frhs, class Fdt, class Fsolve, class Fstop>
             void Step(TDATA &x, TDATA &xinc, Frhs &&frhs, Fdt &&fdt, Fsolve &&fsolve,
@@ -231,26 +231,19 @@ namespace DNDS
                     fsolve(x, rhs, dTau, dt, 1.0, xinc);
                     x += xinc;
 
-                    if (fstop(iter, xinc))
+                    if (fstop(iter, xinc, 1))
                         break;
                 }
             }
         };
 
         template <class TDATA>
-        class ImplicitSDIRK4
+        class ImplicitSDIRK4DualTimeStep
         {
-            static const real _zeta = 0.128886400515;
-            static const Eigen::Matrix<real, 3, 3> butcherA{
-                {_zeta, 0, 0},
-                {0.5 - _zeta, _zeta, 0},
-                {2 * _zeta, 1 - 4 * _zeta, _zeta}};
-            static const Eigen::Vector<real, 3> butcherC{
-                _zeta, 0.5, 1 - _zeta};
-            static const Eigen::RowVector<real, 3> butcherB{
-                1. / (6 * sqr(2 * _zeta - 1)),
-                (4 * sqr(_zeta) - 4 * _zeta + 2. / 3.) / sqr(2 * _zeta - 1),
-                1. / (6 * sqr(2 * _zeta - 1))};
+            static constexpr real _zeta = 0.128886400515;
+            static const Eigen::Matrix<real, 3, 3> butcherA;
+            static const Eigen::Vector<real, 3> butcherC;
+            static const Eigen::RowVector<real, 3> butcherB;
 
         public:
             std::vector<real> dTau;
@@ -265,7 +258,7 @@ namespace DNDS
              * finit(TDATA& data)
              */
             template <class Finit>
-            ImplicitSDIRK4(
+            ImplicitSDIRK4DualTimeStep(
                 index NDOF, Finit &&finit = [](TDATA &) {}) : DOF(NDOF)
             {
                 dTau.resize(NDOF);
@@ -282,7 +275,7 @@ namespace DNDS
              * frhs(TDATA &rhs, TDATA &x)
              * fdt(std::vector<real>& dTau)
              * fsolve(TDATA &x, TDATA &rhs, std::vector<real>& dTau, real dt, real alphaDiag, TDATA &xinc)
-             * bool fstop(int iter, TDATA &xinc)
+             * bool fstop(int iter, TDATA &xinc, int iInternal)
              */
             template <class Frhs, class Fdt, class Fsolve, class Fstop>
             void Step(TDATA &x, TDATA &xinc, Frhs &&frhs, Fdt &&fdt, Fsolve &&fsolve,
@@ -291,6 +284,7 @@ namespace DNDS
                 xLast = x;
                 for (int iB = 0; iB < 3; iB++)
                 {
+                    x = xLast;
                     for (int iter = 1; iter <= maxIter; iter++)
                     {
                         fdt(dTau);
@@ -306,7 +300,7 @@ namespace DNDS
                         fsolve(x, rhs, dTau, dt, butcherA(iB, iB), xinc);
                         x += xinc;
 
-                        if (fstop(iter, xinc))
+                        if (fstop(iter, xinc, iB + 1))
                             break;
 
                         // TODO: add time dependent rhs
@@ -317,6 +311,26 @@ namespace DNDS
                     x.addTo(rhsbuf[jB], butcherB(jB) * dt);
             }
         };
+
+
+
+
+        template <class TDATA>
+        const Eigen::Matrix<real, 3, 3> ImplicitSDIRK4DualTimeStep<TDATA>::butcherA{
+            {_zeta, 0, 0},
+            {0.5 - _zeta, _zeta, 0},
+            {2 * _zeta, 1 - 4 * _zeta, _zeta}};
+
+        template <class TDATA>
+        const Eigen::Vector<real, 3> ImplicitSDIRK4DualTimeStep<TDATA>::butcherC{
+            _zeta, 0.5, 1 - _zeta};
+
+        template <class TDATA>
+        const Eigen::RowVector<real, 3> ImplicitSDIRK4DualTimeStep<TDATA>::butcherB{
+            1. / (6 * sqr(2 * _zeta - 1)),
+            (4 * sqr(_zeta) - 4 * _zeta + 2. / 3.) / sqr(2 * _zeta - 1),
+            1. / (6 * sqr(2 * _zeta - 1))};
+
     }
 
 }
