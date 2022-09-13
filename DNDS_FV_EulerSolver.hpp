@@ -56,6 +56,16 @@ namespace DNDS
 
         static Eigen::Vector<real, 5> CompressRecPart(const Eigen::Vector<real, 5> &umean, const Eigen::Vector<real, 5> &uRecInc)
         {
+
+            if (umean(0) + uRecInc(0) < 0)
+            {
+                std::cout << umean.transpose() << std::endl
+                          << uRecInc.transpose() << std::endl;
+                std::abort();
+            }
+            // return umean + uRecInc; // ! no compress shortcut
+            return umean; // ! 0th order shortcut
+
             real compressT = 0.00001;
             real eFixRatio = 0.00001;
             Eigen::Vector<real, 5> ret;
@@ -100,17 +110,17 @@ namespace DNDS
                 auto veloMean = (uMean({1, 2, 3}).array() / uMean(0)).matrix();
                 real veloNMean = veloMean.dot(unitNorm);
 
-                real ekFixRatio = 0.001;
-                Eigen::Vector3d velo = uMean({1, 2, 3}) / uMean(0);
-                real vsqr = velo.squaredNorm();
-                real Ek = vsqr * 0.5 * uMean(0);
-                real Efix = Ek * ekFixRatio;
-                real e = uMean(4) - Ek;
-                if (e < 0)
-                    e = 0.5 * Efix;
-                else if (e < Efix)
-                    e = (e * e + Efix * Efix) / (2 * Efix);
-                uMean(4) = Ek + e;
+                // real ekFixRatio = 0.001;
+                // Eigen::Vector3d velo = uMean({1, 2, 3}) / uMean(0);
+                // real vsqr = velo.squaredNorm();
+                // real Ek = vsqr * 0.5 * uMean(0);
+                // real Efix = Ek * ekFixRatio;
+                // real e = uMean(4) - Ek;
+                // if (e < 0)
+                //     e = 0.5 * Efix;
+                // else if (e < Efix)
+                //     e = (e * e + Efix * Efix) / (2 * Efix);
+                // uMean(4) = Ek + e;
 
                 real pMean, asqrMean, HMean;
                 Gas::IdealGasThermal(uMean(4), uMean(0), veloMean.squaredNorm(),
@@ -362,6 +372,14 @@ namespace DNDS
                                                      settings.idealGasProperty.gamma, pN, asqrN, HN);
                                 Eigen::Vector<real, 5> f, fN;
 
+                                // linear version
+                                // Gas::tVec dVelo;
+                                // real dp;
+                                // Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
+                                // Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
+                                // break;
+                                // abort();
+
                                 // get to norm coord
                                 umeanOther({1, 2, 3}) = normBase.transpose() * umeanOther({1, 2, 3});
                                 umeanOtherN({1, 2, 3}) = normBase.transpose() * umeanOtherN({1, 2, 3});
@@ -464,6 +482,13 @@ namespace DNDS
                                                      settings.idealGasProperty.gamma, pN, asqrN, HN);
                                 Eigen::Vector<real, 5> f, fN;
 
+                                // linear version
+                                // Gas::tVec dVelo;
+                                // real dp;
+                                // Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
+                                // Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
+                                // break;
+
                                 // get to norm coord
                                 umeanOther({1, 2, 3}) = normBase.transpose() * umeanOther({1, 2, 3});
                                 umeanOtherN({1, 2, 3}) = normBase.transpose() * umeanOtherN({1, 2, 3});
@@ -551,6 +576,13 @@ namespace DNDS
                                 Gas::IdealGasThermal(umeanOtherN(4), umeanOtherN(0), vsqrN,
                                                      settings.idealGasProperty.gamma, pN, asqrN, HN);
                                 Eigen::Vector<real, 5> f, fN;
+
+                                // linear version
+                                Gas::tVec dVelo;
+                                real dp;
+                                Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
+                                Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
+                                break;
 
                                 // get to norm coord
                                 umeanOther({1, 2, 3}) = normBase.transpose() * umeanOther({1, 2, 3});
@@ -824,6 +856,7 @@ namespace DNDS
         void FixUMaxFilter(ArrayDOF<5u> &u)
         {
             // TODO: make spacial filter jacobian
+            return ; // ! nofix shortcut
             real scaleRhoCutoff = 0.00001;
             real scaleEInternalCutOff = 0.00001;
             real rhoMax = 0.0;
@@ -949,8 +982,8 @@ namespace DNDS
         ArrayDOF<5u> u, uPoisson, uInc;
         ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew;
 
-        static const int nOUTS = 8;
-        // rho u v w p T M ifUseLimiter
+        static const int nOUTS = 9;
+        // rho u v w p T M ifUseLimiter RHS
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outDist;
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outSerial;
 
@@ -1604,48 +1637,48 @@ namespace DNDS
                         }
                         double tstartH = MPI_Wtime();
 
-                        vfv->ReconstructionWBAPLimitFacial(
-                            cx, uRec, uRec, uF0, uF1, ifUseLimiter,
-                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
-                                auto normBase = Elem::NormBuildLocalBaseV(n);
-                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+                        // vfv->ReconstructionWBAPLimitFacial(
+                        //     cx, uRec, uRec, uF0, uF1, ifUseLimiter,
+                        //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                        //         Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                        //         auto normBase = Elem::NormBuildLocalBaseV(n);
+                        //         UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                real ekFixRatio = 0.001;
-                                Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                                real vsqr = velo.squaredNorm();
-                                real Ek = vsqr * 0.5 * UC(0);
-                                real Efix = Ek * ekFixRatio;
-                                real e = UC(4) - Ek;
-                                if (e < 0)
-                                    e = 0.5 * Efix;
-                                else if (e < Efix)
-                                    e = (e * e + Efix * Efix) / (2 * Efix);
-                                UC(4) = Ek + e;
+                        //         // real ekFixRatio = 0.001;
+                        //         // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                        //         // real vsqr = velo.squaredNorm();
+                        //         // real Ek = vsqr * 0.5 * UC(0);
+                        //         // real Efix = Ek * ekFixRatio;
+                        //         // real e = UC(4) - Ek;
+                        //         // if (e < 0)
+                        //         //     e = 0.5 * Efix;
+                        //         // else if (e < Efix)
+                        //         //     e = (e * e + Efix * Efix) / (2 * Efix);
+                        //         // UC(4) = Ek + e;
 
-                                return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                // return Eigen::Matrix<real, 5, 5>::Identity();
-                            },
-                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
-                                auto normBase = Elem::NormBuildLocalBaseV(n);
-                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+                        //         return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                        //         // return Eigen::Matrix<real, 5, 5>::Identity();
+                        //     },
+                        //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                        //         Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                        //         auto normBase = Elem::NormBuildLocalBaseV(n);
+                        //         UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                real ekFixRatio = 0.001;
-                                Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                                real vsqr = velo.squaredNorm();
-                                real Ek = vsqr * 0.5 * UC(0);
-                                real Efix = Ek * ekFixRatio;
-                                real e = UC(4) - Ek;
-                                if (e < 0)
-                                    e = 0.5 * Efix;
-                                else if (e < Efix)
-                                    e = (e * e + Efix * Efix) / (2 * Efix);
-                                UC(4) = Ek + e;
+                        //         // real ekFixRatio = 0.001;
+                        //         // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                        //         // real vsqr = velo.squaredNorm();
+                        //         // real Ek = vsqr * 0.5 * UC(0);
+                        //         // real Efix = Ek * ekFixRatio;
+                        //         // real e = UC(4) - Ek;
+                        //         // if (e < 0)
+                        //         //     e = 0.5 * Efix;
+                        //         // else if (e < Efix)
+                        //         //     e = (e * e + Efix * Efix) / (2 * Efix);
+                        //         // UC(4) = Ek + e;
 
-                                return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                // return Eigen::Matrix<real, 5, 5>::Identity();
-                            });
+                        //         return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                        //         // return Eigen::Matrix<real, 5, 5>::Identity();
+                        //     });
                         tLim += MPI_Wtime() - tstartH;
 
                         uRec.StartPersistentPullClean(); //! this also need to update!
@@ -1672,6 +1705,8 @@ namespace DNDS
                         cxInc.StartPersistentPullClean();
                         cxInc.WaitPersistentPullClean();
                         eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
+                        cxInc.StartPersistentPullClean();
+                        cxInc.WaitPersistentPullClean();
                         for (int iIter = 1; iIter <= config.nSGSIterationInternal; iIter++)
                         {
                             cxInc.StartPersistentPullClean();
@@ -1826,11 +1861,13 @@ namespace DNDS
                 (*outDist)[iCell][6] = M;
                 // (*outDist)[iCell][7] = (bool)(ifUseLimiter[iCell] & 0x0000000FU);
                 (*outDist)[iCell][7] = ifUseLimiter[iCell] / config.vfvSetting.WBAP_SmoothIndicatorScale;
+                // std::cout << iCell << ode.rhsbuf[0][iCell] << std::endl;
+                (*outDist)[iCell][8] = ode.rhsbuf[0][iCell](0);
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();
             const static std::vector<std::string> names{
-                "R", "U", "V", "W", "P", "T", "M", "ifUseLimiter"};
+                "R", "U", "V", "W", "P", "T", "M", "ifUseLimiter", "RHSr"};
             mesh->PrintSerialPartPltBinaryDataArray(
                 fname, 0, nOUTS, //! oprank = 0
                 [&](int idata)

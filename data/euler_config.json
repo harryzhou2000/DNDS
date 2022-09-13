@@ -1,5 +1,5 @@
 {
-    "recOrder": 2,
+    "recOrder": 1,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
@@ -12,7 +12,7 @@
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 5,
+    "CFL": 0.1,
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-10,
     "useLocalDt": true,
@@ -21,21 +21,22 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/NACA0012_WIDE_H3G_NS.msh",
+    "meshFile": "data/mesh/NACA0012_TIP_Euler.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
         "data/mesh/Uniform/UniformA6_Euler.msh",
         "data/mesh/NACA0012_WIDE_H3_Euler.msh",
         "data/mesh/NACA0012_SW_0_Euler.msh",
-        "data/mesh/NACA0012_SW_UG_Euler.msh",
+        "data/mesh/NACA0012_SW_UG_Euler.msh","data/mesh/NACA0012_FLAT_Euler.msh",
+        "data/mesh/NACA0012_TIP_Euler.msh",
         "data/mesh/cylinder_flow_euler.msh",
         "data/mesh/NACA0012_SW_0_NS.msh",
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
         "data/mesh/NACA0012_WIDE_H3G_NS.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H3G_NS",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H3G_NS",
+    "outPltName": "data/out/test_Euler_.NACA0012_TIP_Euler",
+    "outLogName": "data/out/test_Euler_.NACA0012_TIP_Euler",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -44,7 +45,7 @@
         "SOR_RedBlack": false,
         "JacobiRelax": 1.0,
         "anistropicLengths": false,
-        "tangWeight": 0,
+        "tangWeight": 10,
         "wallWeight": 2,
         "farWeight": 1,
         "weightSchemeGeom": "None",
@@ -59,7 +60,7 @@
         "idealGasProperty": {
             "gamma": 1.4,
             "Rgas": 289,
-            "muGas": 1.1832e-04
+            "muGas": 1.1832e-040
         },
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
@@ -72,10 +73,10 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            0.591607978309962,
+            0.236643191323985,
             0,
             0,
-            2.67500000000000
+            2.528
         ],
         "boxInitializerValue": [],
         "comment_farSatic": [
@@ -110,6 +111,14 @@
                 0,
                 0,
                 2.675
+            ],
+            [
+                "0.2M",
+                1,
+                0.236643191323985,
+                0,
+                0,
+                2.528
             ]
         ]
     },

@@ -290,6 +290,17 @@ namespace DNDS
                         fdt(dTau);
 
                         frhs(rhsbuf[iB], x);
+
+                        //!test explicit
+                        rhs = rhsbuf[iB];
+                        rhs *= dTau;
+                        xinc = rhs;
+                        x += xinc;
+                        if (fstop(iter, xinc, iB + 1))
+                            break;
+                        continue;
+                        //! test explicit
+
                         // rhsbuf[0] = rhs;
                         rhs = xLast;
                         rhs -= x;

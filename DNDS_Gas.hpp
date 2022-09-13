@@ -71,7 +71,7 @@ namespace DNDS
 
         /**
          * @brief calculates Inviscid Flux for x direction
-         * 
+         *
          */
         template <typename TU, typename TF>
         inline void GasInviscidFlux(const TU &U, const tVec &velo, real p, TF &F)
@@ -79,6 +79,27 @@ namespace DNDS
             F = U * velo(0);
             F(1) += p;
             F(4) += velo(0) * p;
+        }
+
+        template <typename TU>
+        inline void IdealGasUIncrement(const TU &U, const TU &dU, const tVec &velo, real gamma, tVec &dVelo, real &dp)
+        {
+            dVelo = (dU({1, 2, 3}) - U({1, 2, 3}) * dU(0)) / U(0);
+            dp = (gamma - 1) * (dU(4) - 0.5 * (dU({1, 2, 3}).dot(velo) + U({1, 2, 3}).dot(dVelo)));
+        }
+
+        template <typename TU, typename TF>
+        inline void GasInviscidFluxFacialIncrement(const TU &U, const TU &dU,
+                                                   const tVec &unitNorm,
+                                                   const tVec &velo, const tVec &dVelo,
+                                                   real dp, real p,
+                                                   TF &F)
+        {
+            real vn = velo.dot(unitNorm);
+            real dvn = dVelo.dot(unitNorm);
+            F(0) = dU({1, 2, 3}).dot(unitNorm);
+            F({1, 2, 3}) = dU({1, 2, 3}) * vn + U({1, 2, 3}) * dvn + unitNorm * dp;
+            F(4) = (dU(4) + dp) * vn + (U(4) + p) * dvn;
         }
 
         template <typename TU>
@@ -112,7 +133,7 @@ namespace DNDS
         template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, const TFdumpInfo &dumpInfo)
         {
-            static real scaleHartenYee = 0.1;
+            static real scaleHartenYee = 0.000;
 
             if (!(UL(0) > 0 && UR(0) > 0))
             {
