@@ -1781,10 +1781,10 @@ namespace DNDS
                     case Setting::WeightSchemeGeom::None:
                         break;
                     case Setting::WeightSchemeGeom::D:
-                        GW = 1. / D;
+                        GW = 1. / std::sqrt(D);
                         break;
                     case Setting::WeightSchemeGeom::S:
-                        GW = 1. / S;
+                        GW = 1. / std::sqrt(S);
                         break;
                     default:
                         assert(false);
@@ -2351,7 +2351,8 @@ namespace DNDS
                                     // Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
                                     // auto uBLMomentum = uBL({1, 2, 3});
                                     // uBV({1, 2, 3}) = uBLMomentum - normOut * (normOut.dot(uBLMomentum));
-                                    uBV({1, 2, 3}).setZero();
+                                    // uBV({1, 2, 3}).setZero();
+                                    uBV({1, 2, 3}) = -uBL({1, 2, 3});
                                     uBV(4) = uBL(4);
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell].p()).transpose();

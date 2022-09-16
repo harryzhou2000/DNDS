@@ -250,7 +250,7 @@ namespace DNDS
             std::vector<TDATA> rhsbuf;
             TDATA rhs;
             TDATA xLast;
-            TDATA xInc;
+            TDATA xIncPrev;
             index DOF;
 
             /**
@@ -267,7 +267,7 @@ namespace DNDS
                     finit(i);
                 finit(rhs);
                 finit(xLast);
-                finit(xInc);
+                finit(xIncPrev);
             }
 
             /**
@@ -285,21 +285,22 @@ namespace DNDS
                 for (int iB = 0; iB < 3; iB++)
                 {
                     x = xLast;
+                    xIncPrev.setConstant(0.0);
                     for (int iter = 1; iter <= maxIter; iter++)
                     {
                         fdt(dTau);
 
                         frhs(rhsbuf[iB], x);
 
-                        //!test explicit
-                        rhs = rhsbuf[iB];
-                        rhs *= dTau;
-                        xinc = rhs;
-                        x += xinc;
-                        if (fstop(iter, xinc, iB + 1))
-                            break;
-                        continue;
-                        //! test explicit
+                        // //!test explicit
+                        // rhs = rhsbuf[iB];
+                        // rhs *= dTau;
+                        // xinc = rhs;
+                        // x += xinc;
+                        // if (fstop(iter, xinc, iB + 1))
+                        //     break;
+                        // continue;
+                        // //! test explicit
 
                         // rhsbuf[0] = rhs;
                         rhs = xLast;
@@ -309,7 +310,11 @@ namespace DNDS
                             rhs.addTo(rhsbuf[iB], butcherA(iB, jB)); // crhs = rhs + (x_i - x_j) / dt
 
                         fsolve(x, rhs, dTau, dt, butcherA(iB, iB), xinc);
-                        x += xinc;
+                        // x += xinc;
+                        x.addTo(xinc, 1.0);
+                        // x.addTo(xIncPrev, -0.5);
+
+                        xIncPrev = xinc;
 
                         if (fstop(iter, xinc, iB + 1))
                             break;

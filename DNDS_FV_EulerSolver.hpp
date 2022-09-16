@@ -57,14 +57,14 @@ namespace DNDS
         static Eigen::Vector<real, 5> CompressRecPart(const Eigen::Vector<real, 5> &umean, const Eigen::Vector<real, 5> &uRecInc)
         {
 
-            if (umean(0) + uRecInc(0) < 0)
-            {
-                std::cout << umean.transpose() << std::endl
-                          << uRecInc.transpose() << std::endl;
-                std::abort();
-            }
+            // if (umean(0) + uRecInc(0) < 0)
+            // {
+            //     std::cout << umean.transpose() << std::endl
+            //               << uRecInc.transpose() << std::endl;
+            //     assert(false);
+            // }
             // return umean + uRecInc; // ! no compress shortcut
-            return umean; // ! 0th order shortcut
+            // return umean; // ! 0th order shortcut
 
             real compressT = 0.00001;
             real eFixRatio = 0.00001;
@@ -104,11 +104,25 @@ namespace DNDS
 
                 index iCellL = f2c[0];
                 Eigen::Vector<real, 5> uMean = u[iCellL].p();
+                real pL, asqrL, HL, pR, asqrR, HR;
+                Gas::tVec vL = u[iCellL].p()({1, 2, 3}) / u[iCellL].p()(0);
+                Gas::tVec vR = vL;
+                Gas::IdealGasThermal(u[iCellL].p()(4), u[iCellL].p()(0), vL.squaredNorm(),
+                                     settings.idealGasProperty.gamma,
+                                     pL, asqrL, HL);
+                pR = pL, HR = HL, asqrR = asqrL;
                 if (f2c[1] != FACE_2_VOL_EMPTY)
+                {
                     uMean = (uMean + u[f2c[1]].p()) * 0.5;
+                    vR = u[f2c[1]].p()({1, 2, 3}) / u[f2c[1]].p()(0);
+                    Gas::IdealGasThermal(u[f2c[1]].p()(4), u[f2c[1]].p()(0), vR.squaredNorm(),
+                                         settings.idealGasProperty.gamma,
+                                         pR, asqrR, HR);
+                }
                 assert(uMean(0) > 0);
-                auto veloMean = (uMean({1, 2, 3}).array() / uMean(0)).matrix();
-                real veloNMean = veloMean.dot(unitNorm);
+                Gas::tVec veloMean = (uMean({1, 2, 3}).array() / uMean(0)).matrix();
+                // real veloNMean = veloMean.dot(unitNorm); // original
+                real veloNMean = 0.5 * (vL + vR).dot(unitNorm); // paper
 
                 // real ekFixRatio = 0.001;
                 // Eigen::Vector3d velo = uMean({1, 2, 3}) / uMean(0);
@@ -126,8 +140,13 @@ namespace DNDS
                 Gas::IdealGasThermal(uMean(4), uMean(0), veloMean.squaredNorm(),
                                      settings.idealGasProperty.gamma,
                                      pMean, asqrMean, HMean);
-                assert(asqrMean >= 0);
-                real lambdaConvection = std::abs(veloNMean) + std::sqrt(asqrMean);
+
+                pMean = (pL + pR) * 0.5;
+                real aMean = sqrt(settings.idealGasProperty.gamma * pMean / uMean(0)); // paper
+
+                // assert(asqrMean >= 0);
+                // real aMean = std::sqrt(asqrMean); // original
+                real lambdaConvection = std::abs(veloNMean) + aMean;
 
                 real muf = settings.idealGasProperty.muGas;
                 real lamVis = muf / uMean(0) *
@@ -161,6 +180,27 @@ namespace DNDS
             }
 
             MPI_Allreduce(&dtMin, &dtMinall, 1, DNDS_MPI_REAL, MPI_MIN, u.dist->getMPI().comm);
+
+            for (int iPass = 1; iPass <= 3; iPass++)
+            {
+                for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+                {
+                    auto &c2f = mesh->cell2faceLocal[iCell];
+                    real dtC = dt[iCell];
+                    real dtC_N = 1.0;
+                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                    {
+                        index iFace = c2f[ic2f];
+                        auto &f2c = (*mesh->face2cellPair)[iFace];
+                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                        if (iCellOther != FACE_2_VOL_EMPTY && iCellOther < mesh->cell2nodeLocal.dist->size())
+                            dtC += dt[iCell] + dt[iCellOther], dtC_N += 2.0;
+                    }
+                    dt[iCell] = dtC / dtC_N;
+                }
+            }
+
             // if (uRec.dist->getMPI().rank == 0)
             //     std::cout << "dt min is " << dtMinall << std::endl;
             if (!UseLocaldt)
@@ -278,6 +318,11 @@ namespace DNDS
                         }
 
                         real distGRP = minVol / fv->faceArea[iFace] * 2;
+                        // real distGRP = (vfv->cellBaries[f2c[0]] -
+                        //                 (f2c[1] != FACE_2_VOL_EMPTY
+                        //                      ? vfv->cellBaries[f2c[1]]
+                        //                      : 2 * vfv->faceCenters[iFace] - vfv->cellBaries[f2c[0]]))
+                        //                    .norm();
                         Eigen::Vector<real, 5> UMeanXy = 0.5 * (ULxy + URxy);
                         Eigen::Matrix<real, 3, 5> GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
                                                                 (1.0 / distGRP) *
@@ -310,10 +355,10 @@ namespace DNDS
                 if (f2c[1] != FACE_2_VOL_EMPTY)
                     rhs[f2c[1]] -= flux / fv->volumeLocal[f2c[1]];
             }
-            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
-            {
-                rhs[iCell] = rhs[iCell].array().min(1e10).max(-1e10).matrix();
-            }
+            // for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+            // {
+            //     rhs[iCell] = rhs[iCell].array().min(1e10).max(-1e10).matrix();
+            // }
         }
 
         /**
@@ -621,208 +666,6 @@ namespace DNDS
             }
         }
 
-        void PoissonInit(ArrayDOF<1u> &u, ArrayDOF<1u> &unew, int nIter, real alpha = 0.1)
-        {
-            for (int step = 1; step <= nIter; step++)
-            {
-                real incMax = 0;
-                u.StartPersistentPullClean();
-                u.WaitPersistentPullClean();
-                for (index iCell = 0; iCell < u.dist->size(); iCell++)
-                {
-                    auto &c2f = mesh->cell2faceLocal[iCell];
-
-                    Elem::tPoint gradAll{0, 0, 0};
-                    bool hasUpper = false;
-                    auto &cLeft = vfv->cellCenters[iCell];
-                    real aC = 0;
-                    real aRHSU = 0;
-                    real uC = u[iCell](0);
-                    real uDMax = 0;
-                    real dmin = veryLargeReal;
-                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
-                    {
-                        // this is a repeated code block START
-                        index iFace = c2f[ic2f];
-                        auto &f2c = (*mesh->face2cellPair)[iFace];
-                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
-                        auto &cFace = vfv->faceCenters[iFace];
-                        auto fN = vfv->faceNormCenter[iFace].normalized() * (iCellAtFace == 0 ? 1. : -1.);
-
-                        if (iCellOther != FACE_2_VOL_EMPTY)
-                        {
-                            real D = std::abs((cLeft - vfv->cellCenters[iCellOther]).dot(fN));
-                            dmin = std::min(D, dmin);
-                            // std::cout << u.dist->size() << " " << u.ghost->size() << " "
-                            //           << iCell << " " << iCellOther << " " << u[iCellOther](0) << " " << uC << std::endl;
-                            // if (u[iCellOther](0) != 0)
-                            // {
-                            //     forEachInArrayPair(*u.pair, [&](decltype(u.dist)::element_type::tComponent &e, index iCell)
-                            //                           { std::cout << "UPPair: " << e << std::endl; });
-                            //     exit(0);
-                            // }
-                            // inc += (u[iCellOther](0) - uC) / D * fv->faceArea[iFace];
-                            aRHSU += u[iCellOther](0) / D * fv->faceArea[iFace];
-                            aC += 1 / D * fv->faceArea[iFace];
-                            uDMax = std::max(uDMax, std::abs(u[iCellOther](0) - uC));
-                        }
-                        else
-                        {
-                            real D = (cLeft - cFace).norm() * 2;
-                            dmin = std::min(D, dmin);
-                            // std::cout << D << std::endl;
-                            if (faceAttribute.iPhy == BoundaryType::Wall)
-                            {
-                                aRHSU += 0 / D * fv->faceArea[iFace];
-                                aC += 1 / D * fv->faceArea[iFace];
-                                uDMax = std::max(uDMax, std::abs(0 - uC));
-                            }
-                            else if (faceAttribute.iPhy == BoundaryType::Farfield)
-                            {
-                                // inc += (0 - uC) / D * fv->faceArea[iFace];
-                                // uDMax = std::max(uDMax, std::abs(0 - uC));
-                                aRHSU += uC / D * fv->faceArea[iFace];
-                                aC += 1 / D * fv->faceArea[iFace];
-                            }
-                            else
-                            {
-                                assert(false);
-                            }
-                        }
-                    }
-                    // real vinc = ((inc) / fv->volumeLocal[iCell] - 1);
-                    // unew[iCell](0) += std::min(alpha, uDMax / (std::abs(vinc) + 1e-10)) * vinc;
-                    // unew[iCell](0) += dmin * dmin * alpha * vinc;
-                    u[iCell](0) = (1 - alpha) * u[iCell](0) + alpha * (aRHSU + fv->volumeLocal[iCell] * 1) / aC;
-                    // std::cout << " great" << unew[iCell](0) << " ";
-                    incMax = std::max(std::abs(uC - u[iCell](0)), incMax);
-                }
-                // for (index iCell = 0; iCell < u.dist->size(); iCell++)
-                //     u[iCell] = unew[iCell];
-
-                real incMaxR;
-                // std::cout << incMax << std::endl;
-                MPI_Allreduce(&incMax, &incMaxR, 1, DNDS_MPI_REAL, MPI_MAX, u.ghost->getMPI().comm);
-
-                if (u.ghost->getMPI().rank == 0 && step % 100 == 0)
-                    log() << "Poisson Solve Step [" << step << "]: RHSMax = [" << incMaxR << "]" << std::endl;
-            }
-
-            u.StartPersistentPullClean();
-            u.WaitPersistentPullClean();
-            for (index iCell = 0; iCell < u.dist->size(); iCell++)
-            {
-                auto &c2f = mesh->cell2faceLocal[iCell];
-                Elem::tPoint grad{0, 0, 0};
-                real uC = u[iCell](0);
-
-                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
-                {
-                    // this is a repeated code block START
-                    index iFace = c2f[ic2f];
-                    auto &f2c = (*mesh->face2cellPair)[iFace];
-                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                    auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
-                    auto &cFace = vfv->faceCenters[iFace];
-                    auto &cLeft = vfv->cellCenters[iCell];
-                    auto fN = vfv->faceNormCenter[iFace].normalized() * (iCellAtFace == 0 ? 1. : -1.);
-
-                    if (iCellOther != FACE_2_VOL_EMPTY)
-                    {
-                        real D = std::abs((cLeft - vfv->cellCenters[iCellOther]).dot(fN));
-                        grad += ((u[iCellOther](0) + uC) * 0.5 * fv->faceArea[iFace]) * fN;
-                    }
-                    else
-                    {
-                        real D = (cLeft - cFace).norm() * 2;
-                        if (faceAttribute.iPhy == BoundaryType::Wall)
-                        {
-                            grad += ((0 + uC) * 0.5 * fv->faceArea[iFace]) * fN;
-                        }
-                        else if (faceAttribute.iPhy == BoundaryType::Farfield)
-                        {
-                            grad += ((uC + uC) * 0.5 * fv->faceArea[iFace]) * fN;
-                        }
-                        else
-                        {
-                            assert(false);
-                        }
-                    }
-                }
-                grad.array() /= fv->volumeLocal[iCell];
-                real nGrad = grad.squaredNorm();
-                unew[iCell](0) = std::sqrt(std::max(nGrad + 2 * u[iCell](0), 0.0)) - std::sqrt(nGrad);
-                // unew[iCell] = u[iCell];
-                // std::cout << "out " << u[iCell];
-            }
-
-            for (int i = 0; i < 10; i++)
-            {
-                unew.StartPersistentPullClean();
-                unew.WaitPersistentPullClean();
-                for (index iCell = 0; iCell < u.dist->size(); iCell++)
-                {
-                    auto &c2f = mesh->cell2faceLocal[iCell];
-                    Elem::tPoint grad{0, 0, 0};
-                    real uC = unew[iCell](0);
-
-                    real uSum{0}, nSum{0};
-
-                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
-                    {
-                        // this is a repeated code block START
-                        index iFace = c2f[ic2f];
-                        auto &f2c = (*mesh->face2cellPair)[iFace];
-                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
-                        auto &cFace = vfv->faceCenters[iFace];
-                        auto &cLeft = vfv->cellCenters[iCell];
-                        auto fN = vfv->faceNormCenter[iFace].normalized() * (iCellAtFace == 0 ? 1. : -1.);
-
-                        if (iCellOther != FACE_2_VOL_EMPTY)
-                        {
-                            uSum += unew[iCellOther](0);
-                            nSum += 1;
-
-                            uSum += uC;
-                            nSum += 1;
-                        }
-                        else
-                        {
-                            real D = (cLeft - cFace).norm() * 2;
-                            if (faceAttribute.iPhy == BoundaryType::Wall)
-                            {
-                                uSum += 0;
-                                nSum += 1;
-
-                                uSum += uC;
-                                nSum += 1;
-                            }
-                            else if (faceAttribute.iPhy == BoundaryType::Farfield)
-                            {
-                                uSum += uC;
-                                nSum += 1;
-
-                                uSum += uC;
-                                nSum += 1;
-                            }
-                            else
-                            {
-                                assert(false);
-                            }
-                        }
-                    }
-                    u[iCell](0) = uSum / nSum;
-                }
-                for (index iCell = 0; iCell < u.dist->size(); iCell++)
-                    unew[iCell] = u[iCell];
-            }
-        }
-
         void EvaluateResidual(Eigen::Vector<real, 5> &res, ArrayDOF<5u> &rhs, index P = 1)
         {
             if (P < 3)
@@ -856,7 +699,7 @@ namespace DNDS
         void FixUMaxFilter(ArrayDOF<5u> &u)
         {
             // TODO: make spacial filter jacobian
-            return ; // ! nofix shortcut
+            return; // ! nofix shortcut
             real scaleRhoCutoff = 0.00001;
             real scaleEInternalCutOff = 0.00001;
             real rhoMax = 0.0;
@@ -1577,6 +1420,7 @@ namespace DNDS
                 {
                     data.resize(u.dist->size(), u.dist->getMPI());
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
+                    data.InitPersistentPullClean();
                 });
             EulerEvaluator eval(mesh.get(), fv.get(), vfv.get());
             std::ofstream logErr(config.outLogName + ".log");
@@ -1637,48 +1481,48 @@ namespace DNDS
                         }
                         double tstartH = MPI_Wtime();
 
-                        // vfv->ReconstructionWBAPLimitFacial(
-                        //     cx, uRec, uRec, uF0, uF1, ifUseLimiter,
-                        //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                        //         Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
-                        //         auto normBase = Elem::NormBuildLocalBaseV(n);
-                        //         UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+                        vfv->ReconstructionWBAPLimitFacial(
+                            cx, uRec, uRec, uF0, uF1, ifUseLimiter,
+                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                auto normBase = Elem::NormBuildLocalBaseV(n);
+                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                        //         // real ekFixRatio = 0.001;
-                        //         // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                        //         // real vsqr = velo.squaredNorm();
-                        //         // real Ek = vsqr * 0.5 * UC(0);
-                        //         // real Efix = Ek * ekFixRatio;
-                        //         // real e = UC(4) - Ek;
-                        //         // if (e < 0)
-                        //         //     e = 0.5 * Efix;
-                        //         // else if (e < Efix)
-                        //         //     e = (e * e + Efix * Efix) / (2 * Efix);
-                        //         // UC(4) = Ek + e;
+                                // real ekFixRatio = 0.001;
+                                // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                // real vsqr = velo.squaredNorm();
+                                // real Ek = vsqr * 0.5 * UC(0);
+                                // real Efix = Ek * ekFixRatio;
+                                // real e = UC(4) - Ek;
+                                // if (e < 0)
+                                //     e = 0.5 * Efix;
+                                // else if (e < Efix)
+                                //     e = (e * e + Efix * Efix) / (2 * Efix);
+                                // UC(4) = Ek + e;
 
-                        //         return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                        //         // return Eigen::Matrix<real, 5, 5>::Identity();
-                        //     },
-                        //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                        //         Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
-                        //         auto normBase = Elem::NormBuildLocalBaseV(n);
-                        //         UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+                                // return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                return Eigen::Matrix<real, 5, 5>::Identity();
+                            },
+                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                auto normBase = Elem::NormBuildLocalBaseV(n);
+                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                        //         // real ekFixRatio = 0.001;
-                        //         // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                        //         // real vsqr = velo.squaredNorm();
-                        //         // real Ek = vsqr * 0.5 * UC(0);
-                        //         // real Efix = Ek * ekFixRatio;
-                        //         // real e = UC(4) - Ek;
-                        //         // if (e < 0)
-                        //         //     e = 0.5 * Efix;
-                        //         // else if (e < Efix)
-                        //         //     e = (e * e + Efix * Efix) / (2 * Efix);
-                        //         // UC(4) = Ek + e;
+                                // real ekFixRatio = 0.001;
+                                // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                // real vsqr = velo.squaredNorm();
+                                // real Ek = vsqr * 0.5 * UC(0);
+                                // real Efix = Ek * ekFixRatio;
+                                // real e = UC(4) - Ek;
+                                // if (e < 0)
+                                //     e = 0.5 * Efix;
+                                // else if (e < Efix)
+                                //     e = (e * e + Efix * Efix) / (2 * Efix);
+                                // UC(4) = Ek + e;
 
-                        //         return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                        //         // return Eigen::Matrix<real, 5, 5>::Identity();
-                        //     });
+                                // return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                return Eigen::Matrix<real, 5, 5>::Identity();
+                            });
                         tLim += MPI_Wtime() - tstartH;
 
                         uRec.StartPersistentPullClean(); //! this also need to update!
@@ -1701,6 +1545,41 @@ namespace DNDS
                     [&](ArrayDOF<5u> &cx, ArrayDOF<5u> &crhs, std::vector<real> &dTau,
                         real dt, real alphaDiag, ArrayDOF<5u> &cxInc)
                     {
+                        for (int iPass = 1; iPass <= 0; iPass++)
+                        {
+                            crhs.StartPersistentPullClean();
+                            crhs.WaitPersistentPullClean();
+                            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+                            {
+                                auto &c2f = mesh->cell2faceLocal[iCell];
+                                // Eigen::Vector<real, 5> duC = crhs[iCell] * 1.0;
+                                // real duC_N = 1.0;
+
+                                Eigen::Vector<real, 5> duC;
+                                duC.setZero();
+                                real duC_N = 0.0;
+
+                                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                                {
+                                    index iFace = c2f[ic2f];
+                                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                                    if (iCellOther != FACE_2_VOL_EMPTY)
+                                    {
+                                        real dist = (eval.vfv->cellBaries[iCellOther] - eval.vfv->cellBaries[iCell]).norm();
+                                        real divisor = eval.fv->faceArea[iFace] / dist;
+                                        duC += crhs[iCellOther] * divisor;
+                                        duC_N += divisor;
+                                    }
+                                }
+                                uPoisson[iCell] = 0.5 * (duC / duC_N + crhs[iCell]);
+                            }
+                            uPoisson.StartPersistentPullClean();
+                            uPoisson.WaitPersistentPullClean();
+                            crhs = uPoisson;
+                        }
+
                         eval.UpdateLUSGSForward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
                         cxInc.StartPersistentPullClean();
                         cxInc.WaitPersistentPullClean();

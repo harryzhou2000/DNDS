@@ -133,7 +133,7 @@ namespace DNDS
         template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, const TFdumpInfo &dumpInfo)
         {
-            static real scaleHartenYee = 0.000;
+            static real scaleHartenYee = 0.001;
 
             if (!(UL(0) > 0 && UR(0) > 0))
             {
@@ -154,6 +154,7 @@ namespace DNDS
             real vsqrRoe = veloRoe.squaredNorm();
             real HRoe = (sqrtRhoL * HL + sqrtRhoR * HR) / (sqrtRhoL + sqrtRhoR);
             real asqrRoe = (gamma - 1) * (HRoe - 0.5 * vsqrRoe);
+            real rhoRoe = sqrtRhoL * sqrtRhoR;
 
             if (!(asqrRoe > 0))
             {
@@ -181,6 +182,8 @@ namespace DNDS
             EulerGasRightEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
 
             Eigen::Vector<real, 5> incU = UR - UL;
+            real incP = pR - pL;
+            Gas::tVec incVelo = veloR - veloL;
             Eigen::Vector<real, 5> alpha;
 
             alpha(2) = incU(2) - veloRoe(1) * incU(0);
@@ -192,7 +195,15 @@ namespace DNDS
             alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
             alpha(4) = incU(0) - (alpha(0) + alpha(1));
 
-            Eigen::Vector<real, 5> incF = ReVRoe * (lam.array() * alpha.array()).matrix();
+            // // * Roe-Pike
+            // alpha(0) = 0.5 / aRoe * (incP - rhoRoe * aRoe * incVelo(0));
+            // alpha(1) = incU(0) - incP / sqr(aRoe);
+            // alpha(2) = rhoRoe * incVelo(1);
+            // alpha(3) = rhoRoe * incVelo(2);
+            // alpha(4) = 0.5 / aRoe * (incP + rhoRoe * aRoe * incVelo(0));
+
+            Eigen::Vector<real, 5>
+                incF = ReVRoe * (lam.array() * alpha.array()).matrix();
             Eigen::Vector<real, 5> FL, FR;
             GasInviscidFlux(UL, veloL, pL, FL);
             GasInviscidFlux(UR, veloR, pR, FR);
