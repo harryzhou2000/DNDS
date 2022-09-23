@@ -177,7 +177,7 @@ namespace DNDS
             {
                 // std::cout << fv->volumeLocal[iCell] << " " << (lambdaCell[iCell]) << " " << CFL << std::endl;
                 // exit(0);
-                dt[iCell] = std::min(CFL * fv->volumeLocal[iCell] / (lambdaCell[iCell] + 1e-10), MaxDt);
+                dt[iCell] = std::min(CFL * fv->volumeLocal[iCell] / (lambdaCell[iCell] + 1e-100), MaxDt);
                 dtMin = std::min(dtMin, dt[iCell]);
             }
 
@@ -395,6 +395,7 @@ namespace DNDS
                             Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther];
                             Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
                             Eigen::Vector<real, 5> fInc;
+                            do
                             {
                                 Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                         (iCellAtFace ? -1 : 1); // faces out
@@ -443,7 +444,7 @@ namespace DNDS
                                               << vsqr << "\t" << vsqrN << std::endl;
                                     assert(!(fInc.hasNaN() || (!fInc.allFinite())));
                                 }
-                            }
+                            } while (false);
 
                             uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
                                           (fInc - lambdaFace[iFace] * umeanOtherInc);
@@ -508,6 +509,7 @@ namespace DNDS
                             Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther];
                             Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
                             Eigen::Vector<real, 5> fInc;
+                            do
                             {
                                 Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                         (iCellAtFace ? -1 : 1); // faces out
@@ -555,7 +557,7 @@ namespace DNDS
                                               << vsqr << "\t" << vsqrN << std::endl;
                                     assert(!(fInc.hasNaN() || (!fInc.allFinite())));
                                 }
-                            }
+                            } while (false);
 
                             uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
                                           (fInc - lambdaFace[iFace] * umeanOtherInc);
@@ -604,6 +606,7 @@ namespace DNDS
                             Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther];
                             Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
                             Eigen::Vector<real, 5> fInc;
+                            do
                             {
                                 Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                         (iCellAtFace ? -1 : 1); // faces out
@@ -654,7 +657,7 @@ namespace DNDS
                                 // std::cout << normBase << std::endl
                                 //            << normBase * normBase.transpose() << std::endl;
                                 // std::abort();
-                            }
+                            } while (true);
 
                             uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
                                           (fInc - lambdaFace[iFace] * umeanOtherInc);
@@ -662,7 +665,8 @@ namespace DNDS
                     }
                 }
                 uIncNewBuf /= fpDivisor;
-                uIncNew[iCell] = uIncNewBuf; // full
+                real relax = 0.1;
+                uIncNew[iCell] = uIncNewBuf * relax + uInc[iCell] * (1 - relax); // full
 
                 // fix rho increment
                 if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
