@@ -2512,6 +2512,17 @@ namespace DNDS
             uR.InitPersistentPullClean();
         }
 
+        void BuildIfUseLimiter(ArrayLocal<Batch<real, 1>> &ifUseLimiter)
+        {
+            index nCellDist = mesh->cell2nodeLocal.dist->size();
+            ifUseLimiter.dist = std::make_shared<typename decltype(ifUseLimiter.dist)::element_type>(
+                decltype(ifUseLimiter.dist)::element_type::tContext(
+                    nCellDist),
+                mpi);
+            ifUseLimiter.CreateGhostCopyComm(mesh->cellAtrLocal);
+            ifUseLimiter.InitPersistentPullClean();
+        }
+
         /**
          * @brief FM(uLeft,uRight,norm) gives vsize * vsize mat of Left Eigen Vectors
          *
@@ -2523,7 +2534,7 @@ namespace DNDS
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf,
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecFacialBuf,
                                            ArrayLocal<SemiVarMatrix<vsize>> &uRecFacialNewBuf,
-                                           std::vector<real> &ifUseLimiter,
+                                           ArrayLocal<Batch<real, 1>> &ifUseLimiter,
                                            TFM &&FM, TFMI &&FMI)
         {
             static int icount = 0;
@@ -2533,7 +2544,7 @@ namespace DNDS
             for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
             {
                 index iCell = iScan;
-                index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
+                index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1; // ! not good ! TODO
                 auto &c2f = mesh->cell2faceLocal[iCell];
 
                 Eigen::Matrix<real, 2, 2> IJIISIsum;
@@ -2545,7 +2556,8 @@ namespace DNDS
                     auto &faceAtr = mesh->faceAtrLocal[iFace][0];
                     auto f2c = mesh->face2cellLocal[iFace];
                     auto faceDiBjGaussBatchElemVR = (*faceDiBjGaussBatch)[iFace];
-                    Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
+                    // Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
+                    Elem::ElementManager eFace(faceAtr.type, Elem::INT_SCHEME_LINE_1); // !using faster integration
                     index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                     index iCellAtFace = f2c[0] == iCell ? 0 : 1;
                     if (iCellOther != FACE_2_VOL_EMPTY)
@@ -2610,18 +2622,20 @@ namespace DNDS
                 //                       (std::sqrt(sImax) > setting.WBAP_SmoothIndicatorScale / (P_ORDER * P_ORDER)
                 //                            ? 0x00000001U
                 //                            : 0x00000000U);
-                ifUseLimiter[iCell] = std::sqrt(sImax) * (P_ORDER * P_ORDER);
+                ifUseLimiter[iCell][0] = std::sqrt(sImax) * (P_ORDER * P_ORDER);
             }
             // assert(u.ghost->commStat.hasPersistentPullReqs);
             // assert(uRecFacialBuf.ghost->commStat.hasPersistentPullReqs);
             // exit(0);
             uRecFacialBuf.StartPersistentPullClean();
             uRecFacialBuf.WaitPersistentPullClean();
+            ifUseLimiter.StartPersistentPullClean();
+            ifUseLimiter.WaitPersistentPullClean();
 
             // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 1");
             //* Step 1: facial hierachical limiting
             int cPOrder = P_ORDER;
-            for (; cPOrder >= 1; cPOrder--)
+            for (; cPOrder >= 1; cPOrder--) //! 2d here
             {
                 int LimStart, LimEnd; // End is inclusive
                 switch (cPOrder)
@@ -2647,10 +2661,7 @@ namespace DNDS
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
                 {
                     index iCell = iScan;
-                    // if (!(ifUseLimiter[iCell] & 0x0000000FU))
-                    //     continue;
-                    if (ifUseLimiter[iCell] < setting.WBAP_SmoothIndicatorScale)
-                        continue;
+
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
 
@@ -2668,6 +2679,11 @@ namespace DNDS
                             index NRecDOFOther = cellRecAtrLocal[iCellOther][0].NDOF - 1;
                             if (NRecDOFOther < (LimEnd + 1) || NRecDOF < (LimEnd + 1))
                                 continue; // reserved for p-adaption
+                            // if (!(ifUseLimiter[iCell] & 0x0000000FU))
+                            //     continue;
+                            if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale &&
+                                ifUseLimiter[iCellOther][0] < setting.WBAP_SmoothIndicatorScale)
+                                continue;
                             auto &cOther2f = mesh->cell2faceLocal[iCellOther];
                             index icOther2f = 0;
                             //* find icOther2f
@@ -2737,8 +2753,6 @@ namespace DNDS
                     index iCell = iScan;
                     // if (!(ifUseLimiter[iCell] & 0x0000000FU))
                     //     continue;
-                    if (ifUseLimiter[iCell] < setting.WBAP_SmoothIndicatorScale)
-                        continue;
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
 
@@ -2753,6 +2767,9 @@ namespace DNDS
 
                         if (iCellOther != FACE_2_VOL_EMPTY)
                         {
+                            if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale &&
+                                ifUseLimiter[iCellOther][0] < setting.WBAP_SmoothIndicatorScale)
+                                continue;
                             index NRecDOFOther = cellRecAtrLocal[iCellOther][0].NDOF - 1;
                             if (NRecDOFOther < (LimEnd + 1) || NRecDOF < (LimEnd + 1))
                                 continue; // reserved for p-adaption
@@ -2785,10 +2802,24 @@ namespace DNDS
                 index iCell = iScan;
                 // if (!(ifUseLimiter[iCell] & 0x0000000FU))
                 //     continue;
-                if (ifUseLimiter[iCell] < setting.WBAP_SmoothIndicatorScale)
-                    continue;
                 index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                 auto &c2f = mesh->cell2faceLocal[iCell];
+
+                bool ifOtherUse = false;
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        if (ifUseLimiter[iCellOther][0] >= setting.WBAP_SmoothIndicatorScale)
+                            ifOtherUse = true;
+                    }
+                }
+                if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale && (!ifOtherUse))
+                    continue;
 
                 std::vector<Eigen::Array<real, -1, vsize>> uOthers;
                 // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Step 2-0");
@@ -2837,11 +2868,11 @@ namespace DNDS
                 }
 
                 real relax = 1;
-                if (ifUseLimiter[iCell] < 2 * setting.WBAP_SmoothIndicatorScale)
-                {
-                    real eIS = (ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / (setting.WBAP_SmoothIndicatorScale);
-                    relax = eIS;
-                }
+                // if (ifUseLimiter[iCell][0] < 2 * setting.WBAP_SmoothIndicatorScale)
+                // {
+                //     real eIS = (ifUseLimiter[iCell][0] - setting.WBAP_SmoothIndicatorScale) / (setting.WBAP_SmoothIndicatorScale);
+                //     relax = eIS;
+                // } //! relaxation
                 uRecNewBuf[iCell].m() = uLimOutArray.matrix() * relax + uRec[iCell].m() * (1 - relax);
 
                 // std::cout << "new Old" << std::endl;

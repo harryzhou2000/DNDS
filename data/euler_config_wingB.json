@@ -1,9 +1,9 @@
 {
-    "recOrder": 2,
+    "recOrder": 3,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
-    "nSGSIterationInternal": 1,
+    "nSGSIterationInternal": 0,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
     "nDataOutC": 1,
@@ -12,16 +12,17 @@
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 5,
+    "CFL": 40,
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-10,
     "useLocalDt": true,
+    "useLimiter": false,
     "nForceLocalStartStep": 1000000000,
-    "nCFLRampStart": 10000,
+    "nCFLRampStart": 100000000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/NACA0012_SW_0_Euler.msh",
+    "meshFile": "data/mesh/NACA0012_TIP_WIDE_NS.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -29,37 +30,42 @@
         "data/mesh/NACA0012_WIDE_H3_Euler.msh",
         "data/mesh/NACA0012_SW_0_Euler.msh",
         "data/mesh/NACA0012_SW_UG_Euler.msh",
+        "data/mesh/NACA0012_FLAT_Euler.msh",
+        "data/mesh/NACA0012_TIP_Euler.msh",
+        "data/mesh/NACA0012_TIP_NS.msh",
         "data/mesh/cylinder_flow_euler.msh",
         "data/mesh/NACA0012_SW_0_NS.msh",
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
-        "data/mesh/NACA0012_WIDE_H3G_NS.msh"
+        "data/mesh/NACA0012_WIDE_H3G_NS.msh",
+        "data/mesh/NACA0012_TIP_WIDE_NS"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_SW_0_Euler",
-    "outLogName": "data/out/test_Euler_.NACA0012_SW_0_Euler",
+    "outPltName": "data/out/test_Euler_.NACA0012_TIP_WIDE_NS",
+    "outLogName": "data/out/test_Euler_.NACA0012_TIP_WIDE_NS",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
-        "SOR_Instead": true,
+        "SOR_Instead": false,
         "SOR_InverseScanning": false,
         "SOR_RedBlack": false,
-        "JacobiRelax": 1.0,
+        "JacobiRelax": 0.5,
         "anistropicLengths": false,
-        "tangWeight": 10,
-        "wallWeight": 2,
+        "tangWeight": 0.0,
+        "wallWeight": 0.1,
         "farWeight": 1,
         "weightSchemeGeom": "None",
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 0.1
+        "WBAP_SmoothIndicatorScale": 1e-100
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
+        "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
             "Rgas": 289,
-            "muGas": 1.1832e-040
+            "muGas": 1.1832e-04
         },
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
@@ -72,10 +78,10 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            0.236643191323985,
+            0.591607978309962,
             0,
             0,
-            2.528
+            2.675
         ],
         "boxInitializerValue": [],
         "comment_farSatic": [

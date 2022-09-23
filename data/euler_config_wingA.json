@@ -16,6 +16,7 @@
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-10,
     "useLocalDt": true,
+    "useLimiter": false,
     "nForceLocalStartStep": 1000000000,
     "nCFLRampStart": 10000,
     "nCFLRampLength": 10000,
@@ -56,6 +57,7 @@
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
+        "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
             "Rgas": 289,

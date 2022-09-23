@@ -29,6 +29,8 @@ namespace DNDS
                 real prGas = 0.7;
                 real CpGas = Rgas * gamma / (gamma - 1);
             } idealGasProperty;
+            int nTimeFilterPass = 0;
+
             real visScale = 1;
             real visScaleIn = 1;
             real isiScale = 1;
@@ -181,7 +183,7 @@ namespace DNDS
 
             MPI_Allreduce(&dtMin, &dtMinall, 1, DNDS_MPI_REAL, MPI_MIN, u.dist->getMPI().comm);
 
-            for (int iPass = 1; iPass <= 3; iPass++)
+            for (int iPass = 1; iPass <= settings.nTimeFilterPass; iPass++)
             {
                 for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
                 {
@@ -217,6 +219,7 @@ namespace DNDS
          * \param rhs overwritten;
          *
          */
+#define IF_NOT_NOREC (1)
         void EvaluateRHS(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayLocal<SemiVarMatrix<5u>> &uRec)
         {
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
@@ -232,13 +235,7 @@ namespace DNDS
                 Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
                 Eigen::Vector<real, 5> flux;
                 flux.setZero();
-                real dist;
                 auto faceDiBjGaussBatchElemVR = (*vfv->faceDiBjGaussBatch)[iFace];
-
-                if (f2c[1] != FACE_2_VOL_EMPTY)
-                    dist = (vfv->cellCenters[f2c[0]] - vfv->cellCenters[f2c[1]]).norm();
-                else
-                    dist = (vfv->faceCenters[iFace] - vfv->cellCenters[f2c[0]]).norm() * 1;
 
                 eFace.Integration(
                     flux,
@@ -250,7 +247,7 @@ namespace DNDS
 
                         Eigen::Vector<real, 5> UL =
                             faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].m().rows()) *
-                            uRec[f2c[0]].m();
+                            uRec[f2c[0]].m() * IF_NOT_NOREC;
                         // UL += u[f2c[0]]; //! do not forget the mean value
                         UL = CompressRecPart(u[f2c[0]], UL);
                         Eigen::Vector<real, 5> ULxy = UL;
@@ -261,7 +258,7 @@ namespace DNDS
                         GradULxy.setZero(), GradURxy.setZero();
                         GradULxy({0, 1}, {0, 1, 2, 3, 4}) =
                             faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(1, uRec[f2c[0]].m().rows() + 1 - 1)) *
-                            uRec[f2c[0]].m(); // ! 2d here
+                            uRec[f2c[0]].m() * IF_NOT_NOREC; // ! 2d here
 
                         real minVol = fv->volumeLocal[f2c[0]];
 
@@ -269,7 +266,7 @@ namespace DNDS
                         {
                             UR =
                                 faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].m().rows()) *
-                                uRec[f2c[1]].m();
+                                uRec[f2c[1]].m() * IF_NOT_NOREC;
                             // UR += u[f2c[1]];
                             UR = CompressRecPart(u[f2c[1]], UR);
                             URxy = UR;
@@ -277,7 +274,7 @@ namespace DNDS
 
                             GradURxy({0, 1}, {0, 1, 2, 3, 4}) =
                                 faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(1, uRec[f2c[1]].m().rows() + 1 - 1)) *
-                                uRec[f2c[1]].m(); // ! 2d here
+                                uRec[f2c[1]].m() * IF_NOT_NOREC; // ! 2d here
 
                             minVol = std::min(minVol, fv->volumeLocal[f2c[1]]);
                         }
@@ -372,8 +369,11 @@ namespace DNDS
         void UpdateLUSGSForward(std::vector<real> &dTau, real dt, real alphaDiag,
                                 ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
         {
-            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+            for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
             {
+                index iCell = iScan;
+                // iCell = (*vfv->SOR_iScan2iCell)[iCell];//TODO: add rb-sor
+
                 auto &c2f = mesh->cell2faceLocal[iCell];
                 Eigen::Vector<real, 5> uIncNewBuf;
                 uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell];
@@ -418,11 +418,11 @@ namespace DNDS
                                 Eigen::Vector<real, 5> f, fN;
 
                                 // linear version
-                                // Gas::tVec dVelo;
-                                // real dp;
-                                // Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
-                                // Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
-                                // break;
+                                Gas::tVec dVelo;
+                                real dp;
+                                Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
+                                Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
+                                break;
                                 // abort();
 
                                 // get to norm coord
@@ -468,8 +468,9 @@ namespace DNDS
                 }
 
                 // fix rho increment
-                if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
-                    uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
+                // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
+                //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
+                uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
             }
         }
 
@@ -484,6 +485,8 @@ namespace DNDS
             for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
             {
                 index iCell = mesh->cell2nodeLocal.dist->size() - 1 - iScan;
+                // iCell = (*vfv->SOR_iScan2iCell)[iCell]; //TODO: add rb-sor
+
                 auto &c2f = mesh->cell2faceLocal[iCell];
                 Eigen::Vector<real, 5> uIncNewBuf;
                 uIncNewBuf.setZero(); // backward
@@ -528,11 +531,11 @@ namespace DNDS
                                 Eigen::Vector<real, 5> f, fN;
 
                                 // linear version
-                                // Gas::tVec dVelo;
-                                // real dp;
-                                // Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
-                                // Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
-                                // break;
+                                Gas::tVec dVelo;
+                                real dp;
+                                Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
+                                Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
+                                break;
 
                                 // get to norm coord
                                 umeanOther({1, 2, 3}) = normBase.transpose() * umeanOther({1, 2, 3});
@@ -563,8 +566,9 @@ namespace DNDS
                 uIncNew[iCell] += uIncNewBuf; // backward
 
                 // fix rho increment
-                if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
-                    uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
+                // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
+                //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
+                uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
             }
         }
 
@@ -832,7 +836,7 @@ namespace DNDS
 
         ArrayLocal<SemiVarMatrix<5u>> uF0, uF1;
         // std::vector<uint32_t> ifUseLimiter;
-        std::vector<real> ifUseLimiter;
+        ArrayLocal<Batch<real, 1>> ifUseLimiter;
 
     public:
         EulerSolver(const MPIInfo &nmpi) : mpi(nmpi)
@@ -881,6 +885,7 @@ namespace DNDS
             real curvilinearRange = 0.1;
 
             bool useLocalDt = true;
+            bool useLimiter = true;
             int nForceLocalStartStep = -1;
             int nCFLRampStart = 1000;
             int nCFLRampLength = 10000;
@@ -916,6 +921,7 @@ namespace DNDS
             root.AddDNDS_Real("err_dMax", &config.err_dMax);
             root.AddDNDS_Real("res_base", &config.res_base);
             root.AddBool("useLocalDt", &config.useLocalDt);
+            root.AddBool("useLimiter", &config.useLimiter);
             root.AddInt("nForceLocalStartStep", &config.nForceLocalStartStep);
 
             root.AddInt("nCFLRampStart", &config.nCFLRampStart);
@@ -951,6 +957,7 @@ namespace DNDS
                 eulerParser.AddDNDS_Real("isiScaleIn", &config.eulerSetting.isiScaleIn);
                 eulerParser.AddDNDS_Real("isiCutDown", &config.eulerSetting.isiCutDown);
                 eulerParser.AddDNDS_Real("visScale", &config.eulerSetting.visScale);
+                eulerParser.AddInt("nTimeFilterPass", &config.eulerSetting.nTimeFilterPass);
             }
             JSON::ParamParser eulerGasParser(mpi);
             {
@@ -993,8 +1000,8 @@ namespace DNDS
                 boxVec[iInit].v = eulerSetting_boxInitializerValueBuf(
                     Eigen::seq((6 + 5) * iInit + 6, (6 + 5) * iInit + 6 + 5 - 1));
             }
-
-            log() << "JSON: Parse Done ===" << std::endl;
+            if (mpi.rank == 0)
+                log() << "JSON: Parse Done ===" << std::endl;
 
             if (doc["vfvSetting"].IsObject())
             {
@@ -1077,7 +1084,7 @@ namespace DNDS
                 }
             }
 
-            ifUseLimiter.resize(u.size());
+            vfv->BuildIfUseLimiter(ifUseLimiter);
         }
 
         void RunExplicitSSPRK4()
@@ -1481,52 +1488,57 @@ namespace DNDS
                         }
                         double tstartH = MPI_Wtime();
 
-                        vfv->ReconstructionWBAPLimitFacial(
-                            cx, uRec, uRec, uF0, uF1, ifUseLimiter,
-                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
-                                auto normBase = Elem::NormBuildLocalBaseV(n);
-                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+                        if (config.useLimiter)
+                        {
+                            vfv->ReconstructionWBAPLimitFacial(
+                                cx, uRec, uRec, uF0, uF1, ifUseLimiter,
+                                [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                                    Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                    auto normBase = Elem::NormBuildLocalBaseV(n);
+                                    UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                // real ekFixRatio = 0.001;
-                                // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                                // real vsqr = velo.squaredNorm();
-                                // real Ek = vsqr * 0.5 * UC(0);
-                                // real Efix = Ek * ekFixRatio;
-                                // real e = UC(4) - Ek;
-                                // if (e < 0)
-                                //     e = 0.5 * Efix;
-                                // else if (e < Efix)
-                                //     e = (e * e + Efix * Efix) / (2 * Efix);
-                                // UC(4) = Ek + e;
+                                    // real ekFixRatio = 0.001;
+                                    // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                    // real vsqr = velo.squaredNorm();
+                                    // real Ek = vsqr * 0.5 * UC(0);
+                                    // real Efix = Ek * ekFixRatio;
+                                    // real e = UC(4) - Ek;
+                                    // if (e < 0)
+                                    //     e = 0.5 * Efix;
+                                    // else if (e < Efix)
+                                    //     e = (e * e + Efix * Efix) / (2 * Efix);
+                                    // UC(4) = Ek + e;
 
-                                // return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                return Eigen::Matrix<real, 5, 5>::Identity();
-                            },
-                            [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
-                                auto normBase = Elem::NormBuildLocalBaseV(n);
-                                UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+                                    return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                    // return Eigen::Matrix<real, 5, 5>::Identity();
+                                },
+                                [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                                    Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                    auto normBase = Elem::NormBuildLocalBaseV(n);
+                                    UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                // real ekFixRatio = 0.001;
-                                // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                                // real vsqr = velo.squaredNorm();
-                                // real Ek = vsqr * 0.5 * UC(0);
-                                // real Efix = Ek * ekFixRatio;
-                                // real e = UC(4) - Ek;
-                                // if (e < 0)
-                                //     e = 0.5 * Efix;
-                                // else if (e < Efix)
-                                //     e = (e * e + Efix * Efix) / (2 * Efix);
-                                // UC(4) = Ek + e;
+                                    // real ekFixRatio = 0.001;
+                                    // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                    // real vsqr = velo.squaredNorm();
+                                    // real Ek = vsqr * 0.5 * UC(0);
+                                    // real Efix = Ek * ekFixRatio;
+                                    // real e = UC(4) - Ek;
+                                    // if (e < 0)
+                                    //     e = 0.5 * Efix;
+                                    // else if (e < Efix)
+                                    //     e = (e * e + Efix * Efix) / (2 * Efix);
+                                    // UC(4) = Ek + e;
 
-                                // return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                return Eigen::Matrix<real, 5, 5>::Identity();
-                            });
+                                    return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                    // return Eigen::Matrix<real, 5, 5>::Identity();
+                                });
+                        }
                         tLim += MPI_Wtime() - tstartH;
 
                         uRec.StartPersistentPullClean(); //! this also need to update!
                         uRec.WaitPersistentPullClean();
+
+                        // }
 
                         double tstartE = MPI_Wtime();
                         eval.EvaluateRHS(crhs, cx, uRec);
@@ -1537,14 +1549,16 @@ namespace DNDS
                         eval.FixUMaxFilter(u);
                         u.StartPersistentPullClean(); //! this also need to update!
                         u.WaitPersistentPullClean();
-                        uRec.StartPersistentPullClean();
-                        uRec.WaitPersistentPullClean();
+                        // uRec.StartPersistentPullClean();
+                        // uRec.WaitPersistentPullClean();
 
                         eval.EvaluateDt(dTau, u, CFLNow, curDtMin, 1e100, true);
                     },
                     [&](ArrayDOF<5u> &cx, ArrayDOF<5u> &crhs, std::vector<real> &dTau,
                         real dt, real alphaDiag, ArrayDOF<5u> &cxInc)
                     {
+                        cxInc.setConstant(0.0);
+
                         for (int iPass = 1; iPass <= 0; iPass++)
                         {
                             crhs.StartPersistentPullClean();
@@ -1601,6 +1615,7 @@ namespace DNDS
                     {
                         Eigen::Vector<real, 5> res;
                         eval.EvaluateResidual(res, cxinc);
+                        // if (iter == 1 && iStep == 1) // * using 1st rk step for reference
                         if (iter == 1)
                             resBaseCInternal = res;
                         Eigen::Vector<real, 5> resRel = (res.array() / resBaseCInternal.array()).matrix();
@@ -1619,7 +1634,7 @@ namespace DNDS
                                       << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
                                 log().setf(fmt);
                                 logErr << step << "\t" << iter << "\t" << std::setprecision(9) << std::scientific
-                                       << resRel << " "
+                                       << resRel.transpose() << " "
                                        << tsimu << " " << curDtMin << std::endl;
                             }
                             tstart = MPI_Wtime();
@@ -1630,13 +1645,13 @@ namespace DNDS
                         if (iter % config.nDataOutInternal == 0)
                         {
                             eval.FixUMaxFilter(u);
-                            PrintData(config.outPltName + std::to_string(step) + "_" + std::to_string(iter) + ".plt", ode);
+                            PrintData(config.outPltName + "_" + std::to_string(step) + "_" + std::to_string(iter) + ".plt", ode);
                             nextStepOut += config.nDataOut;
                         }
                         if (iter % config.nDataOutCInternal == 0)
                         {
                             eval.FixUMaxFilter(u);
-                            PrintData(config.outPltName + "C" + ".plt", ode);
+                            PrintData(config.outPltName + "_" + "C" + ".plt", ode);
                             nextStepOutC += config.nDataOutC;
                         }
                         if (iter >= config.nCFLRampStart && iter <= config.nCFLRampLength + config.nCFLRampStart)
@@ -1646,7 +1661,8 @@ namespace DNDS
                             CFLNow = std::exp(logCFL);
                         }
 
-                        return resRel.maxCoeff() < config.rhsThresholdInternal;
+                        // return resRel.maxCoeff() < config.rhsThresholdInternal;
+                        return resRel(0) < config.rhsThresholdInternal; // ! using only rho's residual
                     },
                     curDtImplicit + verySmallReal);
 
@@ -1683,19 +1699,19 @@ namespace DNDS
                 if (step == nextStepOut)
                 {
                     eval.FixUMaxFilter(u);
-                    PrintData(config.outPltName + std::to_string(step) + ".plt", ode);
+                    PrintData(config.outPltName + "_" + std::to_string(step) + ".plt", ode);
                     nextStepOut += config.nDataOut;
                 }
                 if (step == nextStepOutC)
                 {
                     eval.FixUMaxFilter(u);
-                    PrintData(config.outPltName + "C" + ".plt", ode);
+                    PrintData(config.outPltName + "_" + "C" + ".plt", ode);
                     nextStepOutC += config.nDataOutC;
                 }
                 if (ifOutT)
                 {
                     eval.FixUMaxFilter(u);
-                    PrintData(config.outPltName + "t_" + std::to_string(nextTout) + ".plt", ode);
+                    PrintData(config.outPltName + "_" + "t_" + std::to_string(nextTout) + ".plt", ode);
                     nextTout += config.tDataOut;
                     if (nextTout > config.tEnd)
                         nextTout = config.tEnd;
@@ -1739,7 +1755,7 @@ namespace DNDS
                 (*outDist)[iCell][5] = T;
                 (*outDist)[iCell][6] = M;
                 // (*outDist)[iCell][7] = (bool)(ifUseLimiter[iCell] & 0x0000000FU);
-                (*outDist)[iCell][7] = ifUseLimiter[iCell] / config.vfvSetting.WBAP_SmoothIndicatorScale;
+                (*outDist)[iCell][7] = ifUseLimiter[iCell][0] / config.vfvSetting.WBAP_SmoothIndicatorScale;
                 // std::cout << iCell << ode.rhsbuf[0][iCell] << std::endl;
                 (*outDist)[iCell][8] = ode.rhsbuf[0][iCell](0);
             }

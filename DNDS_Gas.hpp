@@ -133,7 +133,7 @@ namespace DNDS
         template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, const TFdumpInfo &dumpInfo)
         {
-            static real scaleHartenYee = 0.001;
+            static real scaleHartenYee = 0.01;
 
             if (!(UL(0) > 0 && UR(0) > 0))
             {
@@ -186,21 +186,21 @@ namespace DNDS
             Gas::tVec incVelo = veloR - veloL;
             Eigen::Vector<real, 5> alpha;
 
-            alpha(2) = incU(2) - veloRoe(1) * incU(0);
-            alpha(3) = incU(3) - veloRoe(2) * incU(0);
-            real incU4b = incU(4) - alpha(2) * veloRoe(1) - alpha(3) * veloRoe(2);
-            alpha(1) = (gamma - 1) / asqrRoe *
-                       (incU(0) * (HRoe - veloRoe(0) * veloRoe(0)) +
-                        veloRoe(0) * incU(1) - incU4b);
-            alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
-            alpha(4) = incU(0) - (alpha(0) + alpha(1));
+            // alpha(2) = incU(2) - veloRoe(1) * incU(0);
+            // alpha(3) = incU(3) - veloRoe(2) * incU(0);
+            // real incU4b = incU(4) - alpha(2) * veloRoe(1) - alpha(3) * veloRoe(2);
+            // alpha(1) = (gamma - 1) / asqrRoe *
+            //            (incU(0) * (HRoe - veloRoe(0) * veloRoe(0)) +
+            //             veloRoe(0) * incU(1) - incU4b);
+            // alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
+            // alpha(4) = incU(0) - (alpha(0) + alpha(1));
 
             // // * Roe-Pike
-            // alpha(0) = 0.5 / aRoe * (incP - rhoRoe * aRoe * incVelo(0));
-            // alpha(1) = incU(0) - incP / sqr(aRoe);
-            // alpha(2) = rhoRoe * incVelo(1);
-            // alpha(3) = rhoRoe * incVelo(2);
-            // alpha(4) = 0.5 / aRoe * (incP + rhoRoe * aRoe * incVelo(0));
+            alpha(0) = 0.5 / aRoe * (incP - rhoRoe * aRoe * incVelo(0));
+            alpha(1) = incU(0) - incP / sqr(aRoe);
+            alpha(2) = rhoRoe * incVelo(1);
+            alpha(3) = rhoRoe * incVelo(2);
+            alpha(4) = 0.5 / aRoe * (incP + rhoRoe * aRoe * incVelo(0));
 
             Eigen::Vector<real, 5>
                 incF = ReVRoe * (lam.array() * alpha.array()).matrix();
