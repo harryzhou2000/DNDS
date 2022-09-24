@@ -3,6 +3,7 @@
 #include "DNDS_Defines.h"
 #include "Eigen/Dense"
 #include "DNDS_HardEigen.h"
+#include "mpi.h"
 
 namespace DNDS
 {
@@ -49,11 +50,11 @@ namespace DNDS
                 FML(b, MLb); // MLb = ML * b
                 real scale_MLb = MLb.norm2();
                 Eigen::MatrixXd h;
-                h.resize(kSubspace + 1, kSubspace);
+                h.setZero(kSubspace + 1, kSubspace);
                 uint32_t iRestart;
                 for (iRestart = 0; iRestart <= nRestart; iRestart++)
                 {
-                    FA(x, V_temp); // V_temp = A * x
+                    FA(x, V_temp);                        // V_temp = A * x
                     FML(V_temp, Vs[0]);                   // Vs[0] = ML * A * x
                     Vs[0].addTo(MLb, -1.0);               // Vs[0] = ML * A * x - ML * b = -r
                     real beta = Vs[0].norm2();            // beta = norm2(r)
@@ -82,15 +83,20 @@ namespace DNDS
                         Vs[j + 1] *= 1.0 / h(j + 1, j);  // normalize
                     }
                     // std::cout << beta << std::endl;
-                    // std::cout << h << std::endl;
 
                     Eigen::VectorXd eBeta;
                     eBeta.resize(kSubspace + 1);
                     eBeta.setZero();
                     eBeta(0) = beta; // eBeta = e_1 * beta
                     Eigen::VectorXd y = h.colPivHouseholderQr().solve(eBeta);
+                    // int rank;
+                    // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+                    // if (rank == 0)
+                    //     std::cout << h << std::endl;
+
                     // Eigen::MatrixXd y;
                     // HardEigen::EigenLeastSquareSolve(h, eBeta, y);
+
                     for (uint32_t j = 0; j < kSubspace; j++) // x = V(:, 0,1,2,...kSubspace-1) * y
                     {
                         x.addTo(Vs[j], y(j));
