@@ -270,6 +270,7 @@ namespace DNDS
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { sqrSum += e.p().squaredNorm(); });
             MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
+            // std::cout << "norm2is " << std::scientific << sqrSumAll << std::endl;
             return std::sqrt(sqrSumAll);
         }
 

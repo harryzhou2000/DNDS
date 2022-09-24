@@ -28,12 +28,14 @@ int main()
     for (int i = 0; i < N; i++)
     {
         if (i > 0)
-            A(i, i - 1) = 1;
+            A(i, i - 1) = 14;
         A(i, i) = 2 * (i + 1);
         if (i < (N - 1))
-            A(i, i + 1) = 1;
-    }
-    A *= 1;
+            A(i, i + 1) = 1.5;
+    } // condition number~2e3
+    // A *= 1;
+    // A.setRandom();
+    // A += Eigen::MatrixXd::Identity(N,N);
     b = A * Eigen::VectorXd::Ones(N);
     x.setZero();
     std::cout << A << std::endl
@@ -42,21 +44,24 @@ int main()
               << std::endl;
     std::cout << x.transpose() << std::endl
               << std::endl;
+    
 
-    Linear::GMRES_LeftPreconditioned<Vec> gmres(5, [&](Vec &v)
+    Linear::GMRES_LeftPreconditioned<Vec> gmres(3, [&](Vec &v)
                                                 { v.resize(N); });
     gmres.solve([&](Vec &x, Vec &Ax)
                 { Ax = A * x; },
                 [&](Vec &x, Vec &MLx)
                 {
                     MLx = x;
-                    // for (int i = 0; i < MLx.size(); i++) // ! preconditioning by diagonal
-                    //     MLx(i) /= (i + 1);
+                    for (int i = 0; i < MLx.size(); i++) // ! preconditioning by diagonal
+                        MLx(i) /= A(i,i); 
                 },
                 b, x, 10,
-                [&](uint32_t iRestart, DNDS::real res)
+                [&](uint32_t iRestart, DNDS::real res, DNDS::real resB)
                 {
-                    std::cout << iRestart << " Res: " << res << std::endl;
+                    std::cout << iRestart << " Res: " << res / resB << std::endl;
+                    if (res / resB < 1e-14)
+                        return true;
                     return false;
                 });
 

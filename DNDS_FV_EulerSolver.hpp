@@ -4,6 +4,7 @@
 #include "DNDS_FV_VR.hpp"
 #include "DNDS_ODE.hpp"
 #include "DNDS_Scripting.hpp"
+#include "DNDS_Linear.hpp"
 #include <iomanip>
 
 namespace DNDS
@@ -358,6 +359,126 @@ namespace DNDS
             // }
         }
 
+        void LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
+                            ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &AuInc)
+        {
+            for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
+            {
+                index iCell = iScan;
+                // iCell = (*vfv->SOR_iScan2iCell)[iCell];//TODO: add rb-sor
+
+                auto &c2f = mesh->cell2faceLocal[iCell];
+                Eigen::Vector<real, 5> uIncNewBuf;
+                uIncNewBuf.setZero(); // norhs
+
+                real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
+                if (isnan(fpDivisor))
+                {
+                    std::cout << fpDivisor << std::endl
+                              << fv->volumeLocal[iCell] << std::endl
+                              << dTau[iCell] << std::endl
+                              << dt << std::endl;
+                    assert(false);
+                }
+                if (uInc[iCell].hasNaN())
+                {
+                    std::cout << uInc[iCell] << std::endl;
+                    assert(false);
+                }
+
+                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                {
+                    index iFace = c2f[ic2f];
+                    auto &f2c = (*mesh->face2cellPair)[iFace];
+                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                    if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
+                        fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
+                        if (true)
+                        {
+                            Eigen::Vector<real, 5> umeanOther = u[iCellOther];
+                            Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther];
+                            Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
+                            Eigen::Vector<real, 5> fInc;
+                            do
+                            {
+                                Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
+                                                        (iCellAtFace ? -1 : 1); // faces out
+                                Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
+                                real p, pN, asqr, asqrN, H, HN;
+                                // if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
+                                //     std::cout << umeanOther.transpose() << std::endl
+                                //               << umeanOtherN.transpose() << std::endl
+                                //               << uInc[iCellOther].transpose() << std::endl
+                                //               << "i " << iCell << "\t" << iCellOther << std::endl;
+                                // assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
+                                Elem::tPoint velo = umeanOther({1, 2, 3}) / umeanOther(0);
+                                Elem::tPoint veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
+                                real vsqr = velo.squaredNorm();
+                                real vsqrN = veloN.squaredNorm();
+
+                                Gas::IdealGasThermal(umeanOther(4), umeanOther(0), vsqr,
+                                                     settings.idealGasProperty.gamma, p, asqr, H);
+                                Gas::IdealGasThermal(umeanOtherN(4), umeanOtherN(0), vsqrN,
+                                                     settings.idealGasProperty.gamma, pN, asqrN, HN);
+                                Eigen::Vector<real, 5> f, fN;
+
+                                // linear version
+                                Gas::tVec dVelo;
+                                real dp;
+                                Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
+                                Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
+                                break;
+                                // abort();
+
+                                // get to norm coord
+                                umeanOther({1, 2, 3}) = normBase.transpose() * umeanOther({1, 2, 3});
+                                umeanOtherN({1, 2, 3}) = normBase.transpose() * umeanOtherN({1, 2, 3});
+                                velo = normBase.transpose() * velo;
+                                veloN = normBase.transpose() * veloN;
+                                Gas::GasInviscidFlux(umeanOther, velo, p, f);
+                                Gas::GasInviscidFlux(umeanOtherN, veloN, pN, fN);
+                                fInc = fN - f;
+                                fInc({1, 2, 3}) = normBase * fInc({1, 2, 3}); // to xy
+                                if (fInc.hasNaN() || (!fInc.allFinite()))
+                                {
+                                    std::cout << p << "\t" << pN << std::endl
+                                              << umeanOther.transpose() << std::endl
+                                              << umeanOtherN.transpose() << std::endl
+                                              << umeanOtherInc.transpose() << std::endl
+                                              << vsqr << "\t" << vsqrN << std::endl;
+                                    assert(!(fInc.hasNaN() || (!fInc.allFinite())));
+                                }
+                            } while (false);
+
+                            uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
+                                          (fInc - lambdaFace[iFace] * umeanOtherInc);
+                            if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
+                            {
+                                std::cout
+                                    << fInc.transpose() << std::endl
+                                    << umeanOtherInc.transpose() << std::endl;
+                                assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
+                            }
+                        }
+                    }
+                }
+                // uIncNewBuf /= fpDivisor;
+                // uIncNew[iCell] = uIncNewBuf;
+                AuInc[iCell] = uInc[iCell] * fpDivisor - uIncNewBuf;
+                if (AuInc[iCell].hasNaN())
+                {
+                    std::cout << AuInc[iCell].transpose() << std::endl
+                              << uInc[iCell].transpose() << std::endl
+                              << u[iCell].transpose() << std::endl
+                              << fpDivisor << std::endl
+                              << iCell << std::endl;
+                    assert(!AuInc[iCell].hasNaN());
+                }
+            }
+        }
+
         /**
          * @brief to use LUSGS, use LUSGSForward(..., uInc, uInc); uInc.pull; LUSGSBackward(..., uInc, uInc);
          * the underlying logic is that for index, ghost > dist, so the forward uses no ghost,
@@ -401,12 +522,12 @@ namespace DNDS
                                                         (iCellAtFace ? -1 : 1); // faces out
                                 Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
                                 real p, pN, asqr, asqrN, H, HN;
-                                if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
-                                    std::cout << umeanOther.transpose() << std::endl
-                                              << umeanOtherN.transpose() << std::endl
-                                              << uInc[iCellOther].transpose() << std::endl
-                                              << "i " << iCell << "\t" << iCellOther << std::endl;
-                                assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
+                                // if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
+                                //     std::cout << umeanOther.transpose() << std::endl
+                                //               << umeanOtherN.transpose() << std::endl
+                                //               << uInc[iCellOther].transpose() << std::endl
+                                //               << "i " << iCell << "\t" << iCellOther << std::endl;
+                                // assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
                                 Elem::tPoint velo = umeanOther({1, 2, 3}) / umeanOther(0);
                                 Elem::tPoint veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
                                 real vsqr = velo.squaredNorm();
@@ -515,12 +636,12 @@ namespace DNDS
                                                         (iCellAtFace ? -1 : 1); // faces out
                                 Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
                                 real p, pN, asqr, asqrN, H, HN;
-                                if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
-                                    std::cout << umeanOther.transpose() << std::endl
-                                              << umeanOtherN.transpose() << std::endl
-                                              << uInc[iCellOther].transpose() << std::endl
-                                              << "i " << iCell << "\t" << iCellOther << std::endl;
-                                assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
+                                // if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
+                                //     std::cout << umeanOther.transpose() << std::endl
+                                //               << umeanOtherN.transpose() << std::endl
+                                //               << uInc[iCellOther].transpose() << std::endl
+                                //               << "i " << iCell << "\t" << iCellOther << std::endl;
+                                // assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
                                 Elem::tPoint velo = umeanOther({1, 2, 3}) / umeanOther(0);
                                 Elem::tPoint veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
                                 real vsqr = velo.squaredNorm();
@@ -600,7 +721,8 @@ namespace DNDS
                     if (iCellOther != FACE_2_VOL_EMPTY)
                     {
                         fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
-                        if (true) // full
+                        // if (true) // full
+                        if ((ifForward && iCellOther < iCell) || ((!ifForward) && iCellOther > iCell))
                         {
                             Eigen::Vector<real, 5> umeanOther = u[iCellOther];
                             Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther];
@@ -612,12 +734,12 @@ namespace DNDS
                                                         (iCellAtFace ? -1 : 1); // faces out
                                 Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
                                 real p, pN, asqr, asqrN, H, HN;
-                                if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
-                                    std::cout << umeanOther.transpose() << std::endl
-                                              << umeanOtherN.transpose() << std::endl
-                                              << uInc[iCellOther].transpose() << std::endl
-                                              << "i " << iCell << "\t" << iCellOther << std::endl;
-                                assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
+                                // if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
+                                //     std::cout << umeanOther.transpose() << std::endl
+                                //               << umeanOtherN.transpose() << std::endl
+                                //               << uInc[iCellOther].transpose() << std::endl
+                                //               << "i " << iCell << "\t" << iCellOther << std::endl;
+                                // assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
                                 Elem::tPoint velo = umeanOther({1, 2, 3}) / umeanOther(0);
                                 Elem::tPoint veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
                                 real vsqr = velo.squaredNorm();
@@ -657,7 +779,7 @@ namespace DNDS
                                 // std::cout << normBase << std::endl
                                 //            << normBase * normBase.transpose() << std::endl;
                                 // std::abort();
-                            } while (true);
+                            } while (false);
 
                             uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
                                           (fInc - lambdaFace[iFace] * umeanOtherInc);
@@ -665,7 +787,7 @@ namespace DNDS
                     }
                 }
                 uIncNewBuf /= fpDivisor;
-                real relax = 0.1;
+                real relax = 1;
                 uIncNew[iCell] = uIncNewBuf * relax + uInc[iCell] * (1 - relax); // full
 
                 // fix rho increment
@@ -830,7 +952,7 @@ namespace DNDS
         std::shared_ptr<ImplicitFiniteVolume2D> fv;
         std::shared_ptr<VRFiniteVolume2D> vfv;
 
-        ArrayDOF<5u> u, uPoisson, uInc;
+        ArrayDOF<5u> u, uPoisson, uInc, uIncRHS, uTemp;
         ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew;
 
         static const int nOUTS = 9;
@@ -894,6 +1016,10 @@ namespace DNDS
             int nCFLRampStart = 1000;
             int nCFLRampLength = 10000;
             real CFLRampEnd = 10;
+
+            int gmresCode = 0; // 0 for lusgs, 1 for gmres, 2 for lusgs started gmres
+            int nGmresSpace = 10;
+            int nGmresIter = 2;
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -931,6 +1057,10 @@ namespace DNDS
             root.AddInt("nCFLRampStart", &config.nCFLRampStart);
             root.AddInt("nCFLRampLength", &config.nCFLRampLength);
             root.AddDNDS_Real("CFLRampEnd", &config.CFLRampEnd);
+
+            root.AddInt("gmresCode", &config.gmresCode);
+            root.AddInt("nGmresSpace", &config.nGmresSpace);
+            root.AddInt("nGmresIter", &config.nGmresIter);
 
             JSON::ParamParser vfvParser(mpi);
             root.AddObject("vfvSetting", &vfvParser);
@@ -1053,6 +1183,8 @@ namespace DNDS
             fv->BuildMean(u);
             fv->BuildMean(uPoisson);
             fv->BuildMean(uInc);
+            fv->BuildMean(uIncRHS);
+            fv->BuildMean(uTemp);
             vfv->BuildRec(uRec);
             vfv->BuildRecFacial(uF0);
 
@@ -1433,7 +1565,17 @@ namespace DNDS
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                     data.InitPersistentPullClean();
                 });
+            Linear::GMRES_LeftPreconditioned<decltype(u)> gmres(
+                config.nGmresSpace,
+                [&](decltype(u) &data)
+                {
+                    data.resize(u.dist->size(), u.dist->getMPI());
+                    data.CreateGhostCopyComm(mesh->cell2faceLocal);
+                    data.InitPersistentPullClean();
+                });
+
             EulerEvaluator eval(mesh.get(), fv.get(), vfv.get());
+
             std::ofstream logErr(config.outLogName + ".log");
             eval.settings = config.eulerSetting;
             // std::cout << uF0.dist->commStat.hasPersistentPullReqs << std::endl;
@@ -1598,20 +1740,67 @@ namespace DNDS
                             crhs = uPoisson;
                         }
 
-                        eval.UpdateLUSGSForward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
-                        cxInc.StartPersistentPullClean();
-                        cxInc.WaitPersistentPullClean();
-                        eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
-                        cxInc.StartPersistentPullClean();
-                        cxInc.WaitPersistentPullClean();
-                        for (int iIter = 1; iIter <= config.nSGSIterationInternal; iIter++)
+                        if (config.gmresCode == 0 || config.gmresCode == 2)
                         {
+                            //! LUSGS
+                            eval.UpdateLUSGSForward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
                             cxInc.StartPersistentPullClean();
                             cxInc.WaitPersistentPullClean();
-                            eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, true);
+                            eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
                             cxInc.StartPersistentPullClean();
                             cxInc.WaitPersistentPullClean();
-                            eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, false);
+                            for (int iIter = 1; iIter <= config.nSGSIterationInternal; iIter++)
+                            {
+                                cxInc.StartPersistentPullClean();
+                                cxInc.WaitPersistentPullClean();
+                                eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, true);
+                                cxInc.StartPersistentPullClean();
+                                cxInc.WaitPersistentPullClean();
+                                eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, false);
+                            }
+                            // return;
+                        }
+
+                        if (config.gmresCode != 0)
+                        {
+                            // !  GMRES
+                            for (index iCell = 0; iCell < crhs.dist->size(); iCell++)
+                            {
+                                uIncRHS[iCell] = crhs[iCell] * eval.fv->volumeLocal[iCell];
+                            }
+
+                            gmres.solve(
+                                [&](decltype(u) &x, decltype(u) &Ax)
+                                {
+                                    eval.LUSGSMatrixVec(dTau, dt, alphaDiag, cx, x, Ax);
+                                },
+                                [&](decltype(u) &x, decltype(u) &MLx)
+                                {
+                                    // x as rhs, and MLx as uinc
+                                    for (index iCell = 0; iCell < x.dist->size(); iCell++)
+                                    {
+                                        uTemp[iCell] = x[iCell] / eval.fv->volumeLocal[iCell]; //! UpdateLUSGS needs not these volumes multiplied
+                                    }
+                                    eval.UpdateLUSGSForward(dTau, dt, alphaDiag, uTemp, cx, MLx, MLx);
+                                    MLx.StartPersistentPullClean();
+                                    MLx.WaitPersistentPullClean();
+                                    eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, uTemp, cx, MLx, MLx);
+                                    MLx.StartPersistentPullClean();
+                                    MLx.WaitPersistentPullClean();
+                                },
+                                uIncRHS, cxInc, config.nGmresIter,
+                                [&](uint32_t i, real res, real resB) -> bool
+                                {
+                                    if (i > 0)
+                                    {
+                                        if (mpi.rank == 0)
+                                        {
+                                            // log() << std::scientific;
+                                            // log() << "GMRES: " << i << " " << resB << " -> " << res << std::endl;
+                                        }
+                                    }
+                                    return false;
+                                });
                         }
                     },
                     config.nTimeStepInternal,

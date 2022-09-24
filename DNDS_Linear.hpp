@@ -2,6 +2,7 @@
 
 #include "DNDS_Defines.h"
 #include "Eigen/Dense"
+#include "DNDS_HardEigen.h"
 
 namespace DNDS
 {
@@ -40,7 +41,7 @@ namespace DNDS
              * @param b   rhs
              * @param x   input and output
              * @param nRestart
-             * @param FStop bool FStop(iRestart, relRes)
+             * @param FStop bool FStop(iRestart, res, resB)
              */
             template <class TFA, class TFML, class TFstop>
             void solve(TFA &&FA, TFML &&FML, TDATA &b, TDATA &x, uint32_t nRestart, TFstop &&FStop)
@@ -52,16 +53,16 @@ namespace DNDS
                 uint32_t iRestart;
                 for (iRestart = 0; iRestart <= nRestart; iRestart++)
                 {
-                    FA(x, V_temp);                           // V_temp = A * x
-                    FML(V_temp, Vs[0]);                      // Vs[0] = ML * A * x
-                    Vs[0].addTo(MLb, -1.0);                  // Vs[0] = ML * A * x - ML * b = -r
-                    real beta = Vs[0].norm2();               // beta = norm2(r)
-                    if (FStop(iRestart, beta / scale_MLb) || // see if converge
-                        std::abs(beta) < verySmallReal ||    // beta is floating-point negligible
+                    FA(x, V_temp); // V_temp = A * x
+                    FML(V_temp, Vs[0]);                   // Vs[0] = ML * A * x
+                    Vs[0].addTo(MLb, -1.0);               // Vs[0] = ML * A * x - ML * b = -r
+                    real beta = Vs[0].norm2();            // beta = norm2(r)
+                    if (FStop(iRestart, beta, scale_MLb)) // see if converge
+                        break;
+                    if (std::abs(beta) < verySmallReal || // beta is floating-point negligible
                         (iRestart == nRestart))
                         break;
                     Vs[0] *= -1.0 / beta; // Vs[0] = r/norm2(r)
-                    // std::cout << Vs[0] << std::endl;
 
                     for (uint32_t j = 0; j < kSubspace; j++) // Arnoldi
                     {
@@ -80,17 +81,21 @@ namespace DNDS
                         h(j + 1, j) = Vs[j + 1].norm2(); //
                         Vs[j + 1] *= 1.0 / h(j + 1, j);  // normalize
                     }
+                    // std::cout << beta << std::endl;
+                    // std::cout << h << std::endl;
 
                     Eigen::VectorXd eBeta;
                     eBeta.resize(kSubspace + 1);
                     eBeta.setZero();
                     eBeta(0) = beta; // eBeta = e_1 * beta
-                    Eigen::VectorXd y = h.fullPivHouseholderQr().solve(eBeta);
+                    Eigen::VectorXd y = h.colPivHouseholderQr().solve(eBeta);
+                    // Eigen::MatrixXd y;
+                    // HardEigen::EigenLeastSquareSolve(h, eBeta, y);
                     for (uint32_t j = 0; j < kSubspace; j++) // x = V(:, 0,1,2,...kSubspace-1) * y
                     {
                         x.addTo(Vs[j], y(j));
+                        // std::cout << iRestart << "::" << Vs[j].transpose() << "::" << y(j) << std::endl;
                     }
-                    
                 }
             }
         };
