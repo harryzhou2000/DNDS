@@ -27,7 +27,9 @@ LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis -llapacke -lopenblas
 CXX_COMPILE_FLAGS=${INCLUDE} -std=c++14 -Wall -Wno-comment -Wno-unused-variable -Wno-sign-compare -Wno-unused-but-set-variable
 CXX_LINK_FLAGS=${LINK}
 
-SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe test/meshtest.exe test/staticReconstructionTest.exe\
+SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe\
+ test/meshtest.exe test/staticReconstructionTest.exe\
+ test/gmrestest.exe\
 test/eikonal.exe test/staticReconstructionTestJR.exe test/euler.exe
 
 

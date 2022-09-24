@@ -259,6 +259,30 @@ namespace DNDS
                            { e.p() *= R[i]; });
         }
 
+        /**
+         * @brief collective
+         *
+         */
+        real norm2()
+        {
+            assert(base::dist);
+            real sqrSum{0}, sqrSumAll;
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { sqrSum += e.p().squaredNorm(); });
+            MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
+            return std::sqrt(sqrSumAll);
+        }
+
+        real dot(const ArrayDOF<vsize> &R)
+        {
+            assert(base::dist);
+            real sqrSum{0}, sqrSumAll;
+            forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
+                           { sqrSum += e.p().dot((*R.dist)[i].p()); });
+            MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
+            return sqrSumAll;
+        }
+
         // const Eigen::Map<Eigen::Vector<real, vsize>> &operator[](index i)
         // {
         //     return base::operator[](i).p();
