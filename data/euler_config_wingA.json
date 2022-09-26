@@ -20,6 +20,8 @@
     "rhsThresholdInternal": 1e-10,
     "useLocalDt": true,
     "useLimiter": false,
+    "nLimiterTurnOn": 0,
+    "nLimiterTurnOnInternal": 10000,
     "nForceLocalStartStep": 1000000000,
     "nCFLRampStart": 10000,
     "nCFLRampLength": 10000,

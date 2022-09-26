@@ -953,14 +953,14 @@ namespace DNDS
         std::shared_ptr<VRFiniteVolume2D> vfv;
 
         ArrayDOF<5u> u, uPoisson, uInc, uIncRHS, uTemp;
-        ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew;
+        ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew, uRecNew1;
 
         static const int nOUTS = 9;
         // rho u v w p T M ifUseLimiter RHS
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outDist;
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outSerial;
 
-        ArrayLocal<SemiVarMatrix<5u>> uF0, uF1;
+        ArrayLocal<SemiVarMatrix<5u>> uF0, uF1; // ! to be dumped
         // std::vector<uint32_t> ifUseLimiter;
         ArrayLocal<Batch<real, 1>> ifUseLimiter;
 
@@ -1186,9 +1186,11 @@ namespace DNDS
             fv->BuildMean(uIncRHS);
             fv->BuildMean(uTemp);
             vfv->BuildRec(uRec);
+            vfv->BuildRec(uRecNew);
+            vfv->BuildRec(uRecNew1);
             vfv->BuildRecFacial(uF0);
 
-            uRecNew.Copy(uRec);
+
             uF1.Copy(uF0);
             uF1.InitPersistentPullClean();
 
@@ -1636,8 +1638,10 @@ namespace DNDS
 
                         if (config.useLimiter)
                         {
-                            vfv->ReconstructionWBAPLimitFacial(
-                                cx, uRec, uRec, uF0, uF1, ifUseLimiter,
+                            // vfv->ReconstructionWBAPLimitFacial(
+                            //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
+                            vfv->ReconstructionWBAPLimitFacialV2(
+                                cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                                 [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                     Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
                                     auto normBase = Elem::NormBuildLocalBaseV(n);
@@ -1678,6 +1682,8 @@ namespace DNDS
                                     return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
                                     // return Eigen::Matrix<real, 5, 5>::Identity();
                                 });
+                            uRecNew.StartPersistentPullClean();
+                            uRecNew.WaitPersistentPullClean();
                         }
                         tLim += MPI_Wtime() - tstartH;
 
@@ -1687,7 +1693,10 @@ namespace DNDS
                         // }
 
                         double tstartE = MPI_Wtime();
-                        eval.EvaluateRHS(crhs, cx, uRec);
+                        if (config.useLimiter)
+                            eval.EvaluateRHS(crhs, cx, uRecNew);
+                        else
+                            eval.EvaluateRHS(crhs, cx, uRec);
                         trhs += MPI_Wtime() - tstartE;
                     },
                     [&](std::vector<real> &dTau)

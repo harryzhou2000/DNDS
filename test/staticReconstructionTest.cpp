@@ -93,14 +93,17 @@ int main(int argn, char *argv[])
         cfv.initReconstructionMatVec();
         // InsertCheck(mpi, "SDF 1");
         ArrayLocal<VecStaticBatch<1u>> u;
-        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR, uRecF1, uRecF2;
+        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecNew1, uRecCR, uRecF1, uRecF2;
         fv.BuildMean(u);
         vfv.BuildRec(uRec);
-        uRecNew.Copy(uRec);
+        vfv.BuildRec(uRecNew);
+        vfv.BuildRec(uRecNew1);
         cfv.BuildRec(uRecCR);
         vfv.BuildRecFacial(uRecF1);
-        uRecF2.Copy(uRecF1);
-        uRecF2.InitPersistentPullClean();
+        vfv.BuildRecFacial(uRecF2);
+
+        ArrayLocal<Batch<real, 1>> ifUseLimiter;
+        vfv.BuildIfUseLimiter(ifUseLimiter);
 
         // Eigen::ArrayXXd U1{{0,1,-1}};
         // Eigen::ArrayXXd U2{{1,0,1}};
@@ -143,8 +146,10 @@ int main(int argn, char *argv[])
         // InsertCheck(mpi, "BeforeRec");
         double tstart = MPI_Wtime();
         double tLimiter = 0;
-        std::vector<DNDS::real> IS;
-        IS.resize(u.size());
+        
+        
+
+
         for (int i = 0; i < nIter; i++)
         {
             u.StartPersistentPullClean();
@@ -156,8 +161,18 @@ int main(int argn, char *argv[])
             if (ifLimitIn)
             {
                 double tstartA = MPI_Wtime();
-                vfv.ReconstructionWBAPLimitFacial(
-                    u, uRec, uRec, uRecF1, uRecF2, IS,
+                // vfv.ReconstructionWBAPLimitFacial(
+                //     u, uRec, uRec, uRecF1, uRecF2, ifUseLimiter,
+                //     [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+                //     {
+                //         return Eigen::MatrixXd::Identity(1, 1);
+                //     },
+                //     [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+                //     {
+                //         return Eigen::MatrixXd::Identity(1, 1);
+                //     });
+                vfv.ReconstructionWBAPLimitFacialV2(
+                    u, uRec, uRec, uRecNew1, ifUseLimiter,
                     [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
                     {
                         return Eigen::MatrixXd::Identity(1, 1);
@@ -173,8 +188,18 @@ int main(int argn, char *argv[])
         if (ifLimit)
         {
             double tstartA = MPI_Wtime();
-            vfv.ReconstructionWBAPLimitFacial(
-                u, uRec, uRec, uRecF1, uRecF2, IS,
+            // vfv.ReconstructionWBAPLimitFacial(
+            //     u, uRec, uRec, uRecF1, uRecF2, ifUseLimiter,
+            //     [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+            //     {
+            //         return Eigen::MatrixXd::Identity(1, 1);
+            //     },
+            //     [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
+            //     {
+            //         return Eigen::MatrixXd::Identity(1, 1);
+            //     });
+            vfv.ReconstructionWBAPLimitFacialV2(
+                u, uRec, uRec, uRecNew1, ifUseLimiter,
                 [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
                 {
                     return Eigen::MatrixXd::Identity(1, 1);
