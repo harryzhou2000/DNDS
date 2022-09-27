@@ -33,7 +33,7 @@ SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.ex
 test/eikonal.exe test/staticReconstructionTestJR.exe test/euler.exe
 
 
-PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o 
+PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_FV_EulerSolver.o DNDS_Scripting.o
 PREBUILD_DEP:=$(PREBUILD:.o=.d)
 
 PREBUILD_FAST= DNDS_HardEigen.o DNDS_Mesh.o DNDS_Profiling.o
