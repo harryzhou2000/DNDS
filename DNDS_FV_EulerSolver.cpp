@@ -426,10 +426,11 @@ namespace DNDS
     void EulerEvaluator::UpdateLUSGSForward(std::vector<real> &dTau, real dt, real alphaDiag,
                                             ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
     {
-        for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
+        index nCellDist = mesh->cell2nodeLocal.dist->size();
+        for (index iScan = 0; iScan < nCellDist; iScan++)
         {
             index iCell = iScan;
-            // iCell = (*vfv->SOR_iScan2iCell)[iCell];//TODO: add rb-sor
+            iCell = (*vfv->SOR_iScan2iCell)[iCell]; // TODO: add rb-sor
 
             auto &c2f = mesh->cell2faceLocal[iCell];
             Eigen::Vector<real, 5> uIncNewBuf;
@@ -446,7 +447,11 @@ namespace DNDS
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
                     fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
-                    if (iCellOther < iCell)
+
+                    index iScanOther = iCellOther < nCellDist
+                                           ? (*vfv->SOR_iCell2iScan)[iCellOther]
+                                           : iScan + 1;
+                    if (iScanOther < iScan)
                     {
                         Eigen::Vector<real, 5> umeanOther = u[iCellOther];
                         Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther];
@@ -535,10 +540,11 @@ namespace DNDS
     void EulerEvaluator::UpdateLUSGSBackward(std::vector<real> &dTau, real dt, real alphaDiag,
                                              ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
     {
-        for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
+        index nCellDist = mesh->cell2nodeLocal.dist->size();
+        for (index iScan = 0; iScan < nCellDist; iScan++)
         {
-            index iCell = mesh->cell2nodeLocal.dist->size() - 1 - iScan;
-            // iCell = (*vfv->SOR_iScan2iCell)[iCell]; //TODO: add rb-sor
+            index iCell = nCellDist - 1 - iScan;
+            iCell = (*vfv->SOR_iScan2iCell)[iCell];
 
             auto &c2f = mesh->cell2faceLocal[iCell];
             Eigen::Vector<real, 5> uIncNewBuf;
@@ -555,7 +561,11 @@ namespace DNDS
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
                     fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
-                    if (iCellOther > iCell) // backward
+
+                    index iScanOther = iCellOther < nCellDist
+                                           ? (*vfv->SOR_iCell2iScan)[iCellOther]
+                                           : iScan + 1;
+                    if (iScanOther > iScan) // backward
                     {
                         Eigen::Vector<real, 5> umeanOther = u[iCellOther];
                         Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther];

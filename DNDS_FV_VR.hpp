@@ -28,7 +28,7 @@ namespace DNDS
         ImplicitFiniteVolume2D(CompactFacedMeshSerialRW *nMesh) : mpi(nMesh->mpi), mesh(nMesh)
         {
             if (!Elem::ElementManager::NBufferInit)
-                Elem::ElementManager::InitNBuffer(); //! do not asuume it't been initialized
+                Elem::ElementManager::InitNBuffer(); //! do not assume it't been initialized
             Elem::tIntScheme schemeTri = Elem::INT_SCHEME_TRI_7;
             Elem::tIntScheme schemeQuad = Elem::INT_SCHEME_QUAD_9;
             Elem::tIntScheme schemeLine = Elem::INT_SCHEME_LINE_5;
@@ -151,6 +151,7 @@ namespace DNDS
                                                                 // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
         std::shared_ptr<std::vector<Eigen::MatrixXd>> matrixAii;
         std::shared_ptr<std::vector<index>> SOR_iScan2iCell;
+        std::shared_ptr<std::vector<index>> SOR_iCell2iScan;
 
         //* curvilinear doings:
         ArrayLocal<SemiVarMatrix<2>> uCurve;
@@ -2108,10 +2109,11 @@ namespace DNDS
         {
             const index nCell = mesh->cell2nodeLocal.dist->size();
             SOR_iScan2iCell = std::make_shared<std::vector<index>>(nCell);
+            SOR_iCell2iScan = std::make_shared<std::vector<index>>(nCell);
             if (!(setting.SOR_RedBlack && setting.SOR_Instead))
             {
                 for (index iCell = 0; iCell < nCell; iCell++)
-                    (*SOR_iScan2iCell)[iCell] = iCell;
+                    (*SOR_iScan2iCell)[iCell] = (*SOR_iCell2iScan)[iCell] = iCell;
                 return;
             }
 
@@ -2183,8 +2185,10 @@ namespace DNDS
             {
                 index c = color[iCell];
                 (*SOR_iScan2iCell)[colorSizes[c] + colorStarts[c]] = iCell;
+                (*SOR_iCell2iScan)[iCell] = colorSizes[c] + colorStarts[c];
                 colorSizes[c]++;
             }
+
             // if (mpi.rank == 0)
             // {
             //     for (auto i : (*SOR_iScan2iCell))

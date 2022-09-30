@@ -195,7 +195,7 @@ namespace DNDS
             // alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
             // alpha(4) = incU(0) - (alpha(0) + alpha(1));
 
-            // // * Roe-Pike
+            // * Roe-Pike
             alpha(0) = 0.5 / aRoe * (incP - rhoRoe * aRoe * incVelo(0));
             alpha(1) = incU(0) - incP / sqr(aRoe);
             alpha(2) = rhoRoe * incVelo(1);

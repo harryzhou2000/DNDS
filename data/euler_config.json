@@ -26,7 +26,7 @@
     "nCFLRampStart": 1000000000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
-    "meshRotZ": 0,
+    "meshRotZ": 90,
     "meshFile": "data/mesh/Uniform512.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
@@ -41,8 +41,8 @@
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
         "data/mesh/NACA0012_WIDE_H3G_NS.msh"
     ],
-    "outPltName": "data/out/test_Euler_.Uniform512_O4_C",
-    "outLogName": "data/out/test_Euler_.Uniform512_O4_C",
+    "outPltName": "data/out/test_Euler_.Uniform512_O4_C_90",
+    "outLogName": "data/out/test_Euler_.Uniform512_O4_C_90",
     "err_dMax": 0.00,
     "res_base": 0,
     "vfvSetting": {
@@ -58,7 +58,7 @@
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 2e-5
+        "WBAP_SmoothIndicatorScale": 1e-100
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
@@ -86,8 +86,8 @@
             2.5
         ],
         "boxInitializerValue": [
-            0.25,
-            0.75,
+            -0.75,
+            -0.25,
             0.25,
             0.75,
             -1e100,
