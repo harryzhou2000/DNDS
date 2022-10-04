@@ -47,7 +47,7 @@ FLAGS=-g
 # FLAGS=-Os
 # FLAGS=-O2
 # FLAGS=-Og -g
-# FLAGS=-O3
+FLAGS=-O3
 # FLAGS=-O3 -DNDEBUG
 
 

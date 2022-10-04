@@ -26,7 +26,7 @@
     "nCFLRampStart": 1000000000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
-    "meshRotZ": 90,
+    "meshRotZ": 0,
     "meshFile": "data/mesh/Uniform512.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
@@ -46,7 +46,7 @@
     "err_dMax": 0.00,
     "res_base": 0,
     "vfvSetting": {
-        "SOR_Instead": false,
+        "SOR_Instead": true,
         "SOR_InverseScanning": false,
         "SOR_RedBlack": true,
         "JacobiRelax": 1,
@@ -86,8 +86,8 @@
             2.5
         ],
         "boxInitializerValue": [
-            -0.75,
-            -0.25,
+            0.25,
+            0.75,
             0.25,
             0.75,
             -1e100,

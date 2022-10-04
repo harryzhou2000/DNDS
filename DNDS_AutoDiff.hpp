@@ -359,7 +359,7 @@ namespace DNDS
             public:
                 template <class Ti, class Tj>
                 OpMatBlock(const pData &nd0, Ti &&i, Tj &&j)
-                    : d0(nd0), iB(std::forward(i)), jB(std::forward(j))
+                    : d0(nd0), iB(std::forward<Ti>(i)), jB(std::forward<Tj>(j))
                 {
                     sons.push_back(d0.get());
                 }
@@ -435,7 +435,12 @@ namespace DNDS
                 }
                 void back() override
                 {
-                    d0->g.array() += g.array() / d.array() * 0.5;
+                    int cols = d0->d.cols();
+                    for (int i = 0; i < nGrads; i++)
+                        d0->g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() +=
+                            g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() / d.array() * 0.5;
+
+                    d0->nDone++;
                 }
             };
 
@@ -451,7 +456,7 @@ namespace DNDS
                 op = R.op;
             }
 
-            ADEigenMat clone() // copy // !TEST
+            ADEigenMat clone() // copy
             {
                 auto pNewOp = new OpCopy(op);
                 pNewOp->calc();
@@ -512,14 +517,21 @@ namespace DNDS
             }
 
             template <class TA, class TB>
-            ADEigenMat operator()(TA i, TB j) // !TEST
+            ADEigenMat operator()(TA i, TB j) 
             {
                 auto pNewOp = new OpMatBlock(op, i, j);
                 pNewOp->calc();
                 return ADEigenMat(pData(pNewOp));
             }
 
-            ADEigenMat sqrt() // !TEST
+            ADEigenMat operator()(std::initializer_list<int> i, std::initializer_list<int> j)
+            {
+                auto pNewOp = new OpMatBlock(op, i, j);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
+            }
+
+            ADEigenMat sqrt()
             {
                 auto pNewOp = new OpSqrt(op);
                 pNewOp->calc();
@@ -533,7 +545,7 @@ namespace DNDS
                 return ADEigenMat(pData(pNewOp));
             }
 
-            friend ADEigenMat concat0(const std::vector<ADEigenMat> &mats) // !TEST
+            static ADEigenMat concat0(const std::vector<ADEigenMat> &mats) 
             {
                 std::vector<pData> matOps(mats.size());
                 for (int i = 0; i < mats.size(); i++)
