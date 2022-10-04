@@ -330,6 +330,29 @@ namespace DNDS
                     db->nDone++;
                 }
             };
+            class OpMatTrans : public OpBase
+            {
+                pData da;
+
+            public:
+                OpMatTrans(const pData &a) : da(a)
+                {
+                    sons.push_back(da.get());
+                }
+                void calc()
+                {
+                    d = da->d.transpose();
+                }
+                void back() override
+                {
+                    int acols = da->d.cols();
+                    int cols = d.cols();
+                    for (int i = 0; i < nGrads; i++)
+                        da->g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)) +=
+                            g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).transpose();
+                    da->nDone++;
+                }
+            };
             class OpTimesConstScalar : public OpBase
             {
                 pData da;
@@ -517,7 +540,7 @@ namespace DNDS
             }
 
             template <class TA, class TB>
-            ADEigenMat operator()(TA i, TB j) 
+            ADEigenMat operator()(TA i, TB j)
             {
                 auto pNewOp = new OpMatBlock(op, i, j);
                 pNewOp->calc();
@@ -538,14 +561,21 @@ namespace DNDS
                 return ADEigenMat(pData(pNewOp));
             }
 
-            ADEigenMat matmul(const ADEigenMat &R) // !TEST
+            ADEigenMat matmul(const ADEigenMat &R)
             {
                 auto pNewOp = new OpMatMul(op, R.op);
                 pNewOp->calc();
                 return ADEigenMat(pData(pNewOp));
             }
 
-            static ADEigenMat concat0(const std::vector<ADEigenMat> &mats) 
+            ADEigenMat transpose()
+            {
+                auto pNewOp = new OpMatTrans(op);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
+            }
+
+            static ADEigenMat concat0(const std::vector<ADEigenMat> &mats)
             {
                 std::vector<pData> matOps(mats.size());
                 for (int i = 0; i < mats.size(); i++)

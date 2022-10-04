@@ -66,5 +66,21 @@ int main()
     std::cout << u4 << std::endl;
     std::cout << u0 << std::endl;
 
+    u1 = u1.transpose().matmul(u1);
+    u1.back();
+    std::cout << "u1 = u0 dot u0" << std::endl;
+    std::cout << u1 << std::endl;
+    std::cout << u0 << std::endl;
+
+    u1 = u0.matmul(u0.transpose());
+    u1.back();
+    std::cout << "u1 = u0 tensor u0" << std::endl;
+    std::cout << u1 << std::endl;
+    std::cout << u0 << std::endl;
+    // 2 2 3 4 2 0 0 0 3 0 0 0 4 0 0 0
+    // 0 1 0 0 1 4 3 4 0 3 0 0 0 4 0 0
+    // 0 0 1 0 0 0 2 0 1 2 6 4 0 0 4 0
+    // 0 0 0 1 0 0 0 2 0 0 0 3 1 2 3 8
+
     return 0;
 }
