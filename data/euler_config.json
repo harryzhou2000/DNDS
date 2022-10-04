@@ -46,7 +46,7 @@
     "err_dMax": 0.00,
     "res_base": 0,
     "vfvSetting": {
-        "SOR_Instead": true,
+        "SOR_Instead": false,
         "SOR_InverseScanning": false,
         "SOR_RedBlack": true,
         "JacobiRelax": 1,
