@@ -6,6 +6,8 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <initializer_list>
+#include <utility>
 
 namespace DNDS
 {
@@ -36,9 +38,12 @@ namespace DNDS
             };
 
         private:
-            std::shared_ptr<OpBase> op;
+            std::shared_ptr<OpBase> op; // OnlyData
 
         public:
+            ADEigenMat() {}
+            ADEigenMat(const std::shared_ptr<OpBase> &nop) : op(nop) {}
+
             typedef std::shared_ptr<OpBase> pData;
 
             class OpIn : public OpBase
@@ -77,7 +82,7 @@ namespace DNDS
                 {
                     d = da->d + db->d;
                 }
-                void back()
+                void back() override
                 {
                     da->InitGrad(nGrads);
                     db->InitGrad(nGrads);
@@ -95,7 +100,7 @@ namespace DNDS
                 {
                     d = da->d - db->d;
                 }
-                void back()
+                void back() override
                 {
                     da->InitGrad(nGrads);
                     db->InitGrad(nGrads);
@@ -114,7 +119,7 @@ namespace DNDS
                     assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     d = da->d * db->d(0, 0);
                 }
-                void back()
+                void back() override
                 {
                     da->InitGrad(nGrads);
                     db->InitGrad(nGrads);
@@ -142,7 +147,7 @@ namespace DNDS
                     assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     d = da->d * db->d(0, 0);
                 }
-                void back()
+                void back() override
                 {
                     da->InitGrad(nGrads);
                     db->InitGrad(nGrads);
@@ -170,7 +175,7 @@ namespace DNDS
                 {
                     d = da->d.array() * db->d.array();
                 }
-                void back()
+                void back() override
                 {
                     da->InitGrad(nGrads);
                     db->InitGrad(nGrads);
@@ -196,7 +201,7 @@ namespace DNDS
                 {
                     d = da->d * db->d;
                 }
-                void back()
+                void back() override
                 {
                     da->InitGrad(nGrads);
                     db->InitGrad(nGrads);
@@ -225,7 +230,7 @@ namespace DNDS
                 {
                     d = da->d.array() * y;
                 }
-                void back()
+                void back() override
                 {
                     da->InitGrad(nGrads);
                     da->g = g * y;
@@ -233,16 +238,83 @@ namespace DNDS
             };
             class OpMatBlock : public OpBase
             {
+                pData d0;
+                std::vector<int> iB;
+                std::vector<int> jB;
+
+            public:
+                template <class Ti, class Tj>
+                OpMatBlock(const pData &nd0, Ti &&i, Tj &&j)
+                    : d0(nd0), iB(std::forward(i)), jB(std::forward(j)) {}
+
+                void calc()
+                {
+                    d = d0->d(iB, jB);
+                }
+
+                void back() override
+                {
+                    d0->InitGrad(nGrads);
+                    int acols = d0->d.cols();
+                    int cols = d.cols();
+                    for (int i = 0; i < nGrads; i++)
+                        d0->g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols))(iB, jB) +=
+                            g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols));
+                }
             };
             class OpMatConcat : public OpBase
             {
+                std::vector<pData> datas;
+
+            public:
+                OpMatConcat(const std::vector<pData> ndatas) : datas(ndatas) {}
+
+                void calc()
+                {
+                    int pos = 0;
+                    for (auto &i : datas)
+                        pos += i->d.rows();
+                    d.resize(pos, datas[0]->d.cols());
+                    pos = 0;
+                    for (auto &i : datas)
+                    {
+                        d(Eigen::seq(pos, pos + i->d.rows() - 1), Eigen::all) = i->d;
+                        pos += i->d.rows();
+                    }
+                }
+                void back() override
+                {
+                    int pos = 0;
+                    for (auto &i : datas)
+                    {
+                        i->InitGrad(nGrads);
+                        i->g += g(Eigen::seq(pos, pos + i->d.rows() - 1), Eigen::all);
+                        pos += i->d.rows();
+                    }
+                }
             };
             class OpSqrt : public OpBase
             {
+                pData d0;
+
+            public:
+                OpSqrt(const pData &from) : d0(from) {}
+                void calc()
+                {
+                    d = d0->d.array().sqrt();
+                }
+                void back() override
+                {
+                    d0->InitGrad(nGrads);
+                    d0->g.array() += g.array() / d.array() * 0.5;
+                }
             };
 
             void operator=(const Eigen::MatrixXd &V) // set as in
             {
+                auto pNewOp = new OpIn(); //* danger zone
+                pNewOp->calc(V);
+                op = pData(pNewOp);
             }
 
             void operator=(const ADEigenMat &R) // set to ref sth
@@ -250,41 +322,78 @@ namespace DNDS
                 op = R.op;
             }
 
-            void clone(const ADEigenMat &R) // copy
+            ADEigenMat clone() // copy
             {
-                // TODO
+                auto pNewOp = new OpCopy(op);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
             }
 
             ADEigenMat operator+(const ADEigenMat &R)
             {
-                // TODO
+                auto pNewOp = new OpAdd(op, R.op);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
             }
 
             ADEigenMat operator-(const ADEigenMat &R)
             {
-                // TODO
+                auto pNewOp = new OpSubs(op, R.op);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
             }
 
             ADEigenMat operator*(const ADEigenMat &R)
             {
-                // TODO
+                if (R.op->d.cols() == 1 && R.op->d.rows() == 1)
+                {
+                    auto pNewOp = new OpTimesScalar(op, R.op);
+                    pNewOp->calc();
+                    return ADEigenMat(pData(pNewOp));
+                }
+
+                if (R.op->d.cols() == op->d.cols() && R.op->d.rows() == op->d.rows())
+                {
+                    auto pNewOp = new OpCwiseMul(op, R.op);
+                    pNewOp->calc();
+                    return ADEigenMat(pData(pNewOp));
+                }
             }
 
             ADEigenMat operator*(const real &r)
             {
+                auto pNewOp = new OpTimesConstScalar(op, r);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
             }
 
             ADEigenMat operator/(const ADEigenMat &R)
             {
+                if (R.op->d.cols() == 1 && R.op->d.rows() == 1)
+                {
+                    auto pNewOp = new OpDivideScalar(op, R.op);
+                    pNewOp->calc();
+                    return ADEigenMat(pData(pNewOp));
+                }
+                // TODO: add cwise divide
             }
 
             template <class TA, class TB>
             ADEigenMat operator()(TA i, TB j)
             {
+                auto pNewOp = new OpMatBlock(op, i, j);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
             }
 
-            friend ADEigenMat concat0(std::vector<ADEigenMat> &mats)
+            friend ADEigenMat concat0(const std::vector<ADEigenMat> &mats)
             {
+                std::vector<pData> matOps(mats.size());
+                for (int i = 0; i < mats.size(); i++)
+                    matOps[i] = mats[i].op;
+                auto pNewOp = new ADEigenMat::OpMatConcat(matOps);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
             }
         };
     }
