@@ -240,7 +240,7 @@ namespace DNDS
         template <class TDATA>
         class ImplicitSDIRK4DualTimeStep
         {
-            static constexpr real _zeta = 0.128886400515;
+
             static const Eigen::Matrix<real, 3, 3> butcherA;
             static const Eigen::Vector<real, 3> butcherC;
             static const Eigen::RowVector<real, 3> butcherB;
@@ -328,9 +328,7 @@ namespace DNDS
             }
         };
 
-
-
-
+#define _zeta 0.128886400515
         template <class TDATA>
         const Eigen::Matrix<real, 3, 3> ImplicitSDIRK4DualTimeStep<TDATA>::butcherA{
             {_zeta, 0, 0},
@@ -346,6 +344,7 @@ namespace DNDS
             1. / (6 * sqr(2 * _zeta - 1)),
             (4 * sqr(_zeta) - 4 * _zeta + 2. / 3.) / sqr(2 * _zeta - 1),
             1. / (6 * sqr(2 * _zeta - 1))};
+#undef _zeta
 
     }
 

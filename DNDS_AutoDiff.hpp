@@ -42,28 +42,80 @@ namespace DNDS
                     }
                 }
 
+                void InitGradZero(int newNGrads)
+                {
+                    nGrads = newNGrads;
+                    int sz0 = d.rows();
+                    int sz1 = d.cols();
+                    g.resize(sz0, sz1 * nGrads);
+                    g.setZero();
+                }
+
                 void backMain()
                 {
                     InitGrad(d.size());
                     int cols = d.cols();
                     for (int i = 0; i < nGrads; i++)
                         g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols))(i) = 1.0;
-                    
 
                     std::set<OpBase *> cstack;
+
                     cstack.insert(this);
                     while (cstack.size() > 0)
                     {
-                        for (auto iter = cstack.begin(); iter != cstack.end(); iter++)
+                        auto iter = cstack.begin();
+                        auto i = *iter;
+                        i->nFather = 0;
+                        i->nDone = -1;
+                        iter = cstack.erase(iter);
+                        for (auto j : i->sons)
+                            cstack.insert(j);
+                    }
+
+                    cstack.insert(this);
+                    while (cstack.size() > 0)
+                    {
+                        auto iter = cstack.begin();
+
+                        auto i = *iter;
+                        iter = cstack.erase(iter);
+                        if (i->nDone == -1)
+                        {
+                            i->nDone = 0;
+                            if (i != this) // root has been set to eye!
+                                i->InitGradZero(nGrads);
+                            for (auto j : i->sons)
+                                j->nFather++;
+                            for (auto j : i->sons)
+                                cstack.insert(j);
+                        }
+                    }
+
+                    cstack.insert(this);
+                    while (cstack.size() > 0)
+                    {
+                        int dCount = 0;
+                        for (auto iter = cstack.begin(); iter != cstack.end();)
                         {
                             auto i = *iter;
                             if (i->nFather == i->nDone)
                             {
-                                cstack.erase(iter);
-                                i->back();
+                                iter = cstack.erase(iter), dCount++; //! iterator validity!
+                                i->back();                           // i is still ok
                                 for (auto j : i->sons)
                                     cstack.insert(j);
+                                break;
                             }
+                            else
+                            {
+                                ++iter; //! iterator validity!
+                            }
+                        }
+                        if (dCount == 0)
+                        {
+                            std::cout << "ADError: has hanging nodes except for launch, check for unused midterms"
+                                      << std::endl;
+                            assert(false);
                         }
                     }
                 }
@@ -115,8 +167,6 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
-                    da->nFather++;
-                    db->nFather++;
                 }
                 void calc()
                 {
@@ -124,8 +174,6 @@ namespace DNDS
                 }
                 void back() override
                 {
-                    da->InitGrad(nGrads);
-                    db->InitGrad(nGrads);
                     da->g += g;
                     db->g += g;
                     da->nDone++;
@@ -141,8 +189,6 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
-                    da->nFather++;
-                    db->nFather++;
                 }
                 void calc()
                 {
@@ -150,8 +196,6 @@ namespace DNDS
                 }
                 void back() override
                 {
-                    da->InitGrad(nGrads);
-                    db->InitGrad(nGrads);
                     da->g += g;
                     db->g -= g;
                     da->nDone++;
@@ -167,8 +211,6 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
-                    da->nFather++;
-                    db->nFather++;
                 }
                 void calc()
                 {
@@ -177,8 +219,6 @@ namespace DNDS
                 }
                 void back() override
                 {
-                    da->InitGrad(nGrads);
-                    db->InitGrad(nGrads);
 
                     assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     da->g += db->d(0, 0) * g;
@@ -204,8 +244,6 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
-                    da->nFather++;
-                    db->nFather++;
                 }
                 void calc()
                 {
@@ -214,8 +252,6 @@ namespace DNDS
                 }
                 void back() override
                 {
-                    da->InitGrad(nGrads);
-                    db->InitGrad(nGrads);
 
                     assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     da->g += (1.0 / db->d(0, 0)) * g;
@@ -241,8 +277,6 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
-                    da->nFather++;
-                    db->nFather++;
                 }
                 void calc()
                 {
@@ -250,8 +284,6 @@ namespace DNDS
                 }
                 void back() override
                 {
-                    da->InitGrad(nGrads);
-                    db->InitGrad(nGrads);
 
                     int acols = da->d.cols();
                     for (int i = 0; i < nGrads; i++)
@@ -275,8 +307,6 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
-                    da->nFather++;
-                    db->nFather++;
                 }
                 void calc()
                 {
@@ -284,8 +314,6 @@ namespace DNDS
                 }
                 void back() override
                 {
-                    da->InitGrad(nGrads);
-                    db->InitGrad(nGrads);
 
                     int acols = da->d.cols();
                     int bcols = db->d.cols();
@@ -311,7 +339,6 @@ namespace DNDS
                 OpTimesConstScalar(const pData &a, real ny) : da(a), y(ny)
                 {
                     sons.push_back(da.get());
-                    da->nFather++;
                 }
                 void calc()
                 {
@@ -319,7 +346,6 @@ namespace DNDS
                 }
                 void back() override
                 {
-                    da->InitGrad(nGrads);
                     da->g = g * y;
                     da->nDone++;
                 }
@@ -336,7 +362,6 @@ namespace DNDS
                     : d0(nd0), iB(std::forward(i)), jB(std::forward(j))
                 {
                     sons.push_back(d0.get());
-                    d0->nFather++;
                 }
 
                 void calc()
@@ -346,7 +371,6 @@ namespace DNDS
 
                 void back() override
                 {
-                    d0->InitGrad(nGrads);
                     int acols = d0->d.cols();
                     int cols = d.cols();
                     for (int i = 0; i < nGrads; i++)
@@ -365,7 +389,6 @@ namespace DNDS
                     for (auto &i : datas)
                     {
                         sons.push_back(i.get());
-                        i->nFather++;
                     }
                 }
 
@@ -387,7 +410,6 @@ namespace DNDS
                     int pos = 0;
                     for (auto &i : datas)
                     {
-                        i->InitGrad(nGrads);
                         i->g += g(Eigen::seq(pos, pos + i->d.rows() - 1), Eigen::all);
                         pos += i->d.rows();
                     }
@@ -403,14 +425,16 @@ namespace DNDS
                 pData d0;
 
             public:
-                OpSqrt(const pData &from) : d0(from) {}
+                OpSqrt(const pData &from) : d0(from)
+                {
+                    sons.push_back(d0.get());
+                }
                 void calc()
                 {
                     d = d0->d.array().sqrt();
                 }
                 void back() override
                 {
-                    d0->InitGrad(nGrads);
                     d0->g.array() += g.array() / d.array() * 0.5;
                 }
             };
@@ -427,7 +451,7 @@ namespace DNDS
                 op = R.op;
             }
 
-            ADEigenMat clone() // copy
+            ADEigenMat clone() // copy // !TEST
             {
                 auto pNewOp = new OpCopy(op);
                 pNewOp->calc();
@@ -450,29 +474,31 @@ namespace DNDS
 
             ADEigenMat operator*(const ADEigenMat &R)
             {
-                if (R.op->d.cols() == 1 && R.op->d.rows() == 1)
-                {
-                    auto pNewOp = new OpTimesScalar(op, R.op);
-                    pNewOp->calc();
-                    return ADEigenMat(pData(pNewOp));
-                }
-
                 if (R.op->d.cols() == op->d.cols() && R.op->d.rows() == op->d.rows())
                 {
                     auto pNewOp = new OpCwiseMul(op, R.op);
                     pNewOp->calc();
                     return ADEigenMat(pData(pNewOp));
                 }
+                if (R.op->d.cols() == 1 && R.op->d.rows() == 1) // !TEST
+                {
+                    auto pNewOp = new OpTimesScalar(op, R.op);
+                    pNewOp->calc();
+                    return ADEigenMat(pData(pNewOp));
+                }
+
+                assert(false);
+                return (ADEigenMat());
             }
 
-            ADEigenMat operator*(const real &r)
+            ADEigenMat operator*(const real &r) // !TEST
             {
                 auto pNewOp = new OpTimesConstScalar(op, r);
                 pNewOp->calc();
                 return ADEigenMat(pData(pNewOp));
             }
 
-            ADEigenMat operator/(const ADEigenMat &R)
+            ADEigenMat operator/(const ADEigenMat &R) // !TEST
             {
                 if (R.op->d.cols() == 1 && R.op->d.rows() == 1)
                 {
@@ -481,17 +507,33 @@ namespace DNDS
                     return ADEigenMat(pData(pNewOp));
                 }
                 // TODO: add cwise divide
+                assert(false);
+                return (ADEigenMat());
             }
 
             template <class TA, class TB>
-            ADEigenMat operator()(TA i, TB j)
+            ADEigenMat operator()(TA i, TB j) // !TEST
             {
                 auto pNewOp = new OpMatBlock(op, i, j);
                 pNewOp->calc();
                 return ADEigenMat(pData(pNewOp));
             }
 
-            friend ADEigenMat concat0(const std::vector<ADEigenMat> &mats)
+            ADEigenMat sqrt() // !TEST
+            {
+                auto pNewOp = new OpSqrt(op);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
+            }
+
+            ADEigenMat matmul(const ADEigenMat &R) // !TEST
+            {
+                auto pNewOp = new OpMatMul(op, R.op);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
+            }
+
+            friend ADEigenMat concat0(const std::vector<ADEigenMat> &mats) // !TEST
             {
                 std::vector<pData> matOps(mats.size());
                 for (int i = 0; i < mats.size(); i++)
@@ -501,10 +543,18 @@ namespace DNDS
                 return ADEigenMat(pData(pNewOp));
             }
 
-            void back()
+            void back() // TODO: add if clear gradient?
             {
-                assert(op->nFather == op->nDone && op->nFather == 0);
+                // assert(op->nFather == op->nDone && op->nFather == 0);
                 op->backMain();
+            }
+
+            friend std::ostream &operator<<(std::ostream &o, const ADEigenMat &m)
+            {
+                o << "D = \n"
+                  << m.op->d << "\nG = \n"
+                  << m.op->g << "\n nFather/nDone = " << m.op->nFather << "/" << m.op->nDone << "\n";
+                return o;
             }
         };
     }

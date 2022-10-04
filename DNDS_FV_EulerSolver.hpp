@@ -1118,7 +1118,7 @@ namespace DNDS
                 (*outDist)[iCell][7] = ifUseLimiter[iCell][0] / config.vfvSetting.WBAP_SmoothIndicatorScale;
                 // std::cout << iCell << ode.rhsbuf[0][iCell] << std::endl;
                 // (*outDist)[iCell][8] = ode.rhsbuf[0][iCell](0);
-                (*outDist)[iCell][8] = vfv->SOR_iCell2iScan[iCell];//!using SOR rb seq instead
+                (*outDist)[iCell][8] = (*vfv->SOR_iCell2iScan)[iCell];//!using SOR rb seq instead
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();

@@ -27,7 +27,7 @@ namespace DNDS
             ReV(4, 4) = H + velo(0) * a;
             ReV(4, 1) = 0.5 * Vsqr;
             ReV(4, 2) = velo(1);
-            ReV(4, 3) = velo(2);
+            ReV(4, 3) = velo(2);    
         }
 
         /**
