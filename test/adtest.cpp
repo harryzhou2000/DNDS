@@ -88,11 +88,10 @@ int main()
     std::cout << u2 << std::endl;
     std::cout << u0 << std::endl;
 
-
     u0 = Eigen::MatrixXd{{2}};
     u1 = uIn.transpose();
 
-    u2 = u1/u0*u0 *u0;
+    u2 = u1 / u0 * u0 * u0;
     u2.back();
     std::cout << "u2 = u1 * u0" << std::endl;
     std::cout << u2 << std::endl;
@@ -105,6 +104,7 @@ int main()
     std::cout << u2 << std::endl;
     std::cout << u1 << std::endl;
 
+    u1 = Eigen::MatrixXd{{-2}, {-1}, {1}, {2}};
     u3 = u1.hyFixExp(u0);
     u3.back();
     std::cout << "u3 = u1.hyFixExp(u0)" << std::endl;

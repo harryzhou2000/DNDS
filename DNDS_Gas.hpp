@@ -223,12 +223,12 @@ namespace DNDS
                 dumpInfo();
             }
             assert(UL(0) > 0 && UR(0) > 0);
-            ADEigenMat ULad(UL), URad(UR);
-            ADEigenMat veloL = ULad({1, 2, 3}, {0}) / ULad({0}, {0});
-            ADEigenMat veloR = URad({1, 2, 3}, {0}) / URad({0}, {0});
-            ADEigenMat vsqrL = veloL.dot(veloL);
-            ADEigenMat vsqrR = veloR.dot(veloR);
-             
+            // ADEigenMat ULad(UL), URad(UR);
+            // ADEigenMat veloL = ULad({1, 2, 3}, {0}) / ULad({0}, {0});
+            // ADEigenMat veloR = URad({1, 2, 3}, {0}) / URad({0}, {0});
+            // ADEigenMat vsqrL = veloL.dot(veloL);
+            // ADEigenMat vsqrR = veloR.dot(veloR);
+
 
             // TODO
 

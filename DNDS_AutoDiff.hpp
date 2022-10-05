@@ -559,12 +559,12 @@ namespace DNDS
                     for (int i = 0; i < nGrads; i++)
                         d0->g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() +=
                             g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() *
-                            (1 + (d0->d.array() - d.array()) / a->d(0, 0));
+                            (1 + (d0->d.array() - d.array()) * d0->d.array().sign() / a->d(0, 0));
                     for (int i = 0; i < nGrads; i++)
                         a->g(i) +=
                             (g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() *
                              (d.array() - d0->d.array()) *
-                             (d0->d.array() + a->d(0, 0)) /
+                             (d0->d.array().abs() + a->d(0, 0)) /
                              (a->d(0, 0) * a->d(0, 0)))
                                 .sum();
 
