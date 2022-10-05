@@ -211,8 +211,10 @@ namespace DNDS
             F = (FL + FR) * 0.5 - 0.5 * incF;
         }
 
-        template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
-        void RoeFlux_IdealGas_HartenYee_AutoDiff(const TUL &UL, const TUR &UR, real gamma, TF &F, const TFdumpInfo &dumpInfo)
+        template <typename TUL, typename TUR, typename TF, typename TdFdU, typename TFdumpInfo>
+        void RoeFlux_IdealGas_HartenYee_AutoDiff(const TUL &UL, const TUR &UR, real gamma, TF &F,
+                                                 TdFdU &dFdUL, TdFdU &dFdUR,
+                                                 const TFdumpInfo &dumpInfo)
         {
             using namespace AutoDiff;
 
@@ -223,74 +225,124 @@ namespace DNDS
                 dumpInfo();
             }
             assert(UL(0) > 0 && UR(0) > 0);
-            // ADEigenMat ULad(UL), URad(UR);
-            // ADEigenMat veloL = ULad({1, 2, 3}, {0}) / ULad({0}, {0});
-            // ADEigenMat veloR = URad({1, 2, 3}, {0}) / URad({0}, {0});
-            // ADEigenMat vsqrL = veloL.dot(veloL);
-            // ADEigenMat vsqrR = veloR.dot(veloR);
+            ADEigenMat ULad(UL), URad(UR);
+            ADEigenMat rhoL = ULad({0}, {0});
+            ADEigenMat rhoR = URad({0}, {0});
+            ADEigenMat veloL = ULad({1, 2, 3}, {0}) / rhoL;
+            ADEigenMat veloR = URad({1, 2, 3}, {0}) / rhoR;
+            ADEigenMat vsqrL = veloL.dot(veloL);
+            ADEigenMat vsqrR = veloR.dot(veloR);
+            ADEigenMat EL = ULad({4}, {0});
+            ADEigenMat ER = URad({4}, {0});
+            ADEigenMat pL = (EL - rhoL * vsqrL * 0.5) * (gamma - 1);
+            ADEigenMat pR = (ER - rhoR * vsqrR * 0.5) * (gamma - 1);
+            ADEigenMat HL = (EL + pL) / rhoL;
+            ADEigenMat HR = (ER + pR) / rhoR;
+            ADEigenMat sqrtRhoL = rhoL.sqrt();
+            ADEigenMat sqrtRhoR = rhoR.sqrt();
+            ADEigenMat sqrtRhoLpR = sqrtRhoL + sqrtRhoR;
 
+            ADEigenMat veloRoe = (veloL * sqrtRhoL + veloR * sqrtRhoR) / sqrtRhoLpR;
+            ADEigenMat vsqrRoe = veloRoe.dot(veloRoe);
+            ADEigenMat HRoe = (HL * sqrtRhoL + HR * sqrtRhoR) / sqrtRhoLpR;
+            ADEigenMat asqrRoe = (HRoe - vsqrRoe * 0.5) * (gamma - 1);
+            ADEigenMat rhoRoe = sqrtRhoL * sqrtRhoR;
 
-            // TODO
-
-            tVec veloL = (UL({1, 2, 3}).array() / UL(0)).matrix();
-            tVec veloR = (UR({1, 2, 3}).array() / UR(0)).matrix();
-            real asqrL, asqrR, pL, pR, HL, HR;
-            real vsqrL = veloL.squaredNorm();
-            real vsqrR = veloR.squaredNorm();
-            IdealGasThermal(UL(4), UL(0), vsqrL, gamma, pL, asqrL, HL);
-            IdealGasThermal(UR(4), UR(0), vsqrR, gamma, pR, asqrR, HR);
-            real sqrtRhoL = std::sqrt(UL(0));
-            real sqrtRhoR = std::sqrt(UR(0));
-
-            tVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
-            real vsqrRoe = veloRoe.squaredNorm();
-            real HRoe = (sqrtRhoL * HL + sqrtRhoR * HR) / (sqrtRhoL + sqrtRhoR);
-            real asqrRoe = (gamma - 1) * (HRoe - 0.5 * vsqrRoe);
-            real rhoRoe = sqrtRhoL * sqrtRhoR;
-
-            if (!(asqrRoe > 0))
+            // std::cout << asqrRoe.d() << std::endl;
+            if (!(asqrRoe.d()(0, 0) > 0))
             {
                 dumpInfo();
+                assert(false);
             }
-            assert(asqrRoe > 0);
-            real aRoe = std::sqrt(asqrRoe);
 
-            real lam0 = veloRoe(0) - aRoe;
-            real lam123 = veloRoe(0);
-            real lam4 = veloRoe(0) + aRoe;
-            Eigen::Vector<real, 5> lam = {lam0, lam123, lam123, lam123, lam4};
-            lam = lam.array().abs();
+            ADEigenMat aRoe = asqrRoe.sqrt();
+
+            ADEigenMat veloRoe0 = veloRoe({0}, {0});
+            ADEigenMat veloRoe1 = veloRoe({1}, {0});
+            ADEigenMat veloRoe2 = veloRoe({2}, {0});
+            ADEigenMat lam0 = (veloRoe0 - aRoe).abs();
+            ADEigenMat lam123 = (veloRoe0).abs();
+            ADEigenMat lam4 = (veloRoe0 + aRoe).abs();
 
             //*HY
-            real thresholdHartenYee = scaleHartenYee * (std::sqrt(vsqrRoe) + aRoe);
-            real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
-            if (std::abs(lam0) < thresholdHartenYee)
-                lam(0) = (lam0 * lam0 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
-            if (std::abs(lam4) < thresholdHartenYee)
-                lam(4) = (lam4 * lam4 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+            ADEigenMat thresholdHartenYee = (vsqrRoe.sqrt() + aRoe) * (scaleHartenYee * 0.5);
+            lam0 = lam0.hyFixExp(thresholdHartenYee);
+            lam4 = lam4.hyFixExp(thresholdHartenYee);
             //*HY
 
-            Eigen::Matrix<real, 5, 5> ReVRoe;
-            EulerGasRightEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
+            ADEigenMat _One{Eigen::MatrixXd{{1}}}, _Zero{Eigen::MatrixXd{{0}}};
 
-            Eigen::Vector<real, 5> incU = UR - UL;
-            real incP = pR - pL;
-            Gas::tVec incVelo = veloR - veloL;
-            Eigen::Vector<real, 5> alpha;
+            ADEigenMat K0 =
+                ADEigenMat::concat0({_One,
+                                     veloRoe0 - aRoe,
+                                     veloRoe1,
+                                     veloRoe({2}, {0}),
+                                     HRoe - veloRoe0 * aRoe});
+            ADEigenMat K4 =
+                ADEigenMat::concat0({_One,
+                                     veloRoe0 + aRoe,
+                                     veloRoe1,
+                                     veloRoe2,
+                                     HRoe + veloRoe0 * aRoe});
+            ADEigenMat K1 =
+                ADEigenMat::concat0({_One,
+                                     veloRoe,
+                                     vsqrRoe * 0.5});
+            ADEigenMat K2 =
+                ADEigenMat::concat0({_Zero,
+                                     _Zero,
+                                     _One,
+                                     _Zero,
+                                     veloRoe1});
+            ADEigenMat K3 =
+                ADEigenMat::concat0({_Zero,
+                                     _Zero,
+                                     _Zero,
+                                     _One,
+                                     veloRoe2});
 
-            // * Roe-Pike
-            alpha(0) = 0.5 / aRoe * (incP - rhoRoe * aRoe * incVelo(0));
-            alpha(1) = incU(0) - incP / sqr(aRoe);
-            alpha(2) = rhoRoe * incVelo(1);
-            alpha(3) = rhoRoe * incVelo(2);
-            alpha(4) = 0.5 / aRoe * (incP + rhoRoe * aRoe * incVelo(0));
+            ADEigenMat incRho = rhoR - rhoL;
+            ADEigenMat incP = pR - pL;
+            ADEigenMat incVelo = veloR - veloL;
+            ADEigenMat incVelo0 = incVelo({0}, {0});
+            ADEigenMat incVelo1 = incVelo({1}, {0});
+            ADEigenMat incVelo2 = incVelo({2}, {0});
 
-            Eigen::Vector<real, 5>
-                incF = ReVRoe * (lam.array() * alpha.array()).matrix();
-            Eigen::Vector<real, 5> FL, FR;
-            GasInviscidFlux(UL, veloL, pL, FL);
-            GasInviscidFlux(UR, veloR, pR, FR);
-            F = (FL + FR) * 0.5 - 0.5 * incF;
+            ADEigenMat alpha0 = (incP - rhoRoe * aRoe * incVelo0) / aRoe * 0.5;
+            ADEigenMat alpha4 = (incP + rhoRoe * aRoe * incVelo0) / aRoe * 0.5;
+            ADEigenMat alpha1 = incRho - incP / asqrRoe;
+            ADEigenMat alpha2 = rhoRoe * incVelo1;
+            ADEigenMat alpha3 = rhoRoe * incVelo2;
+
+            ADEigenMat veloL0 = veloL({0}, {0});
+            ADEigenMat veloR0 = veloR({0}, {0});
+
+            ADEigenMat FL =
+                ADEigenMat::concat0({ULad({1}, {0}),
+                                     ULad({1}, {0}) * veloL0 + pL,
+                                     ULad({2}, {0}) * veloL0,
+                                     ULad({3}, {0}) * veloL0,
+                                     (EL + pL) * veloL0});
+            ADEigenMat FR =
+                ADEigenMat::concat0({URad({1}, {0}),
+                                     URad({1}, {0}) * veloR0 + pR,
+                                     URad({2}, {0}) * veloR0,
+                                     URad({3}, {0}) * veloR0,
+                                     (ER + pR) * veloR0});
+            ADEigenMat FInc = K0 * (alpha0 * lam0) +
+                              K4 * (alpha4 * lam4) +
+                              K1 * (alpha1 * lam123) +
+                              K2 * (alpha2 * lam123) +
+                              K3 * (alpha3 * lam123);
+            ADEigenMat FOut = (FL + FR - FInc) * 0.5;
+            FOut.back();
+
+            F = FOut.d();
+            dFdUL = ULad.g();
+            dFdUR = URad.g();
+            // std::cout << F.transpose() << std::endl;
+            // std::cout << dFdUL << std::endl;
+            // std::cout << dFdUR << std::endl;
         }
 
         /**

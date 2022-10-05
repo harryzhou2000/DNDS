@@ -9,6 +9,7 @@
 #include <initializer_list>
 #include <utility>
 #include <set>
+#include <map>
 
 namespace DNDS
 {
@@ -59,6 +60,13 @@ namespace DNDS
                         g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols))(i) = 1.0;
 
                     std::set<OpBase *> cstack;
+// #define DNDS_AUTODIFF_DEBUG_PRINTTOPO
+
+#ifdef DNDS_AUTODIFF_DEBUG_PRINTTOPO
+                    std::map<OpBase *, int> nodes;                 // *debug
+                    std::set<std::pair<OpBase *, OpBase *>> edges; // *debug
+                    nodes[this] = 0;
+#endif
 
                     cstack.insert(this);
                     while (cstack.size() > 0)
@@ -69,8 +77,25 @@ namespace DNDS
                         i->nDone = -1;
                         iter = cstack.erase(iter);
                         for (auto j : i->sons)
+                        {
                             cstack.insert(j);
+#ifdef DNDS_AUTODIFF_DEBUG_PRINTTOPO
+                            auto findJ = nodes.find(j);         // *debug
+                            if (findJ == nodes.end())           // *debug
+                                nodes[j] = nodes.size();        // *debug
+                            edges.insert(std::make_pair(i, j)); // *debug
+#endif
+                        }
                     }
+#ifdef DNDS_AUTODIFF_DEBUG_PRINTTOPO
+                    Eigen::MatrixXd Adj;                                     // *debug
+                    Adj.setZero(nodes.size(), nodes.size());                 // *debug
+                    for (auto &e : edges)                                    // *debug
+                        Adj(nodes[e.first], nodes[e.second]) = 1;            // *debug
+                    std::cout << "Back From [" << this << "] " << std::endl; // *debug
+                    std::cout << "Size = " << nodes.size() << std::endl;
+                    std::cout << Adj << std::endl;
+#endif
 
                     cstack.insert(this);
                     while (cstack.size() > 0)
@@ -130,6 +155,16 @@ namespace DNDS
             ADEigenMat(const Eigen::MatrixXd &nd)
             {
                 (*this) = nd;
+            }
+
+            Eigen::MatrixXd &g()
+            {
+                return op->g;
+            }
+
+            Eigen::MatrixXd &d()
+            {
+                return op->d;
             }
 
             typedef std::shared_ptr<OpBase> pData;
@@ -572,6 +607,28 @@ namespace DNDS
                     a->nDone++;
                 }
             };
+            class OpAbs : public OpBase
+            {
+                pData d0;
+
+            public:
+                OpAbs(const pData &from) : d0(from)
+                {
+                    sons.push_back(d0.get());
+                }
+                void calc()
+                {
+                    d = d0->d.array().abs();
+                }
+                void back() override
+                {
+                    int cols = d0->d.cols();
+                    for (int i = 0; i < nGrads; i++)
+                        d0->g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() +=
+                            g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() * d0->d.array().sign();
+                    d0->nDone++;
+                }
+            };
 
             /**********************************************************************************/
             /*                                                                                */
@@ -675,6 +732,13 @@ namespace DNDS
             ADEigenMat sqrt()
             {
                 auto pNewOp = new OpSqrt(op);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
+            }
+
+            ADEigenMat abs() //! TEST
+            {
+                auto pNewOp = new OpAbs(op);
                 pNewOp->calc();
                 return ADEigenMat(pData(pNewOp));
             }
