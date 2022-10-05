@@ -130,6 +130,12 @@ namespace DNDS
 
             typedef std::shared_ptr<OpBase> pData;
 
+            /**********************************************************************************/
+            /*                                                                                */
+            /*                      Derived Operator Class                                    */
+            /*                                                                                */
+            /*                                                                                */
+            /**********************************************************************************/
             class OpIn : public OpBase
             {
             public:
@@ -228,7 +234,7 @@ namespace DNDS
                     for (int i = 0; i < nGrads; i++)
                         db->g(0, i) +=
                             (g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array() *
-                             da->d(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array())
+                             da->d.array())
                                 .sum();
 
                     da->nDone++;
@@ -248,7 +254,7 @@ namespace DNDS
                 void calc()
                 {
                     assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
-                    d = da->d * db->d(0, 0);
+                    d = da->d / db->d(0, 0);
                 }
                 void back() override
                 {
@@ -294,6 +300,36 @@ namespace DNDS
                         db->g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array() +=
                             g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array() *
                             da->d.array();
+                    da->nDone++;
+                    db->nDone++;
+                }
+            };
+            class OpCwiseDiv : public OpBase
+            {
+                pData da, db;
+
+            public:
+                OpCwiseDiv(const pData &a, const pData &b) : da(a), db(b)
+                {
+                    sons.push_back(da.get());
+                    sons.push_back(db.get());
+                }
+                void calc()
+                {
+                    d = da->d.array() / db->d.array();
+                }
+                void back() override
+                {
+
+                    int acols = da->d.cols();
+                    for (int i = 0; i < nGrads; i++)
+                        da->g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array() +=
+                            g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array() /
+                            db->d.array();
+                    for (int i = 0; i < nGrads; i++)
+                        db->g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array() -=
+                            g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array() *
+                            d.array() / db->d.array();
                     da->nDone++;
                     db->nDone++;
                 }
@@ -351,6 +387,36 @@ namespace DNDS
                         da->g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)) +=
                             g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).transpose();
                     da->nDone++;
+                }
+            };
+            class OpMatDot : public OpBase
+            {
+                pData da, db;
+
+            public:
+                OpMatDot(const pData &a, const pData &b) : da(a), db(b)
+                {
+                    sons.push_back(da.get());
+                    sons.push_back(db.get());
+                }
+                void calc()
+                {
+                    d.resize(1, 1);
+                    d(0, 0) = (da->d.array() * db->d.array()).sum();
+                }
+                void back() override
+                {
+                    int acols = da->d.cols();
+                    int bcols = db->d.cols();
+                    int cols = d.cols();
+                    for (int i = 0; i < nGrads; i++)
+                        da->g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)) +=
+                            g(i) * db->d;
+                    for (int i = 0; i < nGrads; i++)
+                        db->g(Eigen::all, Eigen::seq(0 + i * bcols, bcols - 1 + i * bcols)) +=
+                            g(i) * da->d;
+                    da->nDone++;
+                    db->nDone++;
                 }
             };
             class OpTimesConstScalar : public OpBase
@@ -467,6 +533,13 @@ namespace DNDS
                 }
             };
 
+            /**********************************************************************************/
+            /*                                                                                */
+            /*                                                                                */
+            /*                                                                                */
+            /*                                                                                */
+            /**********************************************************************************/
+
             void operator=(const Eigen::MatrixXd &V) // set as in
             {
                 auto pNewOp = new OpIn(); //* danger zone
@@ -508,7 +581,7 @@ namespace DNDS
                     pNewOp->calc();
                     return ADEigenMat(pData(pNewOp));
                 }
-                if (R.op->d.cols() == 1 && R.op->d.rows() == 1) // !TEST
+                if (R.op->d.cols() == 1 && R.op->d.rows() == 1) 
                 {
                     auto pNewOp = new OpTimesScalar(op, R.op);
                     pNewOp->calc();
@@ -519,22 +592,27 @@ namespace DNDS
                 return (ADEigenMat());
             }
 
-            ADEigenMat operator*(const real &r) // !TEST
+            ADEigenMat operator*(const real &r)
             {
                 auto pNewOp = new OpTimesConstScalar(op, r);
                 pNewOp->calc();
                 return ADEigenMat(pData(pNewOp));
             }
 
-            ADEigenMat operator/(const ADEigenMat &R) // !TEST
+            ADEigenMat operator/(const ADEigenMat &R)
             {
+                if (R.op->d.cols() == op->d.cols() && R.op->d.rows() == op->d.rows())
+                {
+                    auto pNewOp = new OpCwiseDiv(op, R.op);
+                    pNewOp->calc();
+                    return ADEigenMat(pData(pNewOp));
+                }
                 if (R.op->d.cols() == 1 && R.op->d.rows() == 1)
                 {
                     auto pNewOp = new OpDivideScalar(op, R.op);
                     pNewOp->calc();
                     return ADEigenMat(pData(pNewOp));
                 }
-                // TODO: add cwise divide
                 assert(false);
                 return (ADEigenMat());
             }
@@ -564,6 +642,13 @@ namespace DNDS
             ADEigenMat matmul(const ADEigenMat &R)
             {
                 auto pNewOp = new OpMatMul(op, R.op);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
+            }
+
+            ADEigenMat dot(const ADEigenMat &R)
+            {
+                auto pNewOp = new OpMatDot(op, R.op);
                 pNewOp->calc();
                 return ADEigenMat(pData(pNewOp));
             }

@@ -82,5 +82,28 @@ int main()
     // 0 0 1 0 0 0 2 0 1 2 6 4 0 0 4 0
     // 0 0 0 1 0 0 0 2 0 0 0 3 1 2 3 8
 
+    u2 = u0.dot(u0);
+    u2.back();
+    std::cout << "u2 = u0 dot u0" << std::endl;
+    std::cout << u2 << std::endl;
+    std::cout << u0 << std::endl;
+
+
+    u0 = Eigen::MatrixXd{{2}};
+    u1 = uIn.transpose();
+
+    u2 = u1/u0*u0 *u0;
+    u2.back();
+    std::cout << "u2 = u1 * u0" << std::endl;
+    std::cout << u2 << std::endl;
+    std::cout << u0 << std::endl;
+    std::cout << u1 << std::endl;
+
+    u2 = u1 / u1 / u1 * u1 * u1 * 2;
+    u2.back();
+    std::cout << "u2 = 2  u1" << std::endl;
+    std::cout << u2 << std::endl;
+    std::cout << u1 << std::endl;
+
     return 0;
 }
