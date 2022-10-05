@@ -105,5 +105,12 @@ int main()
     std::cout << u2 << std::endl;
     std::cout << u1 << std::endl;
 
+    u3 = u1.hyFixExp(u0);
+    u3.back();
+    std::cout << "u3 = u1.hyFixExp(u0)" << std::endl;
+    std::cout << u3 << std::endl;
+    std::cout << u0 << std::endl;
+    std::cout << u1 << std::endl;
+
     return 0;
 }

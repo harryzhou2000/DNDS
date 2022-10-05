@@ -127,6 +127,10 @@ namespace DNDS
         public:
             ADEigenMat() {}
             ADEigenMat(const std::shared_ptr<OpBase> &nop) : op(nop) {}
+            ADEigenMat(const Eigen::MatrixXd &nd)
+            {
+                (*this) = nd;
+            }
 
             typedef std::shared_ptr<OpBase> pData;
 
@@ -532,6 +536,42 @@ namespace DNDS
                     d0->nDone++;
                 }
             };
+            class OpHYFixExp : public OpBase
+            {
+                pData d0, a;
+
+            public:
+                OpHYFixExp(const pData &from, const pData &na) : d0(from), a(na)
+                {
+                    sons.push_back(d0.get());
+                    sons.push_back(a.get());
+                    assert(a->d.cols() == a->d.rows() && a->d.rows() == 1);
+                }
+                void calc()
+                {
+                    d = d0->d.array() +
+                        d0->d.array().sign() *
+                            (d0->d.array().abs() / (-a->d(0, 0))).exp() * a->d(0, 0);
+                }
+                void back() override
+                {
+                    int cols = d0->d.cols();
+                    for (int i = 0; i < nGrads; i++)
+                        d0->g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() +=
+                            g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() *
+                            (1 + (d0->d.array() - d.array()) / a->d(0, 0));
+                    for (int i = 0; i < nGrads; i++)
+                        a->g(i) +=
+                            (g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() *
+                             (d.array() - d0->d.array()) *
+                             (d0->d.array() + a->d(0, 0)) /
+                             (a->d(0, 0) * a->d(0, 0)))
+                                .sum();
+
+                    d0->nDone++;
+                    a->nDone++;
+                }
+            };
 
             /**********************************************************************************/
             /*                                                                                */
@@ -581,7 +621,7 @@ namespace DNDS
                     pNewOp->calc();
                     return ADEigenMat(pData(pNewOp));
                 }
-                if (R.op->d.cols() == 1 && R.op->d.rows() == 1) 
+                if (R.op->d.cols() == 1 && R.op->d.rows() == 1)
                 {
                     auto pNewOp = new OpTimesScalar(op, R.op);
                     pNewOp->calc();
@@ -635,6 +675,13 @@ namespace DNDS
             ADEigenMat sqrt()
             {
                 auto pNewOp = new OpSqrt(op);
+                pNewOp->calc();
+                return ADEigenMat(pData(pNewOp));
+            }
+
+            ADEigenMat hyFixExp(const ADEigenMat &a)
+            {
+                auto pNewOp = new OpHYFixExp(op, a.op);
                 pNewOp->calc();
                 return ADEigenMat(pData(pNewOp));
             }

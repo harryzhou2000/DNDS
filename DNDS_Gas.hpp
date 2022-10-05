@@ -1,5 +1,6 @@
 #pragma once
 #include "DNDS_Defines.h"
+#include "DNDS_AutoDiff.hpp"
 #include "Eigen/Dense"
 
 namespace DNDS
@@ -27,7 +28,7 @@ namespace DNDS
             ReV(4, 4) = H + velo(0) * a;
             ReV(4, 1) = 0.5 * Vsqr;
             ReV(4, 2) = velo(1);
-            ReV(4, 3) = velo(2);    
+            ReV(4, 3) = velo(2);
         }
 
         /**
@@ -86,7 +87,7 @@ namespace DNDS
         {
             dVelo = (dU({1, 2, 3}) - U({1, 2, 3}) * dU(0)) / U(0);
             dp = (gamma - 1) * (dU(4) - 0.5 * (dU({1, 2, 3}).dot(velo) + U({1, 2, 3}).dot(dVelo)));
-        }
+        } // For Lax-Flux jacobian
 
         template <typename TU, typename TF>
         inline void GasInviscidFluxFacialIncrement(const TU &U, const TU &dU,
@@ -194,6 +195,88 @@ namespace DNDS
             //             veloRoe(0) * incU(1) - incU4b);
             // alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
             // alpha(4) = incU(0) - (alpha(0) + alpha(1));
+
+            // * Roe-Pike
+            alpha(0) = 0.5 / aRoe * (incP - rhoRoe * aRoe * incVelo(0));
+            alpha(1) = incU(0) - incP / sqr(aRoe);
+            alpha(2) = rhoRoe * incVelo(1);
+            alpha(3) = rhoRoe * incVelo(2);
+            alpha(4) = 0.5 / aRoe * (incP + rhoRoe * aRoe * incVelo(0));
+
+            Eigen::Vector<real, 5>
+                incF = ReVRoe * (lam.array() * alpha.array()).matrix();
+            Eigen::Vector<real, 5> FL, FR;
+            GasInviscidFlux(UL, veloL, pL, FL);
+            GasInviscidFlux(UR, veloR, pR, FR);
+            F = (FL + FR) * 0.5 - 0.5 * incF;
+        }
+
+        template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
+        void RoeFlux_IdealGas_HartenYee_AutoDiff(const TUL &UL, const TUR &UR, real gamma, TF &F, const TFdumpInfo &dumpInfo)
+        {
+            using namespace AutoDiff;
+
+            static real scaleHartenYee = 0.01;
+
+            if (!(UL(0) > 0 && UR(0) > 0))
+            {
+                dumpInfo();
+            }
+            assert(UL(0) > 0 && UR(0) > 0);
+            ADEigenMat ULad(UL), URad(UR);
+            ADEigenMat veloL = ULad({1, 2, 3}, {0}) / ULad({0}, {0});
+            ADEigenMat veloR = URad({1, 2, 3}, {0}) / URad({0}, {0});
+            ADEigenMat vsqrL = veloL.dot(veloL);
+            ADEigenMat vsqrR = veloR.dot(veloR);
+             
+
+            // TODO
+
+            tVec veloL = (UL({1, 2, 3}).array() / UL(0)).matrix();
+            tVec veloR = (UR({1, 2, 3}).array() / UR(0)).matrix();
+            real asqrL, asqrR, pL, pR, HL, HR;
+            real vsqrL = veloL.squaredNorm();
+            real vsqrR = veloR.squaredNorm();
+            IdealGasThermal(UL(4), UL(0), vsqrL, gamma, pL, asqrL, HL);
+            IdealGasThermal(UR(4), UR(0), vsqrR, gamma, pR, asqrR, HR);
+            real sqrtRhoL = std::sqrt(UL(0));
+            real sqrtRhoR = std::sqrt(UR(0));
+
+            tVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
+            real vsqrRoe = veloRoe.squaredNorm();
+            real HRoe = (sqrtRhoL * HL + sqrtRhoR * HR) / (sqrtRhoL + sqrtRhoR);
+            real asqrRoe = (gamma - 1) * (HRoe - 0.5 * vsqrRoe);
+            real rhoRoe = sqrtRhoL * sqrtRhoR;
+
+            if (!(asqrRoe > 0))
+            {
+                dumpInfo();
+            }
+            assert(asqrRoe > 0);
+            real aRoe = std::sqrt(asqrRoe);
+
+            real lam0 = veloRoe(0) - aRoe;
+            real lam123 = veloRoe(0);
+            real lam4 = veloRoe(0) + aRoe;
+            Eigen::Vector<real, 5> lam = {lam0, lam123, lam123, lam123, lam4};
+            lam = lam.array().abs();
+
+            //*HY
+            real thresholdHartenYee = scaleHartenYee * (std::sqrt(vsqrRoe) + aRoe);
+            real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
+            if (std::abs(lam0) < thresholdHartenYee)
+                lam(0) = (lam0 * lam0 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+            if (std::abs(lam4) < thresholdHartenYee)
+                lam(4) = (lam4 * lam4 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+            //*HY
+
+            Eigen::Matrix<real, 5, 5> ReVRoe;
+            EulerGasRightEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
+
+            Eigen::Vector<real, 5> incU = UR - UL;
+            real incP = pR - pL;
+            Gas::tVec incVelo = veloR - veloL;
+            Eigen::Vector<real, 5> alpha;
 
             // * Roe-Pike
             alpha(0) = 0.5 / aRoe * (incP - rhoRoe * aRoe * incVelo(0));
