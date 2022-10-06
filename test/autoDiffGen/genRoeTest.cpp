@@ -11,14 +11,15 @@ int main()
 {
     using namespace DNDS;
 
-    auto UL = Eigen::Vector<real, 5>{1.0000, 0.5916, 0, 0, 2.6750};
-    auto UR = Eigen::Vector<real, 5>{1.0000, 0, 0, 0, 2.5};
-    auto gammaD = Eigen::MatrixXd{{1.4}};
-    auto scaleHY = Eigen::MatrixXd{{0.01}};
+    auto UL = Eigen::Matrix<real, 5, 1>{
+        {1.0000}, {0.5916}, {0}, {0}, {2.6750}};
+    auto UR = Eigen::Matrix<real, 5, 1>{
+        {1.0000}, {0}, {0}, {0}, {2.5}};
 
     Eigen::Matrix<real, 5, 1> F;
     Eigen::Matrix<real, 5, 5> GL;
     Eigen::Matrix<real, 5, 5> GR;
+    real eps = 1e-6;
 
     auto tic = clock();
     for (int iter = 0; iter < N; iter++)
@@ -29,170 +30,169 @@ int main()
         auto T3 = Eigen::Matrix<real, 1, 1>({{0.01}}); // OpIn
         auto T4 = UL;                                  // OpIn
         auto T5 = UR;                                  // OpIn
-        std::cout << "FUCK0" << std::endl;
-        auto T6 = T4({0}, {0});                                                                   // OpMatBlock
-        auto T7 = T5({0}, {0});                                                                   // OpMatBlock
-        std::cout << "FUCK0.0001" << std::endl;
-        auto T8 = T4({1, 2, 3}, {0});                                                             // OpMatBlock
-        auto T9 = T8 / T6(0, 0);                                                                  // OpDivideScalar
-        auto T10 = T5({1, 2, 3}, {0});                                                            // OpMatBlock
-        auto T11 = T10 / T7(0, 0);                                                                // OpDivideScalar
-        std::cout << "FUCK0.001" << std::endl;
-        auto T12 = Eigen::Matrix<double, 1, 1>{{(T9.array() * T9.array()).sum()}};                // OpMatDot
-        auto T13 = Eigen::Matrix<double, 1, 1>{{(T11.array() * T11.array()).sum()}};              // OpMatDot
-        std::cout << "FUCK0.002" << std::endl;
-        auto T14 = T4({4}, {0});                                                                  // OpMatBlock
-        auto T15 = T5({4}, {0});                                                                  // OpMatBlock
-        auto T16 = (T6.array() * T12.array()).matrix();                                           // OpCwiseMul
-        auto T17 = T16 * 0.5;                                                                     // OpTimesConstScalar
-        auto T18 = T14 - T17;                                                                     // OpSubs
-        auto T19 = (T18.array() * T2.array()).matrix();                                           // OpCwiseMul
-        auto T20 = (T7.array() * T13.array()).matrix();                                           // OpCwiseMul
-        auto T21 = T20 * 0.5;                                                                     // OpTimesConstScalar
-        auto T22 = T15 - T21;                                                                     // OpSubs
-        auto T23 = (T22.array() * T2.array()).matrix();                                           // OpCwiseMul
-        auto T24 = T14 + T19;                                                                     // OpAdd
-        auto T25 = (T24.array() / T6.array()).matrix();                                           // OpCwiseDiv
-        auto T26 = T15 + T23;                                                                     // OpAdd
-        auto T27 = (T26.array() / T7.array()).matrix();                                           // OpCwiseDiv
-        auto T28 = T6.array().sqrt().matrix();                                                    // OpSqrt
-        auto T29 = T7.array().sqrt().matrix();                                                    // OpSqrt
-        auto T30 = T28 + T29;                                                                     // OpAdd
-        auto T31 = T9 * T28(0, 0);                                                                // OpTimesScalar
-        auto T32 = T11 * T29(0, 0);                                                               // OpTimesScalar
-        auto T33 = T31 + T32;                                                                     // OpAdd
-        auto T34 = T33 / T30(0, 0);                                                               // OpDivideScalar
-        auto T35 = Eigen::Matrix<double, 1, 1>{{(T34.array() * T34.array()).sum()}};              // OpMatDot
-        auto T36 = (T25.array() * T28.array()).matrix();                                          // OpCwiseMul
-        auto T37 = (T27.array() * T29.array()).matrix();                                          // OpCwiseMul
-        auto T38 = T36 + T37;                                                                     // OpAdd
-        auto T39 = (T38.array() / T30.array()).matrix();                                          // OpCwiseDiv
-        auto T40 = T35 * 0.5;                                                                     // OpTimesConstScalar
-        auto T41 = T39 - T40;                                                                     // OpSubs
-        auto T42 = (T41.array() * T2.array()).matrix();                                           // OpCwiseMul
-        auto T43 = (T28.array() * T29.array()).matrix();                                          // OpCwiseMul
-        auto T44 = T42.array().sqrt().matrix();                                                   // OpSqrt
-        auto T45 = T34({0}, {0});                                                                 // OpMatBlock
-        auto T46 = T34({1}, {0});                                                                 // OpMatBlock
-        auto T47 = T34({2}, {0});                                                                 // OpMatBlock
-        auto T48 = T45 - T44;                                                                     // OpSubs
-        auto T49 = T48.array().abs().matrix();                                                    // OpAbs
-        auto T50 = T45.array().abs().matrix();                                                    // OpAbs
-        auto T51 = T45 + T44;                                                                     // OpAdd
-        auto T52 = T51.array().abs().matrix();                                                    // OpAbs
-        auto T53 = T35.array().sqrt().matrix();                                                   // OpSqrt
-        auto T54 = T53 + T44;                                                                     // OpAdd
-        auto T55 = T3 * 0.5;                                                                      // OpTimesConstScalar
-        auto T56 = (T54.array() * T55.array()).matrix();                                          // OpCwiseMul
-        auto T57 = (T49.array() + (T49.array().abs() / (-T56(0, 0))).exp() * T56(0, 0)).matrix(); // OpHYFixExp
-        auto T58 = (T52.array() + (T52.array().abs() / (-T56(0, 0))).exp() * T56(0, 0)).matrix(); // OpHYFixExp
-        auto T59 = T45 - T44;                                                                     // OpSubs
-        auto T60 = T34({2}, {0});                                                                 // OpMatBlock
-        auto T61 = (T45.array() * T44.array()).matrix();                                          // OpCwiseMul
-        auto T62 = T39 - T61;                                                                     // OpSubs
-        Eigen::Matrix<double, 5, 1> T63;                                                          // OpMatConcat
-        T63(Eigen::seq(0, 0), Eigen::all) = T0;                                                   // OpMatConcat
-        T63(Eigen::seq(1, 1), Eigen::all) = T59;                                                  // OpMatConcat
-        T63(Eigen::seq(2, 2), Eigen::all) = T46;                                                  // OpMatConcat
-        T63(Eigen::seq(3, 3), Eigen::all) = T60;                                                  // OpMatConcat
-        T63(Eigen::seq(4, 4), Eigen::all) = T62;                                                  // OpMatConcat
-        auto T64 = T45 + T44;                                                                     // OpAdd
-        auto T65 = (T45.array() * T44.array()).matrix();                                          // OpCwiseMul
-        auto T66 = T39 + T65;                                                                     // OpAdd
-        Eigen::Matrix<double, 5, 1> T67;                                                          // OpMatConcat
-        T67(Eigen::seq(0, 0), Eigen::all) = T0;                                                   // OpMatConcat
-        T67(Eigen::seq(1, 1), Eigen::all) = T64;                                                  // OpMatConcat
-        T67(Eigen::seq(2, 2), Eigen::all) = T46;                                                  // OpMatConcat
-        T67(Eigen::seq(3, 3), Eigen::all) = T47;                                                  // OpMatConcat
-        T67(Eigen::seq(4, 4), Eigen::all) = T66;                                                  // OpMatConcat
-        auto T68 = T35 * 0.5;                                                                     // OpTimesConstScalar
-        Eigen::Matrix<double, 5, 1> T69;                                                          // OpMatConcat
-        T69(Eigen::seq(0, 0), Eigen::all) = T0;                                                   // OpMatConcat
-        T69(Eigen::seq(1, 3), Eigen::all) = T34;                                                  // OpMatConcat
-        T69(Eigen::seq(4, 4), Eigen::all) = T68;                                                  // OpMatConcat
-        Eigen::Matrix<double, 5, 1> T70;                                                          // OpMatConcat
-        T70(Eigen::seq(0, 0), Eigen::all) = T1;                                                   // OpMatConcat
-        T70(Eigen::seq(1, 1), Eigen::all) = T1;                                                   // OpMatConcat
-        T70(Eigen::seq(2, 2), Eigen::all) = T0;                                                   // OpMatConcat
-        T70(Eigen::seq(3, 3), Eigen::all) = T1;                                                   // OpMatConcat
-        T70(Eigen::seq(4, 4), Eigen::all) = T46;                                                  // OpMatConcat
-        Eigen::Matrix<double, 5, 1> T71;                                                          // OpMatConcat
-        T71(Eigen::seq(0, 0), Eigen::all) = T1;                                                   // OpMatConcat
-        T71(Eigen::seq(1, 1), Eigen::all) = T1;                                                   // OpMatConcat
-        T71(Eigen::seq(2, 2), Eigen::all) = T1;                                                   // OpMatConcat
-        T71(Eigen::seq(3, 3), Eigen::all) = T0;                                                   // OpMatConcat
-        T71(Eigen::seq(4, 4), Eigen::all) = T47;                                                  // OpMatConcat
-        auto T72 = T7 - T6;                                                                       // OpSubs
-        auto T73 = T23 - T19;                                                                     // OpSubs
-        auto T74 = T11 - T9;                                                                      // OpSubs
-        auto T75 = T74({0}, {0});                                                                 // OpMatBlock
-        auto T76 = T74({1}, {0});                                                                 // OpMatBlock
-        auto T77 = T74({2}, {0});                                                                 // OpMatBlock
-        auto T78 = (T43.array() * T44.array()).matrix();                                          // OpCwiseMul
-        auto T79 = (T78.array() * T75.array()).matrix();                                          // OpCwiseMul
-        auto T80 = T73 - T79;                                                                     // OpSubs
-        auto T81 = (T80.array() / T44.array()).matrix();                                          // OpCwiseDiv
-        auto T82 = T81 * 0.5;                                                                     // OpTimesConstScalar
-        auto T83 = (T43.array() * T44.array()).matrix();                                          // OpCwiseMul
-        auto T84 = (T83.array() * T75.array()).matrix();                                          // OpCwiseMul
-        auto T85 = T73 + T84;                                                                     // OpAdd
-        auto T86 = (T85.array() / T44.array()).matrix();                                          // OpCwiseDiv
-        auto T87 = T86 * 0.5;                                                                     // OpTimesConstScalar
-        auto T88 = (T73.array() / T42.array()).matrix();                                          // OpCwiseDiv
-        auto T89 = T72 - T88;                                                                     // OpSubs
-        auto T90 = (T43.array() * T76.array()).matrix();                                          // OpCwiseMul
-        auto T91 = (T43.array() * T77.array()).matrix();                                          // OpCwiseMul
-        auto T92 = T9({0}, {0});                                                                  // OpMatBlock
-        auto T93 = T11({0}, {0});                                                                 // OpMatBlock
-        auto T94 = T4({1}, {0});                                                                  // OpMatBlock
-        auto T95 = T4({1}, {0});                                                                  // OpMatBlock
-        auto T96 = (T95.array() * T92.array()).matrix();                                          // OpCwiseMul
-        auto T97 = T96 + T19;                                                                     // OpAdd
-        auto T98 = T4({2}, {0});                                                                  // OpMatBlock
-        auto T99 = (T98.array() * T92.array()).matrix();                                          // OpCwiseMul
-        auto T100 = T4({3}, {0});                                                                 // OpMatBlock
-        auto T101 = (T100.array() * T92.array()).matrix();                                        // OpCwiseMul
-        auto T102 = T14 + T19;                                                                    // OpAdd
-        auto T103 = (T102.array() * T92.array()).matrix();                                        // OpCwiseMul
-        Eigen::Matrix<double, 5, 1> T104;                                                         // OpMatConcat
-        T104(Eigen::seq(0, 0), Eigen::all) = T94;                                                 // OpMatConcat
-        T104(Eigen::seq(1, 1), Eigen::all) = T97;                                                 // OpMatConcat
-        T104(Eigen::seq(2, 2), Eigen::all) = T99;                                                 // OpMatConcat
-        T104(Eigen::seq(3, 3), Eigen::all) = T101;                                                // OpMatConcat
-        T104(Eigen::seq(4, 4), Eigen::all) = T103;                                                // OpMatConcat
-        auto T105 = T5({1}, {0});                                                                 // OpMatBlock
-        auto T106 = T5({1}, {0});                                                                 // OpMatBlock
-        auto T107 = (T106.array() * T93.array()).matrix();                                        // OpCwiseMul
-        auto T108 = T107 + T23;                                                                   // OpAdd
-        auto T109 = T5({2}, {0});                                                                 // OpMatBlock
-        auto T110 = (T109.array() * T93.array()).matrix();                                        // OpCwiseMul
-        auto T111 = T5({3}, {0});                                                                 // OpMatBlock
-        auto T112 = (T111.array() * T93.array()).matrix();                                        // OpCwiseMul
-        auto T113 = T15 + T23;                                                                    // OpAdd
-        auto T114 = (T113.array() * T93.array()).matrix();                                        // OpCwiseMul
-        Eigen::Matrix<double, 5, 1> T115;                                                         // OpMatConcat
-        T115(Eigen::seq(0, 0), Eigen::all) = T105;                                                // OpMatConcat
-        T115(Eigen::seq(1, 1), Eigen::all) = T108;                                                // OpMatConcat
-        T115(Eigen::seq(2, 2), Eigen::all) = T110;                                                // OpMatConcat
-        T115(Eigen::seq(3, 3), Eigen::all) = T112;                                                // OpMatConcat
-        T115(Eigen::seq(4, 4), Eigen::all) = T114;                                                // OpMatConcat
-        auto T116 = (T82.array() * T57.array()).matrix();                                         // OpCwiseMul
-        auto T117 = T63 * T116(0, 0);                                                             // OpTimesScalar
-        auto T118 = (T87.array() * T58.array()).matrix();                                         // OpCwiseMul
-        auto T119 = T67 * T118(0, 0);                                                             // OpTimesScalar
-        auto T120 = T117 + T119;                                                                  // OpAdd
-        auto T121 = (T89.array() * T50.array()).matrix();                                         // OpCwiseMul
-        auto T122 = T69 * T121(0, 0);                                                             // OpTimesScalar
-        auto T123 = T120 + T122;                                                                  // OpAdd
-        auto T124 = (T90.array() * T50.array()).matrix();                                         // OpCwiseMul
-        auto T125 = T70 * T124(0, 0);                                                             // OpTimesScalar
-        auto T126 = T123 + T125;                                                                  // OpAdd
-        auto T127 = (T91.array() * T50.array()).matrix();                                         // OpCwiseMul
-        auto T128 = T71 * T127(0, 0);                                                             // OpTimesScalar
-        auto T129 = T126 + T128;                                                                  // OpAdd
-        auto T130 = T104 + T115;                                                                  // OpAdd
-        auto T131 = T130 - T129;                                                                  // OpSubs
-        auto T132 = T131 * 0.5;                                                                   // OpTimesConstScalar
+        T4.array() += eps * (N - iter - 1);
+        T5.array() -= eps * (N - iter - 1);
+        // std::cout << "FUCK0" << std::endl;
+        Eigen::Matrix<double, 1, 1> T6 = T4({0}, {0});                                                                                                                   // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T7 = T5({0}, {0});                                                                                                                   // OpMatBlock
+        Eigen::Matrix<double, 3, 1> T8 = T4({1, 2, 3}, {0});                                                                                                             // OpMatBlock
+        Eigen::Matrix<double, 3, 1> T9 = T8 / T6(0, 0);                                                                                                                  // OpDivideScalar
+        Eigen::Matrix<double, 3, 1> T10 = T5({1, 2, 3}, {0});                                                                                                            // OpMatBlock
+        Eigen::Matrix<double, 3, 1> T11 = T10 / T7(0, 0);                                                                                                                // OpDivideScalar
+        Eigen::Matrix<double, 1, 1> T12 = Eigen::Matrix<double, 1, 1>{{(T9.array() * T9.array()).sum()}};                                                                // OpMatDot
+        Eigen::Matrix<double, 1, 1> T13 = Eigen::Matrix<double, 1, 1>{{(T11.array() * T11.array()).sum()}};                                                              // OpMatDot
+        Eigen::Matrix<double, 1, 1> T14 = T4({4}, {0});                                                                                                                  // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T15 = T5({4}, {0});                                                                                                                  // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T16 = (T6.array() * T12.array()).matrix();                                                                                           // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T17 = T16 * 0.5;                                                                                                                     // OpTimesConstScalar
+        Eigen::Matrix<double, 1, 1> T18 = T14 - T17;                                                                                                                     // OpSubs
+        Eigen::Matrix<double, 1, 1> T19 = (T18.array() * T2.array()).matrix();                                                                                           // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T20 = (T7.array() * T13.array()).matrix();                                                                                           // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T21 = T20 * 0.5;                                                                                                                     // OpTimesConstScalar
+        Eigen::Matrix<double, 1, 1> T22 = T15 - T21;                                                                                                                     // OpSubs
+        Eigen::Matrix<double, 1, 1> T23 = (T22.array() * T2.array()).matrix();                                                                                           // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T24 = T14 + T19;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 1, 1> T25 = (T24.array() / T6.array()).matrix();                                                                                           // OpCwiseDiv
+        Eigen::Matrix<double, 1, 1> T26 = T15 + T23;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 1, 1> T27 = (T26.array() / T7.array()).matrix();                                                                                           // OpCwiseDiv
+        Eigen::Matrix<double, 1, 1> T28 = T6.array().sqrt().matrix();                                                                                                    // OpSqrt
+        Eigen::Matrix<double, 1, 1> T29 = T7.array().sqrt().matrix();                                                                                                    // OpSqrt
+        Eigen::Matrix<double, 1, 1> T30 = T28 + T29;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 3, 1> T31 = T9 * T28(0, 0);                                                                                                                // OpTimesScalar
+        Eigen::Matrix<double, 3, 1> T32 = T11 * T29(0, 0);                                                                                                               // OpTimesScalar
+        Eigen::Matrix<double, 3, 1> T33 = T31 + T32;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 3, 1> T34 = T33 / T30(0, 0);                                                                                                               // OpDivideScalar
+        Eigen::Matrix<double, 1, 1> T35 = Eigen::Matrix<double, 1, 1>{{(T34.array() * T34.array()).sum()}};                                                              // OpMatDot
+        Eigen::Matrix<double, 1, 1> T36 = (T25.array() * T28.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T37 = (T27.array() * T29.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T38 = T36 + T37;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 1, 1> T39 = (T38.array() / T30.array()).matrix();                                                                                          // OpCwiseDiv
+        Eigen::Matrix<double, 1, 1> T40 = T35 * 0.5;                                                                                                                     // OpTimesConstScalar
+        Eigen::Matrix<double, 1, 1> T41 = T39 - T40;                                                                                                                     // OpSubs
+        Eigen::Matrix<double, 1, 1> T42 = (T41.array() * T2.array()).matrix();                                                                                           // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T43 = (T28.array() * T29.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T44 = T42.array().sqrt().matrix();                                                                                                   // OpSqrt
+        Eigen::Matrix<double, 1, 1> T45 = T34({0}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T46 = T34({1}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T47 = T34({2}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T48 = T45 - T44;                                                                                                                     // OpSubs
+        Eigen::Matrix<double, 1, 1> T49 = T48.array().abs().matrix();                                                                                                    // OpAbs
+        Eigen::Matrix<double, 1, 1> T50 = T45.array().abs().matrix();                                                                                                    // OpAbs
+        Eigen::Matrix<double, 1, 1> T51 = T45 + T44;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 1, 1> T52 = T51.array().abs().matrix();                                                                                                    // OpAbs
+        Eigen::Matrix<double, 1, 1> T53 = T35.array().sqrt().matrix();                                                                                                   // OpSqrt
+        Eigen::Matrix<double, 1, 1> T54 = T53 + T44;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 1, 1> T55 = T3 * 0.5;                                                                                                                      // OpTimesConstScalar
+        Eigen::Matrix<double, 1, 1> T56 = (T54.array() * T55.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T57 = (T49.array() + (T49.array().abs() / (-T56(0, 0))).exp() * T56(0, 0)).matrix();                                                 // OpHYFixExp
+        Eigen::Matrix<double, 1, 1> T58 = (T52.array() + (T52.array().abs() / (-T56(0, 0))).exp() * T56(0, 0)).matrix();                                                 // OpHYFixExp
+        Eigen::Matrix<double, 1, 1> T59 = T45 - T44;                                                                                                                     // OpSubs
+        Eigen::Matrix<double, 1, 1> T60 = T34({2}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T61 = (T45.array() * T44.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T62 = T39 - T61;                                                                                                                     // OpSubs
+        Eigen::Matrix<double, 5, 1> T63;                                                                                                                                 // OpMatConcat
+        T63(Eigen::seq(0, 0), Eigen::all) = T0;                                                                                                                          // OpMatConcat
+        T63(Eigen::seq(1, 1), Eigen::all) = T59;                                                                                                                         // OpMatConcat
+        T63(Eigen::seq(2, 2), Eigen::all) = T46;                                                                                                                         // OpMatConcat
+        T63(Eigen::seq(3, 3), Eigen::all) = T60;                                                                                                                         // OpMatConcat
+        T63(Eigen::seq(4, 4), Eigen::all) = T62;                                                                                                                         // OpMatConcat
+        Eigen::Matrix<double, 1, 1> T64 = T45 + T44;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 1, 1> T65 = (T45.array() * T44.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T66 = T39 + T65;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 5, 1> T67;                                                                                                                                 // OpMatConcat
+        T67(Eigen::seq(0, 0), Eigen::all) = T0;                                                                                                                          // OpMatConcat
+        T67(Eigen::seq(1, 1), Eigen::all) = T64;                                                                                                                         // OpMatConcat
+        T67(Eigen::seq(2, 2), Eigen::all) = T46;                                                                                                                         // OpMatConcat
+        T67(Eigen::seq(3, 3), Eigen::all) = T47;                                                                                                                         // OpMatConcat
+        T67(Eigen::seq(4, 4), Eigen::all) = T66;                                                                                                                         // OpMatConcat
+        Eigen::Matrix<double, 1, 1> T68 = T35 * 0.5;                                                                                                                     // OpTimesConstScalar
+        Eigen::Matrix<double, 5, 1> T69;                                                                                                                                 // OpMatConcat
+        T69(Eigen::seq(0, 0), Eigen::all) = T0;                                                                                                                          // OpMatConcat
+        T69(Eigen::seq(1, 3), Eigen::all) = T34;                                                                                                                         // OpMatConcat
+        T69(Eigen::seq(4, 4), Eigen::all) = T68;                                                                                                                         // OpMatConcat
+        Eigen::Matrix<double, 5, 1> T70;                                                                                                                                 // OpMatConcat
+        T70(Eigen::seq(0, 0), Eigen::all) = T1;                                                                                                                          // OpMatConcat
+        T70(Eigen::seq(1, 1), Eigen::all) = T1;                                                                                                                          // OpMatConcat
+        T70(Eigen::seq(2, 2), Eigen::all) = T0;                                                                                                                          // OpMatConcat
+        T70(Eigen::seq(3, 3), Eigen::all) = T1;                                                                                                                          // OpMatConcat
+        T70(Eigen::seq(4, 4), Eigen::all) = T46;                                                                                                                         // OpMatConcat
+        Eigen::Matrix<double, 5, 1> T71;                                                                                                                                 // OpMatConcat
+        T71(Eigen::seq(0, 0), Eigen::all) = T1;                                                                                                                          // OpMatConcat
+        T71(Eigen::seq(1, 1), Eigen::all) = T1;                                                                                                                          // OpMatConcat
+        T71(Eigen::seq(2, 2), Eigen::all) = T1;                                                                                                                          // OpMatConcat
+        T71(Eigen::seq(3, 3), Eigen::all) = T0;                                                                                                                          // OpMatConcat
+        T71(Eigen::seq(4, 4), Eigen::all) = T47;                                                                                                                         // OpMatConcat
+        Eigen::Matrix<double, 1, 1> T72 = T7 - T6;                                                                                                                       // OpSubs
+        Eigen::Matrix<double, 1, 1> T73 = T23 - T19;                                                                                                                     // OpSubs
+        Eigen::Matrix<double, 3, 1> T74 = T11 - T9;                                                                                                                      // OpSubs
+        Eigen::Matrix<double, 1, 1> T75 = T74({0}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T76 = T74({1}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T77 = T74({2}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T78 = (T43.array() * T44.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T79 = (T78.array() * T75.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T80 = T73 - T79;                                                                                                                     // OpSubs
+        Eigen::Matrix<double, 1, 1> T81 = (T80.array() / T44.array()).matrix();                                                                                          // OpCwiseDiv
+        Eigen::Matrix<double, 1, 1> T82 = T81 * 0.5;                                                                                                                     // OpTimesConstScalar
+        Eigen::Matrix<double, 1, 1> T83 = (T43.array() * T44.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T84 = (T83.array() * T75.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T85 = T73 + T84;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 1, 1> T86 = (T85.array() / T44.array()).matrix();                                                                                          // OpCwiseDiv
+        Eigen::Matrix<double, 1, 1> T87 = T86 * 0.5;                                                                                                                     // OpTimesConstScalar
+        Eigen::Matrix<double, 1, 1> T88 = (T73.array() / T42.array()).matrix();                                                                                          // OpCwiseDiv
+        Eigen::Matrix<double, 1, 1> T89 = T72 - T88;                                                                                                                     // OpSubs
+        Eigen::Matrix<double, 1, 1> T90 = (T43.array() * T76.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T91 = (T43.array() * T77.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T92 = T9({0}, {0});                                                                                                                  // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T93 = T11({0}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T94 = T4({1}, {0});                                                                                                                  // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T95 = T4({1}, {0});                                                                                                                  // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T96 = (T95.array() * T92.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T97 = T96 + T19;                                                                                                                     // OpAdd
+        Eigen::Matrix<double, 1, 1> T98 = T4({2}, {0});                                                                                                                  // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T99 = (T98.array() * T92.array()).matrix();                                                                                          // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T100 = T4({3}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T101 = (T100.array() * T92.array()).matrix();                                                                                        // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T102 = T14 + T19;                                                                                                                    // OpAdd
+        Eigen::Matrix<double, 1, 1> T103 = (T102.array() * T92.array()).matrix();                                                                                        // OpCwiseMul
+        Eigen::Matrix<double, 5, 1> T104;                                                                                                                                // OpMatConcat
+        T104(Eigen::seq(0, 0), Eigen::all) = T94;                                                                                                                        // OpMatConcat
+        T104(Eigen::seq(1, 1), Eigen::all) = T97;                                                                                                                        // OpMatConcat
+        T104(Eigen::seq(2, 2), Eigen::all) = T99;                                                                                                                        // OpMatConcat
+        T104(Eigen::seq(3, 3), Eigen::all) = T101;                                                                                                                       // OpMatConcat
+        T104(Eigen::seq(4, 4), Eigen::all) = T103;                                                                                                                       // OpMatConcat
+        Eigen::Matrix<double, 1, 1> T105 = T5({1}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T106 = T5({1}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T107 = (T106.array() * T93.array()).matrix();                                                                                        // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T108 = T107 + T23;                                                                                                                   // OpAdd
+        Eigen::Matrix<double, 1, 1> T109 = T5({2}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T110 = (T109.array() * T93.array()).matrix();                                                                                        // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T111 = T5({3}, {0});                                                                                                                 // OpMatBlock
+        Eigen::Matrix<double, 1, 1> T112 = (T111.array() * T93.array()).matrix();                                                                                        // OpCwiseMul
+        Eigen::Matrix<double, 1, 1> T113 = T15 + T23;                                                                                                                    // OpAdd
+        Eigen::Matrix<double, 1, 1> T114 = (T113.array() * T93.array()).matrix();                                                                                        // OpCwiseMul
+        Eigen::Matrix<double, 5, 1> T115;                                                                                                                                // OpMatConcat
+        T115(Eigen::seq(0, 0), Eigen::all) = T105;                                                                                                                       // OpMatConcat
+        T115(Eigen::seq(1, 1), Eigen::all) = T108;                                                                                                                       // OpMatConcat
+        T115(Eigen::seq(2, 2), Eigen::all) = T110;                                                                                                                       // OpMatConcat
+        T115(Eigen::seq(3, 3), Eigen::all) = T112;                                                                                                                       // OpMatConcat
+        T115(Eigen::seq(4, 4), Eigen::all) = T114;                                                                                                                       // OpMatConcat
+        Eigen::Matrix<double, 1, 1> T116 = (T82.array() * T57.array()).matrix();                                                                                         // OpCwiseMul
+        Eigen::Matrix<double, 5, 1> T117 = T63 * T116(0, 0);                                                                                                             // OpTimesScalar
+        Eigen::Matrix<double, 1, 1> T118 = (T87.array() * T58.array()).matrix();                                                                                         // OpCwiseMul
+        Eigen::Matrix<double, 5, 1> T119 = T67 * T118(0, 0);                                                                                                             // OpTimesScalar
+        Eigen::Matrix<double, 5, 1> T120 = T117 + T119;                                                                                                                  // OpAdd
+        Eigen::Matrix<double, 1, 1> T121 = (T89.array() * T50.array()).matrix();                                                                                         // OpCwiseMul
+        Eigen::Matrix<double, 5, 1> T122 = T69 * T121(0, 0);                                                                                                             // OpTimesScalar
+        Eigen::Matrix<double, 5, 1> T123 = T120 + T122;                                                                                                                  // OpAdd
+        Eigen::Matrix<double, 1, 1> T124 = (T90.array() * T50.array()).matrix();                                                                                         // OpCwiseMul
+        Eigen::Matrix<double, 5, 1> T125 = T70 * T124(0, 0);                                                                                                             // OpTimesScalar
+        Eigen::Matrix<double, 5, 1> T126 = T123 + T125;                                                                                                                  // OpAdd
+        Eigen::Matrix<double, 1, 1> T127 = (T91.array() * T50.array()).matrix();                                                                                         // OpCwiseMul
+        Eigen::Matrix<double, 5, 1> T128 = T71 * T127(0, 0);                                                                                                             // OpTimesScalar
+        Eigen::Matrix<double, 5, 1> T129 = T126 + T128;                                                                                                                  // OpAdd
+        Eigen::Matrix<double, 5, 1> T130 = T104 + T115;                                                                                                                  // OpAdd
+        Eigen::Matrix<double, 5, 1> T131 = T130 - T129;                                                                                                                  // OpSubs
+        Eigen::Matrix<double, 5, 1> T132 = T131 * 0.5;                                                                                                                   // OpTimesConstScalar
         Eigen::Matrix<double, 5, 5> g_T132;                                                                                                                              // Init Grad
         g_T132.setZero();                                                                                                                                                // Init Grad
         g_T132(Eigen::all, Eigen::seq(0, 0))(0) = 1.0;                                                                                                                   // Init Grad
@@ -481,7 +481,12 @@ int main()
         g_T116(2) += (g_T117(Eigen::all, Eigen::seq(2, 2)).array() * T63.array()).sum();                                                                                 // OpTimesScalar
         g_T116(3) += (g_T117(Eigen::all, Eigen::seq(3, 3)).array() * T63.array()).sum();                                                                                 // OpTimesScalar
         g_T116(4) += (g_T117(Eigen::all, Eigen::seq(4, 4)).array() * T63.array()).sum();                                                                                 // OpTimesScalar
-        g_T0 += g_T63(Eigen::seq(0, 0), Eigen::all);                                                                                                                     // OpMatConcatg_T59 += g_T63(Eigen::seq(1, 1), Eigen::all); //OpMatConcatg_T46 += g_T63(Eigen::seq(2, 2), Eigen::all); //OpMatConcatg_T60 += g_T63(Eigen::seq(3, 3), Eigen::all); //OpMatConcatg_T62 += g_T63(Eigen::seq(4, 4), Eigen::all); //OpMatConcatg_T45 += g_T59; //OpSubs
+        g_T0 += g_T63(Eigen::seq(0, 0), Eigen::all);                                                                                                                     // OpMatConcat
+        g_T59 += g_T63(Eigen::seq(1, 1), Eigen::all);                                                                                                                    // OpMatConcat
+        g_T46 += g_T63(Eigen::seq(2, 2), Eigen::all);                                                                                                                    // OpMatConcat
+        g_T60 += g_T63(Eigen::seq(3, 3), Eigen::all);                                                                                                                    // OpMatConcat
+        g_T62 += g_T63(Eigen::seq(4, 4), Eigen::all);                                                                                                                    // OpMatConcat
+        g_T45 += g_T59;                                                                                                                                                  // OpSubs
         g_T44 -= g_T59;                                                                                                                                                  // OpSubs
         g_T34(Eigen::all, Eigen::seq(0, 0))({2}, {0}) += g_T60(Eigen::all, Eigen::seq(0, 0));                                                                            // OpMatBlock
         g_T34(Eigen::all, Eigen::seq(1, 1))({2}, {0}) += g_T60(Eigen::all, Eigen::seq(1, 1));                                                                            // OpMatBlock
@@ -566,7 +571,12 @@ int main()
         g_T118(2) += (g_T119(Eigen::all, Eigen::seq(2, 2)).array() * T67.array()).sum();                                                                                 // OpTimesScalar
         g_T118(3) += (g_T119(Eigen::all, Eigen::seq(3, 3)).array() * T67.array()).sum();                                                                                 // OpTimesScalar
         g_T118(4) += (g_T119(Eigen::all, Eigen::seq(4, 4)).array() * T67.array()).sum();                                                                                 // OpTimesScalar
-        g_T0 += g_T67(Eigen::seq(0, 0), Eigen::all);                                                                                                                     // OpMatConcatg_T64 += g_T67(Eigen::seq(1, 1), Eigen::all); //OpMatConcatg_T46 += g_T67(Eigen::seq(2, 2), Eigen::all); //OpMatConcatg_T47 += g_T67(Eigen::seq(3, 3), Eigen::all); //OpMatConcatg_T66 += g_T67(Eigen::seq(4, 4), Eigen::all); //OpMatConcatg_T45 += g_T64; //OpAdd
+        g_T0 += g_T67(Eigen::seq(0, 0), Eigen::all);                                                                                                                     // OpMatConcat
+        g_T64 += g_T67(Eigen::seq(1, 1), Eigen::all);                                                                                                                    // OpMatConcat
+        g_T46 += g_T67(Eigen::seq(2, 2), Eigen::all);                                                                                                                    // OpMatConcat
+        g_T47 += g_T67(Eigen::seq(3, 3), Eigen::all);                                                                                                                    // OpMatConcat
+        g_T66 += g_T67(Eigen::seq(4, 4), Eigen::all);                                                                                                                    // OpMatConcat
+        g_T45 += g_T64;                                                                                                                                                  // OpAdd
         g_T44 += g_T64;                                                                                                                                                  // OpAdd
         g_T39 += g_T66;                                                                                                                                                  // OpAdd
         g_T65 += g_T66;                                                                                                                                                  // OpAdd
@@ -675,7 +685,10 @@ int main()
         g_T121(2) += (g_T122(Eigen::all, Eigen::seq(2, 2)).array() * T69.array()).sum();                                        // OpTimesScalar
         g_T121(3) += (g_T122(Eigen::all, Eigen::seq(3, 3)).array() * T69.array()).sum();                                        // OpTimesScalar
         g_T121(4) += (g_T122(Eigen::all, Eigen::seq(4, 4)).array() * T69.array()).sum();                                        // OpTimesScalar
-        g_T0 += g_T69(Eigen::seq(0, 0), Eigen::all);                                                                            // OpMatConcatg_T34 += g_T69(Eigen::seq(1, 3), Eigen::all); //OpMatConcatg_T68 += g_T69(Eigen::seq(4, 4), Eigen::all); //OpMatConcatg_T35 += g_T68 * 0.5; //OpTimesConstScalar
+        g_T0 += g_T69(Eigen::seq(0, 0), Eigen::all);                                                                            // OpMatConcat
+        g_T34 += g_T69(Eigen::seq(1, 3), Eigen::all);                                                                           // OpMatConcat
+        g_T68 += g_T69(Eigen::seq(4, 4), Eigen::all);                                                                           // OpMatConcat
+        g_T35 += g_T68 * 0.5;                                                                                                   // OpTimesConstScalar
         g_T89(Eigen::all, Eigen::seq(0, 0)).array() += g_T121(Eigen::all, Eigen::seq(0, 0)).array() * T50.array();              // OpCwiseMul
         g_T89(Eigen::all, Eigen::seq(1, 1)).array() += g_T121(Eigen::all, Eigen::seq(1, 1)).array() * T50.array();              // OpCwiseMul
         g_T89(Eigen::all, Eigen::seq(2, 2)).array() += g_T121(Eigen::all, Eigen::seq(2, 2)).array() * T50.array();              // OpCwiseMul
@@ -787,7 +800,12 @@ int main()
         g_T124(2) += (g_T125(Eigen::all, Eigen::seq(2, 2)).array() * T70.array()).sum();                                        // OpTimesScalar
         g_T124(3) += (g_T125(Eigen::all, Eigen::seq(3, 3)).array() * T70.array()).sum();                                        // OpTimesScalar
         g_T124(4) += (g_T125(Eigen::all, Eigen::seq(4, 4)).array() * T70.array()).sum();                                        // OpTimesScalar
-        g_T1 += g_T70(Eigen::seq(0, 0), Eigen::all);                                                                            // OpMatConcatg_T1 += g_T70(Eigen::seq(1, 1), Eigen::all); //OpMatConcatg_T0 += g_T70(Eigen::seq(2, 2), Eigen::all); //OpMatConcatg_T1 += g_T70(Eigen::seq(3, 3), Eigen::all); //OpMatConcatg_T46 += g_T70(Eigen::seq(4, 4), Eigen::all); //OpMatConcatg_T34(Eigen::all, Eigen::seq(0, 0))({1}, {0}) += g_T46(Eigen::all, Eigen::seq(0, 0));  //OpMatBlock
+        g_T1 += g_T70(Eigen::seq(0, 0), Eigen::all);                                                                            // OpMatConcat
+        g_T1 += g_T70(Eigen::seq(1, 1), Eigen::all);                                                                            // OpMatConcat
+        g_T0 += g_T70(Eigen::seq(2, 2), Eigen::all);                                                                            // OpMatConcat
+        g_T1 += g_T70(Eigen::seq(3, 3), Eigen::all);                                                                            // OpMatConcat
+        g_T46 += g_T70(Eigen::seq(4, 4), Eigen::all);                                                                           // OpMatConcat
+        g_T34(Eigen::all, Eigen::seq(0, 0))({1}, {0}) += g_T46(Eigen::all, Eigen::seq(0, 0));                                   // OpMatBlock
         g_T34(Eigen::all, Eigen::seq(1, 1))({1}, {0}) += g_T46(Eigen::all, Eigen::seq(1, 1));                                   // OpMatBlock
         g_T34(Eigen::all, Eigen::seq(2, 2))({1}, {0}) += g_T46(Eigen::all, Eigen::seq(2, 2));                                   // OpMatBlock
         g_T34(Eigen::all, Eigen::seq(3, 3))({1}, {0}) += g_T46(Eigen::all, Eigen::seq(3, 3));                                   // OpMatBlock
@@ -823,7 +841,12 @@ int main()
         g_T127(2) += (g_T128(Eigen::all, Eigen::seq(2, 2)).array() * T71.array()).sum();                                        // OpTimesScalar
         g_T127(3) += (g_T128(Eigen::all, Eigen::seq(3, 3)).array() * T71.array()).sum();                                        // OpTimesScalar
         g_T127(4) += (g_T128(Eigen::all, Eigen::seq(4, 4)).array() * T71.array()).sum();                                        // OpTimesScalar
-        g_T1 += g_T71(Eigen::seq(0, 0), Eigen::all);                                                                            // OpMatConcatg_T1 += g_T71(Eigen::seq(1, 1), Eigen::all); //OpMatConcatg_T1 += g_T71(Eigen::seq(2, 2), Eigen::all); //OpMatConcatg_T0 += g_T71(Eigen::seq(3, 3), Eigen::all); //OpMatConcatg_T47 += g_T71(Eigen::seq(4, 4), Eigen::all); //OpMatConcat// grad end is at g_T0
+        g_T1 += g_T71(Eigen::seq(0, 0), Eigen::all);                                                                            // OpMatConcat
+        g_T1 += g_T71(Eigen::seq(1, 1), Eigen::all);                                                                            // OpMatConcat
+        g_T1 += g_T71(Eigen::seq(2, 2), Eigen::all);                                                                            // OpMatConcat
+        g_T0 += g_T71(Eigen::seq(3, 3), Eigen::all);                                                                            // OpMatConcat
+        g_T47 += g_T71(Eigen::seq(4, 4), Eigen::all);                                                                           // OpMatConcat
+        // grad end is at g_T0
         // grad end is at g_T1
         g_T34(Eigen::all, Eigen::seq(0, 0))({2}, {0}) += g_T47(Eigen::all, Eigen::seq(0, 0));                             // OpMatBlock
         g_T34(Eigen::all, Eigen::seq(1, 1))({2}, {0}) += g_T47(Eigen::all, Eigen::seq(1, 1));                             // OpMatBlock
@@ -911,7 +934,12 @@ int main()
         g_T9 -= g_T74;                                                                                                    // OpSubs
         g_T104 += g_T130;                                                                                                 // OpAdd
         g_T115 += g_T130;                                                                                                 // OpAdd
-        g_T94 += g_T104(Eigen::seq(0, 0), Eigen::all);                                                                    // OpMatConcatg_T97 += g_T104(Eigen::seq(1, 1), Eigen::all); //OpMatConcatg_T99 += g_T104(Eigen::seq(2, 2), Eigen::all); //OpMatConcatg_T101 += g_T104(Eigen::seq(3, 3), Eigen::all); //OpMatConcatg_T103 += g_T104(Eigen::seq(4, 4), Eigen::all); //OpMatConcatg_T4(Eigen::all, Eigen::seq(0, 0))({1}, {0}) += g_T94(Eigen::all, Eigen::seq(0, 0));  //OpMatBlock
+        g_T94 += g_T104(Eigen::seq(0, 0), Eigen::all);                                                                    // OpMatConcat
+        g_T97 += g_T104(Eigen::seq(1, 1), Eigen::all);                                                                    // OpMatConcat
+        g_T99 += g_T104(Eigen::seq(2, 2), Eigen::all);                                                                    // OpMatConcat
+        g_T101 += g_T104(Eigen::seq(3, 3), Eigen::all);                                                                   // OpMatConcat
+        g_T103 += g_T104(Eigen::seq(4, 4), Eigen::all);                                                                   // OpMatConcat
+        g_T4(Eigen::all, Eigen::seq(0, 0))({1}, {0}) += g_T94(Eigen::all, Eigen::seq(0, 0));                              // OpMatBlock
         g_T4(Eigen::all, Eigen::seq(1, 1))({1}, {0}) += g_T94(Eigen::all, Eigen::seq(1, 1));                              // OpMatBlock
         g_T4(Eigen::all, Eigen::seq(2, 2))({1}, {0}) += g_T94(Eigen::all, Eigen::seq(2, 2));                              // OpMatBlock
         g_T4(Eigen::all, Eigen::seq(3, 3))({1}, {0}) += g_T94(Eigen::all, Eigen::seq(3, 3));                              // OpMatBlock
@@ -1035,7 +1063,12 @@ int main()
         g_T4(Eigen::all, Eigen::seq(3, 3))({1, 2, 3}, {0}) += g_T8(Eigen::all, Eigen::seq(3, 3));                         // OpMatBlock
         g_T4(Eigen::all, Eigen::seq(4, 4))({1, 2, 3}, {0}) += g_T8(Eigen::all, Eigen::seq(4, 4));                         // OpMatBlock
         // grad end is at g_T4
-        g_T105 += g_T115(Eigen::seq(0, 0), Eigen::all);                                                             // OpMatConcatg_T108 += g_T115(Eigen::seq(1, 1), Eigen::all); //OpMatConcatg_T110 += g_T115(Eigen::seq(2, 2), Eigen::all); //OpMatConcatg_T112 += g_T115(Eigen::seq(3, 3), Eigen::all); //OpMatConcatg_T114 += g_T115(Eigen::seq(4, 4), Eigen::all); //OpMatConcatg_T5(Eigen::all, Eigen::seq(0, 0))({1}, {0}) += g_T105(Eigen::all, Eigen::seq(0, 0));  //OpMatBlock
+        g_T105 += g_T115(Eigen::seq(0, 0), Eigen::all);                                                             // OpMatConcat
+        g_T108 += g_T115(Eigen::seq(1, 1), Eigen::all);                                                             // OpMatConcat
+        g_T110 += g_T115(Eigen::seq(2, 2), Eigen::all);                                                             // OpMatConcat
+        g_T112 += g_T115(Eigen::seq(3, 3), Eigen::all);                                                             // OpMatConcat
+        g_T114 += g_T115(Eigen::seq(4, 4), Eigen::all);                                                             // OpMatConcat
+        g_T5(Eigen::all, Eigen::seq(0, 0))({1}, {0}) += g_T105(Eigen::all, Eigen::seq(0, 0));                       // OpMatBlock
         g_T5(Eigen::all, Eigen::seq(1, 1))({1}, {0}) += g_T105(Eigen::all, Eigen::seq(1, 1));                       // OpMatBlock
         g_T5(Eigen::all, Eigen::seq(2, 2))({1}, {0}) += g_T105(Eigen::all, Eigen::seq(2, 2));                       // OpMatBlock
         g_T5(Eigen::all, Eigen::seq(3, 3))({1}, {0}) += g_T105(Eigen::all, Eigen::seq(3, 3));                       // OpMatBlock

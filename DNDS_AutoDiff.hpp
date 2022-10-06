@@ -223,7 +223,10 @@ namespace DNDS
                 {
                     d = in;
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T" << objID[this] << " = IN{ " << in << "}; //OpIn" << std::endl;
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T" 
+                             << objID[this] << " = IN{ " << in << "}; //OpIn" << std::endl;
                     // code_out << "Eigen::Matrix<double," << d.rows() << "," << d.rows()
                     //          << "> T" << objID[this] << " = IN{ " << in << "};"<< std::endl;
 #endif
@@ -252,7 +255,9 @@ namespace DNDS
                     d = d0->d;
                     d0->nFather++;
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[d0.get()] << "; //OpCopy" << std::endl;
                     // code_out << "Eigen::Matrix<double," << d.rows() << "," << d.rows()
@@ -288,7 +293,9 @@ namespace DNDS
                 {
                     d = da->d + db->d;
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[da.get()] << " + T"
                              << objID[db.get()] << "; //OpAdd" << std::endl;
@@ -329,7 +336,9 @@ namespace DNDS
                 {
                     d = da->d - db->d;
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[da.get()] << " - T"
                              << objID[db.get()] << "; //OpSubs" << std::endl;
@@ -371,7 +380,9 @@ namespace DNDS
                     assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     d = da->d * db->d(0, 0);
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[da.get()] << " * T"
                              << objID[db.get()] << "(0,0); //OpTimesScalar" << std::endl;
@@ -429,7 +440,9 @@ namespace DNDS
                     assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     d = da->d / db->d(0, 0);
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[da.get()] << " / T"
                              << objID[db.get()] << "(0,0); //OpDivideScalar" << std::endl;
@@ -488,7 +501,9 @@ namespace DNDS
                 {
                     d = da->d.array() * db->d.array();
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = (T"
                              << objID[da.get()] << ".array() * T"
                              << objID[db.get()] << ".array()).matrix(); //OpCwiseMul" << std::endl;
@@ -545,7 +560,9 @@ namespace DNDS
                 {
                     d = da->d.array() / db->d.array();
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = (T"
                              << objID[da.get()] << ".array() / T"
                              << objID[db.get()] << ".array()).matrix(); //OpCwiseDiv" << std::endl;
@@ -603,7 +620,9 @@ namespace DNDS
                 {
                     d = da->d * db->d;
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[da.get()] << " * T"
                              << objID[db.get()] << "; //OpMatMul" << std::endl;
@@ -662,7 +681,9 @@ namespace DNDS
                 {
                     d = da->d.transpose();
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[da.get()] << ".transpose(); //OpMatTrans" << std::endl;
 #endif
@@ -705,7 +726,9 @@ namespace DNDS
                     d.resize(1, 1);
                     d(0, 0) = (da->d.array() * db->d.array()).sum();
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = Eigen::Matrix<double,1,1>{{(T"
                              << objID[da.get()] << ".array() * T"
                              << objID[db.get()] << ".array()).sum()}}; //OpMatDot" << std::endl;
@@ -762,7 +785,9 @@ namespace DNDS
                 {
                     d = da->d.array() * y;
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[da.get()] << " * " << y << "; //OpTimesConstScalar" << std::endl;
 #endif
@@ -800,7 +825,9 @@ namespace DNDS
                 {
                     d = d0->d(iB, jB);
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[d0.get()] << " ({";
                     for (int i = 0; i < iB.size(); i++)
@@ -878,8 +905,7 @@ namespace DNDS
                     {
                         code_out << "T" << objID[this] << "(Eigen::seq(" << pos << ", "
                                  << pos + i->d.rows() - 1 << "), Eigen::all) = T"
-                                 << objID[i.get()] << "; //OpMatConcat"
-                                 << std::endl;
+                                 << objID[i.get()] << "; //OpMatConcat" << std::endl;
                         pos += i->d.rows();
                     }
 #endif
@@ -905,7 +931,7 @@ namespace DNDS
                                  << objID[i.get()] << " += g_T"
                                  << objID[this] << "(Eigen::seq("
                                  << pos << ", "
-                                 << pos + i->d.rows() - 1 << "), Eigen::all); //OpMatConcat";
+                                 << pos + i->d.rows() - 1 << "), Eigen::all); //OpMatConcat" << std::endl;
                         pos += i->d.rows();
                     }
 #endif
@@ -927,7 +953,9 @@ namespace DNDS
                 {
                     d = d0->d.array().sqrt();
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[d0.get()] << ".array().sqrt().matrix(); //OpSqrt" << std::endl;
 #endif
@@ -973,7 +1001,9 @@ namespace DNDS
                         d0->d.array().sign() *
                             (d0->d.array().abs() / (-a->d(0, 0))).exp() * a->d(0, 0);
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = (T"
                              << objID[d0.get()] << ".array() + (T"
                              << objID[d0.get()] << ".array().abs() / (-T"
@@ -1044,7 +1074,9 @@ namespace DNDS
                 {
                     d = d0->d.array().abs();
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
-                    code_out << "auto T"
+                    code_out << "Eigen::Matrix<double, "
+                             << d.rows() << ", "
+                             << d.cols() << "> T"
                              << objID[this] << " = T"
                              << objID[d0.get()] << ".array().abs().matrix(); //OpAbs" << std::endl;
 #endif

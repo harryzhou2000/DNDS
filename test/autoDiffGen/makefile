@@ -4,4 +4,4 @@ genRoe.exe: genRoe.cpp ../../DNDS_AutoDiff.hpp
 
 
 genRoeTest.exe: genRoeTest.cpp ../../DNDS_AutoDiff.hpp
-	g++ genRoeTest.cpp -o genRoeTest.exe -g -lopenblas -llapacke
+	clang++ genRoeTest.cpp -o genRoeTest.exe -O3 -lopenblas -llapacke -std=c++14
