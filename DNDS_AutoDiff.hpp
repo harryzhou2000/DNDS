@@ -240,7 +240,13 @@ namespace DNDS
                 pData d0;
 
             public:
-                OpCopy(const pData &from) : d0(from) { sons.push_back(d0.get()); }
+                OpCopy(const pData &from) : d0(from)
+                {
+                    sons.push_back(d0.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
+                }
                 void calc()
                 {
                     d = d0->d;
@@ -274,6 +280,9 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -312,6 +321,9 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -350,6 +362,9 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -387,7 +402,8 @@ namespace DNDS
                              << objID[db.get()] << "(0,0); //OpTimesScalar" << std::endl;
                     for (int i = 0; i < nGrads; i++)
                         code_out << "g_T"
-                                 << objID[db.get()] << "(i) += (g_T"
+                                 << objID[db.get()] << "("
+                                 << i << ") += (g_T"
                                  << objID[this] << "(Eigen::all, Eigen::seq("
                                  << 0 + i * acols << ", "
                                  << acols - 1 + i * acols << ")).array() * T"
@@ -404,6 +420,9 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -441,7 +460,8 @@ namespace DNDS
                              << objID[db.get()] << "(0,0); //OpDivideScalar" << std::endl;
                     for (int i = 0; i < nGrads; i++)
                         code_out << "g_T"
-                                 << objID[db.get()] << "(i) += (g_T"
+                                 << objID[db.get()] << "("
+                                 << i << ") += (g_T"
                                  << objID[this] << "(Eigen::all, Eigen::seq("
                                  << 0 + i * acols << ", "
                                  << acols - 1 + i * acols << ")).array() * T"
@@ -460,6 +480,9 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -514,6 +537,9 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -569,6 +595,9 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -625,6 +654,9 @@ namespace DNDS
                 OpMatTrans(const pData &a) : da(a)
                 {
                     sons.push_back(da.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -664,6 +696,9 @@ namespace DNDS
                 {
                     sons.push_back(da.get());
                     sons.push_back(db.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -671,9 +706,9 @@ namespace DNDS
                     d(0, 0) = (da->d.array() * db->d.array()).sum();
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
                     code_out << "auto T"
-                             << objID[this] << " = (T"
+                             << objID[this] << " = Eigen::Matrix<double,1,1>{{(T"
                              << objID[da.get()] << ".array() * T"
-                             << objID[db.get()] << ".array()).sum(); //OpMatDot" << std::endl;
+                             << objID[db.get()] << ".array()).sum()}}; //OpMatDot" << std::endl;
 #endif
                 }
                 void back() override
@@ -719,6 +754,9 @@ namespace DNDS
                 OpTimesConstScalar(const pData &a, real ny) : da(a), y(ny)
                 {
                     sons.push_back(da.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -753,6 +791,9 @@ namespace DNDS
                     : d0(nd0), iB(std::forward<Ti>(i)), jB(std::forward<Tj>(j))
                 {
                     sons.push_back(d0.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
 
                 void calc()
@@ -763,10 +804,10 @@ namespace DNDS
                              << objID[this] << " = T"
                              << objID[d0.get()] << " ({";
                     for (int i = 0; i < iB.size(); i++)
-                        code_out << iB[i] << (i == (iB.size() - 1)) ? "" : ",";
+                        code_out << iB[i] << ((i == (iB.size() - 1)) ? "" : ",");
                     code_out << "},{";
                     for (int i = 0; i < jB.size(); i++)
-                        code_out << jB[i] << (i == (jB.size() - 1)) ? "" : ",";
+                        code_out << jB[i] << ((i == (jB.size() - 1)) ? "" : ",");
                     code_out << "}); //OpMatBlock" << std::endl;
 #endif
                 }
@@ -787,10 +828,10 @@ namespace DNDS
                                  << 0 + i * acols << ", "
                                  << acols - 1 + i * acols << "))({";
                         for (int i = 0; i < iB.size(); i++)
-                            code_out << iB[i] << (i == (iB.size() - 1)) ? "" : ",";
+                            code_out << iB[i] << ((i == (iB.size() - 1)) ? "" : ",");
                         code_out << "}, {";
                         for (int i = 0; i < jB.size(); i++)
-                            code_out << jB[i] << (i == (jB.size() - 1)) ? "" : ",";
+                            code_out << jB[i] << ((i == (jB.size() - 1)) ? "" : ",");
                         code_out << "}) += g_T"
                                  << objID[this] << "(Eigen::all, Eigen::seq("
                                  << 0 + i * cols << ", "
@@ -811,6 +852,9 @@ namespace DNDS
                     {
                         sons.push_back(i.get());
                     }
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
 
                 void calc()
@@ -829,6 +873,7 @@ namespace DNDS
                     code_out << "Eigen::Matrix<double," << pos << "," << datas[0]->d.cols() << "> T"
                              << objID[this] << "; //OpMatConcat" << std::endl;
                     // code_out << "T"<< objID[this] <<".setZero(); //OpMatConcat" << std::endl;
+                    pos = 0;
                     for (auto &i : datas)
                     {
                         code_out << "T" << objID[this] << "(Eigen::seq(" << pos << ", "
@@ -874,6 +919,9 @@ namespace DNDS
                 OpSqrt(const pData &from) : d0(from)
                 {
                     sons.push_back(d0.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -915,6 +963,9 @@ namespace DNDS
                     sons.push_back(d0.get());
                     sons.push_back(a.get());
                     assert(a->d.cols() == a->d.rows() && a->d.rows() == 1);
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
@@ -924,7 +975,7 @@ namespace DNDS
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
                     code_out << "auto T"
                              << objID[this] << " = (T"
-                             << objID[d0.get()] << ".array() * (T"
+                             << objID[d0.get()] << ".array() + (T"
                              << objID[d0.get()] << ".array().abs() / (-T"
                              << objID[a.get()] << "(0,0))).exp() * T"
                              << objID[a.get()] << "(0,0) ).matrix(); //OpHYFixExp" << std::endl;
@@ -963,7 +1014,8 @@ namespace DNDS
                                  << objID[a.get()] << "(0, 0)); //OpHYFixExp" << std::endl;
                     for (int i = 0; i < nGrads; i++)
                         code_out << "g_T"
-                                 << objID[a.get()] << "(i) += (g_T"
+                                 << objID[a.get()] << "("
+                                 << i << ") += (g_T"
                                  << objID[this] << "(Eigen::all, Eigen::seq("
                                  << 0 + i * cols << ", "
                                  << cols - 1 + i * cols << ")).array() * (T"
@@ -984,6 +1036,9 @@ namespace DNDS
                 OpAbs(const pData &from) : d0(from)
                 {
                     sons.push_back(d0.get());
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    objID[this] = objID.size();
+#endif
                 }
                 void calc()
                 {
