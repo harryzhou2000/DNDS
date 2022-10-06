@@ -12,7 +12,7 @@
 #include <map>
 #include <fstream>
 
-#define DNDS_AUTODIFF_GENERATE_CODE
+// #define DNDS_AUTODIFF_GENERATE_CODE
 // #define DNDS_AUTODIFF_DEBUG_PRINTTOPO
 
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
@@ -66,6 +66,12 @@ namespace DNDS
                     int sz1 = d.cols();
                     g.resize(sz0, sz1 * nGrads);
                     g.setZero();
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "Eigen::Matrix<double, "
+                             << g.rows() << ", "
+                             << g.cols() << " >g_T" << objID[this] << "; //Init Grad Zero" << std::endl;
+                    code_out << "g_T" << objID[this] << ".setZero(); //Init Grad Zero" << std::endl;
+#endif
                 }
 
                 void backMain()
@@ -74,6 +80,18 @@ namespace DNDS
                     int cols = d.cols();
                     for (int i = 0; i < nGrads; i++)
                         g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols))(i) = 1.0;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "Eigen::Matrix<double, "
+                             << g.rows() << ", "
+                             << g.cols() << " >g_T" << objID[this] << "; //Init Grad" << std::endl;
+                    code_out << "g_T" << objID[this] << ".setZero(); //Init Grad" << std::endl;
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T" << objID[this]
+                                 << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << "))("
+                                 << i << ") = 1.0; //Init Grad" << std::endl;
+#endif
 
                     std::set<OpBase *> cstack;
 
@@ -123,7 +141,9 @@ namespace DNDS
                         {
                             i->nDone = 0;
                             if (i != this) // root has been set to eye!
+                            {
                                 i->InitGradZero(nGrads);
+                            }
                             for (auto j : i->sons)
                                 j->nFather++;
                             for (auto j : i->sons)
@@ -210,6 +230,9 @@ namespace DNDS
                 }
                 void back() override
                 {
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "// grad end is at g_T" << objID[this] << std::endl;
+#endif
                 }
             };
             class OpCopy : public OpBase
@@ -235,6 +258,11 @@ namespace DNDS
                     d0->InitGrad(nGrads);
                     d0->g += g;
                     d0->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "g_T"
+                             << objID[d0.get()] << " += g_T"
+                             << objID[this] << "; //OpCopy" << std::endl;
+#endif
                 }
             };
             class OpAdd : public OpBase
@@ -265,6 +293,14 @@ namespace DNDS
                     db->g += g;
                     da->nDone++;
                     db->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "g_T"
+                             << objID[da.get()] << " += g_T"
+                             << objID[this] << "; //OpAdd" << std::endl;
+                    code_out << "g_T"
+                             << objID[db.get()] << " += g_T"
+                             << objID[this] << "; //OpAdd" << std::endl;
+#endif
                 }
             };
             class OpSubs : public OpBase
@@ -295,6 +331,14 @@ namespace DNDS
                     db->g -= g;
                     da->nDone++;
                     db->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "g_T"
+                             << objID[da.get()] << " += g_T"
+                             << objID[this] << "; //OpSubs" << std::endl;
+                    code_out << "g_T"
+                             << objID[db.get()] << " -= g_T"
+                             << objID[this] << "; //OpSubs" << std::endl;
+#endif
                 }
             };
             class OpTimesScalar : public OpBase
@@ -336,6 +380,19 @@ namespace DNDS
 
                     da->nDone++;
                     db->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "g_T"
+                             << objID[da.get()] << " += g_T"
+                             << objID[this] << " * T"
+                             << objID[db.get()] << "(0,0); //OpTimesScalar" << std::endl;
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[db.get()] << "(i) += (g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() * T"
+                                 << objID[da.get()] << ".array()).sum(); //OpTimesScalar" << std::endl;
+#endif
                 }
             };
             class OpDivideScalar : public OpBase
@@ -377,6 +434,21 @@ namespace DNDS
                             (-1.0 / (db->d(0, 0) * db->d(0, 0)));
                     da->nDone++;
                     db->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "g_T"
+                             << objID[da.get()] << " += g_T"
+                             << objID[this] << " / T"
+                             << objID[db.get()] << "(0,0); //OpDivideScalar" << std::endl;
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[db.get()] << "(i) += (g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() * T"
+                                 << objID[da.get()] << ".array()).sum() * (-1.0 / (T"
+                                 << objID[db.get()] << "(0, 0) * T"
+                                 << objID[db.get()] << "(0, 0))); //OpDivideScalar" << std::endl;
+#endif
                 }
             };
             class OpCwiseMul : public OpBase
@@ -413,6 +485,24 @@ namespace DNDS
                             da->d.array();
                     da->nDone++;
                     db->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T" << objID[da.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() += g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() * T"
+                                 << objID[db.get()] << ".array();  //OpCwiseMul" << std::endl;
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T" << objID[db.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() += g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() * T"
+                                 << objID[da.get()] << ".array();  //OpCwiseMul" << std::endl;
+#endif
                 }
             };
             class OpCwiseDiv : public OpBase
@@ -449,6 +539,25 @@ namespace DNDS
                             d.array() / db->d.array();
                     da->nDone++;
                     db->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T" << objID[da.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() += g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() / T"
+                                 << objID[db.get()] << ".array();  //OpCwiseDiv" << std::endl;
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T" << objID[db.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() -= g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")).array() * T"
+                                 << objID[this] << ".array() / T"
+                                 << objID[db.get()] << ".array();  //OpCwiseDiv" << std::endl;
+#endif
                 }
             };
             class OpMatMul : public OpBase
@@ -486,6 +595,26 @@ namespace DNDS
                             g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols));
                     da->nDone++;
                     db->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[da.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")) += g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")) * T"
+                                 << objID[db.get()] << ".transpose(); //OpMatMul" << std::endl;
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[db.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * bcols << ", "
+                                 << bcols - 1 + i * bcols << ")) += T"
+                                 << objID[da.get()] << ".transpose() * g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")); //OpMatMul" << std::endl;
+#endif
                 }
             };
             class OpMatTrans : public OpBase
@@ -514,6 +643,16 @@ namespace DNDS
                         da->g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)) +=
                             g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).transpose();
                     da->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[da.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")) += g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")).transpose(); //OpMatTrans" << std::endl;
+#endif
                 }
             };
             class OpMatDot : public OpBase
@@ -550,6 +689,25 @@ namespace DNDS
                             g(i) * da->d;
                     da->nDone++;
                     db->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[da.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << ")) += g_T"
+                                 << objID[this] << "("
+                                 << i << ") * T"
+                                 << objID[db.get()] << "; //OpMatDot" << std::endl;
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[db.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * bcols << ", "
+                                 << bcols - 1 + i * bcols << ")) += g_T"
+                                 << objID[this] << "("
+                                 << i << ") * T"
+                                 << objID[da.get()] << "; // OpMatDot" << std::endl;
+
+#endif
                 }
             };
             class OpTimesConstScalar : public OpBase
@@ -573,8 +731,14 @@ namespace DNDS
                 }
                 void back() override
                 {
-                    da->g = g * y;
+                    da->g += g * y;
                     da->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "g_T"
+                             << objID[da.get()] << " += g_T"
+                             << objID[this] << " * "
+                             << y << "; //OpTimesConstScalar" << std::endl;
+#endif
                 }
             };
             class OpMatBlock : public OpBase
@@ -615,6 +779,25 @@ namespace DNDS
                         d0->g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols))(iB, jB) +=
                             g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols));
                     d0->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    for (int i = 0; i < nGrads; i++)
+                    {
+                        code_out << "g_T"
+                                 << objID[d0.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * acols << ", "
+                                 << acols - 1 + i * acols << "))({";
+                        for (int i = 0; i < iB.size(); i++)
+                            code_out << iB[i] << (i == (iB.size() - 1)) ? "" : ",";
+                        code_out << "}, {";
+                        for (int i = 0; i < jB.size(); i++)
+                            code_out << jB[i] << (i == (jB.size() - 1)) ? "" : ",";
+                        code_out << "}) += g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << "));  //OpMatBlock" << std::endl;
+                    }
+
+#endif
                 }
             };
             class OpMatConcat : public OpBase
@@ -645,6 +828,15 @@ namespace DNDS
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
                     code_out << "Eigen::Matrix<double," << pos << "," << datas[0]->d.cols() << "> T"
                              << objID[this] << "; //OpMatConcat" << std::endl;
+                    // code_out << "T"<< objID[this] <<".setZero(); //OpMatConcat" << std::endl;
+                    for (auto &i : datas)
+                    {
+                        code_out << "T" << objID[this] << "(Eigen::seq(" << pos << ", "
+                                 << pos + i->d.rows() - 1 << "), Eigen::all) = T"
+                                 << objID[i.get()] << "; //OpMatConcat"
+                                 << std::endl;
+                        pos += i->d.rows();
+                    }
 #endif
                 }
                 void back() override
@@ -660,6 +852,18 @@ namespace DNDS
                     {
                         i->nDone++;
                     }
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    pos = 0;
+                    for (auto &i : datas)
+                    {
+                        code_out << "g_T"
+                                 << objID[i.get()] << " += g_T"
+                                 << objID[this] << "(Eigen::seq("
+                                 << pos << ", "
+                                 << pos + i->d.rows() - 1 << "), Eigen::all); //OpMatConcat";
+                        pos += i->d.rows();
+                    }
+#endif
                 }
             };
             class OpSqrt : public OpBase
@@ -674,6 +878,11 @@ namespace DNDS
                 void calc()
                 {
                     d = d0->d.array().sqrt();
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "auto T"
+                             << objID[this] << " = T"
+                             << objID[d0.get()] << ".array().sqrt().matrix(); //OpSqrt" << std::endl;
+#endif
                 }
                 void back() override
                 {
@@ -683,6 +892,17 @@ namespace DNDS
                             g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() / d.array() * 0.5;
 
                     d0->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[d0.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")).array() += g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")).array() / T"
+                                 << objID[this] << ".array() * 0.5; // OpSqrt" << std::endl;
+#endif
                 }
             };
             class OpHYFixExp : public OpBase
@@ -701,6 +921,14 @@ namespace DNDS
                     d = d0->d.array() +
                         d0->d.array().sign() *
                             (d0->d.array().abs() / (-a->d(0, 0))).exp() * a->d(0, 0);
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "auto T"
+                             << objID[this] << " = (T"
+                             << objID[d0.get()] << ".array() * (T"
+                             << objID[d0.get()] << ".array().abs() / (-T"
+                             << objID[a.get()] << "(0,0))).exp() * T"
+                             << objID[a.get()] << "(0,0) ).matrix(); //OpHYFixExp" << std::endl;
+#endif
                 }
                 void back() override
                 {
@@ -719,6 +947,33 @@ namespace DNDS
 
                     d0->nDone++;
                     a->nDone++;
+
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[d0.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")).array() += g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")).array() * (1 + (T"
+                                 << objID[d0.get()] << ".array() - T"
+                                 << objID[this] << ".array()) * T"
+                                 << objID[d0.get()] << ".array().sign() / T"
+                                 << objID[a.get()] << "(0, 0)); //OpHYFixExp" << std::endl;
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[a.get()] << "(i) += (g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")).array() * (T"
+                                 << objID[this] << ".array() - T"
+                                 << objID[d0.get()] << ".array()) * (T"
+                                 << objID[d0.get()] << ".array().abs() + T"
+                                 << objID[a.get()] << "(0, 0)) / (T"
+                                 << objID[a.get()] << "(0, 0) * T"
+                                 << objID[a.get()] << "(0, 0))).sum(); // OpHYFixExp" << std::endl;
+#endif
                 }
             };
             class OpAbs : public OpBase
@@ -733,6 +988,11 @@ namespace DNDS
                 void calc()
                 {
                     d = d0->d.array().abs();
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "auto T"
+                             << objID[this] << " = T"
+                             << objID[d0.get()] << ".array().abs().matrix(); //OpAbs" << std::endl;
+#endif
                 }
                 void back() override
                 {
@@ -741,6 +1001,17 @@ namespace DNDS
                         d0->g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() +=
                             g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() * d0->d.array().sign();
                     d0->nDone++;
+#ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    for (int i = 0; i < nGrads; i++)
+                        code_out << "g_T"
+                                 << objID[d0.get()] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")).array() += g_T"
+                                 << objID[this] << "(Eigen::all, Eigen::seq("
+                                 << 0 + i * cols << ", "
+                                 << cols - 1 + i * cols << ")).array() * T"
+                                 << objID[d0.get()] << ".array().sign(); //OpAbs" << std::endl;
+#endif
                 }
             };
 
