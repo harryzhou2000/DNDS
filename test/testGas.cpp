@@ -61,6 +61,9 @@ int main()
               << gR << std::endl;
     std::cout << "dFdUL0\n"
               << dFdUL0.transpose() << std::endl;
+    std::cout << gR.lpNorm<2>() * gR.inverse().lpNorm<2>() << std::endl;
+
+
 
     // 0.369291683630373 1.54891136111009 0 1.45489148963839
 
