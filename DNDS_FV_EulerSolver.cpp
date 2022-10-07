@@ -610,9 +610,10 @@ namespace DNDS
                 auto &f2c = (*mesh->face2cellPair)[iFace];
                 index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                 index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
-                    fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
+                    
                     if (true)
                     {
                         Eigen::Vector<real, 5> umeanOther = u[iCellOther];
@@ -718,9 +719,10 @@ namespace DNDS
                 auto &f2c = (*mesh->face2cellPair)[iFace];
                 index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                 index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
-                    fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
+                    
 
                     index iScanOther = iCellOther < nCellDist
                                            ? (*vfv->SOR_iCell2iScan)[iCellOther]
@@ -832,9 +834,10 @@ namespace DNDS
                 auto &f2c = (*mesh->face2cellPair)[iFace];
                 index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                 index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
-                    fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
+                    
 
                     index iScanOther = iCellOther < nCellDist
                                            ? (*vfv->SOR_iCell2iScan)[iCellOther]
@@ -933,9 +936,9 @@ namespace DNDS
                 auto &f2c = (*mesh->face2cellPair)[iFace];
                 index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                 index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
-                    fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
                     // if (true) // full
                     if ((ifForward && iCellOther < iCell) || ((!ifForward) && iCellOther > iCell))
                     {
