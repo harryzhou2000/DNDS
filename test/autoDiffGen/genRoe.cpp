@@ -9,7 +9,7 @@ int main()
     using namespace DNDS;
 
     auto UL = Eigen::Vector<real, 5>{1.0000, 0.5916, 0, 0, 2.6750};
-    auto UR = Eigen::Vector<real, 5>{1.0000, 0, 0, 0, 2.5};
+    auto UR = Eigen::Vector<real, 5>{1.0000, -0.5916, 0, 0, 2.6750};
     auto gammaD = Eigen::MatrixXd{{1.4}};
     auto scaleHY = Eigen::MatrixXd{{0.01}};
 
@@ -133,6 +133,12 @@ int main()
                           K3 * (alpha3 * lam123);
         ADEigenMat FOut = (FL + FR - FInc) * 0.5;
         FOut.back();
+
+        std::cout << std::endl
+                  << ULad.g() << std::endl
+                  << std::endl;
+        std::cout << URad.g() << std::endl
+                  << std::endl;
     }
     return 0;
 }

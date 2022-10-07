@@ -14,7 +14,7 @@ int main()
     auto UL = Eigen::Matrix<real, 5, 1>{
         {1.0000}, {0.5916}, {0}, {0}, {2.6750}};
     auto UR = Eigen::Matrix<real, 5, 1>{
-        {1.0000}, {0}, {0}, {0}, {2.5}};
+        {1.0000}, {-0.5916}, {0}, {0}, {2.6750}};
 
     Eigen::Matrix<real, 5, 1> F;
     Eigen::Matrix<real, 5, 5> GL;
@@ -629,12 +629,15 @@ int main()
         g_T55(Eigen::all, Eigen::seq(4, 4)).array() += g_T56(Eigen::all, Eigen::seq(4, 4)).array() * T54.array();                                                        // OpCwiseMul
         g_T53 += g_T54;                                                                                                                                                  // OpAdd
         g_T44 += g_T54;                                                                                                                                                  // OpAdd
-        g_T35(Eigen::all, Eigen::seq(0, 0)).array() += g_T53(Eigen::all, Eigen::seq(0, 0)).array() / T53.array() * 0.5;                                                  // OpSqrt
-        g_T35(Eigen::all, Eigen::seq(1, 1)).array() += g_T53(Eigen::all, Eigen::seq(1, 1)).array() / T53.array() * 0.5;                                                  // OpSqrt
-        g_T35(Eigen::all, Eigen::seq(2, 2)).array() += g_T53(Eigen::all, Eigen::seq(2, 2)).array() / T53.array() * 0.5;                                                  // OpSqrt
-        g_T35(Eigen::all, Eigen::seq(3, 3)).array() += g_T53(Eigen::all, Eigen::seq(3, 3)).array() / T53.array() * 0.5;                                                  // OpSqrt
-        g_T35(Eigen::all, Eigen::seq(4, 4)).array() += g_T53(Eigen::all, Eigen::seq(4, 4)).array() / T53.array() * 0.5;                                                  // OpSqrt
-        g_T3 += g_T55 * 0.5;                                                                                                                                             // OpTimesConstScalar
+        Eigen::Matrix<double, 1, 1> T1_T53 = 1 / T53.array();                                                                                                            // OpSqrt
+        if (T53(0) == 0)
+            T1_T53(0) = 0;                                                                                                 // OpSqrt
+        g_T35(Eigen::all, Eigen::seq(0, 0)).array() += g_T53(Eigen::all, Eigen::seq(0, 0)).array() * T1_T53.array() * 0.5; // OpSqrt
+        g_T35(Eigen::all, Eigen::seq(1, 1)).array() += g_T53(Eigen::all, Eigen::seq(1, 1)).array() * T1_T53.array() * 0.5; // OpSqrt
+        g_T35(Eigen::all, Eigen::seq(2, 2)).array() += g_T53(Eigen::all, Eigen::seq(2, 2)).array() * T1_T53.array() * 0.5; // OpSqrt
+        g_T35(Eigen::all, Eigen::seq(3, 3)).array() += g_T53(Eigen::all, Eigen::seq(3, 3)).array() * T1_T53.array() * 0.5; // OpSqrt
+        g_T35(Eigen::all, Eigen::seq(4, 4)).array() += g_T53(Eigen::all, Eigen::seq(4, 4)).array() * T1_T53.array() * 0.5; // OpSqrt
+        g_T3 += g_T55 * 0.5;                                                                                               // OpTimesConstScalar
         // grad end is at g_T3
         g_T86 += g_T87 * 0.5;                                                                                                   // OpTimesConstScalar
         g_T85(Eigen::all, Eigen::seq(0, 0)).array() += g_T86(Eigen::all, Eigen::seq(0, 0)).array() / T44.array();               // OpCwiseDiv
@@ -674,11 +677,14 @@ int main()
         g_T44(Eigen::all, Eigen::seq(2, 2)).array() += g_T83(Eigen::all, Eigen::seq(2, 2)).array() * T43.array();               // OpCwiseMul
         g_T44(Eigen::all, Eigen::seq(3, 3)).array() += g_T83(Eigen::all, Eigen::seq(3, 3)).array() * T43.array();               // OpCwiseMul
         g_T44(Eigen::all, Eigen::seq(4, 4)).array() += g_T83(Eigen::all, Eigen::seq(4, 4)).array() * T43.array();               // OpCwiseMul
-        g_T42(Eigen::all, Eigen::seq(0, 0)).array() += g_T44(Eigen::all, Eigen::seq(0, 0)).array() / T44.array() * 0.5;         // OpSqrt
-        g_T42(Eigen::all, Eigen::seq(1, 1)).array() += g_T44(Eigen::all, Eigen::seq(1, 1)).array() / T44.array() * 0.5;         // OpSqrt
-        g_T42(Eigen::all, Eigen::seq(2, 2)).array() += g_T44(Eigen::all, Eigen::seq(2, 2)).array() / T44.array() * 0.5;         // OpSqrt
-        g_T42(Eigen::all, Eigen::seq(3, 3)).array() += g_T44(Eigen::all, Eigen::seq(3, 3)).array() / T44.array() * 0.5;         // OpSqrt
-        g_T42(Eigen::all, Eigen::seq(4, 4)).array() += g_T44(Eigen::all, Eigen::seq(4, 4)).array() / T44.array() * 0.5;         // OpSqrt
+        Eigen::Matrix<double, 1, 1> T1_T44 = 1 / T44.array();                                                                   // OpSqrt
+        if (T44(0) == 0)
+            T1_T44(0) = 0;                                                                                                      // OpSqrt
+        g_T42(Eigen::all, Eigen::seq(0, 0)).array() += g_T44(Eigen::all, Eigen::seq(0, 0)).array() * T1_T44.array() * 0.5;      // OpSqrt
+        g_T42(Eigen::all, Eigen::seq(1, 1)).array() += g_T44(Eigen::all, Eigen::seq(1, 1)).array() * T1_T44.array() * 0.5;      // OpSqrt
+        g_T42(Eigen::all, Eigen::seq(2, 2)).array() += g_T44(Eigen::all, Eigen::seq(2, 2)).array() * T1_T44.array() * 0.5;      // OpSqrt
+        g_T42(Eigen::all, Eigen::seq(3, 3)).array() += g_T44(Eigen::all, Eigen::seq(3, 3)).array() * T1_T44.array() * 0.5;      // OpSqrt
+        g_T42(Eigen::all, Eigen::seq(4, 4)).array() += g_T44(Eigen::all, Eigen::seq(4, 4)).array() * T1_T44.array() * 0.5;      // OpSqrt
         g_T69 += g_T122 * T121(0, 0);                                                                                           // OpTimesScalar
         g_T121(0) += (g_T122(Eigen::all, Eigen::seq(0, 0)).array() * T69.array()).sum();                                        // OpTimesScalar
         g_T121(1) += (g_T122(Eigen::all, Eigen::seq(1, 1)).array() * T69.array()).sum();                                        // OpTimesScalar
@@ -915,16 +921,22 @@ int main()
         g_T29(Eigen::all, Eigen::seq(2, 2)).array() += g_T43(Eigen::all, Eigen::seq(2, 2)).array() * T28.array();         // OpCwiseMul
         g_T29(Eigen::all, Eigen::seq(3, 3)).array() += g_T43(Eigen::all, Eigen::seq(3, 3)).array() * T28.array();         // OpCwiseMul
         g_T29(Eigen::all, Eigen::seq(4, 4)).array() += g_T43(Eigen::all, Eigen::seq(4, 4)).array() * T28.array();         // OpCwiseMul
-        g_T6(Eigen::all, Eigen::seq(0, 0)).array() += g_T28(Eigen::all, Eigen::seq(0, 0)).array() / T28.array() * 0.5;    // OpSqrt
-        g_T6(Eigen::all, Eigen::seq(1, 1)).array() += g_T28(Eigen::all, Eigen::seq(1, 1)).array() / T28.array() * 0.5;    // OpSqrt
-        g_T6(Eigen::all, Eigen::seq(2, 2)).array() += g_T28(Eigen::all, Eigen::seq(2, 2)).array() / T28.array() * 0.5;    // OpSqrt
-        g_T6(Eigen::all, Eigen::seq(3, 3)).array() += g_T28(Eigen::all, Eigen::seq(3, 3)).array() / T28.array() * 0.5;    // OpSqrt
-        g_T6(Eigen::all, Eigen::seq(4, 4)).array() += g_T28(Eigen::all, Eigen::seq(4, 4)).array() / T28.array() * 0.5;    // OpSqrt
-        g_T7(Eigen::all, Eigen::seq(0, 0)).array() += g_T29(Eigen::all, Eigen::seq(0, 0)).array() / T29.array() * 0.5;    // OpSqrt
-        g_T7(Eigen::all, Eigen::seq(1, 1)).array() += g_T29(Eigen::all, Eigen::seq(1, 1)).array() / T29.array() * 0.5;    // OpSqrt
-        g_T7(Eigen::all, Eigen::seq(2, 2)).array() += g_T29(Eigen::all, Eigen::seq(2, 2)).array() / T29.array() * 0.5;    // OpSqrt
-        g_T7(Eigen::all, Eigen::seq(3, 3)).array() += g_T29(Eigen::all, Eigen::seq(3, 3)).array() / T29.array() * 0.5;    // OpSqrt
-        g_T7(Eigen::all, Eigen::seq(4, 4)).array() += g_T29(Eigen::all, Eigen::seq(4, 4)).array() / T29.array() * 0.5;    // OpSqrt
+        Eigen::Matrix<double, 1, 1> T1_T28 = 1 / T28.array();                                                             // OpSqrt
+        if (T28(0) == 0)
+            T1_T28(0) = 0;                                                                                                // OpSqrt
+        g_T6(Eigen::all, Eigen::seq(0, 0)).array() += g_T28(Eigen::all, Eigen::seq(0, 0)).array() * T1_T28.array() * 0.5; // OpSqrt
+        g_T6(Eigen::all, Eigen::seq(1, 1)).array() += g_T28(Eigen::all, Eigen::seq(1, 1)).array() * T1_T28.array() * 0.5; // OpSqrt
+        g_T6(Eigen::all, Eigen::seq(2, 2)).array() += g_T28(Eigen::all, Eigen::seq(2, 2)).array() * T1_T28.array() * 0.5; // OpSqrt
+        g_T6(Eigen::all, Eigen::seq(3, 3)).array() += g_T28(Eigen::all, Eigen::seq(3, 3)).array() * T1_T28.array() * 0.5; // OpSqrt
+        g_T6(Eigen::all, Eigen::seq(4, 4)).array() += g_T28(Eigen::all, Eigen::seq(4, 4)).array() * T1_T28.array() * 0.5; // OpSqrt
+        Eigen::Matrix<double, 1, 1> T1_T29 = 1 / T29.array();                                                             // OpSqrt
+        if (T29(0) == 0)
+            T1_T29(0) = 0;                                                                                                // OpSqrt
+        g_T7(Eigen::all, Eigen::seq(0, 0)).array() += g_T29(Eigen::all, Eigen::seq(0, 0)).array() * T1_T29.array() * 0.5; // OpSqrt
+        g_T7(Eigen::all, Eigen::seq(1, 1)).array() += g_T29(Eigen::all, Eigen::seq(1, 1)).array() * T1_T29.array() * 0.5; // OpSqrt
+        g_T7(Eigen::all, Eigen::seq(2, 2)).array() += g_T29(Eigen::all, Eigen::seq(2, 2)).array() * T1_T29.array() * 0.5; // OpSqrt
+        g_T7(Eigen::all, Eigen::seq(3, 3)).array() += g_T29(Eigen::all, Eigen::seq(3, 3)).array() * T1_T29.array() * 0.5; // OpSqrt
+        g_T7(Eigen::all, Eigen::seq(4, 4)).array() += g_T29(Eigen::all, Eigen::seq(4, 4)).array() * T1_T29.array() * 0.5; // OpSqrt
         g_T74(Eigen::all, Eigen::seq(0, 0))({2}, {0}) += g_T77(Eigen::all, Eigen::seq(0, 0));                             // OpMatBlock
         g_T74(Eigen::all, Eigen::seq(1, 1))({2}, {0}) += g_T77(Eigen::all, Eigen::seq(1, 1));                             // OpMatBlock
         g_T74(Eigen::all, Eigen::seq(2, 2))({2}, {0}) += g_T77(Eigen::all, Eigen::seq(2, 2));                             // OpMatBlock

@@ -197,6 +197,8 @@ namespace DNDS
             int gmresCode = 0; // 0 for lusgs, 1 for gmres, 2 for lusgs started gmres
             int nGmresSpace = 10;
             int nGmresIter = 2;
+
+            int jacobianTypeCode = 0; // 0 for original LUSGS jacobian, 1 for ad roe
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -238,6 +240,7 @@ namespace DNDS
             root.AddInt("gmresCode", &config.gmresCode);
             root.AddInt("nGmresSpace", &config.nGmresSpace);
             root.AddInt("nGmresIter", &config.nGmresIter);
+            root.AddInt("jacobianTypeCode", &config.jacobianTypeCode);
 
             JSON::ParamParser vfvParser(mpi);
             root.AddObject("vfvSetting", &vfvParser);
@@ -925,25 +928,45 @@ namespace DNDS
                             crhs = uPoisson;
                         }
 
+                        if (config.jacobianTypeCode == 1)
+                        {
+                            eval.LUSGSADMatrixInit(dTau, dt, alphaDiag, cx);
+                        }
+
                         if (config.gmresCode == 0 || config.gmresCode == 2)
                         {
-                            //! LUSGS
-                            eval.UpdateLUSGSForward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
-                            cxInc.StartPersistentPullClean();
-                            cxInc.WaitPersistentPullClean();
-                            eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
-                            cxInc.StartPersistentPullClean();
-                            cxInc.WaitPersistentPullClean();
-                            for (int iIter = 1; iIter <= config.nSGSIterationInternal; iIter++)
+                            // //! LUSGS
+                            if (config.jacobianTypeCode == 0)
                             {
+                                eval.UpdateLUSGSForward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
                                 cxInc.StartPersistentPullClean();
                                 cxInc.WaitPersistentPullClean();
-                                eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, true);
+                                eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
                                 cxInc.StartPersistentPullClean();
                                 cxInc.WaitPersistentPullClean();
-                                eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, false);
+                                for (int iIter = 1; iIter <= config.nSGSIterationInternal; iIter++)
+                                {
+                                    cxInc.StartPersistentPullClean();
+                                    cxInc.WaitPersistentPullClean();
+                                    eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, true);
+                                    cxInc.StartPersistentPullClean();
+                                    cxInc.WaitPersistentPullClean();
+                                    eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, false);
+                                }
                             }
-                            // return;
+                            else if (config.jacobianTypeCode == 1)
+                            {
+                                eval.UpdateLUSGSADForward(crhs, cx, cxInc, cxInc);
+                                cxInc.StartPersistentPullClean();
+                                cxInc.WaitPersistentPullClean();
+                                eval.UpdateLUSGSADBackward(crhs, cx, cxInc, cxInc);
+                                cxInc.StartPersistentPullClean();
+                                cxInc.WaitPersistentPullClean();
+                            }
+                            else
+                            {
+                                assert(false);
+                            }
                         }
 
                         if (config.gmresCode != 0)
@@ -957,21 +980,46 @@ namespace DNDS
                             gmres.solve(
                                 [&](decltype(u) &x, decltype(u) &Ax)
                                 {
-                                    eval.LUSGSMatrixVec(dTau, dt, alphaDiag, cx, x, Ax);
+                                    if (config.jacobianTypeCode == 0)
+                                        eval.LUSGSMatrixVec(dTau, dt, alphaDiag, cx, x, Ax);
+                                    else if (config.jacobianTypeCode == 1)
+                                        eval.LUSGSADMatrixVec(cx, x, Ax);
+                                    else
+                                        assert(false);
+
+                                    Ax.StartPersistentPullClean();
+                                    Ax.WaitPersistentPullClean();
                                 },
                                 [&](decltype(u) &x, decltype(u) &MLx)
                                 {
                                     // x as rhs, and MLx as uinc
-                                    for (index iCell = 0; iCell < x.dist->size(); iCell++)
+
+                                    if (config.jacobianTypeCode == 0)
                                     {
-                                        uTemp[iCell] = x[iCell] / eval.fv->volumeLocal[iCell]; //! UpdateLUSGS needs not these volumes multiplied
+                                        for (index iCell = 0; iCell < x.dist->size(); iCell++)
+                                        {
+                                            uTemp[iCell] = x[iCell] / eval.fv->volumeLocal[iCell]; //! UpdateLUSGS needs not these volumes multiplied
+                                        }
+                                        eval.UpdateLUSGSForward(dTau, dt, alphaDiag, uTemp, cx, MLx, MLx);
+                                        MLx.StartPersistentPullClean();
+                                        MLx.WaitPersistentPullClean();
+                                        eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, uTemp, cx, MLx, MLx);
+                                        MLx.StartPersistentPullClean();
+                                        MLx.WaitPersistentPullClean();
                                     }
-                                    eval.UpdateLUSGSForward(dTau, dt, alphaDiag, uTemp, cx, MLx, MLx);
-                                    MLx.StartPersistentPullClean();
-                                    MLx.WaitPersistentPullClean();
-                                    eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, uTemp, cx, MLx, MLx);
-                                    MLx.StartPersistentPullClean();
-                                    MLx.WaitPersistentPullClean();
+                                    else if (config.jacobianTypeCode == 1)
+                                    {
+                                        eval.UpdateLUSGSADForward(x, cx, MLx, MLx);
+                                        MLx.StartPersistentPullClean();
+                                        MLx.WaitPersistentPullClean();
+                                        eval.UpdateLUSGSADBackward(x, cx, MLx, MLx);
+                                        MLx.StartPersistentPullClean();
+                                        MLx.WaitPersistentPullClean();
+                                    }
+                                    else
+                                    {
+                                        assert(false);
+                                    }
                                 },
                                 uIncRHS, cxInc, config.nGmresIter,
                                 [&](uint32_t i, real res, real resB) -> bool

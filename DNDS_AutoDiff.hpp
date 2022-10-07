@@ -225,7 +225,7 @@ namespace DNDS
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
                     code_out << "Eigen::Matrix<double, "
                              << d.rows() << ", "
-                             << d.cols() << "> T" 
+                             << d.cols() << "> T"
                              << objID[this] << " = IN{ " << in << "}; //OpIn" << std::endl;
                     // code_out << "Eigen::Matrix<double," << d.rows() << "," << d.rows()
                     //          << "> T" << objID[this] << " = IN{ " << in << "};"<< std::endl;
@@ -963,21 +963,38 @@ namespace DNDS
                 void back() override
                 {
                     int cols = d0->d.cols();
+                    Eigen::MatrixXd T1 = 1 / d.array();
+                    for (int j = 0; j < d.size(); j++)
+                        if (d(j) == 0)
+                            T1(j) = 0;
                     for (int i = 0; i < nGrads; i++)
                         d0->g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() +=
-                            g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() / d.array() * 0.5;
+                            g(Eigen::all, Eigen::seq(0 + i * cols, cols - 1 + i * cols)).array() * T1.array() * 0.5;
 
                     d0->nDone++;
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
+                    code_out << "Eigen::Matrix<double,"
+                             << d.rows() << ","
+                             << d.cols() << "> T1_T" << objID[this] << "= 1 / T"
+                             << objID[this] << ".array();// OpSqrt" << std::endl;
+                    for (int j = 0; j < d.size(); j++)
+                        code_out << "if(T"
+                                 << objID[this] << "("
+                                 << j << ")==0) T1_T"
+                                 << objID[this] << "("
+                                 << j << ")=0;// OpSqrt" << std::endl;
                     for (int i = 0; i < nGrads; i++)
+                    {
+
                         code_out << "g_T"
                                  << objID[d0.get()] << "(Eigen::all, Eigen::seq("
                                  << 0 + i * cols << ", "
                                  << cols - 1 + i * cols << ")).array() += g_T"
                                  << objID[this] << "(Eigen::all, Eigen::seq("
                                  << 0 + i * cols << ", "
-                                 << cols - 1 + i * cols << ")).array() / T"
+                                 << cols - 1 + i * cols << ")).array() * T1_T"
                                  << objID[this] << ".array() * 0.5; // OpSqrt" << std::endl;
+                    }
 #endif
                 }
             };

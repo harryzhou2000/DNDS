@@ -367,6 +367,21 @@ namespace DNDS
             Gas::RoeFlux_IdealGas_HartenYee_AutoDiffGen(
                 UL, UR, settings.idealGasProperty.gamma, F, dFdUL, dFdUR,
                 [&]() {});
+            if (F.hasNaN() || dFdUL.hasNaN() || dFdUR.hasNaN())
+            {
+                std::cout << "F \n"
+                          << F << std::endl;
+                std::cout << "GL \n"
+                          << dFdUL << std::endl;
+                std::cout << "GR \n"
+                          << dFdUR << std::endl;
+                std::cout << "UL \n"
+                          << UL << std::endl;
+                std::cout << "UR \n"
+                          << UR << std::endl;
+                assert(false);
+            }
+
             F({1, 2, 3}) = normBase * F({1, 2, 3});
 
             dFdUL.transposeInPlace();
@@ -374,6 +389,8 @@ namespace DNDS
 
             dFdUL({1, 2, 3}, Eigen::all) = normBase * dFdUL({1, 2, 3}, Eigen::all);
             dFdUR({1, 2, 3}, Eigen::all) = normBase * dFdUR({1, 2, 3}, Eigen::all);
+            dFdUL(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+            dFdUR(Eigen::all, {1, 2, 3}) *= normBase.transpose();
 
             dFdUFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) = dFdUL;
             dFdUFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) = dFdUR;
@@ -424,6 +441,16 @@ namespace DNDS
             if (iCell < mesh->cell2nodeLocal.dist->size())
             {
                 jacobianCellInv[iCell] = jacobianCell[iCell].fullPivLu().inverse();
+
+                if (jacobianCell[iCell].hasNaN() || jacobianCellInv[iCell].hasNaN() ||
+                    (!(jacobianCell[iCell].allFinite() && jacobianCellInv[iCell].allFinite())))
+                {
+                    std::cout << "JCInv\n"
+                              << jacobianCellInv[iCell] << std::endl;
+                    std::cout << "JC\n"
+                              << jacobianCell[iCell] << std::endl;
+                    assert(false);
+                }
             }
             else
                 jacobianCellInv[iCell].setConstant(UnInitReal);
@@ -455,15 +482,13 @@ namespace DNDS
                 index iCellAtFace = f2c[0] == iCell ? 0 : 1;
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
-                    auto jacobianOther = iCellAtFace
-                                             ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
-                                             : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+                    Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
+                                                                  ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
+                                                                  : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
                     uIncNewBuf += jacobianOther * uInc[iCellOther];
                 }
             }
-            // uIncNewBuf /= fpDivisor;
-            // uIncNew[iCell] = uIncNewBuf;
-            AuInc[iCell] = jacobianCellInv[iCell] * uInc[iCell] + uIncNewBuf;
+            AuInc[iCell] = jacobianCell[iCell] * uInc[iCell] + uIncNewBuf;
         }
     }
 
@@ -495,9 +520,9 @@ namespace DNDS
                                            : iScan + 1;
                     if (iScanOther < iScan)
                     {
-                        auto jacobianOther = iCellAtFace
-                                                 ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
-                                                 : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+                        Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
+                                                                      ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
+                                                                      : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
                         uIncNewBuf -= jacobianOther * uInc[iCellOther];
                     }
                 }
@@ -513,7 +538,7 @@ namespace DNDS
     }
 
     void EulerEvaluator::UpdateLUSGSADBackward(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
-    { 
+    {
         index nCellDist = mesh->cell2nodeLocal.dist->size();
         for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
         {
@@ -538,9 +563,9 @@ namespace DNDS
                                            : iScan + 1;
                     if (iScanOther > iScan) // Back
                     {
-                        auto jacobianOther = iCellAtFace
-                                                 ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
-                                                 : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+                        Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
+                                                                      ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
+                                                                      : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
                         uIncNewBuf -= jacobianOther * uInc[iCellOther];
                     }
                 }
