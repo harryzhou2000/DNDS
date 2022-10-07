@@ -19,6 +19,11 @@ namespace DNDS
 
         std::vector<real> lambdaCell;
         std::vector<real> lambdaFace;
+        std::vector<real> lambdaFaceVis;
+        std::vector<Eigen::Matrix<real, 10, 5>> dFdUFace;
+        std::vector<Eigen::Matrix<real, 10, 5>> jacobianFace;
+        std::vector<Eigen::Matrix<real, 5, 5>> jacobianCell;
+        std::vector<Eigen::Matrix<real, 5, 5>> jacobianCellInv;
 
         struct Setting
         {
@@ -55,6 +60,11 @@ namespace DNDS
         {
             lambdaCell.resize(mesh->cell2nodeLocal.size()); // but only dist part are used, ghost part to not judge for it in facial iter
             lambdaFace.resize(mesh->face2nodeLocal.size());
+            lambdaFaceVis.resize(lambdaFace.size());
+            dFdUFace.resize(lambdaFace.size());
+            jacobianFace.resize(lambdaFace.size());
+            jacobianCell.resize(lambdaCell.size());
+            jacobianCellInv.resize(lambdaCell.size());
         }
 
         static Eigen::Vector<real, 5> CompressRecPart(
@@ -73,6 +83,14 @@ namespace DNDS
          */
         void EvaluateRHS(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u,
                          ArrayLocal<SemiVarMatrix<5u>> &uRec);
+
+        void LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOF<5u> &u);
+
+        void LUSGSADMatrixVec(ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &AuInc);
+
+        void UpdateLUSGSADForward(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew);
+
+        void UpdateLUSGSADBackward(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew);
 
         void LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
                             ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &AuInc);

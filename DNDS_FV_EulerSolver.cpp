@@ -1,5 +1,8 @@
 #include "DNDS_FV_EulerSolver.hpp"
 
+#include "DNDS_GasGen.hpp"
+#include "DNDS_HardEigen.h"
+
 namespace DNDS
 {
 
@@ -120,6 +123,7 @@ namespace DNDS
                     volR = fv->volumeLocal[f2c[1]];
 
             lambdaFace[iFace] = lambdaConvection + lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
+            lambdaFaceVis[iFace] = lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
         }
         real dtMin = veryLargeReal;
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
@@ -301,6 +305,251 @@ namespace DNDS
         // {
         //     rhs[iCell] = rhs[iCell].array().min(1e10).max(-1e10).matrix();
         // }
+    }
+
+    void EulerEvaluator::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOF<5u> &u)
+    {
+        for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
+        {
+            if (iCell < mesh->cell2nodeLocal.dist->size())
+                jacobianCell[iCell] = Eigen::Matrix<real, 5, 5>::Identity() *
+                                      (fv->volumeLocal[iCell] / dTau[iCell] +
+                                       fv->volumeLocal[iCell] / dt);
+            else
+                jacobianCell[iCell].setConstant(UnInitReal);
+        }
+        for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
+        {
+            auto &faceRecAtr = vfv->faceRecAtrLocal[iFace][0];
+            auto &faceAtr = mesh->faceAtrLocal[iFace][0];
+            auto f2c = mesh->face2cellLocal[iFace];
+
+            Eigen::Matrix<real, 5, 1> UL, UR;
+            UL = u[f2c[0]];
+
+            Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
+            Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
+
+            UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
+
+            if (f2c[1] != FACE_2_VOL_EMPTY)
+            {
+                UR = u[f2c[1]];
+                UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+            }
+            else if (faceAtr.iPhy == BoundaryType::Farfield)
+            {
+                UR = settings.farFieldStaticValue;
+                UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+            }
+            else if (faceAtr.iPhy == BoundaryType::Wall_Euler)
+            {
+                UR = UL;
+                UR(1) *= -1;
+            }
+            else if (faceAtr.iPhy == BoundaryType::Wall_NoSlip)
+            {
+                UR = UL;
+                UR({1, 2, 3}) *= -1;
+            }
+            else if (faceAtr.iPhy == BoundaryType::Wall)
+            {
+                std::cout << "Wall is not a proper bc" << std::endl;
+                assert(false);
+            }
+            else
+            {
+                assert(false);
+            }
+            Eigen::Matrix<real, 5, 1> F;
+            Eigen::Matrix<real, 5, 5> dFdUL, dFdUR;
+
+            Gas::RoeFlux_IdealGas_HartenYee_AutoDiffGen(
+                UL, UR, settings.idealGasProperty.gamma, F, dFdUL, dFdUR,
+                [&]() {});
+            F({1, 2, 3}) = normBase * F({1, 2, 3});
+
+            dFdUL.transposeInPlace();
+            dFdUR.transposeInPlace(); // -> dF_idUj
+
+            dFdUL({1, 2, 3}, Eigen::all) = normBase * dFdUL({1, 2, 3}, Eigen::all);
+            dFdUR({1, 2, 3}, Eigen::all) = normBase * dFdUR({1, 2, 3}, Eigen::all);
+
+            dFdUFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) = dFdUL;
+            dFdUFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) = dFdUR;
+
+            jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) =
+                fv->faceArea[iFace] *
+                (-dFdUL - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // right uses: use minus version
+            jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) =
+                fv->faceArea[iFace] *
+                (dFdUR - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // left use: uses plus version
+
+            jacobianCell[f2c[0]] -= jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4});
+            if (f2c[1] != FACE_2_VOL_EMPTY)
+            {
+                jacobianCell[f2c[1]] -= jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+            }
+            else if (faceAtr.iPhy == BoundaryType::Farfield)
+            {
+                // jacobianCell[f2c[0]];
+                // nothing
+            }
+            else if (faceAtr.iPhy == BoundaryType::Wall_Euler)
+            {
+                Eigen::Matrix<real, 5, 5> jacobianRL = -jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+                jacobianRL(Eigen::all, {1, 2, 3}) *= normBase;
+                jacobianRL(Eigen::all, {1}) *= -1;
+                jacobianRL(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+                jacobianCell[f2c[0]] -= jacobianRL;
+            }
+            else if (faceAtr.iPhy == BoundaryType::Wall_NoSlip)
+            {
+                Eigen::Matrix<real, 5, 5> jacobianRL = -jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+                jacobianRL(Eigen::all, {1, 2, 3}) *= -1;
+                jacobianCell[f2c[0]] -= jacobianRL;
+            }
+            else if (faceAtr.iPhy == BoundaryType::Wall)
+            {
+                std::cout << "Wall is not a proper bc" << std::endl;
+                assert(false);
+            }
+            else
+            {
+                assert(false);
+            }
+        }
+        for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
+        {
+            if (iCell < mesh->cell2nodeLocal.dist->size())
+            {
+                jacobianCellInv[iCell] = jacobianCell[iCell].fullPivLu().inverse();
+            }
+            else
+                jacobianCellInv[iCell].setConstant(UnInitReal);
+        }
+    }
+
+    void EulerEvaluator::LUSGSADMatrixVec(ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &AuInc)
+    {
+        for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
+        {
+            index iCell = iScan;
+            // iCell = (*vfv->SOR_iScan2iCell)[iCell];//TODO: add rb-sor
+
+            auto &c2f = mesh->cell2faceLocal[iCell];
+            Eigen::Vector<real, 5> uIncNewBuf;
+            uIncNewBuf.setZero(); // norhs
+
+            if (uInc[iCell].hasNaN())
+            {
+                std::cout << uInc[iCell] << std::endl;
+                assert(false);
+            }
+
+            for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+            {
+                index iFace = c2f[ic2f];
+                auto &f2c = (*mesh->face2cellPair)[iFace];
+                index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                if (iCellOther != FACE_2_VOL_EMPTY)
+                {
+                    auto jacobianOther = iCellAtFace
+                                             ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
+                                             : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+                    uIncNewBuf += jacobianOther * uInc[iCellOther];
+                }
+            }
+            // uIncNewBuf /= fpDivisor;
+            // uIncNew[iCell] = uIncNewBuf;
+            AuInc[iCell] = jacobianCellInv[iCell] * uInc[iCell] + uIncNewBuf;
+        }
+    }
+
+    /**
+     * @brief waring! rhs here is with volume, different from UpdateLUSGSADForward
+     **/
+    void EulerEvaluator::UpdateLUSGSADForward(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
+    {
+        index nCellDist = mesh->cell2nodeLocal.dist->size();
+        for (index iScan = 0; iScan < nCellDist; iScan++)
+        {
+            index iCell = iScan;
+            iCell = (*vfv->SOR_iScan2iCell)[iCell]; // TODO: add rb-sor
+
+            auto &c2f = mesh->cell2faceLocal[iCell];
+            Eigen::Vector<real, 5> uIncNewBuf;
+            uIncNewBuf = rhs[iCell];
+
+            for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+            {
+                index iFace = c2f[ic2f];
+                auto &f2c = (*mesh->face2cellPair)[iFace];
+                index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                if (iCellOther != FACE_2_VOL_EMPTY)
+                {
+                    index iScanOther = iCellOther < nCellDist
+                                           ? (*vfv->SOR_iCell2iScan)[iCellOther]
+                                           : iScan + 1;
+                    if (iScanOther < iScan)
+                    {
+                        auto jacobianOther = iCellAtFace
+                                                 ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
+                                                 : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+                        uIncNewBuf -= jacobianOther * uInc[iCellOther];
+                    }
+                }
+            }
+
+            uIncNew[iCell] = jacobianCellInv[iCell] * uIncNewBuf;
+
+            // fix rho increment
+            // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
+            //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
+            uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
+        }
+    }
+
+    void EulerEvaluator::UpdateLUSGSADBackward(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
+    { 
+        index nCellDist = mesh->cell2nodeLocal.dist->size();
+        for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
+        {
+            index iCell = iScan;
+            iCell = (*vfv->SOR_iScan2iCell)[iCell]; // TODO: add rb-sor
+
+            auto &c2f = mesh->cell2faceLocal[iCell];
+            Eigen::Vector<real, 5> uIncNewBuf;
+            // uIncNewBuf = rhs[iCell];
+            uIncNewBuf.setZero(); // Back
+
+            for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+            {
+                index iFace = c2f[ic2f];
+                auto &f2c = (*mesh->face2cellPair)[iFace];
+                index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+                index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+                if (iCellOther != FACE_2_VOL_EMPTY)
+                {
+                    index iScanOther = iCellOther < nCellDist
+                                           ? (*vfv->SOR_iCell2iScan)[iCellOther]
+                                           : iScan + 1;
+                    if (iScanOther > iScan) // Back
+                    {
+                        auto jacobianOther = iCellAtFace
+                                                 ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
+                                                 : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+                        uIncNewBuf -= jacobianOther * uInc[iCellOther];
+                    }
+                }
+            }
+
+            uIncNew[iCell] += jacobianCellInv[iCell] * uIncNewBuf; // Back
+
+            uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
+        }
     }
 
     void EulerEvaluator::LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
@@ -541,9 +790,9 @@ namespace DNDS
                                              ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
     {
         index nCellDist = mesh->cell2nodeLocal.dist->size();
-        for (index iScan = 0; iScan < nCellDist; iScan++)
+        for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
         {
-            index iCell = nCellDist - 1 - iScan;
+            index iCell = iScan;
             iCell = (*vfv->SOR_iScan2iCell)[iCell];
 
             auto &c2f = mesh->cell2faceLocal[iCell];

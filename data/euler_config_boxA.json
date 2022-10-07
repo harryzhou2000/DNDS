@@ -1,7 +1,7 @@
 {
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 2500,
+    "nTimeStep": 5000,
     "nTimeStepInternal": 20,
     "nSGSIterationInternal": 0,
     "gmresCode": 1,
@@ -16,7 +16,7 @@
     "tDataOut": 1e100,
     "tEnd": 100e100,
     "CFL": 10,
-    "dtImplicit": 2e-4,
+    "dtImplicit": 1e-4,
     "rhsThresholdInternal": 1e-4,
     "useLocalDt": true,
     "useLimiter": true,
@@ -41,8 +41,8 @@
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
         "data/mesh/NACA0012_WIDE_H3G_NS.msh"
     ],
-    "outPltName": "data/out/test_Euler_.Uniform512_O4_B",
-    "outLogName": "data/out/test_Euler_.Uniform512_O4_B",
+    "outPltName": "data/out/test_Euler_.Uniform512_O4_C",
+    "outLogName": "data/out/test_Euler_.Uniform512_O4_C",
     "err_dMax": 0.00,
     "res_base": 0,
     "vfvSetting": {
