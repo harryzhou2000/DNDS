@@ -1,13 +1,13 @@
 {
     "recOrder": 3,
-    "nInternalRecStep": 1,
+    "nInternalRecStep": 2,
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
     "nSGSIterationInternal": 0,
     "gmresCode": 1,
-    "nGmresSpace": 5,
-    "nGmresIter": 1,
-    "jacobianTypeCode": 0,
+    "nGmresSpace": 10,
+    "nGmresIter": 2,
+    "jacobianTypeCode": 1,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
     "nDataOutC": 1,
@@ -16,7 +16,7 @@
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 1e+1,
+    "CFL": 100,
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-100,
     "useLocalDt": true,
@@ -27,8 +27,8 @@
     "nCFLRampStart": 100000000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
-    "meshRotZ": -0,
-    "meshFile": "data/mesh/NACA0012_TIP_SPARSE_NS.msh",
+    "meshRotZ": -2,
+    "meshFile": "data/mesh/NACA0012_TIP_SPARSE_EULER.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -48,8 +48,8 @@
         "data/mesh/NACA0012_TIP_SPARSE_NS",
         "data/mesh/grid_NACA0012_vis"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_TIP_SPARSE_NS",
-    "outLogName": "data/out/test_Euler_.NACA0012_TIP_SPARSE_NS",
+    "outPltName": "data/out/test_Euler_.NACA0012_TIP_SPARSE_EULER",
+    "outLogName": "data/out/test_Euler_.NACA0012_TIP_SPARSE_EULER",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -65,7 +65,7 @@
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 1e-100
+        "WBAP_SmoothIndicatorScale": 1e-0
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
@@ -74,7 +74,7 @@
         "idealGasProperty": {
             "gamma": 1.4,
             "Rgas": 289,
-            "muGas": 1.1832e-04
+            "muGas": 1.1832e-08
         },
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
@@ -111,7 +111,7 @@
                 2.948
             ],
             [
-                "2M",
+                "3M",
                 1,
                 3.54964786985977,
                 0,

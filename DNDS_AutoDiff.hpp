@@ -202,6 +202,11 @@ namespace DNDS
                 return op->d;
             }
 
+            void * ptr()
+            {
+                return op.get();
+            }
+
             typedef std::shared_ptr<OpBase> pData;
 
             /**********************************************************************************/

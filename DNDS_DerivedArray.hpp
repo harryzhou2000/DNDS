@@ -295,3 +295,98 @@ namespace DNDS
         }
     };
 }
+
+namespace DNDS
+{
+    template <uint32_t vsize>
+    class ArrayVDOF : public ArrayLocal<SemiVarMatrix<vsize>> //TODO: update to sepearated arrays
+    {
+        typedef ArrayLocal<SemiVarMatrix<vsize>> base;
+        using ArrayLocal<SemiVarMatrix<vsize>>::ArrayLocal;
+        ArrayVDOF() {}
+
+        void setConstant(real v)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
+                           { e.m().setConstant(v); });
+        }
+
+        void operator=(const ArrayVDOF<vsize> &R)
+        {
+            forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
+                           { e.m() = (*R.dist)[i].m(); });
+        }
+
+        void operator+=(const ArrayVDOF<vsize> &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
+                           { e.m() += (*R.dist)[i].m(); });
+        }
+
+        void addTo(const ArrayVDOF<vsize> &R, real r)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
+                           { e.m() += (*R.dist)[i].m() * r; });
+        }
+
+        void operator-=(const ArrayVDOF<vsize> &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
+                           { e.m() -= (*R.dist)[i].m(); });
+        }
+
+        void operator*=(real r)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
+                           { e.m() *= r; });
+        }
+
+        template <class VR>
+        void operator*=(const VR &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
+                           { e.m() *= R[i]; });
+        }
+
+        /**
+         * @brief collective
+         *
+         */
+        real norm2()
+        {
+            assert(base::dist);
+            real sqrSum{0}, sqrSumAll;
+            forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
+                           { sqrSum += e.m().squaredNorm(); });
+            MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
+            // std::cout << "norm2is " << std::scientific << sqrSumAll << std::endl;
+            return std::sqrt(sqrSumAll);
+        }
+
+        real dot(const ArrayVDOF<vsize> &R)
+        {
+            assert(base::dist);
+            real sqrSum{0}, sqrSumAll;
+            forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
+                           { sqrSum += (e.m().array() * (*R.dist)[i].m().array()).sum(); });
+            MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
+            return sqrSumAll;
+        }
+
+        // const Eigen::Map<Eigen::Vector<real, vsize>> &operator[](index i)
+        // {
+        //     return base::operator[](i).p();
+        // }
+
+        Eigen::Map<Eigen::Matrix<real, -1, -1>> operator[](index i)
+        {
+            return base::operator[](i).m();
+        }
+    };
+}

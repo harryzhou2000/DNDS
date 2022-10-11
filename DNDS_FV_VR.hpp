@@ -2432,7 +2432,7 @@ namespace DNDS
         template <typename TinOthers, typename Tout>
         inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut)
         {
-            static const int p = 4;
+            static const int p = 6;
             static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
 
             Eigen::ArrayXXd uUp; //* copy!
@@ -2473,7 +2473,7 @@ namespace DNDS
         template <typename Tin1, typename Tin2, typename Tout>
         inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
         {
-            static const int p = 4;
+            static const int p = 6;
             // static const real n = 10.0;
             static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
             auto uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;

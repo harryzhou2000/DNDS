@@ -7,7 +7,7 @@
     "gmresCode": 1,
     "nGmresSpace": 10,
     "nGmresIter": 2,
-    "jacobianTypeCode": 0,
+    "jacobianTypeCode": 1,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
     "nDataOutC": 100,

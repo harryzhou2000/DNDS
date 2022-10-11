@@ -25,6 +25,10 @@ namespace DNDS
         std::vector<Eigen::Matrix<real, 5, 5>> jacobianCell;
         std::vector<Eigen::Matrix<real, 5, 5>> jacobianCellInv;
 
+        // ArrayVDOF<25> dRdUrec;
+        // ArrayVDOF<25> dRdb;
+
+
         struct Setting
         {
             struct IdealGasProperty
@@ -65,6 +69,9 @@ namespace DNDS
             jacobianFace.resize(lambdaFace.size());
             jacobianCell.resize(lambdaCell.size());
             jacobianCellInv.resize(lambdaCell.size());
+
+            // vfv->BuildRec(dRdUrec);
+            // vfv->BuildRec(dRdb);
         }
 
         static Eigen::Vector<real, 5> CompressRecPart(
