@@ -27,6 +27,9 @@ int main()
     for (auto c : t)
         std::cout << int(c) << std::endl;
 
-        
+    auto v = Eigen::Vector<double, 10>::LinSpaced(0, 9);
+    std::cout << "reshape col " << std::endl
+              << v.reshaped<Eigen::ColMajor>(2, 5) << std::endl;
+
     return 0;
 }

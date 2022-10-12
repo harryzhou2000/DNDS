@@ -1219,11 +1219,11 @@ namespace DNDS
             Eigen::Matrix<double, 1, 1> T1 = Eigen::Matrix<real, 1, 1>{gamma - 1};           // OpIn
             Eigen::Matrix<double, 1, 1> T2 = Eigen::Matrix<real, 1, 1>{gamma / (gamma - 1)}; // OpIn
             Eigen::Matrix<double, 3, 1> T3 = norm;                                           // OpIn
-            Eigen::Matrix<double, 1, 1> T4 = mu;                                             // OpIn
-            Eigen::Matrix<double, 1, 1> T5 = k;                                              // OpIn
-            Eigen::Matrix<double, 1, 1> T6 = Cp;                                             // OpIn
-            Eigen::Matrix<double, 5, 1> T7 = U;                                              // OpIn
-            Eigen::Matrix<double, 3, 5> T8 = GradU;                                          // OpIn
+            Eigen::Matrix<double, 1, 1> T4 {{mu}};                                             // OpIn
+            Eigen::Matrix<double, 1, 1> T5  {{k}};                                              // OpIn
+            Eigen::Matrix<double, 1, 1> T6  {{Cp}};                                             // OpIn
+            Eigen::Matrix<double, 5, 1> T7  =U;                                              // OpIn
+            Eigen::Matrix<double, 3, 5> T8  =GradU;                                          // OpIn
 
             Eigen::Matrix<double, 3, 1> T9 = T7({1, 2, 3}, {0});                                                // OpMatBlock
             Eigen::Matrix<double, 1, 1> T10 = T7({0}, {0});                                                     // OpMatBlock
@@ -1612,7 +1612,7 @@ namespace DNDS
             //
             //
 
-            Flux({0}, {0}) = 0;
+            Flux({0}, {0}).setZero();
             Flux({1, 2, 3, 4}, {0}) = T54;
             //
 
@@ -1620,7 +1620,7 @@ namespace DNDS
             GU({0, 1, 2, 3, 4}, {1, 2, 3, 4}) = g_T7;
             // std::cout << g_T4 << std::endl
             //           << std::endl;
-            G_GU = g_T8;
+            GGradU = g_T8;
             // std::cout << g_T5 << std::endl
             //           << std::endl;
         }
