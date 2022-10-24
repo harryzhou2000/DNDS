@@ -64,16 +64,16 @@ int main()
                            gammaM1;
 
         ADEigenMat p = (E - rho * vsqr * 0.5) * gammaM1;
-        ADEigenMat rhoSqr = rho*rho;
+        ADEigenMat rhoSqr = rho * rho;
         ADEigenMat GradT = (GradP * rho - GradRho * p) *
                            (gammaDivGammaM1 / (_cp * rhoSqr));
         ADEigenMat strainRateSym = strainRate + strainRate.transpose();
         ADEigenMat strainRateTrace = strainRate({0}, {0}) +
-                                        strainRate({1}, {1}) +
-                                        strainRate({2}, {2});
+                                     strainRate({1}, {1}) +
+                                     strainRate({2}, {2});
 
         ADEigenMat tau = (strainRateSym + _I * (strainRateTrace * (-2. / 3.))) * _mu;
-        ADEigenMat taut = tau.matmul(velo)+ GradT * _k;
+        ADEigenMat taut = tau.matmul(velo) + GradT * _k;
 
         ADEigenMat Ff = tau.matmul(nad); // tau is symmetric
         ADEigenMat Fe = taut.dot(nad);
@@ -82,7 +82,8 @@ int main()
 
         F4.back();
 
-        std::cout << std::endl << objID[F4.ptr()] << std::endl
+        std::cout << std::endl
+                  << objID[F4.ptr()] << std::endl
                   << F4 << std::endl
                   << std::endl;
         std::cout << std::endl
@@ -91,6 +92,9 @@ int main()
                   << std::endl;
         std::cout << objID[GUad.ptr()] << std::endl
                   << GUad.g() << std::endl
+                  << std::endl;
+        std::cout << objID[GUad.ptr()] << std::endl
+                  << (n.transpose() * GUad.g()).reshaped(5, 4) << std::endl
                   << std::endl;
     }
     return 0;

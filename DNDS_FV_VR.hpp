@@ -1749,7 +1749,7 @@ namespace DNDS
                         delta = pFace - cellBaries[f2c[0]];
                         delta *= 1.0;
                     }
-                    else if (faceAtr.iPhy == BoundaryType::Farfield)
+                    else if (faceAtr.iPhy == BoundaryType::Farfield || faceAtr.iPhy == BoundaryType::Special_DMRFar)
                     {
                         (*faceWeights)[iFace].setConstant(0.0);
                         (*faceWeights)[iFace][0] = setting.farWeight;
@@ -1832,7 +1832,8 @@ namespace DNDS
                     else if (faceAttribute.iPhy == BoundaryType::Wall ||
                              faceAttribute.iPhy == BoundaryType::Farfield ||
                              faceAttribute.iPhy == BoundaryType::Wall_Euler ||
-                             faceAttribute.iPhy == BoundaryType::Wall_NoSlip)
+                             faceAttribute.iPhy == BoundaryType::Wall_NoSlip ||
+                             faceAttribute.iPhy == BoundaryType::Special_DMRFar)
                     {
                         matSizes[(ic2f + 1) * 2 + 0] = cellRecAttribute.NDOF - 1;
                         matSizes[(ic2f + 1) * 2 + 1] = cellRecAttribute.NDOF - 1;
@@ -1995,7 +1996,8 @@ namespace DNDS
                         {
                             matrixBatchElem.m(ic2f + 1).setZero(); // the other 'cell' has no rec
                         }
-                        else if (faceAttribute.iPhy == BoundaryType::Farfield)
+                        else if (faceAttribute.iPhy == BoundaryType::Farfield ||
+                                 faceAttribute.iPhy == BoundaryType::Special_DMRFar)
                         {
                             Eigen::MatrixXd B;
                             B.resizeLike(matrixBatchElem.m(ic2f + 1));
@@ -2290,7 +2292,8 @@ namespace DNDS
                             //         corInc *= faceNorms[iFace][ig].norm();
                             //     });
                         }
-                        else if (faceAttribute.iPhy == BoundaryType::Farfield)
+                        else if (faceAttribute.iPhy == BoundaryType::Farfield ||
+                                 faceAttribute.iPhy == BoundaryType::Special_DMRFar)
                         {
                             if (!setting.SOR_Instead)
                                 uRecNewBuf[iCell].m() +=
@@ -2432,7 +2435,7 @@ namespace DNDS
         template <typename TinOthers, typename Tout>
         inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut)
         {
-            static const int p = 6;
+            static const int p = 4;
             static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
 
             Eigen::ArrayXXd uUp; //* copy!
@@ -2473,7 +2476,7 @@ namespace DNDS
         template <typename Tin1, typename Tin2, typename Tout>
         inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
         {
-            static const int p = 6;
+            static const int p = 4;
             // static const real n = 10.0;
             static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
             auto uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
@@ -3017,6 +3020,10 @@ namespace DNDS
                             LimStart,
                             LimEnd),
                         Eigen::all);
+                    auto &c2n = mesh->cell2nodeLocal[iCell];
+                    Eigen::MatrixXd coords;
+                    mesh->LoadCoords(c2n, coords);
+                    Elem::tPoint sScaleThis = CoordMinMaxScale(coords);
 
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                     {
@@ -3035,6 +3042,16 @@ namespace DNDS
                             // if (!(ifUseLimiter[iCell] & 0x0000000FU))
                             //     continue;
 
+                            auto &c2n = mesh->cell2nodeLocal[iCellOther];
+                            Eigen::MatrixXd coords;
+                            mesh->LoadCoords(c2n, coords);
+                            Elem::tPoint sScaleOther = CoordMinMaxScale(coords);
+
+                            Elem::tPoint unitNorm = faceNormCenter[iFace].stableNormalized();
+                            
+
+
+
                             auto &cOther2f = mesh->cell2faceLocal[iCellOther];
                             index icOther2f = 0;
                             //* find icOther2f
@@ -3049,6 +3066,12 @@ namespace DNDS
                                     : matrixSecondaryBatchElem.m(0);
                             //! note that when false == bool(iCellAtFace), this cell is at left of the face
 
+                            // std::cout << sScaleThis.transpose() << std::endl;
+                            // std::cout << sScaleOther.transpose() << std::endl;
+                            // std::cout << ((getCellCenter(iCell)-getCellCenter(iCellOther)).array()/sScaleOther.array()).transpose() << std::endl;
+                            // std::cout << matrixSecondary << std::endl;
+                            // assert(false);
+
                             Eigen::MatrixXd uOtherIn =
                                 (matrixSecondary *
                                  uRecNewBuf[iCellOther].m())(
@@ -3061,7 +3084,7 @@ namespace DNDS
                             // 2 char space :
                             auto uR = iCellAtFace ? u[iCell].p() : u[iCellOther].p();
                             auto uL = iCellAtFace ? u[iCellOther].p() : u[iCell].p();
-                            auto M = FM(uL, uR, faceNormCenter[iFace].stableNormalized());
+                            auto M = FM(uL, uR, unitNorm);
 
                             uOtherIn = (M * uOtherIn.transpose()).transpose();
                             uThisIn = (M * uThisIn.transpose()).transpose();
@@ -3079,11 +3102,11 @@ namespace DNDS
                                 std::cout << uThisIn.array().transpose() << std::endl;
                                 std::cout << uOtherIn.array().transpose() << std::endl;
                                 std::cout << uLimOutArray.transpose() << std::endl;
-                                std::abort();
+                                assert(false);
                             }
 
                             // to phys space
-                            auto MI = FMI(uL, uR, faceNormCenter[iFace].stableNormalized());
+                            auto MI = FMI(uL, uR, unitNorm);
                             uLimOutArray = (MI * uLimOutArray.matrix().transpose()).transpose().array();
                             uOthers.push_back(uLimOutArray);
                         }
@@ -3101,7 +3124,7 @@ namespace DNDS
                             std::cout << "E: \n"
                                       << e.transpose() << std::endl;
                         std::cout << uLimOutArray.transpose() << std::endl;
-                        std::abort();
+                        assert(false);
                     }
                     uRecNewBuf1[iCell].m()(
                         Eigen::seq(

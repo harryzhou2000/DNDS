@@ -52,7 +52,7 @@ namespace DNDS
                 fdt(dt);
                 xLast = x;
 
-                frhs(rhs, x);
+                frhs(rhs, x, 0.5);
                 rhsbuf[0] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -60,7 +60,7 @@ namespace DNDS
                 x += xLast;
                 x *= 1 - Coef[0];
 
-                frhs(rhs, x);
+                frhs(rhs, x, 0.5);
                 rhsbuf[1] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -68,7 +68,7 @@ namespace DNDS
                 x += xLast;
                 x *= 1 - Coef[1];
 
-                frhs(rhs, x);
+                frhs(rhs, x, 1);
                 rhsbuf[2] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -76,7 +76,7 @@ namespace DNDS
                 // x += xLast;
                 // x *= 1 - Coef[2];
 
-                frhs(rhs, x);
+                frhs(rhs, x, 1./6.);
                 rhs += rhsbuf[0];
                 rhsbuf[1] *= 2.0;
                 rhs += rhsbuf[1];
@@ -134,12 +134,12 @@ namespace DNDS
                 xLast = x;
 
                 //* /////////////////
-                frhs(rhs, x);
+                frhs(rhs, x, 1);
                 rhsbuf[0] = rhs;
                 rhs *= dt;
                 x += rhs;
 
-                frhs(rhs, x);
+                frhs(rhs, x, 0.25);
                 rhsbuf[1] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -147,7 +147,7 @@ namespace DNDS
                 x += xLast;
                 x *= 1 - Coef[1];
 
-                frhs(rhs, x);
+                frhs(rhs, x, 2./3.);
                 // rhsbuf[2] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -221,7 +221,7 @@ namespace DNDS
                 {
                     fdt(dTau);
 
-                    frhs(rhs, x);
+                    frhs(rhs, x, 1);
                     rhsbuf[0] = rhs;
                     rhs = xLast;
                     rhs -= x;
@@ -286,11 +286,12 @@ namespace DNDS
                 {
                     x = xLast;
                     xIncPrev.setConstant(0.0);
-                    for (int iter = 1; iter <= maxIter; iter++)
+                    int iter = 1;
+                    for (; iter <= maxIter; iter++)
                     {
-                        fdt(dTau);
+                        fdt(dTau, butcherA(iB, iB));
 
-                        frhs(rhsbuf[iB], x);
+                        frhs(rhsbuf[iB], x, 0);
 
                         // //!test explicit
                         // rhs = rhsbuf[iB];
@@ -307,7 +308,7 @@ namespace DNDS
                         rhs -= x;
                         rhs *= 1.0 / dt;
                         for (int jB = 0; jB <= iB; jB++)
-                            rhs.addTo(rhsbuf[iB], butcherA(iB, jB)); // crhs = rhs + (x_i - x_j) / dt
+                            rhs.addTo(rhsbuf[jB], butcherA(iB, jB)); // crhs = rhs + (x_i - x_j) / dt
 
                         fsolve(x, rhs, dTau, dt, butcherA(iB, iB), xinc);
                         // x += xinc;
@@ -321,10 +322,13 @@ namespace DNDS
 
                         // TODO: add time dependent rhs
                     }
+                    if(iter > maxIter)
+                        fstop(iter, xinc, iB + 1);
                 }
                 x = xLast;
                 for (int jB = 0; jB < 3; jB++)
                     x.addTo(rhsbuf[jB], butcherB(jB) * dt);
+                
             }
         };
 

@@ -169,7 +169,7 @@ namespace DNDS
 
 #define IF_NOT_NOREC (1)
     void EulerEvaluator::EvaluateRHS(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u,
-                                     ArrayLocal<SemiVarMatrix<5u>> &uRec)
+                                     ArrayLocal<SemiVarMatrix<5u>> &uRec, real t)
     {
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
         {
@@ -185,6 +185,10 @@ namespace DNDS
             Eigen::Vector<real, 5> flux;
             flux.setZero();
             auto faceDiBjGaussBatchElemVR = (*vfv->faceDiBjGaussBatch)[iFace];
+
+            auto f2n = mesh->face2nodeLocal[iFace];
+            Eigen::MatrixXd coords;
+            mesh->LoadCoords(f2n, coords);
 
             eFace.Integration(
                 flux,
@@ -227,9 +231,26 @@ namespace DNDS
 
                         minVol = std::min(minVol, fv->volumeLocal[f2c[1]]);
                     }
-                    else if (faceAtr.iPhy == BoundaryType::Farfield)
+                    else if (faceAtr.iPhy == BoundaryType::Farfield ||
+                             faceAtr.iPhy == BoundaryType::Special_DMRFar)
                     {
-                        UR = settings.farFieldStaticValue;
+                        if (faceAtr.iPhy == BoundaryType::Farfield)
+                            UR = settings.farFieldStaticValue;
+                        else if (faceAtr.iPhy == BoundaryType::Special_DMRFar)
+                        {
+                            Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
+                            pPhysics = vfv->faceCenters[iFace]; //! using center!
+                            real uShock = 10;
+
+                            if (((pPhysics(0) - uShock / std::sin(pi / 3) * t - 1. / 6.) -
+                                 pPhysics(1) / std::tan(pi / 3)) > 0)
+                                UR = {1.4, 0, 0, 0, 2.5};
+                            else
+                                UR = {8, 57.157676649772960, -33, 0, 5.635e2};
+                        }
+                        else
+                            assert(false);
+
                         URxy = UR;
                         UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
 
@@ -252,6 +273,7 @@ namespace DNDS
                         URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
 
                         GradURxy = GradULxy;
+                        assert(false);
                     }
                     else if (faceAtr.iPhy == BoundaryType::Wall)
                     {
@@ -307,7 +329,9 @@ namespace DNDS
         // }
     }
 
-    void EulerEvaluator::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOF<5u> &u)
+    void EulerEvaluator::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOF<5u> &u,
+                                           int jacobianCode,
+                                           real t)
     {
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
         {
@@ -330,6 +354,7 @@ namespace DNDS
             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
             Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
             Elem::tPoint centerRL;
+            real volumeInverse;
 
             UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
 
@@ -339,13 +364,31 @@ namespace DNDS
                 UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
 
                 centerRL = vfv->getCellCenter(f2c[1]) - vfv->getCellCenter(f2c[0]);
+                volumeInverse = 0.5 / fv->volumeLocal[f2c[1]] + 0.5 / fv->volumeLocal[f2c[0]];
             }
-            else if (faceAtr.iPhy == BoundaryType::Farfield)
+            else if (faceAtr.iPhy == BoundaryType::Farfield ||
+                     faceAtr.iPhy == BoundaryType::Special_DMRFar)
             {
-                UR = URxy = settings.farFieldStaticValue;
+                if (faceAtr.iPhy == BoundaryType::Farfield)
+                    UR = URxy = settings.farFieldStaticValue;
+                else if (faceAtr.iPhy == BoundaryType::Special_DMRFar)
+                {
+                    Elem::tPoint pPhysics = vfv->faceCenters[iFace]; //! using center!
+                    real uShock = 10;
+
+                    if (((pPhysics(0) - uShock / std::sin(pi / 3) * t - 1. / 6.) -
+                         pPhysics(1) / std::tan(pi / 3)) > 0)
+                        UR = URxy = {1.4, 0, 0, 0, 2.5};
+                    else
+                        UR = URxy = {8, 57.157676649772960, -33, 0, 5.635e2};
+                }
+                else
+                    assert(false);
+
                 UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
 
                 centerRL = (vfv->faceCenters[iFace] - vfv->getCellCenter(f2c[0])) * 2;
+                volumeInverse = 1.0 / fv->volumeLocal[f2c[0]];
             }
             else if (faceAtr.iPhy == BoundaryType::Wall_Euler)
             {
@@ -355,6 +398,7 @@ namespace DNDS
                 URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
 
                 centerRL = (vfv->faceCenters[iFace] - vfv->getCellCenter(f2c[0])) * 2;
+                volumeInverse = 1.0 / fv->volumeLocal[f2c[0]];
             }
             else if (faceAtr.iPhy == BoundaryType::Wall_NoSlip)
             {
@@ -364,6 +408,7 @@ namespace DNDS
                 URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
 
                 centerRL = (vfv->faceCenters[iFace] - vfv->getCellCenter(f2c[0])) * 2;
+                volumeInverse = 1.0 / fv->volumeLocal[f2c[0]];
             }
             else if (faceAtr.iPhy == BoundaryType::Wall)
             {
@@ -402,57 +447,73 @@ namespace DNDS
             dFdUL(Eigen::all, {1, 2, 3}) *= normBase.transpose();
             dFdUR(Eigen::all, {1, 2, 3}) *= normBase.transpose();
 
-            //*** USES vis jacobian
-            Elem::tPoint vGrad = unitNorm / (unitNorm.dot(centerRL));
-            // Elem::tPoint vGrad = centerRL / centerRL.squaredNorm();
-            Eigen::Matrix<real, 5, 1> UC = (ULxy + URxy) * 0.5;
-            Eigen::Matrix<real, 3, 5> gradU = vGrad * (URxy - ULxy).transpose();
-            Eigen::Matrix<real, 5, 1> Fvis;
-            Eigen::Matrix<real, 5, 5> dFvisDu, dFvisDUL, dFvisDUR;
-            Eigen::Matrix<real, 3, 20> dFvisDGu;
+            if (jacobianCode == 2)
+            {
+                //*** USES vis jacobian
+                // Elem::tPoint vGrad = unitNorm / (unitNorm.dot(centerRL));
+                // Elem::tPoint vGrad = centerRL / centerRL.squaredNorm();
+                Elem::tPoint vGrad = unitNorm * (fv->faceArea[iFace] * volumeInverse);
+                Eigen::Matrix<real, 5, 1> UC = (ULxy + URxy) * 0.5;
+                Eigen::Matrix<real, 3, 5> gradU = vGrad * (URxy - ULxy).transpose();
+                Eigen::Matrix<real, 5, 1> Fvis;
+                Eigen::Matrix<real, 5, 5> dFvisDu, dFvisDUL, dFvisDUR;
+                Eigen::Matrix<real, 3, 20> dFvisDGu;
 
-            real k = settings.idealGasProperty.CpGas * settings.idealGasProperty.muGas / settings.idealGasProperty.prGas;
-            Gas::ViscousFlux_IdealGas_N_AutoDiffGen(UC, gradU, unitNorm, false,
-                                                    settings.idealGasProperty.gamma, settings.idealGasProperty.muGas,
-                                                    k, settings.idealGasProperty.CpGas,
-                                                    Fvis, dFvisDu, dFvisDGu);
+                real k = settings.idealGasProperty.CpGas * settings.idealGasProperty.muGas / settings.idealGasProperty.prGas;
+                Gas::ViscousFlux_IdealGas_N_AutoDiffGen(UC, gradU, unitNorm, false,
+                                                        settings.idealGasProperty.gamma, settings.idealGasProperty.muGas,
+                                                        k, settings.idealGasProperty.CpGas,
+                                                        Fvis, dFvisDu, dFvisDGu);
 
-            Eigen::Matrix<real, 5, 5> dFvisDuDiff;
-            dFvisDuDiff({0, 1, 2, 3, 4}, {0}).setZero();
-            dFvisDuDiff({0, 1, 2, 3, 4}, {1, 2, 3, 4}) = (vGrad.transpose() * dFvisDGu).reshaped<Eigen::ColMajor>(5, 4);
+                Eigen::Matrix<real, 5, 5> dFvisDuDiff;
+                dFvisDuDiff({0, 1, 2, 3, 4}, {0}).setZero();
+                dFvisDuDiff({0, 1, 2, 3, 4}, {1, 2, 3, 4}) = (vGrad.transpose() * dFvisDGu).reshaped<Eigen::ColMajor>(5, 4);
 
-            dFvisDUL = (dFvisDu * 0.5 - dFvisDuDiff).transpose();
-            dFvisDUR = (dFvisDu * 0.5 + dFvisDuDiff).transpose();
-            // std::cout << "lamFaceVis " << lambdaFaceVis[iFace] << " dFvisDuDiff\n"
-            //           << dFvisDuDiff << std::endl;
-            dFvisDUL(0, 0) = -0.5 * lambdaFaceVis[iFace];
-            dFvisDUR(0, 0) = 0.5 * lambdaFaceVis[iFace];
+                dFvisDUL = (dFvisDu * 0.5 - dFvisDuDiff).transpose();
+                dFvisDUR = (dFvisDu * 0.5 + dFvisDuDiff).transpose();
+                // std::cout << "lamFaceVis " << lambdaFaceVis[iFace] << " dFvisDuDiff\n"
+                //           << dFvisDuDiff << std::endl;
+                // assert(false);
+                // //* A
+                // dFvisDUL(0, 0) = -0.5 * lambdaFaceVis[iFace];
+                // dFvisDUR(0, 0) = 0.5 * lambdaFaceVis[iFace];
+                //* B
+                dFvisDUL -= 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
+                dFvisDUR += 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
+                // //* C
+                // dFvisDUL *= 0.5;
+                // dFvisDUR *= 0.5;
+                // dFvisDUL -= 0.5 * 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
+                // dFvisDUR += 0.5 * 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
 
-            dFdUFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) = dFdUL - dFvisDUL;
-            dFdUFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) = dFdUR - dFvisDUR;
+                dFdUFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) = dFdUL - dFvisDUL;
+                dFdUFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) = dFdUR - dFvisDUR;
 
-            jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) =
-                fv->faceArea[iFace] *
-                (-dFdUL + dFvisDUL) * alphaDiag; // right: use minus version
-            jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) =
-                fv->faceArea[iFace] *
-                (dFdUR - dFvisDUR) * alphaDiag; // left: uses plus version
-
-            //*** USES vis jacobian
-
-            // jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) =
-            //     fv->faceArea[iFace] *
-            //     (-dFdUL - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // right: use minus version
-            // jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) =
-            //     fv->faceArea[iFace] *
-            //     (dFdUR - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // left: uses plus version
+                jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) =
+                    fv->faceArea[iFace] *
+                    (-dFdUL + dFvisDUL) * alphaDiag; // right: use minus version
+                jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) =
+                    fv->faceArea[iFace] *
+                    (dFdUR - dFvisDUR) * alphaDiag; // left: uses plus version
+                //*** USES vis jacobian
+            }
+            else if (jacobianCode == 1)
+            {
+                jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) =
+                    fv->faceArea[iFace] *
+                    (-dFdUL - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // right: use minus version
+                jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) =
+                    fv->faceArea[iFace] *
+                    (dFdUR - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // left: uses plus version
+            }
 
             jacobianCell[f2c[0]] -= jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4});
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
                 jacobianCell[f2c[1]] -= jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
             }
-            else if (faceAtr.iPhy == BoundaryType::Farfield)
+            else if (faceAtr.iPhy == BoundaryType::Farfield ||
+                     faceAtr.iPhy == BoundaryType::Special_DMRFar)
             {
                 // jacobianCell[f2c[0]];
                 // nothing
@@ -1061,8 +1122,8 @@ namespace DNDS
     {
         // TODO: make spacial filter jacobian
         return; // ! nofix shortcut
-        real scaleRhoCutoff = 0.00001;
-        real scaleEInternalCutOff = 0.00001;
+        real scaleRhoCutoff = 0.0001;
+        real scaleEInternalCutOff = 0.0001;
         real rhoMax = 0.0;
         real rhoMeanU = 0.0;
         real rhoMeanL = 0.0;

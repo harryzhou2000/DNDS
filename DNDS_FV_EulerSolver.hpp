@@ -28,7 +28,6 @@ namespace DNDS
         // ArrayVDOF<25> dRdUrec;
         // ArrayVDOF<25> dRdb;
 
-
         struct Setting
         {
             struct IdealGasProperty
@@ -56,6 +55,13 @@ namespace DNDS
                 Eigen::Vector<real, 5> v;
             };
             std::vector<BoxInitializer> boxInitializers;
+
+            struct PlaneInitializer
+            {
+                real a, b, c, h;
+                Eigen::Vector<real, 5> v;
+            };
+            std::vector<PlaneInitializer> planeInitializers;
 
         } settings;
 
@@ -89,9 +95,10 @@ namespace DNDS
          *
          */
         void EvaluateRHS(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u,
-                         ArrayLocal<SemiVarMatrix<5u>> &uRec);
+                         ArrayLocal<SemiVarMatrix<5u>> &uRec, real t);
 
-        void LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOF<5u> &u);
+        void LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOF<5u> &u, int jacobianCode = 1,
+        real t = 0);
 
         void LUSGSADMatrixVec(ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &AuInc);
 
@@ -205,7 +212,7 @@ namespace DNDS
             int nGmresSpace = 10;
             int nGmresIter = 2;
 
-            int jacobianTypeCode = 0; // 0 for original LUSGS jacobian, 1 for ad roe
+            int jacobianTypeCode = 0; // 0 for original LUSGS jacobian, 1 for ad roe, 2 for ad roe ad vis
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -297,6 +304,11 @@ namespace DNDS
             {
                 eulerParser.AddEigen_RealVec("boxInitializerValue", &eulerSetting_boxInitializerValueBuf);
             }
+            Eigen::VectorXd eulerSetting_planeInitializerValueBuf;
+            {
+                eulerParser.AddEigen_RealVec("planeInitializerValue", &eulerSetting_planeInitializerValueBuf);
+            }
+
             root.AddInt("curvilinearOneStep", &config.curvilinearOneStep);
             root.AddInt("curvilinearRestartNstep", &config.curvilinearRestartNstep);
             root.AddInt("curvilinearRepeatInterval", &config.curvilinearRepeatInterval);
@@ -321,6 +333,20 @@ namespace DNDS
                 boxVec[iInit].v = eulerSetting_boxInitializerValueBuf(
                     Eigen::seq((6 + 5) * iInit + 6, (6 + 5) * iInit + 6 + 5 - 1));
             }
+
+            assert(eulerSetting_planeInitializerValueBuf.size() % (4 + 5) == 0);
+            config.eulerSetting.planeInitializers.resize(eulerSetting_planeInitializerValueBuf.size() / (4 + 5));
+            auto &planeVec = config.eulerSetting.planeInitializers;
+            for (int iInit = 0; iInit < planeVec.size(); iInit++)
+            {
+                planeVec[iInit].a = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 0);
+                planeVec[iInit].b = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 1);
+                planeVec[iInit].c = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 2);
+                planeVec[iInit].h = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 3);
+                planeVec[iInit].v = eulerSetting_planeInitializerValueBuf(
+                    Eigen::seq((4 + 5) * iInit + 4, (4 + 5) * iInit + 4 + 5 - 1));
+            }
+
             if (mpi.rank == 0)
                 log() << "JSON: Parse Done ===" << std::endl;
 
@@ -408,6 +434,21 @@ namespace DNDS
                 }
             }
 
+            // Plane
+            for (auto &i : config.eulerSetting.planeInitializers)
+            {
+                for (index iCell = 0; iCell < u.dist->size(); iCell++)
+                {
+                    Elem::tPoint &pos = vfv->cellBaries[iCell];
+                    if (pos(0) * i.a + pos(1) * i.b + pos(2) * i.c + i.h > 0)
+                    {
+                        // std::cout << pos << std::endl << i.a << i.b << std::endl << i.h <<std::endl;
+                        // assert(false);
+                        u[iCell] = i.v;
+                    }
+                }
+            }
+
             vfv->BuildIfUseLimiter(ifUseLimiter);
         }
 
@@ -460,7 +501,7 @@ namespace DNDS
                 curvilinearStepper++;
                 ode.Step(
                     u,
-                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx)
+                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx, real ct)
                     {
                         eval.FixUMaxFilter(u);
                         u.StartPersistentPullClean();
@@ -525,7 +566,7 @@ namespace DNDS
                         uRec.WaitPersistentPullClean();
 
                         double tstartE = MPI_Wtime();
-                        eval.EvaluateRHS(crhs, cx, uRec);
+                        eval.EvaluateRHS(crhs, cx, uRec, tsimu + ct * curDtMin);
                         trhs += MPI_Wtime() - tstartE;
                     },
                     [&](std::vector<real> &dt)
@@ -805,7 +846,7 @@ namespace DNDS
                 CFLNow = config.CFL;
                 ode.Step(
                     u, uInc,
-                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx)
+                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx, real ct)
                     {
                         eval.FixUMaxFilter(cx);
                         cx.StartPersistentPullClean();
@@ -845,7 +886,9 @@ namespace DNDS
                                     //     e = (e * e + Efix * Efix) / (2 * Efix);
                                     // UC(4) = Ek + e;
 
-                                    return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                    auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                    M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+                                    return M;
                                     // return Eigen::Matrix<real, 5, 5>::Identity();
                                 },
                                 [&](const auto &UL, const auto &UR, const auto &n) -> auto{
@@ -865,7 +908,9 @@ namespace DNDS
                                     //     e = (e * e + Efix * Efix) / (2 * Efix);
                                     // UC(4) = Ek + e;
 
-                                    return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                    auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                    M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
+                                    return M;
                                     // return Eigen::Matrix<real, 5, 5>::Identity();
                                 });
                             uRecNew.StartPersistentPullClean();
@@ -880,12 +925,12 @@ namespace DNDS
 
                         double tstartE = MPI_Wtime();
                         if (config.useLimiter)
-                            eval.EvaluateRHS(crhs, cx, uRecNew);
+                            eval.EvaluateRHS(crhs, cx, uRecNew, tsimu + ct * curDtImplicit);
                         else
-                            eval.EvaluateRHS(crhs, cx, uRec);
+                            eval.EvaluateRHS(crhs, cx, uRec, tsimu + ct * curDtImplicit);
                         trhs += MPI_Wtime() - tstartE;
                     },
-                    [&](std::vector<real> &dTau)
+                    [&](std::vector<real> &dTau, real alphaDiag)
                     {
                         eval.FixUMaxFilter(u);
                         u.StartPersistentPullClean(); //! this also need to update!
@@ -893,7 +938,9 @@ namespace DNDS
                         // uRec.StartPersistentPullClean();
                         // uRec.WaitPersistentPullClean();
 
-                        eval.EvaluateDt(dTau, u, CFLNow, curDtMin, 1e100, true);
+                        eval.EvaluateDt(dTau, u, CFLNow, curDtMin, 1e100, config.useLocalDt);
+                        for (auto &i : dTau)
+                            i /= alphaDiag;
                     },
                     [&](ArrayDOF<5u> &cx, ArrayDOF<5u> &crhs, std::vector<real> &dTau,
                         real dt, real alphaDiag, ArrayDOF<5u> &cxInc)
@@ -935,9 +982,9 @@ namespace DNDS
                             crhs = uPoisson;
                         }
 
-                        if (config.jacobianTypeCode == 1)
+                        if (config.jacobianTypeCode != 0)
                         {
-                            eval.LUSGSADMatrixInit(dTau, dt, alphaDiag, cx);
+                            eval.LUSGSADMatrixInit(dTau, dt, alphaDiag, cx, config.jacobianTypeCode, tsimu);
                         }
 
                         if (config.gmresCode == 0 || config.gmresCode == 2)
@@ -961,7 +1008,7 @@ namespace DNDS
                                     eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, false);
                                 }
                             }
-                            else if (config.jacobianTypeCode == 1)
+                            else
                             {
                                 eval.UpdateLUSGSADForward(crhs, cx, cxInc, cxInc);
                                 cxInc.StartPersistentPullClean();
@@ -969,10 +1016,6 @@ namespace DNDS
                                 eval.UpdateLUSGSADBackward(crhs, cx, cxInc, cxInc);
                                 cxInc.StartPersistentPullClean();
                                 cxInc.WaitPersistentPullClean();
-                            }
-                            else
-                            {
-                                assert(false);
                             }
                         }
 
@@ -989,10 +1032,8 @@ namespace DNDS
                                 {
                                     if (config.jacobianTypeCode == 0)
                                         eval.LUSGSMatrixVec(dTau, dt, alphaDiag, cx, x, Ax);
-                                    else if (config.jacobianTypeCode == 1)
-                                        eval.LUSGSADMatrixVec(cx, x, Ax);
                                     else
-                                        assert(false);
+                                        eval.LUSGSADMatrixVec(cx, x, Ax);
 
                                     Ax.StartPersistentPullClean();
                                     Ax.WaitPersistentPullClean();
@@ -1014,7 +1055,7 @@ namespace DNDS
                                         MLx.StartPersistentPullClean();
                                         MLx.WaitPersistentPullClean();
                                     }
-                                    else if (config.jacobianTypeCode == 1)
+                                    else
                                     {
                                         eval.UpdateLUSGSADForward(x, cx, MLx, MLx);
                                         MLx.StartPersistentPullClean();
@@ -1022,10 +1063,6 @@ namespace DNDS
                                         eval.UpdateLUSGSADBackward(x, cx, MLx, MLx);
                                         MLx.StartPersistentPullClean();
                                         MLx.WaitPersistentPullClean();
-                                    }
-                                    else
-                                    {
-                                        assert(false);
                                     }
                                 },
                                 uIncRHS, cxInc, config.nGmresIter,
@@ -1052,7 +1089,8 @@ namespace DNDS
                         if (iter == 1)
                             resBaseCInternal = res;
                         Eigen::Vector<real, 5> resRel = (res.array() / resBaseCInternal.array()).matrix();
-                        if (iter % config.nConsoleCheckInternal == 0)
+                        bool ifStop = resRel(0) < config.rhsThresholdInternal; // ! using only rho's residual
+                        if (iter % config.nConsoleCheckInternal == 0 || iter > config.nTimeStepInternal || ifStop)
                         {
                             double telapsed = MPI_Wtime() - tstart;
                             if (mpi.rank == 0)
@@ -1095,7 +1133,7 @@ namespace DNDS
                         }
 
                         // return resRel.maxCoeff() < config.rhsThresholdInternal;
-                        return resRel(0) < config.rhsThresholdInternal; // ! using only rho's residual
+                        return ifStop;
                     },
                     curDtImplicit + verySmallReal);
 

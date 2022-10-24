@@ -11,7 +11,7 @@ namespace DNDS
                                                     TdFdU &dFdUL, TdFdU &dFdUR,
                                                     const TFdumpInfo &dumpInfo)
         {
-            static const real HYThres = 0.01;
+            static const real HYThres = 0.05;
 
             const auto T0 = Eigen::Matrix<real, 1, 1>({{1}});         // OpIn
             const auto T1 = Eigen::Matrix<real, 1, 1>({{0}});         // OpIn
