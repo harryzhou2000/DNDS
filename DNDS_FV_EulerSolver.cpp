@@ -20,24 +20,32 @@ namespace DNDS
         // return umean + uRecInc; // ! no compress shortcut
         // return umean; // ! 0th order shortcut
 
-        real compressT = 0.00001;
-        real eFixRatio = 0.00001;
-        Eigen::Vector<real, 5> ret;
+        // // * Compress Method
+        // real compressT = 0.00001;
+        // real eFixRatio = 0.00001;
+        // Eigen::Vector<real, 5> ret;
 
-        real compress = 1.0;
-        if ((umean(0) + uRecInc(0)) < umean(0) * compressT)
-            compress *= umean(0) * (1 - compressT) / uRecInc(0);
+        // real compress = 1.0;
+        // if ((umean(0) + uRecInc(0)) < umean(0) * compressT)
+        //     compress *= umean(0) * (1 - compressT) / uRecInc(0);
 
-        ret = umean + uRecInc * compress;
+        // ret = umean + uRecInc * compress;
 
-        real Ek = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + ret(0));
-        real eT = eFixRatio * Ek;
-        real e = ret(4) - Ek;
-        if (e < 0)
-            e = eT * 0.5;
-        else if (e < eT)
-            e = (e * e + eT * eT) / (2 * eT);
-        ret(4) = e + Ek;
+        // real Ek = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + ret(0));
+        // real eT = eFixRatio * Ek;
+        // real e = ret(4) - Ek;
+        // if (e < 0)
+        //     e = eT * 0.5;
+        // else if (e < eT)
+        //     e = (e * e + eT * eT) / (2 * eT);
+        // ret(4) = e + Ek;
+        // // * Compress Method
+
+        Eigen::Vector<real, 5> ret = umean + uRecInc;
+        real eK = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + std::abs(ret(0)));
+        real e = ret(4) - eK;
+        if (e <= 0 || ret(0) <= 0)
+            ret = umean;
 
         return ret;
     }
@@ -50,6 +58,7 @@ namespace DNDS
     {
         for (auto &i : lambdaCell)
             i = 0.0;
+
         for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
         {
             auto f2c = mesh->face2cellLocal[iFace];
@@ -124,6 +133,8 @@ namespace DNDS
 
             lambdaFace[iFace] = lambdaConvection + lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
             lambdaFaceVis[iFace] = lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
+
+            deltaLambdaFace[iFace] = std::abs((vR - vL).dot(unitNorm)) + std::sqrt(std::abs(asqrR - asqrL)) * 0.7071;
         }
         real dtMin = veryLargeReal;
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
@@ -306,8 +317,8 @@ namespace DNDS
                                               VisFlux);
 
                     // Eigen::Vector<real, 5> F;
-                    Gas::RoeFlux_IdealGas_HartenYee(
-                        UL, UR, settings.idealGasProperty.gamma, finc,
+                    Gas::HLLEFlux_IdealGas_HartenYee(
+                        UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
                         [&]()
                         {
                             std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';

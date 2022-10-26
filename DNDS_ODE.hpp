@@ -52,7 +52,7 @@ namespace DNDS
                 fdt(dt);
                 xLast = x;
 
-                frhs(rhs, x, 0.5);
+                frhs(rhs, x, 1, 0.5);
                 rhsbuf[0] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -60,7 +60,7 @@ namespace DNDS
                 x += xLast;
                 x *= 1 - Coef[0];
 
-                frhs(rhs, x, 0.5);
+                frhs(rhs, x, 1, 0.5);
                 rhsbuf[1] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -68,7 +68,7 @@ namespace DNDS
                 x += xLast;
                 x *= 1 - Coef[1];
 
-                frhs(rhs, x, 1);
+                frhs(rhs, x, 1, 1);
                 rhsbuf[2] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -76,7 +76,7 @@ namespace DNDS
                 // x += xLast;
                 // x *= 1 - Coef[2];
 
-                frhs(rhs, x, 1./6.);
+                frhs(rhs, x, 1, 1./6.);
                 rhs += rhsbuf[0];
                 rhsbuf[1] *= 2.0;
                 rhs += rhsbuf[1];
@@ -134,12 +134,12 @@ namespace DNDS
                 xLast = x;
 
                 //* /////////////////
-                frhs(rhs, x, 1);
+                frhs(rhs, x, 1, 1);
                 rhsbuf[0] = rhs;
                 rhs *= dt;
                 x += rhs;
 
-                frhs(rhs, x, 0.25);
+                frhs(rhs, x, 1, 0.25);
                 rhsbuf[1] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -147,7 +147,7 @@ namespace DNDS
                 x += xLast;
                 x *= 1 - Coef[1];
 
-                frhs(rhs, x, 2./3.);
+                frhs(rhs, x, 1, 2. / 3.);
                 // rhsbuf[2] = rhs;
                 rhs *= dt;
                 x += rhs;
@@ -221,7 +221,7 @@ namespace DNDS
                 {
                     fdt(dTau);
 
-                    frhs(rhs, x, 1);
+                    frhs(rhs, x, iter, 1);
                     rhsbuf[0] = rhs;
                     rhs = xLast;
                     rhs -= x;
@@ -291,7 +291,7 @@ namespace DNDS
                     {
                         fdt(dTau, butcherA(iB, iB));
 
-                        frhs(rhsbuf[iB], x, 0);
+                        frhs(rhsbuf[iB], x, iter, butcherC(iB));
 
                         // //!test explicit
                         // rhs = rhsbuf[iB];

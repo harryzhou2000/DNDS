@@ -1,7 +1,7 @@
 {
-    "recOrder": 2,
+    "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 1000,
+    "nTimeStep": 2000,
     "nTimeStepInternal": 20,
     "nSGSIterationInternal": 0,
     "gmresCode": 0,
@@ -17,10 +17,12 @@
     "tDataOut": 1e100,
     "tEnd": 100e100,
     "CFL": 10,
-    "dtImplicit": 2e-4,
+    "dtImplicit": 1e-4,
     "rhsThresholdInternal": 1e-3,
     "useLocalDt": true,
     "useLimiter": true,
+    "nPartialLimiterStart": 100,
+    "nPartialLimiterStartLocal": 500,
     "nLimiterTurnOn": 0,
     "nLimiterTurnOnInternal": 10000,
     "nForceLocalStartStep": 1000000000,
@@ -28,7 +30,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/UniformDM120.msh",
+    "meshFile": "data/mesh/UniformDM240.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform128.msh",
@@ -44,8 +46,8 @@
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
         "data/mesh/NACA0012_WIDE_H3G_NS.msh"
     ],
-    "outPltName": "data/out/test_Euler_.UniformDM120",
-    "outLogName": "data/out/test_Euler_.UniformDM120",
+    "outPltName": "data/out/test_Euler_.UniformDM240",
+    "outLogName": "data/out/test_Euler_.UniformDM240",
     "err_dMax": 0.00,
     "res_base": 0,
     "vfvSetting": {

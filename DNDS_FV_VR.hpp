@@ -2901,6 +2901,7 @@ namespace DNDS
                                              ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf,
                                              ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf1,
                                              ArrayLocal<Batch<real, 1>> &ifUseLimiter,
+                                             bool ifAll,
                                              TFM &&FM, TFMI &&FMI)
         {
             static int icount = 0;
@@ -3009,7 +3010,7 @@ namespace DNDS
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
                 {
                     index iCell = iScan;
-                    if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale)
+                    if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale && (!ifAll))
                         continue;
                     index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                     auto &c2f = mesh->cell2faceLocal[iCell];
@@ -3140,7 +3141,7 @@ namespace DNDS
                 for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
                 {
                     index iCell = iScan;
-                    if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale)
+                    if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale && (!ifAll))
                         continue;
                     uRecNewBuf[iCell].m()(
                         Eigen::seq(

@@ -132,7 +132,87 @@ namespace DNDS
         }
 
         template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
-        void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, const TFdumpInfo &dumpInfo)
+        void HLLEFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
+                                         const TFdumpInfo &dumpInfo)
+        {
+            static real scaleHartenYee = 0.05;
+
+            if (!(UL(0) > 0 && UR(0) > 0))
+            {
+                dumpInfo();
+            }
+            assert(UL(0) > 0 && UR(0) > 0);
+            tVec veloL = (UL({1, 2, 3}).array() / UL(0)).matrix();
+            tVec veloR = (UR({1, 2, 3}).array() / UR(0)).matrix();
+            real asqrL, asqrR, pL, pR, HL, HR;
+            real vsqrL = veloL.squaredNorm();
+            real vsqrR = veloR.squaredNorm();
+            IdealGasThermal(UL(4), UL(0), vsqrL, gamma, pL, asqrL, HL);
+            IdealGasThermal(UR(4), UR(0), vsqrR, gamma, pR, asqrR, HR);
+            real sqrtRhoL = std::sqrt(UL(0));
+            real sqrtRhoR = std::sqrt(UR(0));
+
+            tVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
+
+            // real lam0 = veloRoe(0) - aRoe;
+            // real lam123 = veloRoe(0);
+            // real lam4 = veloRoe(0) + aRoe;
+            // Eigen::Vector<real, 5> lam = {lam0, lam123, lam123, lam123, lam4};
+
+            real eta2 = 0.5 * (sqrtRhoL * sqrtRhoR) / sqr(sqrtRhoL + sqrtRhoR);
+            real dsqr = (asqrL * sqrtRhoL + asqrR * sqrtRhoR) / (sqrtRhoL + sqrtRhoR) + eta2 * sqr(veloR(0) - veloL(0));
+            if (!(dsqr > 0))
+            {
+                dumpInfo();
+            }
+            assert(dsqr > 0);
+            real SL = veloRoe(0) - sqrt(dsqr);
+            real SR = veloRoe(0) + sqrt(dsqr);
+            dLambda += verySmallReal;
+            SL += sign(SL) * std::exp(-std::abs(SL) / dLambda) * dLambda;
+            SR += sign(SR) * std::exp(-std::abs(SR) / dLambda) * dLambda;
+
+            Eigen::Vector<real, 5> FL, FR;
+            GasInviscidFlux(UL, veloL, pL, FL);
+            GasInviscidFlux(UR, veloR, pR, FR);
+
+            if (0 <= SL)
+            {
+                F = FL;
+                return;
+            }
+            if (SR <= 0)
+            {
+                F = FR;
+                return;
+            }
+            real SS = 0;
+            real div = (UL(0) * (SL - veloL(0)) - UR(0) * (SR - veloR(0)));
+            if (std::abs(div) > verySmallReal)
+                SS = (pR - pL + UL(1) * (SL - veloL(0)) - UR(1) * (SR - veloR(0))) / div;
+            Eigen::Vector<real, 5> DS{0, 1, 0, 0, SS};
+            // SS += sign(SS) * std::exp(-std::abs(SS) / dLambda) * dLambda;
+            if (SS >= 0)
+            {
+                real div = SL - SS;
+                if (std::abs(div) < verySmallReal)
+                    F = FL;
+                else
+                    F = ((UL * SL - FL) * SS + DS * ((pL + UL(0) * (SL - veloL(0)) * (SS - veloL(0))) * SL)) / div;
+            }
+            else
+            {
+                real div = SR - SS;
+                if (std::abs(div) < verySmallReal)
+                    F = FR;
+                else
+                    F = ((UR * SR - FR) * SS + DS * ((pR + UR(0) * (SR - veloR(0)) * (SS - veloR(0))) * SR)) / div;
+            }
+        }
+
+        template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
+        void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
+                                        const TFdumpInfo &dumpInfo)
         {
             static real scaleHartenYee = 0.05;
 
@@ -171,7 +251,7 @@ namespace DNDS
             lam = lam.array().abs();
 
             //*HY
-            real thresholdHartenYee = scaleHartenYee * (std::sqrt(vsqrRoe) + aRoe);
+            real thresholdHartenYee = std::max(scaleHartenYee * (std::sqrt(vsqrRoe) + aRoe), dLambda);
             real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
             if (std::abs(lam0) < thresholdHartenYee)
                 lam(0) = (lam0 * lam0 + thresholdHartenYeeS) / (2 * thresholdHartenYee);

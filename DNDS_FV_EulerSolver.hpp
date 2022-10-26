@@ -20,6 +20,7 @@ namespace DNDS
         std::vector<real> lambdaCell;
         std::vector<real> lambdaFace;
         std::vector<real> lambdaFaceVis;
+        std::vector<real> deltaLambdaFace;
         std::vector<Eigen::Matrix<real, 10, 5>> dFdUFace;
         std::vector<Eigen::Matrix<real, 10, 5>> jacobianFace;
         std::vector<Eigen::Matrix<real, 5, 5>> jacobianCell;
@@ -71,6 +72,8 @@ namespace DNDS
             lambdaCell.resize(mesh->cell2nodeLocal.size()); // but only dist part are used, ghost part to not judge for it in facial iter
             lambdaFace.resize(mesh->face2nodeLocal.size());
             lambdaFaceVis.resize(lambdaFace.size());
+            deltaLambdaFace.resize(lambdaFace.size());
+
             dFdUFace.resize(lambdaFace.size());
             jacobianFace.resize(lambdaFace.size());
             jacobianCell.resize(lambdaCell.size());
@@ -98,7 +101,7 @@ namespace DNDS
                          ArrayLocal<SemiVarMatrix<5u>> &uRec, real t);
 
         void LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOF<5u> &u, int jacobianCode = 1,
-        real t = 0);
+                               real t = 0);
 
         void LUSGSADMatrixVec(ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &AuInc);
 
@@ -203,6 +206,8 @@ namespace DNDS
 
             bool useLocalDt = true;
             bool useLimiter = true;
+            int nPartialLimiterStart = 2;
+            int nPartialLimiterStartLocal = 500;
             int nForceLocalStartStep = -1;
             int nCFLRampStart = 1000;
             int nCFLRampLength = 10000;
@@ -244,7 +249,13 @@ namespace DNDS
             root.AddDNDS_Real("err_dMax", &config.err_dMax);
             root.AddDNDS_Real("res_base", &config.res_base);
             root.AddBool("useLocalDt", &config.useLocalDt);
+
             root.AddBool("useLimiter", &config.useLimiter);
+            root.AddInt("nPartialLimiterStart", &config.nPartialLimiterStart);
+            root.AddInt("nPartialLimiterStartLocal", &config.nPartialLimiterStartLocal);
+
+
+
             root.AddInt("nForceLocalStartStep", &config.nForceLocalStartStep);
 
             root.AddInt("nCFLRampStart", &config.nCFLRampStart);
@@ -501,7 +512,7 @@ namespace DNDS
                 curvilinearStepper++;
                 ode.Step(
                     u,
-                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx, real ct)
+                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx, int iter, real ct)
                     {
                         eval.FixUMaxFilter(u);
                         u.StartPersistentPullClean();
@@ -846,7 +857,7 @@ namespace DNDS
                 CFLNow = config.CFL;
                 ode.Step(
                     u, uInc,
-                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx, real ct)
+                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx, int iter, real ct)
                     {
                         eval.FixUMaxFilter(cx);
                         cx.StartPersistentPullClean();
@@ -869,6 +880,7 @@ namespace DNDS
                             //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
                             vfv->ReconstructionWBAPLimitFacialV2(
                                 cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
+                                iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                                 [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                     Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
                                     auto normBase = Elem::NormBuildLocalBaseV(n);

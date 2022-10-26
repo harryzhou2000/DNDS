@@ -21,6 +21,8 @@
     "rhsThresholdInternal": 1e-10,
     "useLocalDt": true,
     "useLimiter": false,
+    "nPartialLimiterStart": 100,
+    "nPartialLimiterStartLocal": 500,
     "nLimiterTurnOn": 0,
     "nLimiterTurnOnInternal": 10000,
     "nForceLocalStartStep": 1000000000,
