@@ -65,6 +65,7 @@
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
+        "riemannSolverType": "HLLEP",
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,

@@ -182,6 +182,7 @@ namespace DNDS
     void EulerEvaluator::EvaluateRHS(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u,
                                      ArrayLocal<SemiVarMatrix<5u>> &uRec, real t)
     {
+        Setting::RiemannSolverType rsType = settings.rsType;
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
         {
             rhs[iCell].setZero();
@@ -317,14 +318,36 @@ namespace DNDS
                                               VisFlux);
 
                     // Eigen::Vector<real, 5> F;
-                    Gas::HLLEFlux_IdealGas_HartenYee(
-                        UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
-                        [&]()
-                        {
-                            std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
-                            std::cout << "UL" << UL.transpose() << '\n';
-                            std::cout << "UR" << UR.transpose() << std::endl;
-                        });
+                    if (rsType == Setting::RiemannSolverType::HLLEP)
+                        Gas::HLLEPFlux_IdealGas(
+                            UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                            [&]()
+                            {
+                                std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                                std::cout << "UL" << UL.transpose() << '\n';
+                                std::cout << "UR" << UR.transpose() << std::endl;
+                            });
+                    else if (rsType == Setting::RiemannSolverType::HLLC)
+                        Gas::HLLCFlux_IdealGas_HartenYee(
+                            UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                            [&]()
+                            {
+                                std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                                std::cout << "UL" << UL.transpose() << '\n';
+                                std::cout << "UR" << UR.transpose() << std::endl;
+                            });
+                    else if (rsType == Setting::RiemannSolverType::Roe)
+                        Gas::RoeFlux_IdealGas_HartenYee(
+                            UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                            [&]()
+                            {
+                                std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                                std::cout << "UL" << UL.transpose() << '\n';
+                                std::cout << "UR" << UR.transpose() << std::endl;
+                            });
+                    else
+                        assert(false);
+
                     finc({1, 2, 3}) = normBase * finc({1, 2, 3});
                     finc -= VisFlux.transpose() * unitNorm;
                     finc *= -vfv->faceNorms[iFace][ig].norm(); // don't forget this

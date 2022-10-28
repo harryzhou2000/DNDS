@@ -150,6 +150,7 @@ namespace DNDS
         std::shared_ptr<Array<SmallMatricesBatch>> matrixBatch; // matrixInvAB[i][icf + 1] = the A^-1B of cell i's icf neighbour, invAb[i].m(0) is cell i's A^-1
                                                                 // note that the dof dimensions of these rec data excludes the mean-value/const-rec dof
         std::shared_ptr<std::vector<Eigen::MatrixXd>> matrixAii;
+        std::shared_ptr<std::vector<Eigen::MatrixXd>> matrixInnerProd;
         std::shared_ptr<std::vector<index>> SOR_iScan2iCell;
         std::shared_ptr<std::vector<index>> SOR_iCell2iScan;
 
@@ -1322,6 +1323,8 @@ namespace DNDS
             index nlocalCells = mesh->cell2nodeLocal.size();
             cellGaussJacobiDets.resize(nlocalCells);
 
+            matrixInnerProd = std::make_shared<decltype(matrixInnerProd)::element_type>(mesh->cell2faceLocal.pair->size());
+
             // * Allocate space for cellDiBjGaussBatch
             auto fGetCellDiBjGaussSize = [&](int &nmat, std::vector<int> &matSizes, index iCell)
             {
@@ -1422,6 +1425,19 @@ namespace DNDS
                                        cellDiBjGaussBatchElem.m(ig));
                         cellGaussJacobiDets[iCell][ig] = Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
                     }
+                    (*matrixInnerProd)[iCell].resize(cellRecAtr.NDOF - 1, cellRecAtr.NDOF - 1);
+                    (*matrixInnerProd)[iCell].setZero();
+
+                    eCell.Integration(
+                        (*matrixInnerProd)[iCell],
+                        [&](Eigen::MatrixXd &incA, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
+                        {
+                            Eigen::MatrixXd ZeroDs = cellDiBjGaussBatchElem.m(ig)({0}, Eigen::seq(1, cellRecAtr.NDOF - 1));
+                            incA = ZeroDs.transpose() * ZeroDs * (1.0 / FV->volumeLocal[iCell]);
+                            incA *= cellGaussJacobiDets[iCell][ig];
+                        });
+                    // std::cout << (*matrixInnerProd)[iCell] << std::endl;
+                    // assert(false);
                 });
             // InsertCheck(mpi, "initBaseDiffCache Cell Ended");
 
@@ -2485,6 +2501,7 @@ namespace DNDS
             // std::cout << u1 << std::endl;
 
             uOut = (u1p * u2 + n * u2p * u1) / ((u1p + n * u2p) + verySmallReal);
+            uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
             // std::cout << u2 << std::endl;
         }
 
@@ -3049,9 +3066,6 @@ namespace DNDS
                             Elem::tPoint sScaleOther = CoordMinMaxScale(coords);
 
                             Elem::tPoint unitNorm = faceNormCenter[iFace].stableNormalized();
-                            
-
-
 
                             auto &cOther2f = mesh->cell2faceLocal[iCellOther];
                             index icOther2f = 0;
@@ -3157,6 +3171,33 @@ namespace DNDS
 
                 uRecNewBuf.StartPersistentPullClean();
                 uRecNewBuf.WaitPersistentPullClean();
+            }
+            for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
+            {
+                // index iCell = iScan;
+                // if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale && (!ifAll))
+                //     continue;
+                // Eigen::MatrixXd norm0 = (((*matrixInnerProd)[iCell] * uRec[iCell].m()).array() * uRec[iCell].m().array()).colwise().sum().sqrt();
+                // Eigen::MatrixXd norm1 = (((*matrixInnerProd)[iCell] * uRecNewBuf[iCell].m()).array() * uRecNewBuf[iCell].m().array()).colwise().sum().sqrt();
+                // Eigen::RowVectorXd scaleFactor = ((norm0.array()) / (norm1.array() + verySmallReal));
+                // // Eigen::RowVectorXd scaleFactorC = scaleFactor.array().min((scaleFactor.array() + verySmallReal).pow(-1));
+                // Eigen::RowVectorXd scaleFactorC = (scaleFactor.array() * 1).min(1);
+                // uRecNewBuf[iCell].m().array().rowwise() *= scaleFactorC.array();
+                // // uRecNewBuf[iCell].m() += 0.1 * uRec[iCell].m();
+
+                // Eigen::MatrixXd incURec = uRecNewBuf[iCell].m();
+
+                // // if (norm0.norm() > 1e-5)
+                // // {
+                // //     std::cout << "Norms: \n";
+                // //     std::cout << scaleFactor << "\n";
+                // //     std::cout << norm0 << "\n";
+                // //     std::cout << norm1 << std::endl;
+                // // }
+                // // if (scaleFactor.maxCoeff() > 1.01)
+                // // {
+                // //     std::cout << scaleFactor << std::endl;
+                // // }
             }
         }
 

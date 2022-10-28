@@ -11,6 +11,7 @@ namespace DNDS
                 auto type = std::get<0>(i);
                 auto ptr = std::get<1>(i);
                 auto &name = std::get<2>(i);
+                auto &post = std::get<3>(i);
                 switch (type)
                 {
                 case ItemType::Object:
@@ -167,6 +168,7 @@ namespace DNDS
                     assert(false);
                     break;
                 }
+                post();
             }
         }
     }

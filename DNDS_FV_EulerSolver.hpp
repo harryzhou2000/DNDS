@@ -31,6 +31,12 @@ namespace DNDS
 
         struct Setting
         {
+            enum RiemannSolverType
+            {
+                Roe = 1,
+                HLLC = 2,
+                HLLEP = 3
+            } rsType = Roe;
             struct IdealGasProperty
             {
                 real gamma = 1.4;
@@ -254,8 +260,6 @@ namespace DNDS
             root.AddInt("nPartialLimiterStart", &config.nPartialLimiterStart);
             root.AddInt("nPartialLimiterStartLocal", &config.nPartialLimiterStartLocal);
 
-
-
             root.AddInt("nForceLocalStartStep", &config.nForceLocalStartStep);
 
             root.AddInt("nCFLRampStart", &config.nCFLRampStart);
@@ -287,8 +291,22 @@ namespace DNDS
             root.AddDNDS_Real("vDropVisScale", &config.vDropVisScale);
 
             JSON::ParamParser eulerParser(mpi);
+            std::string RSName;
             root.AddObject("eulerSetting", &eulerParser);
             {
+                eulerParser.Addstd_String(
+                    "riemannSolverType", &RSName,
+                    [&]()
+                    {
+                        if (RSName == "Roe")
+                            config.eulerSetting.rsType = EulerEvaluator::Setting::RiemannSolverType::Roe;
+                        else if (RSName == "HLLC")
+                            config.eulerSetting.rsType = EulerEvaluator::Setting::RiemannSolverType::HLLC;
+                         else if (RSName == "HLLEP")
+                            config.eulerSetting.rsType = EulerEvaluator::Setting::RiemannSolverType::HLLEP;
+                        else
+                            assert(false);
+                    });
                 eulerParser.AddDNDS_Real("visScale", &config.eulerSetting.visScale);
                 eulerParser.AddDNDS_Real("visScaleIn", &config.eulerSetting.visScaleIn);
                 eulerParser.AddDNDS_Real("ekCutDown", &config.eulerSetting.ekCutDown);
@@ -309,15 +327,55 @@ namespace DNDS
             }
             Eigen::VectorXd eulerSetting_farFieldStaticValueBuf;
             {
-                eulerParser.AddEigen_RealVec("farFieldStaticValue", &eulerSetting_farFieldStaticValueBuf);
+                eulerParser.AddEigen_RealVec(
+                    "farFieldStaticValue", &eulerSetting_farFieldStaticValueBuf,
+                    [&]()
+                    {
+                        assert(eulerSetting_farFieldStaticValueBuf.size() == 5);
+                        config.eulerSetting.farFieldStaticValue = eulerSetting_farFieldStaticValueBuf;
+                    });
             }
             Eigen::VectorXd eulerSetting_boxInitializerValueBuf;
             {
-                eulerParser.AddEigen_RealVec("boxInitializerValue", &eulerSetting_boxInitializerValueBuf);
+                eulerParser.AddEigen_RealVec(
+                    "boxInitializerValue", &eulerSetting_boxInitializerValueBuf,
+                    [&]()
+                    {
+                        assert(eulerSetting_boxInitializerValueBuf.size() % (6 + 5) == 0);
+                        config.eulerSetting.boxInitializers.resize(eulerSetting_boxInitializerValueBuf.size() / (6 + 5));
+                        auto &boxVec = config.eulerSetting.boxInitializers;
+                        for (int iInit = 0; iInit < boxVec.size(); iInit++)
+                        {
+                            boxVec[iInit].x0 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 0);
+                            boxVec[iInit].x1 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 1);
+                            boxVec[iInit].y0 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 2);
+                            boxVec[iInit].y1 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 3);
+                            boxVec[iInit].z0 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 4);
+                            boxVec[iInit].z1 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 5);
+                            boxVec[iInit].v = eulerSetting_boxInitializerValueBuf(
+                                Eigen::seq((6 + 5) * iInit + 6, (6 + 5) * iInit + 6 + 5 - 1));
+                        }
+                    });
             }
             Eigen::VectorXd eulerSetting_planeInitializerValueBuf;
             {
-                eulerParser.AddEigen_RealVec("planeInitializerValue", &eulerSetting_planeInitializerValueBuf);
+                eulerParser.AddEigen_RealVec(
+                    "planeInitializerValue", &eulerSetting_planeInitializerValueBuf,
+                    [&]()
+                    {
+                        assert(eulerSetting_planeInitializerValueBuf.size() % (4 + 5) == 0);
+                        config.eulerSetting.planeInitializers.resize(eulerSetting_planeInitializerValueBuf.size() / (4 + 5));
+                        auto &planeVec = config.eulerSetting.planeInitializers;
+                        for (int iInit = 0; iInit < planeVec.size(); iInit++)
+                        {
+                            planeVec[iInit].a = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 0);
+                            planeVec[iInit].b = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 1);
+                            planeVec[iInit].c = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 2);
+                            planeVec[iInit].h = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 3);
+                            planeVec[iInit].v = eulerSetting_planeInitializerValueBuf(
+                                Eigen::seq((4 + 5) * iInit + 4, (4 + 5) * iInit + 4 + 5 - 1));
+                        }
+                    });
             }
 
             root.AddInt("curvilinearOneStep", &config.curvilinearOneStep);
@@ -327,36 +385,6 @@ namespace DNDS
             root.AddDNDS_Real("curvilinearRange", &config.curvilinearRange);
 
             root.Parse(doc.GetObject(), 0);
-            assert(eulerSetting_farFieldStaticValueBuf.size() == 5);
-            config.eulerSetting.farFieldStaticValue = eulerSetting_farFieldStaticValueBuf;
-
-            assert(eulerSetting_boxInitializerValueBuf.size() % (6 + 5) == 0);
-            config.eulerSetting.boxInitializers.resize(eulerSetting_boxInitializerValueBuf.size() / (6 + 5));
-            auto &boxVec = config.eulerSetting.boxInitializers;
-            for (int iInit = 0; iInit < boxVec.size(); iInit++)
-            {
-                boxVec[iInit].x0 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 0);
-                boxVec[iInit].x1 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 1);
-                boxVec[iInit].y0 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 2);
-                boxVec[iInit].y1 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 3);
-                boxVec[iInit].z0 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 4);
-                boxVec[iInit].z1 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 5);
-                boxVec[iInit].v = eulerSetting_boxInitializerValueBuf(
-                    Eigen::seq((6 + 5) * iInit + 6, (6 + 5) * iInit + 6 + 5 - 1));
-            }
-
-            assert(eulerSetting_planeInitializerValueBuf.size() % (4 + 5) == 0);
-            config.eulerSetting.planeInitializers.resize(eulerSetting_planeInitializerValueBuf.size() / (4 + 5));
-            auto &planeVec = config.eulerSetting.planeInitializers;
-            for (int iInit = 0; iInit < planeVec.size(); iInit++)
-            {
-                planeVec[iInit].a = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 0);
-                planeVec[iInit].b = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 1);
-                planeVec[iInit].c = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 2);
-                planeVec[iInit].h = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 3);
-                planeVec[iInit].v = eulerSetting_planeInitializerValueBuf(
-                    Eigen::seq((4 + 5) * iInit + 4, (4 + 5) * iInit + 4 + 5 - 1));
-            }
 
             if (mpi.rank == 0)
                 log() << "JSON: Parse Done ===" << std::endl;
@@ -927,6 +955,10 @@ namespace DNDS
                                 });
                             uRecNew.StartPersistentPullClean();
                             uRecNew.WaitPersistentPullClean();
+                            for(int i = 0; i < uRec.size(); i++)
+                            {
+                                // uRec[i].m() = uRecNew[i].m(); // Do Embedded Limiting
+                            }
                         }
                         tLim += MPI_Wtime() - tstartH;
 

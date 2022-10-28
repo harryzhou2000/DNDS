@@ -132,7 +132,93 @@ namespace DNDS
         }
 
         template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
-        void HLLEFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
+        void HLLEPFlux_IdealGas(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
+                            const TFdumpInfo &dumpInfo)
+        {
+            static real scaleHartenYee = 0.05;
+
+            if (!(UL(0) > 0 && UR(0) > 0))
+            {
+                dumpInfo();
+            }
+            assert(UL(0) > 0 && UR(0) > 0);
+            tVec veloL = (UL({1, 2, 3}).array() / UL(0)).matrix();
+            tVec veloR = (UR({1, 2, 3}).array() / UR(0)).matrix();
+            real asqrL, asqrR, pL, pR, HL, HR;
+            real vsqrL = veloL.squaredNorm();
+            real vsqrR = veloR.squaredNorm();
+            IdealGasThermal(UL(4), UL(0), vsqrL, gamma, pL, asqrL, HL);
+            IdealGasThermal(UR(4), UR(0), vsqrR, gamma, pR, asqrR, HR);
+            real sqrtRhoL = std::sqrt(UL(0));
+            real sqrtRhoR = std::sqrt(UR(0));
+
+            tVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
+            real vsqrRoe = veloRoe.squaredNorm();
+            real HRoe = (sqrtRhoL * HL + sqrtRhoR * HR) / (sqrtRhoL + sqrtRhoR);
+            real asqrRoe = (gamma - 1) * (HRoe - 0.5 * vsqrRoe);
+            real rhoRoe = sqrtRhoL * sqrtRhoR;
+
+            if (!(asqrRoe > 0 && asqrL > 0 && asqrR > 0))
+            {
+                dumpInfo();
+            }
+            assert((asqrRoe > 0 && asqrL > 0 && asqrR > 0));
+            real aRoe = std::sqrt(asqrRoe);
+
+            real lam0 = veloRoe(0) - aRoe;
+            real lam123 = veloRoe(0);
+            real lam4 = veloRoe(0) + aRoe;
+            Eigen::Vector<real, 5> lam = {lam0, lam123, lam123, lam123, lam4};
+            lam = lam.array().abs();
+
+            //*HY
+            // real thresholdHartenYee = std::max(scaleHartenYee * (std::sqrt(vsqrRoe) + aRoe), dLambda);
+            // real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
+            // if (std::abs(lam0) < thresholdHartenYee)
+            //     lam(0) = (lam0 * lam0 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+            // if (std::abs(lam4) < thresholdHartenYee)
+            //     lam(4) = (lam4 * lam4 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+            //*HY
+            Eigen::Vector<real, 5> alpha;
+            Eigen::Matrix<real, 5, 5> ReVRoe;
+            EulerGasRightEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
+            // Eigen::Matrix<real, 5, 5> LeVRoe;
+            // EulerGasLeftEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, LeVRoe);
+            // alpha = LeVRoe * (UR - UL);
+
+            Eigen::Vector<real, 5> incU = UR - UL;
+            real incP = pR - pL;
+            Gas::tVec incVelo = veloR - veloL;
+            
+
+            alpha(2) = incU(2) - veloRoe(1) * incU(0);
+            alpha(3) = incU(3) - veloRoe(2) * incU(0);
+            real incU4b = incU(4) - alpha(2) * veloRoe(1) - alpha(3) * veloRoe(2);
+            alpha(1) = (gamma - 1) / asqrRoe *
+                       (incU(0) * (HRoe - veloRoe(0) * veloRoe(0)) +
+                        veloRoe(0) * incU(1) - incU4b);
+            alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
+            alpha(4) = incU(0) - (alpha(0) + alpha(1));
+
+            real SL = std::min(lam0, veloL(0) - std::sqrt(asqrL));
+            real SR = std::max(lam4, veloR(0) + std::sqrt(asqrR));
+            real UU = std::abs(veloRoe(0));
+
+            real dfix = aRoe / (aRoe + UU);
+
+            Eigen::Vector<real, 5> FL, FR;
+            GasInviscidFlux(UL, veloL, pL, FL);
+            GasInviscidFlux(UR, veloR, pR, FR);
+            real SP = std::max(SR, 0.0);
+            real SM = std::min(SL, 0.0);
+            real div = SP - SM;
+            div += sign(div) * verySmallReal;
+
+            F = (SP * FL - SM * FR) / div + (SP*SM/div) * (UR - UL - dfix *  ReVRoe(Eigen::all, {1,2,3}) * alpha({1,2,3}));
+        }
+
+        template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
+        void HLLCFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
                                          const TFdumpInfo &dumpInfo)
         {
             static real scaleHartenYee = 0.05;
@@ -169,8 +255,11 @@ namespace DNDS
             real SL = veloRoe(0) - sqrt(dsqr);
             real SR = veloRoe(0) + sqrt(dsqr);
             dLambda += verySmallReal;
-            SL += sign(SL) * std::exp(-std::abs(SL) / dLambda) * dLambda;
-            SR += sign(SR) * std::exp(-std::abs(SR) / dLambda) * dLambda;
+            dLambda *= 2.0;
+
+            // * E-Fix
+            // SL += sign(SL) * std::exp(-std::abs(SL) / dLambda) * dLambda;
+            // SR += sign(SR) * std::exp(-std::abs(SR) / dLambda) * dLambda;
 
             Eigen::Vector<real, 5> FL, FR;
             GasInviscidFlux(UL, veloL, pL, FL);

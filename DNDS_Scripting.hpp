@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include "DNDS_Defines.h"
 #include "DNDS_MPI.hpp"
 #include "Eigen/Dense"
@@ -27,6 +28,8 @@ namespace DNDS
 
         class ParamParser // ! bad!
         {
+            using tFPost = std::function<void()>;
+
             MPIInfo mpi;
             enum ItemType
             {
@@ -40,7 +43,7 @@ namespace DNDS
             // rapidjson::Document *doc = nullptr;
             // rapidjson::Value::Object obj;
             // std::vector<std::string> prefix;
-            typedef std::tuple<ItemType, void *, std::string> listComponent;
+            typedef std::tuple<ItemType, void *, std::string, tFPost> listComponent;
             std::vector<listComponent> list;
 
         public:
@@ -69,43 +72,48 @@ namespace DNDS
                 // }
             }
 
-            void AddObject(const std::string &name, ParamParser *pParser)
+            void AddObject(
+                const std::string &name, ParamParser *pParser, const tFPost &post = []() {})
             {
                 // std::vector<std::string> newPrefix = prefix;
                 // newPrefix.push_back(name);
 
                 // assert(obj[name.c_str()].IsObject());
                 // ParamParser *pParser = new ParamParser(obj[name.c_str()].GetObject(), mpi);
-                list.push_back(std::make_tuple(Object, (void *)(pParser), name));
+                list.push_back(std::make_tuple(Object, (void *)(pParser), name, post));
             }
 
-            void AddInt(const std::string &name, int *dest)
+            void AddInt(
+                const std::string &name, int *dest, const tFPost &post = []() {})
             {
-                list.push_back(std::make_tuple(ItemType::Int, (void *)(dest), name));
+                list.push_back(std::make_tuple(ItemType::Int, (void *)(dest), name, post));
             }
 
-            void AddDNDS_Real(const std::string &name, real *dest)
+            void AddDNDS_Real(
+                const std::string &name, real *dest, const tFPost &post = []() {})
             {
-                list.push_back(std::make_tuple(ItemType::DNDS_Real, (void *)(dest), name));
+                list.push_back(std::make_tuple(ItemType::DNDS_Real, (void *)(dest), name, post));
             }
 
-            void AddBool(const std::string &name, bool *dest)
+            void AddBool(
+                const std::string &name, bool *dest, const tFPost &post = []() {})
             {
-                list.push_back(std::make_tuple(ItemType::Bool, (void *)(dest), name));
+                list.push_back(std::make_tuple(ItemType::Bool, (void *)(dest), name, post));
             }
 
-            void Addstd_String(const std::string &name, std::string *dest)
+            void Addstd_String(
+                const std::string &name, std::string *dest, const tFPost &post = []() {})
             {
-                list.push_back(std::make_tuple(ItemType::std_String, (void *)(dest), name));
+                list.push_back(std::make_tuple(ItemType::std_String, (void *)(dest), name, post));
             }
 
-            void AddEigen_RealVec(const std::string &name, Eigen::VectorXd *dest)
+            void AddEigen_RealVec(
+                const std::string &name, Eigen::VectorXd *dest, const tFPost &post = []() {})
             {
-                list.push_back(std::make_tuple(ItemType::Eigen_RealVec, (void *)(dest), name));
+                list.push_back(std::make_tuple(ItemType::Eigen_RealVec, (void *)(dest), name, post));
             }
 
             void Parse(const rapidjson::Value::Object &cObj, int iden);
-            
         };
 
     }
