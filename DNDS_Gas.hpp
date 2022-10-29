@@ -133,7 +133,7 @@ namespace DNDS
 
         template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void HLLEPFlux_IdealGas(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
-                            const TFdumpInfo &dumpInfo)
+                                const TFdumpInfo &dumpInfo)
         {
             static real scaleHartenYee = 0.05;
 
@@ -187,11 +187,9 @@ namespace DNDS
             // alpha = LeVRoe * (UR - UL);
             // std::cout << alpha.transpose() << "\n";
 
-
             Eigen::Vector<real, 5> incU = UR - UL;
             real incP = pR - pL;
             Gas::tVec incVelo = veloR - veloL;
-            
 
             alpha(2) = incU(2) - veloRoe(1) * incU(0);
             alpha(3) = incU(3) - veloRoe(2) * incU(0);
@@ -203,7 +201,6 @@ namespace DNDS
             alpha(4) = incU(0) - (alpha(0) + alpha(1));
             // std::cout << alpha.transpose() << std::endl;
             // std::cout << std::endl;
-
 
             real SL = std::min(lam0, veloL(0) - std::sqrt(asqrL));
             real SR = std::max(lam4, veloR(0) + std::sqrt(asqrR));
@@ -219,7 +216,8 @@ namespace DNDS
             real div = SP - SM;
             div += sign(div) * verySmallReal;
 
-            F = (SP * FL - SM * FR) / div + (SP*SM/div) * (UR - UL - dfix *  ReVRoe(Eigen::all, {1,2,3}) * alpha({1,2,3}));
+            // F = (SP * FL - SM * FR) / div + (SP * SM / div) * (UR - UL - dfix * ReVRoe(Eigen::all, {1, 2, 3}) * alpha({1, 2, 3}));
+            F = (SP * FL - SM * FR) / div + (SP * SM / div) * (UR - UL - dfix * ReVRoe(Eigen::all, {1}) * alpha({1}));
         }
 
         template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
