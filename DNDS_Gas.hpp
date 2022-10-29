@@ -183,8 +183,10 @@ namespace DNDS
             Eigen::Matrix<real, 5, 5> ReVRoe;
             EulerGasRightEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
             // Eigen::Matrix<real, 5, 5> LeVRoe;
-            // EulerGasLeftEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, LeVRoe);
+            // EulerGasLeftEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, gamma, LeVRoe);
             // alpha = LeVRoe * (UR - UL);
+            // std::cout << alpha.transpose() << "\n";
+
 
             Eigen::Vector<real, 5> incU = UR - UL;
             real incP = pR - pL;
@@ -199,6 +201,9 @@ namespace DNDS
                         veloRoe(0) * incU(1) - incU4b);
             alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
             alpha(4) = incU(0) - (alpha(0) + alpha(1));
+            // std::cout << alpha.transpose() << std::endl;
+            // std::cout << std::endl;
+
 
             real SL = std::min(lam0, veloL(0) - std::sqrt(asqrL));
             real SR = std::max(lam4, veloR(0) + std::sqrt(asqrR));

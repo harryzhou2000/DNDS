@@ -2501,7 +2501,7 @@ namespace DNDS
             // std::cout << u1 << std::endl;
 
             uOut = (u1p * u2 + n * u2p * u1) / ((u1p + n * u2p) + verySmallReal);
-            uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
+            // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
             // std::cout << u2 << std::endl;
         }
 
