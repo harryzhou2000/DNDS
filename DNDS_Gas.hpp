@@ -549,8 +549,9 @@ namespace DNDS
             Flux({0, 1, 2}, {1, 2, 3}) =
                 (strainRate + strainRate.transpose()) * mu +
                 Eigen::Matrix3d::Identity() * (lambda * mu * strainRate.trace());
-            auto viscousStress = Flux({0, 1, 2}, {1, 2, 3});
-            Flux({0, 1, 2}, 4) = viscousStress * velo + k * GradT;
+            // std::cout << "FUCK A.A" << std::endl;
+            Flux({0, 1, 2}, 4) = Flux({0, 1, 2}, {1, 2, 3}) * velo + k * GradT;
+            // std::cout << "FUCK A.B" << std::endl;
         }
     }
 }

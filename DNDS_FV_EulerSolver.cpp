@@ -285,7 +285,7 @@ namespace DNDS
                         URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
 
                         GradURxy = GradULxy;
-                        assert(false);
+                        // assert(false);
                     }
                     else if (faceAtr.iPhy == BoundaryType::Wall)
                     {

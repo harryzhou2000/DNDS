@@ -1,5 +1,5 @@
-export OMPI_CXX=clang++
-# export OMPI_CXX=g++
+# export OMPI_CXX=clang++
+export OMPI_CXX=g++
 
 first: what
 
@@ -24,7 +24,7 @@ PYTHON_LDFLAGS=$(/usr/bin/python3-config  --ldflags)
 INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS}
 LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis -llapacke -lopenblas
 
-CXX_COMPILE_FLAGS=${INCLUDE} -std=c++14 -Wall -Wno-comment -Wno-unused-variable -Wno-sign-compare -Wno-unused-but-set-variable
+CXX_COMPILE_FLAGS=${INCLUDE} -std=c++14 -Wall -Wno-comment -Wno-unused-variable -Wno-sign-compare -Wno-unused-but-set-variable -Wno-class-memaccess
 CXX_LINK_FLAGS=${LINK}
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe\

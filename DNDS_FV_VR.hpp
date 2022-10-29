@@ -2337,8 +2337,7 @@ namespace DNDS
                                     uBV.setZero();
                                     uBV(0) = uBL(0);
                                     Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
-                                    auto uBLMomentum = uBL({1, 2, 3});
-                                    uBV({1, 2, 3}) = uBLMomentum - normOut * (normOut.dot(uBLMomentum));
+                                    uBV({1, 2, 3}) = uBL({1, 2, 3}) - normOut * (normOut.dot(uBV({1, 2, 3})));
                                     uBV(4) = uBL(4);
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell].p()).transpose();
@@ -2501,7 +2500,7 @@ namespace DNDS
             // std::cout << u1 << std::endl;
 
             uOut = (u1p * u2 + n * u2p * u1) / ((u1p + n * u2p) + verySmallReal);
-            // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
+            uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
             // std::cout << u2 << std::endl;
         }
 
