@@ -2607,6 +2607,62 @@ namespace DNDS
             // std::cout << u2 << std::endl;
         }
 
+        template <typename Tin1, typename Tin2, typename Tout>
+        inline void FWBAP_L2_Biway_Polynomial2D(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
+        {
+            static const int p = 4;
+            // static const real n = 10.0;
+            static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+            Eigen::ArrayXXd uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
+            uMax.rowwise() = uMax.colwise().maxCoeff();
+            Eigen::ArrayXd u1p, u2p;
+            Eigen::ArrayXXd theta1 = u1 / uMax;
+            Eigen::ArrayXXd theta2 = u2 / uMax;
+            switch (u1.rows())
+            {
+            case 2:
+                u1p =
+                    theta1(0, Eigen::all).pow(2) +
+                    theta1(1, Eigen::all).pow(2);
+                u2p =
+                    theta2(0, Eigen::all).pow(2) +
+                    theta2(1, Eigen::all).pow(2);
+                break;
+            case 3:
+                u1p =
+                    theta1(0, Eigen::all).pow(2) +
+                    theta1(1, Eigen::all).pow(2) * 0.5 +
+                    theta1(2, Eigen::all).pow(2);
+                u2p =
+                    theta2(0, Eigen::all).pow(2) +
+                    theta2(1, Eigen::all).pow(2) * 0.5 +
+                    theta2(2, Eigen::all).pow(2);
+                break;
+            case 4:
+                u1p =
+                    theta1(0, Eigen::all).pow(2) +
+                    theta1(1, Eigen::all).pow(2) * (1. / 3.) +
+                    theta1(2, Eigen::all).pow(2) * (1. / 3.) +
+                    theta1(3, Eigen::all).pow(2);
+                u2p =
+                    theta2(0, Eigen::all).pow(2) +
+                    theta2(1, Eigen::all).pow(2) * (1. / 3.) +
+                    theta2(2, Eigen::all).pow(2) * (1. / 3.) +
+                    theta2(3, Eigen::all).pow(2);
+                break;
+
+            default:
+                assert(false);
+                break;
+            }
+            u1p = u1p.pow(p/2);
+            u2p = u2p.pow(p/2);
+
+            uOut = (u2.rowwise() * u1p.transpose() + n * (u1.rowwise() * u2p.transpose())).rowwise() / ((u1p + n * u2p) + verySmallReal).transpose();
+            // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
+            // std::cout << u2 << std::endl;
+        }
+
         template <typename TinC, typename TinOthers, typename Tout>
         inline void FWBAP_LE_Multiway(const TinC &uC, const TinOthers &uOthers, int Nother, Tout &uOut)
         {
@@ -3213,7 +3269,7 @@ namespace DNDS
                             //     real eIS = (ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / (setting.WBAP_SmoothIndicatorScale);
                             //     n *= std::exp((1 - eIS) * 10);
                             // }
-                            FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
+                            FWBAP_L2_Biway_Polynomial2D(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
                             if (uLimOutArray.hasNaN())
                             {
                                 std::cout << uThisIn.array().transpose() << std::endl;
