@@ -1428,16 +1428,29 @@ namespace DNDS
                     (*matrixInnerProd)[iCell].resize(cellRecAtr.NDOF - 1, cellRecAtr.NDOF - 1);
                     (*matrixInnerProd)[iCell].setZero();
 
-                    eCell.Integration(
+                    Elem::ElementManager eCellHigh(cellAtr.type, Elem::INT_SCHEME_QUAD_16);
+                    eCellHigh.Integration(
                         (*matrixInnerProd)[iCell],
                         [&](Eigen::MatrixXd &incA, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
                         {
-                            Eigen::MatrixXd ZeroDs = cellDiBjGaussBatchElem.m(ig)({0}, Eigen::seq(1, cellRecAtr.NDOF - 1));
+                            Eigen::MatrixXd DiBj(1, cellRecAtr.NDOF);
+                            FDiffBaseValue(iCell, eCell, coords, iDiNj,
+                                           ip, getCellCenter(iCell), sScale,
+                                           baseMoments[iCell],
+                                           DiBj);
+                            Eigen::MatrixXd ZeroDs = DiBj({0}, Eigen::seq(1, cellRecAtr.NDOF - 1));
                             incA = ZeroDs.transpose() * ZeroDs * (1.0 / FV->volumeLocal[iCell]);
-                            incA *= cellGaussJacobiDets[iCell][ig];
+                            incA *= Elem::DiNj2Jacobi(iDiNj, coords)({0, 1}, {0, 1}).determinant();
                         });
-                    // std::cout << (*matrixInnerProd)[iCell] << std::endl;
-                    // assert(false);
+
+                    auto lltResult = (*matrixInnerProd)[iCell].llt();
+                    Eigen::Index nllt = (*matrixInnerProd)[iCell].rows();
+                    Eigen::MatrixXd LOrth = lltResult.matrixL().solve(Eigen::MatrixXd::Identity(nllt, nllt));
+                    std::cout << (*matrixInnerProd)[iCell] << std::endl;
+                    std::cout << "Orth converter" << std::endl;
+                    std::cout << LOrth << std::endl;
+                    assert(false);
+                    // TODO: decide if convert stored bases;
                 });
             // InsertCheck(mpi, "initBaseDiffCache Cell Ended");
 
@@ -2655,8 +2668,8 @@ namespace DNDS
                 assert(false);
                 break;
             }
-            u1p = u1p.pow(p/2);
-            u2p = u2p.pow(p/2);
+            u1p = u1p.pow(p / 2);
+            u2p = u2p.pow(p / 2);
 
             uOut = (u2.rowwise() * u1p.transpose() + n * (u1.rowwise() * u2p.transpose())).rowwise() / ((u1p + n * u2p) + verySmallReal).transpose();
             // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!

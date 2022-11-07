@@ -1,5 +1,5 @@
-# export OMPI_CXX=clang++
-export OMPI_CXX=g++
+export OMPI_CXX=clang++
+# export OMPI_CXX=g++
 
 first: what
 
