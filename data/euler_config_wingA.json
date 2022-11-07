@@ -60,7 +60,9 @@
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 0.1
+        "WBAP_SmoothIndicatorScale": 0.1,
+        "normWBAP": false,
+        "orthogonalizeBase": false
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,

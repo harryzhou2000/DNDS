@@ -191,6 +191,10 @@ namespace DNDS
 
             real WBAP_SmoothIndicatorScale = 1e-10;
             real WBAP_nStd = 10.0;
+            bool normWBAP = false;
+
+            bool orthogonalizeBase = false;
+            
 
         } setting;
         // **********************************************************************************************************************
@@ -1428,7 +1432,21 @@ namespace DNDS
                     (*matrixInnerProd)[iCell].resize(cellRecAtr.NDOF - 1, cellRecAtr.NDOF - 1);
                     (*matrixInnerProd)[iCell].setZero();
 
-                    Elem::ElementManager eCellHigh(cellAtr.type, Elem::INT_SCHEME_QUAD_16);
+                    Elem::tIntScheme HighScheme = -1;
+                    switch (eCell.getPspace())
+                    {
+                    case Elem::ParamSpace::QuadSpace:
+                        HighScheme = Elem::INT_SCHEME_QUAD_25;
+                        break;
+                    case Elem::ParamSpace::TriSpace:
+                        HighScheme = Elem::INT_SCHEME_TRI_13;
+                        break;
+                    default:
+                        assert(false);
+                        break;
+                    }
+
+                    Elem::ElementManager eCellHigh(cellAtr.type, HighScheme);
                     eCellHigh.Integration(
                         (*matrixInnerProd)[iCell],
                         [&](Eigen::MatrixXd &incA, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
@@ -1438,19 +1456,42 @@ namespace DNDS
                                            ip, getCellCenter(iCell), sScale,
                                            baseMoments[iCell],
                                            DiBj);
-                            Eigen::MatrixXd ZeroDs = DiBj({0}, Eigen::seq(1, cellRecAtr.NDOF - 1));
+                            Eigen::MatrixXd ZeroDs = DiBj({0}, Eigen::seq(1, Eigen::last));
                             incA = ZeroDs.transpose() * ZeroDs * (1.0 / FV->volumeLocal[iCell]);
                             incA *= Elem::DiNj2Jacobi(iDiNj, coords)({0, 1}, {0, 1}).determinant();
                         });
+                    if (setting.orthogonalizeBase)
+                    {
+                        //* do the converting from natural base to orth base
+                        auto ldltResult = (*matrixInnerProd)[iCell].ldlt();
+                        if (ldltResult.vectorD()(Eigen::last) < smallReal)
+                        {
+                            std::cout << "Orth llt failure";
+                            assert(false);
+                        }
+                        auto lltResult = (*matrixInnerProd)[iCell].llt();
+                        Eigen::Index nllt = (*matrixInnerProd)[iCell].rows();
+                        Eigen::MatrixXd LOrth = lltResult.matrixL().solve(Eigen::MatrixXd::Identity(nllt, nllt));
+                        // std::cout << "Orth converter Orig" << std::endl;
+                        // std::cout << LOrth << std::endl;
+                        // std::cout << LOrth.array().abs().rowwise().sum().matrix().asDiagonal() << std::endl;//! using asDiagonal is buggy here!
+                        // LOrth = LOrth.array().abs().rowwise().sum().matrix().asDiagonal().inverse() * LOrth; //! buggy inplace calculation!
+                        // std::cout << LOrth << std::endl;
+                        // std::cout << LOrth.array().abs().rowwise().sum().matrix().asDiagonal().inverse() * LOrth << std::endl;
+                        
+                        LOrth = (LOrth.array().colwise() / LOrth.array().abs().rowwise().sum()).matrix();
+                        // std::cout << "Inner Product" << std::endl;
+                        // std::cout << (*matrixInnerProd)[iCell] << std::endl;
+                        // std::cout << "Orth converter" << std::endl;
+                        // std::cout << LOrth << std::endl;
+                        // assert(false);
 
-                    auto lltResult = (*matrixInnerProd)[iCell].llt();
-                    Eigen::Index nllt = (*matrixInnerProd)[iCell].rows();
-                    Eigen::MatrixXd LOrth = lltResult.matrixL().solve(Eigen::MatrixXd::Identity(nllt, nllt));
-                    std::cout << (*matrixInnerProd)[iCell] << std::endl;
-                    std::cout << "Orth converter" << std::endl;
-                    std::cout << LOrth << std::endl;
-                    assert(false);
-                    // TODO: decide if convert stored bases;
+                        cellDiBjCenterBatchElem.m(0)(Eigen::seq(1, Eigen::last), Eigen::seq(1, Eigen::last)) *= LOrth.transpose();
+                        for (int ig = 0; ig < eCell.getNInt(); ig++)
+                        {
+                            cellDiBjGaussBatchElem.m(ig)(Eigen::seq(1, Eigen::last), Eigen::seq(1, Eigen::last)) *= LOrth.transpose();
+                        }
+                    }
                 });
             // InsertCheck(mpi, "initBaseDiffCache Cell Ended");
 
@@ -1700,24 +1741,6 @@ namespace DNDS
                                        baseMoments[iCell], faceDiBjCenterBatchElem.m(1));
                         // Elem::tPoint pCellRPhy = cellCoordsR * cellDiNj({0}, Eigen::all).transpose();
                         // std::cout << " " << pCellLPhy.transpose() << " " << pCellRPhy.transpose() << std::endl;
-
-                        // deal with matrixSecondaryBatch
-                        {
-                            Eigen::MatrixXd msR2L, msL2R;
-                            // std::cout << faceDiBjCenterBatchElem.m(0) << std::endl;
-                            int nColL = faceDiBjCenterBatchElem.m(0).cols();
-                            int nRowL = faceDiBjCenterBatchElem.m(0).rows();
-                            int nColR = faceDiBjCenterBatchElem.m(1).cols();
-                            int nRowR = faceDiBjCenterBatchElem.m(1).rows();
-                            HardEigen::EigenLeastSquareSolve(faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1),
-                                                             faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1), msR2L);
-                            HardEigen::EigenLeastSquareSolve(faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1),
-                                                             faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1), msL2R);
-                            matrixSecondaryBatchElem.m(0) = msR2L;
-                            matrixSecondaryBatchElem.m(1) = msL2R;
-                            // std::cout << msR2L << std::endl;
-                            // std::abort();
-                        }
                     }
 
                     /*******************************************/
@@ -1757,6 +1780,59 @@ namespace DNDS
                                            pCell, getCellCenter(iCell), sScaleR,
                                            baseMoments[iCell], faceDiBjGaussBatchElem.m(ig * 2 + 1));
                         }
+                    }
+                    if (setting.orthogonalizeBase)
+                    {
+                        //* do the converting from natural base to orth base
+                        auto ldltResult = (*matrixInnerProd)[iCell].ldlt();
+                        if (ldltResult.vectorD()(Eigen::last) < smallReal)
+                        {
+                            std::cout << "Orth llt failure";
+                            assert(false);
+                        }
+                        auto lltResult = (*matrixInnerProd)[iCell].llt();
+                        Eigen::Index nllt = (*matrixInnerProd)[iCell].rows();
+                        Eigen::MatrixXd LOrth = lltResult.matrixL().solve(Eigen::MatrixXd::Identity(nllt, nllt));
+                        LOrth = (LOrth.array().colwise() / LOrth.array().abs().rowwise().sum()).matrix();
+                        // std::cout << "Inner Product" << std::endl;
+                        // std::cout << (*matrixInnerProd)[iCell] << std::endl;
+                        // std::cout << "Face Orth converter" << std::endl;
+                        // std::cout << LOrth << std::endl;
+                        // assert(false);
+
+                        faceDiBjCenterBatchElem.m(0)(Eigen::seq(1, Eigen::last), Eigen::seq(1, Eigen::last)) *= LOrth.transpose();
+                        for (int ig = 0; ig < eFace.getNInt(); ig++)
+                        {
+                            faceDiBjGaussBatchElem.m(ig * 2 + 0)(Eigen::seq(1, Eigen::last), Eigen::seq(1, Eigen::last)) *= LOrth.transpose();
+                        }
+                        if (f2c[1] != FACE_2_VOL_EMPTY)
+                        {
+                            faceDiBjCenterBatchElem.m(1)(Eigen::seq(1, Eigen::last), Eigen::seq(1, Eigen::last)) *= LOrth.transpose();
+                            for (int ig = 0; ig < eFace.getNInt(); ig++)
+                            {
+                                faceDiBjGaussBatchElem.m(ig * 2 + 1)(Eigen::seq(1, Eigen::last), Eigen::seq(1, Eigen::last)) *= LOrth.transpose();
+                            }
+                        }
+                    }
+
+                    // *deal with matrixSecondaryBatch
+                    if (f2c[1] != FACE_2_VOL_EMPTY)
+                    {
+
+                        Eigen::MatrixXd msR2L, msL2R;
+                        // std::cout << faceDiBjCenterBatchElem.m(0) << std::endl;
+                        int nColL = faceDiBjCenterBatchElem.m(0).cols();
+                        int nRowL = faceDiBjCenterBatchElem.m(0).rows();
+                        int nColR = faceDiBjCenterBatchElem.m(1).cols();
+                        int nRowR = faceDiBjCenterBatchElem.m(1).rows();
+                        HardEigen::EigenLeastSquareSolve(faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1),
+                                                         faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1), msR2L);
+                        HardEigen::EigenLeastSquareSolve(faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1),
+                                                         faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1), msL2R);
+                        matrixSecondaryBatchElem.m(0) = msR2L;
+                        matrixSecondaryBatchElem.m(1) = msL2R;
+                        // std::cout << msR2L << std::endl;
+                        // std::abort();
                     }
                     // exit(0);
 
@@ -2507,9 +2583,10 @@ namespace DNDS
                     break;
                 }
                 thetaNorm += verySmallReal_pDiP;
+                thetaNorm = thetaNorm.pow(-p / 2);
 
-                uDown += thetaNorm.pow(-p);
-                uUp += theta.rowwise() * thetaNorm.pow(-p).transpose();
+                uDown += thetaNorm;
+                uUp += theta.rowwise() * thetaNorm.transpose();
             }
 
             // std::cout << uUp << std::endl;
@@ -2564,6 +2641,52 @@ namespace DNDS
          * @brief input vector<Eigen::Array-like>
          */
         template <typename TinOthers, typename Tout>
+        static inline void FWBAP_L2_Multiway_PolynomialOrth(const TinOthers &uOthers, int Nother, Tout &uOut)
+        {
+            using namespace DNDS;
+            static const int p = 4;
+            static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+
+            Eigen::ArrayXXd uUp; //* copy!
+            uUp.resizeLike(uOthers[0]);
+            uUp.setZero();
+            Eigen::ArrayXd uDown;
+            uDown.resize(uOthers[0].cols());
+            uDown.setZero();
+            Eigen::ArrayXXd uMax = uUp + verySmallReal;
+            for (int iOther = 0; iOther < Nother; iOther++)
+                uMax = uMax.max(uOthers[iOther].abs());
+            uMax.rowwise() = uMax.colwise().maxCoeff();
+            uOut = uMax;
+
+            for (int iOther = 0; iOther < Nother; iOther++)
+            {
+                Eigen::ArrayXd thetaNorm;
+                Eigen::ArrayXXd theta = uOthers[iOther] / uMax;
+                thetaNorm = (theta * theta).colwise().sum();
+                thetaNorm += verySmallReal_pDiP;
+                thetaNorm = thetaNorm.pow(-p / 2);
+
+                uDown += thetaNorm;
+                uUp += theta.rowwise() * thetaNorm.transpose();
+            }
+            // std::cout << uUp << std::endl;
+            // std::cout << uDown << std::endl;
+            uOut *= uUp.rowwise() / (uDown.transpose() + verySmallReal);
+            if (uOut.hasNaN())
+            {
+                std::cout << "Limiter FWBAP_L2_Multiway Failed" << std::endl;
+                std::cout << uMax.transpose() << std::endl;
+                std::cout << uUp.transpose() << std::endl;
+                std::cout << uDown.transpose() << std::endl;
+                abort();
+            }
+        }
+
+        /**
+         * @brief input vector<Eigen::Array-like>
+         */
+        template <typename TinOthers, typename Tout>
         inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut)
         {
             static const int p = 4;
@@ -2587,10 +2710,7 @@ namespace DNDS
                 uUp += thetaInverse.pow(p - 1);
             }
             uOut *= uUp / (uDown + verySmallReal);
-            // for (int iOther = 0; iOther < Nother; iOther++)
-            // {
-            //     i
-            // }
+
             if (uOut.hasNaN())
             {
                 std::cout << "Limiter FWBAP_L2_Multiway Failed" << std::endl;
@@ -2616,7 +2736,7 @@ namespace DNDS
             // std::cout << u1 << std::endl;
 
             uOut = (u1p * u2 + n * u2p * u1) / ((u1p + n * u2p) + verySmallReal);
-            uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
+            // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
             // std::cout << u2 << std::endl;
         }
 
@@ -2672,7 +2792,28 @@ namespace DNDS
             u2p = u2p.pow(p / 2);
 
             uOut = (u2.rowwise() * u1p.transpose() + n * (u1.rowwise() * u2p.transpose())).rowwise() / ((u1p + n * u2p) + verySmallReal).transpose();
-            // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
+
+            // std::cout << u2 << std::endl;
+        }
+
+        template <typename Tin1, typename Tin2, typename Tout>
+        inline void FWBAP_L2_Biway_PolynomialOrth(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
+        {
+            static const int p = 4;
+            // static const real n = 10.0;
+            static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+            Eigen::ArrayXXd uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
+            uMax.rowwise() = uMax.colwise().maxCoeff();
+            Eigen::ArrayXd u1p, u2p;
+            Eigen::ArrayXXd theta1 = u1 / uMax;
+            Eigen::ArrayXXd theta2 = u2 / uMax;
+            u1p = (theta1 * theta1).colwise().sum();
+            u2p = (theta2 * theta2).colwise().sum();
+            u1p = u1p.pow(p / 2);
+            u2p = u2p.pow(p / 2);
+
+            uOut = (u2.rowwise() * u1p.transpose() + n * (u1.rowwise() * u2p.transpose())).rowwise() / ((u1p + n * u2p) + verySmallReal).transpose();
+
             // std::cout << u2 << std::endl;
         }
 
@@ -3282,7 +3423,18 @@ namespace DNDS
                             //     real eIS = (ifUseLimiter[iCell] - setting.WBAP_SmoothIndicatorScale) / (setting.WBAP_SmoothIndicatorScale);
                             //     n *= std::exp((1 - eIS) * 10);
                             // }
-                            FWBAP_L2_Biway_Polynomial2D(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
+
+                            if (setting.normWBAP)
+                            {
+                                if (setting.orthogonalizeBase)
+                                    FWBAP_L2_Biway_PolynomialOrth(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
+                                else
+                                    FWBAP_L2_Biway_Polynomial2D(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
+                            }
+                            else
+                                FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
+
+
                             if (uLimOutArray.hasNaN())
                             {
                                 std::cout << uThisIn.array().transpose() << std::endl;
@@ -3302,8 +3454,17 @@ namespace DNDS
                     }
                     Eigen::ArrayXXd uLimOutArray;
 
-                    // FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray);
-                    FWBAP_L2_Multiway_Polynomial2D(uOthers, uOthers.size(), uLimOutArray);
+                    if (setting.normWBAP)
+                            {
+                                if (setting.orthogonalizeBase)
+                            FWBAP_L2_Multiway_PolynomialOrth(uOthers, uOthers.size(), uLimOutArray);
+                        else
+                            FWBAP_L2_Multiway_Polynomial2D(uOthers, uOthers.size(), uLimOutArray);
+                    }
+                    else
+                        FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray);
+
+
                     if (uLimOutArray.hasNaN())
                     {
                         // std::cout << uRec[iCell].m().array().transpose() << std::endl;
@@ -3346,106 +3507,6 @@ namespace DNDS
             }
             for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
             {
-                // index iCell = iScan;
-                // if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale && (!ifAll))
-                //     continue;
-                // Eigen::MatrixXd norm0 = (((*matrixInnerProd)[iCell] * uRec[iCell].m()).array() * uRec[iCell].m().array()).colwise().sum().sqrt();
-                // Eigen::MatrixXd norm1 = (((*matrixInnerProd)[iCell] * uRecNewBuf[iCell].m()).array() * uRecNewBuf[iCell].m().array()).colwise().sum().sqrt();
-                // Eigen::RowVectorXd scaleFactor = ((norm0.array()) / (norm1.array() + verySmallReal));
-                // // Eigen::RowVectorXd scaleFactorC = scaleFactor.array().min((scaleFactor.array() + verySmallReal).pow(-1));
-                // Eigen::RowVectorXd scaleFactorC = (scaleFactor.array() * 1).min(1);
-                // uRecNewBuf[iCell].m().array().rowwise() *= scaleFactorC.array();
-                // // uRecNewBuf[iCell].m() += 0.1 * uRec[iCell].m();
-
-                // Eigen::MatrixXd incURec = uRecNewBuf[iCell].m();
-
-                // // if (norm0.norm() > 1e-5)
-                // // {
-                // //     std::cout << "Norms: \n";
-                // //     std::cout << scaleFactor << "\n";
-                // //     std::cout << norm0 << "\n";
-                // //     std::cout << norm1 << std::endl;
-                // // }
-                // // if (scaleFactor.maxCoeff() > 1.01)
-                // // {
-                // //     std::cout << scaleFactor << std::endl;
-                // // }
-            }
-        }
-
-        /**
-         * @brief
-         * \pre u need to StartPersistentPullClean()
-         * \post u,uR need to WaitPersistentPullClean();
-         */
-        template <uint32_t vsize, typename TFM, typename TFMI>
-        // static const int vsize = 1; // intellisense helper: give example...
-        void ReconstructionWBAPLimit(ArrayLocal<SemiVarMatrix<vsize>> &uRec,
-                                     ArrayLocal<SemiVarMatrix<vsize>> &uRecNewBuf,
-                                     std::vector<Eigen::Matrix<real, vsize, vsize>> &mProjection,
-                                     TFM &&FM, TFMI &&FMI)
-        {
-
-            static int icount = 0;
-            // InsertCheck(mpi, "ReconstructionJacobiStep Start");
-            //! TODO:
-            int cPOrder = P_ORDER;
-            for (; cPOrder >= 1; cPOrder--)
-            {
-                int LimStart, LimEnd; // End is inclusive
-                switch (cPOrder)
-                {
-                case 3:
-                    LimStart = 5;
-                    LimEnd = 8;
-                    break;
-                case 2:
-                    LimStart = 2;
-                    LimEnd = 4;
-                    break;
-                case 1:
-                    LimStart = 0;
-                    LimEnd = 1;
-                    break;
-
-                default:
-                    assert(false);
-                    break;
-                }
-                for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
-                {
-                    index iCell = iScan;
-                    auto &c2f = mesh->cell2faceLocal[iCell];
-
-                    auto matrixBatchElem = (*matrixBatch)[iCell];
-                    auto vectorBatchElem = (*vectorBatch)[iCell];
-
-                    Eigen::MatrixXd uOther(vsize, c2f.size());
-                    int iFillu = 0;
-
-                    // Eigen::MatrixXd coords;
-                    // mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
-                    // std::cout << "COORDS" << coords << std::endl;
-                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
-                    {
-                        index iFace = c2f[ic2f];
-                        auto &f2c = (*mesh->face2cellPair)[iFace];
-                        index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                        index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                        auto &faceAttribute = mesh->faceAtrLocal[iFace][0];
-                        auto &faceRecAttribute = faceRecAtrLocal[iFace][0];
-                        Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
-
-                        if (iCellOther != FACE_2_VOL_EMPTY)
-                        {
-                            uOther(Eigen::all, iFillu) = uRec[iCellOther].m();
-                            iFillu++;
-                        }
-                        else
-                        {
-                        }
-                    }
-                }
             }
         }
 

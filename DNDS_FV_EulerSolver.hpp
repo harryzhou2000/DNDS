@@ -285,6 +285,8 @@ namespace DNDS
                 vfvParser.AddDNDS_Real("wallWeight", &config.vfvSetting.wallWeight);
                 vfvParser.AddInt("curvilinearOrder", &config.vfvSetting.curvilinearOrder);
                 vfvParser.AddDNDS_Real("WBAP_SmoothIndicatorScale", &config.vfvSetting.WBAP_SmoothIndicatorScale);
+                vfvParser.AddBool("orthogonalizeBase", &config.vfvSetting.orthogonalizeBase);
+                vfvParser.AddBool("normWBAP", &config.vfvSetting.normWBAP);
             }
 
             root.AddInt("nDropVisScale", &config.nDropVisScale);
