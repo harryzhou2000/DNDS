@@ -153,7 +153,7 @@ namespace DNDS
         std::shared_ptr<VRFiniteVolume2D> vfv;
 
         ArrayDOF<5u> u, uPoisson, uInc, uIncRHS, uTemp;
-        ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew, uRecNew1;
+        ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew, uRecNew1, uOld;
 
         static const int nOUTS = 9;
         // rho u v w p T M ifUseLimiter RHS
@@ -304,7 +304,7 @@ namespace DNDS
                             config.eulerSetting.rsType = EulerEvaluator::Setting::RiemannSolverType::Roe;
                         else if (RSName == "HLLC")
                             config.eulerSetting.rsType = EulerEvaluator::Setting::RiemannSolverType::HLLC;
-                         else if (RSName == "HLLEP")
+                        else if (RSName == "HLLEP")
                             config.eulerSetting.rsType = EulerEvaluator::Setting::RiemannSolverType::HLLEP;
                         else
                             assert(false);
@@ -442,6 +442,7 @@ namespace DNDS
             vfv->BuildRec(uRec);
             vfv->BuildRec(uRecNew);
             vfv->BuildRec(uRecNew1);
+            vfv->BuildRec(uOld);
             vfv->BuildRecFacial(uF0);
 
             uF1.Copy(uF0);
@@ -893,6 +894,9 @@ namespace DNDS
                         cx.StartPersistentPullClean();
                         cx.WaitPersistentPullClean();
 
+                        // for (index iCell = 0; iCell < uOld.size(); iCell++)
+                        //     uOld[iCell].m() = uRec[iCell].m();
+
                         for (int iRec = 0; iRec < config.nInternalRecStep; iRec++)
                         {
                             double tstartA = MPI_Wtime();
@@ -903,6 +907,9 @@ namespace DNDS
                             uRec.WaitPersistentPullClean();
                         }
                         double tstartH = MPI_Wtime();
+
+                        // for (index iCell = 0; iCell < uOld.size(); iCell++)
+                        //     uRec[iCell].m() -= uOld[iCell].m();
 
                         if (config.useLimiter)
                         {
@@ -957,10 +964,64 @@ namespace DNDS
                                 });
                             uRecNew.StartPersistentPullClean();
                             uRecNew.WaitPersistentPullClean();
-                            for(int i = 0; i < uRec.size(); i++)
-                            {
-                                // uRec[i].m() = uRecNew[i].m(); // Do Embedded Limiting
-                            }
+
+                            // //* embedded limiting or increment limiting
+                            // for (int i = 0; i < uRec.size(); i++)
+                            // {
+                            //     uRec[i].m() = uRecNew[i].m(); // Do Embedded Limiting
+                            // }
+                            // for (index iCell = 0; iCell < uOld.size(); iCell++)
+                            //     uRec[iCell].m() += uOld[iCell].m();
+                            // vfv->ReconstructionWBAPLimitFacialV2(
+                            //     cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
+                            //     iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
+                            //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                            //         Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                            //         auto normBase = Elem::NormBuildLocalBaseV(n);
+                            //         UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+
+                            //         // real ekFixRatio = 0.001;
+                            //         // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                            //         // real vsqr = velo.squaredNorm();
+                            //         // real Ek = vsqr * 0.5 * UC(0);
+                            //         // real Efix = Ek * ekFixRatio;
+                            //         // real e = UC(4) - Ek;
+                            //         // if (e < 0)
+                            //         //     e = 0.5 * Efix;
+                            //         // else if (e < Efix)
+                            //         //     e = (e * e + Efix * Efix) / (2 * Efix);
+                            //         // UC(4) = Ek + e;
+
+                            //         auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                            //         M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+                            //         return M;
+                            //         // return Eigen::Matrix<real, 5, 5>::Identity();
+                            //     },
+                            //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                            //         Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                            //         auto normBase = Elem::NormBuildLocalBaseV(n);
+                            //         UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+
+                            //         // real ekFixRatio = 0.001;
+                            //         // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                            //         // real vsqr = velo.squaredNorm();
+                            //         // real Ek = vsqr * 0.5 * UC(0);
+                            //         // real Efix = Ek * ekFixRatio;
+                            //         // real e = UC(4) - Ek;
+                            //         // if (e < 0)
+                            //         //     e = 0.5 * Efix;
+                            //         // else if (e < Efix)
+                            //         //     e = (e * e + Efix * Efix) / (2 * Efix);
+                            //         // UC(4) = Ek + e;
+
+                            //         auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                            //         M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
+                            //         return M;
+                            //         // return Eigen::Matrix<real, 5, 5>::Identity();
+                            //     });
+                            // uRecNew.StartPersistentPullClean();
+                            // uRecNew.WaitPersistentPullClean();
+                            // //* embedded limiting or increment limiting
                         }
                         tLim += MPI_Wtime() - tstartH;
 

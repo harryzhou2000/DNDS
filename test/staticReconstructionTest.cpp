@@ -83,6 +83,9 @@ int main(int argn, char *argv[])
         // InsertCheck(mpi, "AfterRead1");
         ImplicitFiniteVolume2D fv(mesh.get());
         VRFiniteVolume2D vfv(mesh.get(), &fv);
+        vfv.setting.normWBAP = true;
+        vfv.setting.orthogonalizeBase = false;
+        
 
         vfv.initIntScheme();
         vfv.initMoment();
@@ -93,11 +96,12 @@ int main(int argn, char *argv[])
         cfv.initReconstructionMatVec();
         // InsertCheck(mpi, "SDF 1");
         ArrayLocal<VecStaticBatch<1u>> u;
-        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecNew1, uRecCR, uRecF1, uRecF2;
+        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecNew1, uRecOld, uRecCR, uRecF1, uRecF2;
         fv.BuildMean(u);
         vfv.BuildRec(uRec);
         vfv.BuildRec(uRecNew);
         vfv.BuildRec(uRecNew1);
+        vfv.BuildRec(uRecOld);
         cfv.BuildRec(uRecCR);
         vfv.BuildRecFacial(uRecF1);
         vfv.BuildRecFacial(uRecF2);
@@ -146,12 +150,14 @@ int main(int argn, char *argv[])
         // InsertCheck(mpi, "BeforeRec");
         double tstart = MPI_Wtime();
         double tLimiter = 0;
-        
-        
-
 
         for (int i = 0; i < nIter; i++)
         {
+            for (DNDS::index i = 0; i < uRecOld.dist->size(); i++)
+            {
+                uRecOld[i].m() = uRec[i].m();
+            }
+
             u.StartPersistentPullClean();
             uRec.StartPersistentPullClean();
             u.WaitPersistentPullClean();
@@ -172,7 +178,7 @@ int main(int argn, char *argv[])
                 //         return Eigen::MatrixXd::Identity(1, 1);
                 //     });
                 vfv.ReconstructionWBAPLimitFacialV2(
-                    u, uRec, uRec, uRecNew1, ifUseLimiter,
+                    u, uRec, uRec, uRecNew1, ifUseLimiter, true,
                     [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
                     {
                         return Eigen::MatrixXd::Identity(1, 1);
@@ -183,6 +189,17 @@ int main(int argn, char *argv[])
                     });
 
                 tLimiter += MPI_Wtime() - tstartA;
+            }
+            real inc2 = 0;
+            for (DNDS::index i = 0; i < uRecOld.dist->size(); i++)
+            {
+                inc2 += (uRecOld[i].m() - uRec[i].m()).array().pow(2).sum();
+            }
+            real inc2All = 0;
+            MPI_Allreduce(&inc2, &inc2All, 1, MPI_DOUBLE, MPI_SUM, mpi.comm);
+            if (mpi.rank == 0)
+            {
+                std::cout << mName << " inc2all  =  " << inc2All << std::endl;
             }
         }
         if (ifLimit)
@@ -199,7 +216,7 @@ int main(int argn, char *argv[])
             //         return Eigen::MatrixXd::Identity(1, 1);
             //     });
             vfv.ReconstructionWBAPLimitFacialV2(
-                u, uRec, uRec, uRecNew1, ifUseLimiter,
+                u, uRec, uRec, uRecNew1, ifUseLimiter, true,
                 [&](const Eigen::MatrixXd &uL, const Eigen::MatrixXd &uR, const Elem::tPoint &n)
                 {
                     return Eigen::MatrixXd::Identity(1, 1);
