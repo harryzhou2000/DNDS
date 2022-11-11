@@ -1,0 +1,523 @@
+#include "DNDS_Defines.h"
+
+namespace DNDS
+{
+    /**
+     * @brief input vector<Eigen::Array-like>
+     */
+    template <typename TinOthers, typename Tout>
+    static inline void FWBAP_L2_Multiway_Polynomial2D(const TinOthers &uOthers, int Nother, Tout &uOut)
+    {
+        using namespace DNDS;
+        static const int p = 4;
+        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+
+        Eigen::ArrayXXd uUp; //* copy!
+        uUp.resizeLike(uOthers[0]);
+        uUp.setZero();
+        Eigen::ArrayXd uDown;
+        uDown.resize(uOthers[0].cols());
+        uDown.setZero();
+        Eigen::ArrayXXd uMax = uUp + verySmallReal;
+        for (int iOther = 0; iOther < Nother; iOther++)
+            uMax = uMax.max(uOthers[iOther].abs());
+        uMax.rowwise() = uMax.colwise().maxCoeff();
+        uOut = uMax;
+
+        for (int iOther = 0; iOther < Nother; iOther++)
+        {
+            Eigen::ArrayXd thetaNorm;
+            Eigen::ArrayXXd theta = uOthers[iOther] / uMax;
+            switch (theta.rows())
+            {
+            case 2:
+                thetaNorm =
+                    theta(0, Eigen::all).pow(2) +
+                    theta(1, Eigen::all).pow(2);
+                break;
+            case 3:
+                thetaNorm =
+                    theta(0, Eigen::all).pow(2) +
+                    theta(1, Eigen::all).pow(2) * 0.5 +
+                    theta(2, Eigen::all).pow(2);
+                break;
+            case 4:
+                thetaNorm =
+                    theta(0, Eigen::all).pow(2) +
+                    theta(1, Eigen::all).pow(2) * (1. / 3.) +
+                    theta(2, Eigen::all).pow(2) * (1. / 3.) +
+                    theta(3, Eigen::all).pow(2);
+                break;
+
+            default:
+                assert(false);
+                break;
+            }
+            thetaNorm += verySmallReal_pDiP;
+            thetaNorm = thetaNorm.pow(-p / 2);
+
+            uDown += thetaNorm;
+            uUp += theta.rowwise() * thetaNorm.transpose();
+        }
+
+        // std::cout << uUp << std::endl;
+        // std::cout << uDown << std::endl;
+        uOut *= uUp.rowwise() / (uDown.transpose() + verySmallReal);
+
+        // // * Do cut off
+        // for (int iOther = 0; iOther < Nother; iOther++)
+        // {
+        //     Eigen::ArrayXd uDotuOut;
+        //     switch (uOut.rows())
+        //     {
+        //     case 2:
+        //         uDotuOut =
+        //             uOthers[iOther](0, Eigen::all) * uOut(0, Eigen::all) +
+        //             uOthers[iOther](1, Eigen::all) * uOut(1, Eigen::all);
+        //         break;
+        //     case 3:
+        //         uDotuOut =
+        //             uOthers[iOther](0, Eigen::all) * uOut(0, Eigen::all) +
+        //             uOthers[iOther](1, Eigen::all) * uOut(1, Eigen::all) * 0.5 +
+        //             uOthers[iOther](2, Eigen::all) * uOut(2, Eigen::all);
+        //         break;
+        //     case 4:
+        //         uDotuOut =
+        //             uOthers[iOther](0, Eigen::all) * uOut(0, Eigen::all) +
+        //             uOthers[iOther](1, Eigen::all) * uOut(1, Eigen::all) * (1. / 3.) +
+        //             uOthers[iOther](2, Eigen::all) * uOut(2, Eigen::all) * (1. / 3.) +
+        //             uOthers[iOther](3, Eigen::all) * uOut(3, Eigen::all);
+        //         break;
+
+        //     default:
+        //         assert(false);
+        //         break;
+        //     }
+
+        //     uOut.rowwise() *= 0.5 * (uDotuOut.sign().transpose() + 1);
+        // }
+        // // * Do cut off
+
+        if (uOut.hasNaN())
+        {
+            std::cout << "Limiter FWBAP_L2_Multiway Failed" << std::endl;
+            std::cout << uMax.transpose() << std::endl;
+            std::cout << uUp.transpose() << std::endl;
+            std::cout << uDown.transpose() << std::endl;
+            abort();
+        }
+    }
+
+    /**
+     * @brief input vector<Eigen::Array-like>
+     */
+    template <typename Tcenter, typename TinOthers, typename Tout>
+    static inline void FMEMM_Multiway_Polynomial2D(const Tcenter &u, const TinOthers &uOthers, int Nother, Tout &uOut)
+    {
+        using namespace DNDS;
+        static const int p = 4;
+
+        Eigen::ArrayXXd umax = u.abs();
+        umax.rowwise() = umax.colwise().maxCoeff() + verySmallReal;
+
+        Eigen::ArrayXXd theta0 = u / umax;
+        Eigen::ArrayXXd thetaMinNorm = theta0;
+
+        for (int iOther = 0; iOther < Nother; iOther++)
+        {
+            Eigen::ArrayXd thetaMinNormNorm;
+            Eigen::ArrayXd thetaNorm;
+            Eigen::ArrayXXd theta = uOthers[iOther] / umax;
+            Eigen::ArrayXd theta0DotTheta;
+            switch (theta.rows())
+            {
+            case 2:
+                thetaNorm =
+                    theta(0, Eigen::all).pow(2) +
+                    theta(1, Eigen::all).pow(2);
+                thetaMinNormNorm =
+                    thetaMinNorm(0, Eigen::all).pow(2) +
+                    thetaMinNorm(1, Eigen::all).pow(2);
+                theta0DotTheta =
+                    theta(0, Eigen::all) * theta0(0, Eigen::all) +
+                    theta(1, Eigen::all) * theta0(1, Eigen::all);
+                break;
+            case 3:
+                thetaNorm =
+                    theta(0, Eigen::all).pow(2) +
+                    theta(1, Eigen::all).pow(2) * 0.5 +
+                    theta(2, Eigen::all).pow(2);
+                thetaMinNormNorm =
+                    thetaMinNorm(0, Eigen::all).pow(2) +
+                    thetaMinNorm(1, Eigen::all).pow(2) * 0.5 +
+                    thetaMinNorm(2, Eigen::all).pow(2);
+                theta0DotTheta =
+                    theta(0, Eigen::all) * theta0(0, Eigen::all) +
+                    theta(1, Eigen::all) * theta0(1, Eigen::all) * 0.5 +
+                    theta(2, Eigen::all) * theta0(2, Eigen::all);
+                break;
+            case 4:
+                thetaNorm =
+                    theta(0, Eigen::all).pow(2) +
+                    theta(1, Eigen::all).pow(2) * (1. / 3.) +
+                    theta(2, Eigen::all).pow(2) * (1. / 3.) +
+                    theta(3, Eigen::all).pow(2);
+                thetaMinNormNorm =
+                    thetaMinNorm(0, Eigen::all).pow(2) +
+                    thetaMinNorm(1, Eigen::all).pow(2) * (1. / 3.) +
+                    thetaMinNorm(2, Eigen::all).pow(2) * (1. / 3.) +
+                    thetaMinNorm(3, Eigen::all).pow(2);
+                theta0DotTheta =
+                    theta(0, Eigen::all) * theta0(0, Eigen::all) +
+                    theta(1, Eigen::all) * theta0(1, Eigen::all) * (1. / 3.) +
+                    theta(2, Eigen::all) * theta0(2, Eigen::all) * (1. / 3.) +
+                    theta(3, Eigen::all) * theta0(3, Eigen::all);
+                break;
+
+            default:
+                assert(false);
+                break;
+            }
+            Eigen::ArrayXd selection = (thetaNorm - thetaMinNormNorm).sign() * 0.5 + 0.5; //! need eliminate one side?
+            thetaMinNorm = theta.rowwise() * (1 - selection).transpose() +
+                           thetaMinNorm.rowwise() * selection.transpose();
+            // //! cutting
+            // theta0 = theta0.rowwise() * (theta0DotTheta.sign() + 1).transpose() * 0.5;
+        }
+        Eigen::ArrayXd thetaNorm;
+        Eigen::ArrayXd thetaMinNormNorm;
+        switch (theta0.rows())
+        {
+        case 2:
+            thetaNorm =
+                theta0(0, Eigen::all).pow(2) +
+                theta0(1, Eigen::all).pow(2);
+            thetaMinNormNorm =
+                thetaMinNorm(0, Eigen::all).pow(2) +
+                thetaMinNorm(1, Eigen::all).pow(2);
+            break;
+        case 3:
+            thetaNorm =
+                theta0(0, Eigen::all).pow(2) +
+                theta0(1, Eigen::all).pow(2) * 0.5 +
+                theta0(2, Eigen::all).pow(2);
+            thetaMinNormNorm =
+                thetaMinNorm(0, Eigen::all).pow(2) +
+                thetaMinNorm(1, Eigen::all).pow(2) * 0.5 +
+                thetaMinNorm(2, Eigen::all).pow(2);
+            break;
+        case 4:
+            thetaNorm =
+                theta0(0, Eigen::all).pow(2) +
+                theta0(1, Eigen::all).pow(2) * (1. / 3.) +
+                theta0(2, Eigen::all).pow(2) * (1. / 3.) +
+                theta0(3, Eigen::all).pow(2);
+            thetaMinNormNorm =
+                thetaMinNorm(0, Eigen::all).pow(2) +
+                thetaMinNorm(1, Eigen::all).pow(2) * (1. / 3.) +
+                thetaMinNorm(2, Eigen::all).pow(2) * (1. / 3.) +
+                thetaMinNorm(3, Eigen::all).pow(2);
+            break;
+        default:
+            assert(false);
+            break;
+        }
+        Eigen::ArrayXd replaceLoc = ((thetaNorm / (thetaMinNormNorm + verySmallReal)).sqrt() - 1).max(verySmallReal);
+        // Eigen::ArrayXd replaceFactor = 2 - (-replaceLoc).exp();
+        // Eigen::ArrayXd replaceFactor = 2 - (replaceLoc * p + 1).pow(-1. / p);
+        Eigen::ArrayXd replaceFactor = replaceLoc * 0 + 1;
+        // Eigen::ArrayXd replaceFactor = 1+(1 - (replaceLoc * p + 1).pow(-1. / p)) / (replaceLoc/10+1 );
+
+        replaceFactor = (replaceFactor - 1) / replaceLoc;
+
+        // !safety?
+        Eigen::ArrayXd ifReplace = (thetaNorm - thetaMinNormNorm).sign() * 0.5 + 0.5;
+        replaceFactor = ifReplace * replaceFactor + (1 - ifReplace);
+
+        uOut = u.rowwise() * replaceFactor.transpose() + (thetaMinNorm * umax).rowwise() * (1 - replaceFactor).transpose();
+
+        if (uOut.hasNaN())
+        {
+            std::cout << "Limiter FMEMM_L2_Multiway Failed" << std::endl;
+            std::cout << umax.transpose() << std::endl;
+            std::cout << uOut.transpose() << std::endl;
+            std::cout << replaceFactor << std::endl;
+            std::cout << replaceLoc << std::endl;
+            abort();
+        }
+    }
+
+    /**
+     * @brief input vector<Eigen::Array-like>
+     */
+    template <typename TinOthers, typename Tout>
+    static inline void FWBAP_L2_Multiway_PolynomialOrth(const TinOthers &uOthers, int Nother, Tout &uOut)
+    {
+        using namespace DNDS;
+        static const int p = 4;
+        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+
+        Eigen::ArrayXXd uUp; //* copy!
+        uUp.resizeLike(uOthers[0]);
+        uUp.setZero();
+        Eigen::ArrayXd uDown;
+        uDown.resize(uOthers[0].cols());
+        uDown.setZero();
+        Eigen::ArrayXXd uMax = uUp + verySmallReal;
+        for (int iOther = 0; iOther < Nother; iOther++)
+            uMax = uMax.max(uOthers[iOther].abs());
+        uMax.rowwise() = uMax.colwise().maxCoeff();
+        uOut = uMax;
+
+        for (int iOther = 0; iOther < Nother; iOther++)
+        {
+            Eigen::ArrayXd thetaNorm;
+            Eigen::ArrayXXd theta = uOthers[iOther] / uMax;
+            thetaNorm = (theta * theta).colwise().sum();
+            thetaNorm += verySmallReal_pDiP;
+            thetaNorm = thetaNorm.pow(-p / 2);
+
+            uDown += thetaNorm;
+            uUp += theta.rowwise() * thetaNorm.transpose();
+        }
+        // std::cout << uUp << std::endl;
+        // std::cout << uDown << std::endl;
+        uOut *= uUp.rowwise() / (uDown.transpose() + verySmallReal);
+        if (uOut.hasNaN())
+        {
+            std::cout << "Limiter FWBAP_L2_Multiway Failed" << std::endl;
+            std::cout << uMax.transpose() << std::endl;
+            std::cout << uUp.transpose() << std::endl;
+            std::cout << uDown.transpose() << std::endl;
+            abort();
+        }
+    }
+
+    /**
+     * @brief input vector<Eigen::Array-like>
+     */
+    template <typename TinOthers, typename Tout>
+    inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut)
+    {
+        static const int p = 4;
+        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+
+        Eigen::ArrayXXd uUp; //* copy!
+        uUp.resizeLike(uOthers[0]);
+        uUp.setZero();
+        Eigen::ArrayXXd uDown = uUp; //* copy!
+        Eigen::ArrayXXd uMax = uDown + verySmallReal;
+
+        for (int iOther = 0; iOther < Nother; iOther++)
+            uMax = uMax.max(uOthers[iOther].abs());
+        uOut = uMax;
+
+        for (int iOther = 0; iOther < Nother; iOther++)
+        {
+            auto thetaInverse = uMax / (uOthers[iOther].sign() * (uOthers[iOther].abs() + verySmallReal_pDiP) +
+                                        verySmallReal_pDiP * (-2));
+            uDown += thetaInverse.pow(p);
+            uUp += thetaInverse.pow(p - 1);
+        }
+        uOut *= uUp / (uDown + verySmallReal);
+
+        if (uOut.hasNaN())
+        {
+            std::cout << "Limiter FWBAP_L2_Multiway Failed" << std::endl;
+            std::cout << uMax.transpose() << std::endl;
+            std::cout << uUp.transpose() << std::endl;
+            std::cout << uDown.transpose() << std::endl;
+            abort();
+        }
+    }
+
+    /**
+     * @brief input eigen arrays
+     */
+    template <typename Tin1, typename Tin2, typename Tout>
+    inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
+    {
+        static const int p = 4;
+        // static const real n = 10.0;
+        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+        auto uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
+        auto u1p = (u1 / uMax).pow(p);
+        auto u2p = (u2 / uMax).pow(p);
+        // std::cout << u1 << std::endl;
+
+        uOut = (u1p * u2 + n * u2p * u1) / ((u1p + n * u2p) + verySmallReal);
+        // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
+        // std::cout << u2 << std::endl;
+    }
+
+    template <typename Tin1, typename Tin2, typename Tout>
+    inline void FWBAP_L2_Biway_Polynomial2D(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
+    {
+        static const int p = 4;
+        // static const real n = 10.0;
+        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+        Eigen::ArrayXXd uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
+        uMax.rowwise() = uMax.colwise().maxCoeff();
+        Eigen::ArrayXd u1p, u2p;
+        Eigen::ArrayXXd theta1 = u1 / uMax;
+        Eigen::ArrayXXd theta2 = u2 / uMax;
+        switch (u1.rows())
+        {
+        case 2:
+            u1p =
+                theta1(0, Eigen::all).pow(2) +
+                theta1(1, Eigen::all).pow(2);
+            u2p =
+                theta2(0, Eigen::all).pow(2) +
+                theta2(1, Eigen::all).pow(2);
+            break;
+        case 3:
+            u1p =
+                theta1(0, Eigen::all).pow(2) +
+                theta1(1, Eigen::all).pow(2) * 0.5 +
+                theta1(2, Eigen::all).pow(2);
+            u2p =
+                theta2(0, Eigen::all).pow(2) +
+                theta2(1, Eigen::all).pow(2) * 0.5 +
+                theta2(2, Eigen::all).pow(2);
+            break;
+        case 4:
+            u1p =
+                theta1(0, Eigen::all).pow(2) +
+                theta1(1, Eigen::all).pow(2) * (1. / 3.) +
+                theta1(2, Eigen::all).pow(2) * (1. / 3.) +
+                theta1(3, Eigen::all).pow(2);
+            u2p =
+                theta2(0, Eigen::all).pow(2) +
+                theta2(1, Eigen::all).pow(2) * (1. / 3.) +
+                theta2(2, Eigen::all).pow(2) * (1. / 3.) +
+                theta2(3, Eigen::all).pow(2);
+            break;
+
+        default:
+            assert(false);
+            break;
+        }
+        u1p = u1p.pow(p / 2);
+        u2p = u2p.pow(p / 2);
+
+        uOut = (u2.rowwise() * u1p.transpose() + n * (u1.rowwise() * u2p.transpose())).rowwise() / ((u1p + n * u2p) + verySmallReal).transpose();
+
+        // std::cout << u2 << std::endl;
+    }
+
+    template <typename Tin1, typename Tin2, typename Tout>
+    inline void FMEMM_Biway_Polynomial2D(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
+    {
+        static const int p = 4;
+        // static const real n = 10.0;
+        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+        Eigen::ArrayXXd uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
+        uMax.rowwise() = uMax.colwise().maxCoeff();
+        Eigen::ArrayXd u1p, u2p, u1u2;
+        Eigen::ArrayXXd theta1 = u1 / uMax;
+        Eigen::ArrayXXd theta2 = u2 / uMax;
+        switch (u1.rows())
+        {
+        case 2:
+            u1p =
+                theta1(0, Eigen::all).pow(2) +
+                theta1(1, Eigen::all).pow(2);
+            u2p =
+                theta2(0, Eigen::all).pow(2) +
+                theta2(1, Eigen::all).pow(2);
+            u1u2 =
+                theta2(0, Eigen::all) * theta1(0, Eigen::all) +
+                theta2(1, Eigen::all) * theta1(1, Eigen::all);
+            break;
+        case 3:
+            u1p =
+                theta1(0, Eigen::all).pow(2) +
+                theta1(1, Eigen::all).pow(2) * 0.5 +
+                theta1(2, Eigen::all).pow(2);
+            u2p =
+                theta2(0, Eigen::all).pow(2) +
+                theta2(1, Eigen::all).pow(2) * 0.5 +
+                theta2(2, Eigen::all).pow(2);
+            u1u2 =
+                theta2(0, Eigen::all) * theta1(0, Eigen::all) +
+                theta2(1, Eigen::all) * theta1(1, Eigen::all) * 0.5 +
+                theta2(2, Eigen::all) * theta1(2, Eigen::all);
+            break;
+        case 4:
+            u1p =
+                theta1(0, Eigen::all).pow(2) +
+                theta1(1, Eigen::all).pow(2) * (1. / 3.) +
+                theta1(2, Eigen::all).pow(2) * (1. / 3.) +
+                theta1(3, Eigen::all).pow(2);
+            u2p =
+                theta2(0, Eigen::all).pow(2) +
+                theta2(1, Eigen::all).pow(2) * (1. / 3.) +
+                theta2(2, Eigen::all).pow(2) * (1. / 3.) +
+                theta2(3, Eigen::all).pow(2);
+            u1u2 =
+                theta2(0, Eigen::all) * theta1(0, Eigen::all) +
+                theta2(1, Eigen::all) * theta1(1, Eigen::all) * (1. / 3.) +
+                theta2(2, Eigen::all) * theta1(2, Eigen::all) * (1. / 3.) +
+                theta2(3, Eigen::all) * theta1(3, Eigen::all);
+            break;
+
+        default:
+            assert(false);
+            break;
+        }
+        u1p = u1p.sqrt();
+        u2p = u2p.sqrt();
+
+        Eigen::ArrayXd replaceLoc = (u1p / (u2p + verySmallReal) - 1).max(verySmallReal);
+        // Eigen::ArrayXd replaceFactor = 2 - (-replaceLoc).exp();
+        // Eigen::ArrayXd replaceFactor = 2 - (replaceLoc * p + 1).pow(-1. / p);
+        Eigen::ArrayXd replaceFactor = replaceLoc * 0 + 1;
+        // Eigen::ArrayXd replaceFactor = 1+(1 - (replaceLoc * p + 1).pow(-1. / p)) / (replaceLoc/10+1 );
+
+        replaceFactor = (replaceFactor - 1) / replaceLoc;
+
+        // !safety?
+        Eigen::ArrayXd ifReplace = (u1p - u2p).sign() * 0.5 + 0.5;
+        replaceFactor = ifReplace * replaceFactor + (1 - ifReplace);
+
+        uOut = u1.rowwise() * replaceFactor.transpose() + u2.rowwise() * (1 - replaceFactor).transpose();
+        // //! cutting
+        // uOut = uOut.rowwise() * (u1u2.sign() + 1).transpose() * 0.5;
+
+        // std::cout << u2 << std::endl;
+    }
+
+    template <typename Tin1, typename Tin2, typename Tout>
+    inline void FWBAP_L2_Biway_PolynomialOrth(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
+    {
+        static const int p = 4;
+        // static const real n = 10.0;
+        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+        Eigen::ArrayXXd uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
+        uMax.rowwise() = uMax.colwise().maxCoeff();
+        Eigen::ArrayXd u1p, u2p;
+        Eigen::ArrayXXd theta1 = u1 / uMax;
+        Eigen::ArrayXXd theta2 = u2 / uMax;
+        u1p = (theta1 * theta1).colwise().sum();
+        u2p = (theta2 * theta2).colwise().sum();
+        u1p = u1p.pow(p / 2);
+        u2p = u2p.pow(p / 2);
+
+        uOut = (u2.rowwise() * u1p.transpose() + n * (u1.rowwise() * u2p.transpose())).rowwise() / ((u1p + n * u2p) + verySmallReal).transpose();
+
+        // std::cout << u2 << std::endl;
+    }
+
+    template <typename TinC, typename TinOthers, typename Tout>
+    inline void FWBAP_LE_Multiway(const TinC &uC, const TinOthers &uOthers, int Nother, Tout &uOut)
+    {
+        static const int p = 4;
+        static const real n = 100.0;
+        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+        static const real eps = 5;
+
+        //! TODO:
+        // static_assert(false, "Incomplete Implementation");
+    }
+}

@@ -676,7 +676,7 @@ namespace DNDS
         }
     }
 
-    void EulerEvaluator::UpdateLUSGSADBackward(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew)
+    void EulerEvaluator::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
         index nCellDist = mesh->cell2nodeLocal.dist->size();
         for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
@@ -1269,7 +1269,7 @@ namespace DNDS
         }
     }
 
-    void EulerEvaluator::EvaluateResidual(Eigen::Vector<real, 5> &res, ArrayDOF<5u> &rhs, index P)
+    void EulerEvaluator::EvaluateResidual(Eigen::Vector<real, 5> &res, ArrayDOFV &rhs, index P)
     {
         if (P < 3)
         {
