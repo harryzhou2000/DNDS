@@ -110,6 +110,14 @@ namespace DNDS
             u.CreateGhostCopyComm(mesh->cellAtrLocal);
             u.InitPersistentPullClean();
         }
+
+        void BuildMean(ArrayDOFV &u, index nvars)
+        {
+            index nCellDist = mesh->cell2nodeLocal.dist->size();
+            u.resize(nCellDist, mpi, nvars);
+            u.CreateGhostCopyComm(mesh->cellAtrLocal);
+            u.InitPersistentPullClean();
+        }
     };
 
     class VRFiniteVolume2D
@@ -2165,6 +2173,18 @@ namespace DNDS
                     },
                     nCellDist),
                 mpi);
+            uR.CreateGhostCopyComm(mesh->cellAtrLocal);
+            uR.InitPersistentPullClean();
+        }
+
+        void BuildRec(ArrayRecV &uR, index nvars)
+        {
+            index nCellDist = mesh->cell2nodeLocal.dist->size();
+
+            uR.resize(
+                nCellDist, mpi, [&](index i)
+                { return cellRecAtrLocal[i][0].NDOF - 1; },
+                nvars);
             uR.CreateGhostCopyComm(mesh->cellAtrLocal);
             uR.InitPersistentPullClean();
         }

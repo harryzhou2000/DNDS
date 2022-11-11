@@ -85,7 +85,6 @@ namespace DNDS
                 f(e, i, e[j], j);
         }
     }
-
 }
 
 namespace DNDS
@@ -298,8 +297,276 @@ namespace DNDS
 
 namespace DNDS
 {
+    class ArrayDOFV : public ArrayLocal<VarVector>
+    {
+    public:
+        typedef ArrayLocal<VarVector> base;
+        using ArrayLocal<VarVector>::ArrayLocal;
+        ArrayDOFV() {}
+        ArrayDOFV(index distSize, const MPIInfo &mpi, index vecSize)
+        {
+            base::dist = std::make_shared<Array<VarVector>>(
+                typename VarVector::Context([&](index i)
+                                            { return vecSize; },
+                                            distSize),
+                mpi);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p().setZero(); });
+        }
+
+        void resize(index nsize, index vecSize)
+        {
+            assert(base::dist);
+            MPIInfo mpi = base::dist->getMPI();
+            base::dist = std::make_shared<Array<VarVector>>(
+                typename VarVector::Context([&](index i)
+                                            { return vecSize; },
+                                            nsize),
+                mpi);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p().setZero(); });
+        }
+
+        void resize(index nsize, const MPIInfo &mpi, index vecSize)
+        {
+            base::dist = std::make_shared<Array<VarVector>>(
+                typename VarVector::Context([&](index i)
+                                            { return vecSize; },
+                                            nsize),
+                mpi);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p().setZero(); });
+        }
+
+        void setConstant(real v)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p().setConstant(v); });
+        }
+
+        template <typename Tin>
+        void setConstant(const Tin &in)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() = in; });
+        }
+
+        void operator=(const ArrayDOFV &R)
+        {
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() = (*R.dist)[i].p(); });
+        }
+
+        void operator+=(const ArrayDOFV &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() += (*R.dist)[i].p(); });
+        }
+
+        void addTo(const ArrayDOFV &R, real r)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() += (*R.dist)[i].p() * r; });
+        }
+
+        void operator-=(const ArrayDOFV &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() -= (*R.dist)[i].p(); });
+        }
+
+        void operator*=(real r)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() *= r; });
+        }
+
+        template <class VR>
+        void operator*=(const VR &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() *= R[i]; });
+        }
+
+        /**
+         * @brief collective
+         *
+         */
+        real norm2()
+        {
+            assert(base::dist);
+            real sqrSum{0}, sqrSumAll;
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { sqrSum += e.p().squaredNorm(); });
+            MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
+            // std::cout << "norm2is " << std::scientific << sqrSumAll << std::endl;
+            return std::sqrt(sqrSumAll);
+        }
+
+        real dot(const ArrayDOFV &R)
+        {
+            assert(base::dist);
+            real sqrSum{0}, sqrSumAll;
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { sqrSum += e.p().dot((*R.dist)[i].p()); });
+            MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
+            return sqrSumAll;
+        }
+
+        // const Eigen::Map<Eigen::Vector<real, vsize>> &operator[](index i)
+        // {
+        //     return base::operator[](i).p();
+        // }
+
+        Eigen::Map<Eigen::Vector<real, -1>> operator[](index i)
+        {
+            return base::operator[](i).p();
+        }
+    };
+}
+
+namespace DNDS
+{
+    class ArrayRecV : public ArrayLocal<VarVector>
+    {
+        index _m_j;
+
+    public:
+        typedef ArrayLocal<VarVector> base;
+        using ArrayLocal<VarVector>::ArrayLocal;
+        ArrayRecV() {}
+
+        template <class TFSize_I>
+        ArrayRecV(index distSize, const MPIInfo &mpi, TFSize_I &&FSize_I, index msize_j)
+            : _m_j(msize_j)
+        {
+            base::dist = std::make_shared<Array<VarVector>>(
+                typename VarVector::Context([&](index i)
+                                            { return msize_j * FSize_I(i); },
+                                            distSize),
+                mpi);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p().setZero(); });
+        }
+
+        template <class TFSize_I>
+        void resize(index nsize, const MPIInfo &mpi, TFSize_I &&FSize_I, index msize_j)
+        {
+            _m_j = msize_j;
+            base::dist = std::make_shared<Array<VarVector>>(
+                typename VarVector::Context([&](index i)
+                                            { return msize_j * FSize_I(i); },
+                                            nsize),
+                mpi);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p().setZero(); });
+        }
+
+        void setConstant(real v)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p().setConstant(v); });
+        }
+
+        template <typename Tin>
+        void setConstant(const Tin &in)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() = in; });
+        }
+
+        void operator=(const ArrayRecV &R)
+        {
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() = (*R.dist)[i].p(); });
+        }
+
+        void operator+=(const ArrayRecV &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() += (*R.dist)[i].p(); });
+        }
+
+        void addTo(const ArrayRecV &R, real r)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() += (*R.dist)[i].p() * r; });
+        }
+
+        void operator-=(const ArrayRecV &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() -= (*R.dist)[i].p(); });
+        }
+
+        void operator*=(real r)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() *= r; });
+        }
+
+        template <class VR>
+        void operator*=(const VR &R)
+        {
+            assert(base::dist);
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { e.p() *= R[i]; });
+        }
+
+        /**
+         * @brief collective
+         *
+         */
+        real norm2__TODO()
+        {
+            assert(base::dist);
+            real sqrSum{0}, sqrSumAll;
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { sqrSum += e.p().squaredNorm(); });
+            MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
+            // std::cout << "norm2is " << std::scientific << sqrSumAll << std::endl;
+            return std::sqrt(sqrSumAll);
+        }
+
+        real dot__TODO(const ArrayRecV &R)
+        {
+            assert(base::dist);
+            real sqrSum{0}, sqrSumAll;
+            forEachInArray(*base::dist, [&](VarVector &e, index i)
+                           { sqrSum += e.p().dot((*R.dist)[i].p()); });
+            MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
+            return sqrSumAll;
+        }
+
+        // const Eigen::Map<Eigen::Vector<real, vsize>> &operator[](index i)
+        // {
+        //     return base::operator[](i).p();
+        // }
+
+        Eigen::Map<Eigen::Matrix<real, -1, -1>> operator[](index i)
+        {
+            return base::operator[](i).m_by_ncol(_m_j);
+        }
+    };
+}
+
+namespace DNDS
+{
     template <uint32_t vsize>
-    class ArrayVDOF : public ArrayLocal<SemiVarMatrix<vsize>> //TODO: update to sepearated arrays
+    class ArrayVDOF : public ArrayLocal<SemiVarMatrix<vsize>> // TODO: update to sepearated arrays
     {
         typedef ArrayLocal<SemiVarMatrix<vsize>> base;
         using ArrayLocal<SemiVarMatrix<vsize>>::ArrayLocal;

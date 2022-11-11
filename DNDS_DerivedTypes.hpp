@@ -49,9 +49,14 @@ namespace DNDS
     {
     public:
         using VarBatch<real>::VarBatch;
-        Eigen::Map<Eigen::Vector<real, -1>> v()
+        Eigen::Map<Eigen::Vector<real, -1>> p()
         {
             return Eigen::Map<Eigen::Vector<real, -1>>(data, _size);
+        }
+
+        Eigen::Map<Eigen::Matrix<real, -1, -1>> m_by_ncol(index ncol)
+        {
+            return Eigen::Map<Eigen::Matrix<real, -1, -1>>(data, _size/ncol, ncol);
         }
     };
 
