@@ -94,7 +94,7 @@ namespace DNDS
             const Eigen::Vector<real, 5> &uRecInc);
 
         void EvaluateDt(std::vector<real> &dt,
-                        ArrayLocal<VecStaticBatch<5>> &u,
+                        ArrayDOFV &u,
                         real CFL, real &dtMinall, real MaxDt = 1,
                         bool UseLocaldt = false);
         /**
@@ -102,20 +102,20 @@ namespace DNDS
          * \param rhs overwritten;
          *
          */
-        void EvaluateRHS(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u,
+        void EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
                          ArrayRecV &uRec, real t);
 
-        void LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOF<5u> &u, int jacobianCode = 1,
+        void LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u, int jacobianCode = 1,
                                real t = 0);
 
-        void LUSGSADMatrixVec(ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &AuInc);
+        void LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
 
-        void UpdateLUSGSADForward(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew);
+        void UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
-        void UpdateLUSGSADBackward(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew);
+        void UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
         void LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
-                            ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &AuInc);
+                            ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
 
         /**
          * @brief to use LUSGS, use LUSGSForward(..., uInc, uInc); uInc.pull; LUSGSBackward(..., uInc, uInc);
@@ -126,7 +126,7 @@ namespace DNDS
          *
          */
         void UpdateLUSGSForward(std::vector<real> &dTau, real dt, real alphaDiag,
-                                ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew);
+                                ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
         /**
          * @brief
@@ -134,14 +134,14 @@ namespace DNDS
          *
          */
         void UpdateLUSGSBackward(std::vector<real> &dTau, real dt, real alphaDiag,
-                                 ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew);
+                                 ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
         void UpdateSGS(std::vector<real> &dTau, real dt, real alphaDiag,
-                       ArrayDOF<5u> &rhs, ArrayDOF<5u> &u, ArrayDOF<5u> &uInc, ArrayDOF<5u> &uIncNew, bool ifForward);
+                       ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
 
-        void FixUMaxFilter(ArrayDOF<5u> &u);
+        void FixUMaxFilter(ArrayDOFV &u);
 
-        void EvaluateResidual(Eigen::Vector<real, 5> &res, ArrayDOF<5u> &rhs, index P = 1);
+        void EvaluateResidual(Eigen::Vector<real, 5> &res, ArrayDOFV &rhs, index P = 1);
     };
 
     class EulerSolver
@@ -151,13 +151,13 @@ namespace DNDS
         std::shared_ptr<ImplicitFiniteVolume2D> fv;
         std::shared_ptr<VRFiniteVolume2D> vfv;
 
-        ArrayDOF<5u> u, uPoisson, uInc, uIncRHS, uTemp;
+        ArrayDOFV u, uPoisson, uInc, uIncRHS, uTemp;
         ArrayRecV uRec, uRecNew, uRecNew1, uOld;
 
         static const int nOUTS = 9;
         // rho u v w p T M ifUseLimiter RHS
-        std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outDist;
-        std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outSerial;
+        std::shared_ptr<Array<VarVector>> outDist;
+        std::shared_ptr<Array<VarVector>> outSerial;
 
         // std::vector<uint32_t> ifUseLimiter;
         ArrayLocal<Batch<real, 1>> ifUseLimiter;
@@ -432,11 +432,11 @@ namespace DNDS
             vfv->setting = config.vfvSetting; //* currently only copies, could upgrade to referencing
             vfv->Initialization();
 
-            fv->BuildMean(u);
-            fv->BuildMean(uPoisson);
-            fv->BuildMean(uInc);
-            fv->BuildMean(uIncRHS);
-            fv->BuildMean(uTemp);
+            fv->BuildMean(u, 5);
+            fv->BuildMean(uPoisson, 5);
+            fv->BuildMean(uInc, 5);
+            fv->BuildMean(uIncRHS, 5);
+            fv->BuildMean(uTemp, 5);
             vfv->BuildRec(uRec, 5);
             vfv->BuildRec(uRecNew, 5);
             vfv->BuildRec(uRecNew1, 5);
@@ -445,8 +445,13 @@ namespace DNDS
             u.setConstant(config.eulerSetting.farFieldStaticValue);
             uPoisson.setConstant(0.0);
 
+
+            //! serial mesh specific output method
             outDist = std::make_shared<decltype(outDist)::element_type>(
-                decltype(outDist)::element_type::tContext(mesh->cell2faceLocal.dist->size()), mpi);
+                decltype(outDist)::element_type::tContext([&](index)
+                                                          { return nOUTS; },
+                                                          mesh->cell2faceLocal.dist->size()),
+                mpi);
             outSerial = std::make_shared<decltype(outDist)::element_type>(outDist.get());
             outSerial->BorrowGGIndexing(*mesh->cell2node);
             outSerial->createMPITypes();
@@ -492,7 +497,7 @@ namespace DNDS
                 u.dist->size(),
                 [&](decltype(u) &data)
                 {
-                    data.resize(u.dist->size(), u.dist->getMPI());
+                    data.resize(u.dist->size(), u.dist->getMPI(), 5);
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                 });
             EulerEvaluator eval(mesh.get(), fv.get(), vfv.get());
@@ -534,7 +539,7 @@ namespace DNDS
                 curvilinearStepper++;
                 ode.Step(
                     u,
-                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx, int iter, real ct)
+                    [&](ArrayDOFV &crhs, ArrayDOFV &cx, int iter, real ct)
                     {
                         eval.FixUMaxFilter(u);
                         u.StartPersistentPullClean();
@@ -676,140 +681,6 @@ namespace DNDS
                     if (nextTout > config.tEnd)
                         nextTout = config.tEnd;
                 }
-#ifdef USE_LOCAL_COORD_CURVILINEAR
-                if ((curvilinearStepper == config.curvilinearOneStep && curvilinearNum == 0) ||
-                    (curvilinearStepper == config.curvilinearRepeatInterval && (curvilinearNum > 0 && curvilinearNum < config.curvilinearRepeatNum)))
-                {
-                    assert(!vfv->setting.anistropicLengths);
-                    curvilinearStepper = 0;
-                    curvilinearNum++;
-
-                    forEachInArray(
-                        *vfv->uCurve.dist,
-                        [&](decltype(vfv->uCurve.dist)::element_type::tComponent &e, index iCell)
-                        {
-                            if (u[iCell](0) > config.curvilinearRange)
-                                return;
-                            auto em = e.m();
-
-                            em.setZero();
-                            em(0, 0) = em(1, 1) = 1.0;
-                            int nZetaDof = em.rows();
-
-                            auto &cellAtr = mesh->cellAtrLocal[iCell][0];
-                            auto &cellAtrRec = vfv->cellRecAtrLocal[iCell][0];
-                            auto eCell = Elem::ElementManager(cellAtr.type, cellAtrRec.intScheme);
-                            Eigen::MatrixXd coords;
-                            mesh->LoadCoords(mesh->cell2nodeLocal[iCell], coords);
-                            Elem::tPoint sScale = vfv->CoordMinMaxScale(coords);
-                            Elem::tPoint center = vfv->getCellCenter(iCell);
-
-                            Eigen::MatrixXd A(nZetaDof, nZetaDof);
-                            A.setZero();
-                            eCell.Integration(
-                                A,
-                                [&](Eigen::MatrixXd &inc, int ig, Elem::tPoint pparam, Elem::tDiFj &DiNj)
-                                {
-                                    Eigen::MatrixXd incFull;
-                                    Eigen::MatrixXd DiBj(6, nZetaDof + 1); //*remember add 1 Dof for constvalue-base
-                                    vfv->FDiffBaseValue(
-                                        iCell, eCell, coords, DiNj,
-                                        pparam, center, sScale,
-                                        Eigen::VectorXd::Zero(nZetaDof + 1),
-                                        DiBj);
-                                    Eigen::MatrixXd DiBjSlice = DiBj({1, 2}, Eigen::all);
-                                    Eigen::MatrixXd DiBjSlice2 = DiBj({3, 4, 5}, Eigen::all);
-                                    Eigen::VectorXd Weights(6);
-                                    real L = sScale(0);
-                                    Weights << 0, L, L, L * L, 2 * L * L, L * L;
-
-                                    // incFull = DiBjSlice.transpose() * DiBjSlice + DiBjSlice2.transpose();
-                                    incFull = DiBj.transpose() * Weights.asDiagonal() * DiBj;
-
-                                    inc = incFull.bottomRightCorner(incFull.rows() - 1, incFull.cols() - 1);
-                                    inc *= vfv->cellGaussJacobiDets[iCell][ig];
-                                });
-
-                            // std::cout << "Amat good \n"
-                            //           << std::endl;
-
-                            Eigen::MatrixXd b(nZetaDof, 2);
-                            b.setZero();
-                            eCell.Integration(
-                                b,
-                                [&](Eigen::MatrixXd &inc, int ig, Elem::tPoint pparam, Elem::tDiFj &DiNj)
-                                {
-                                    Eigen::MatrixXd incFull;
-                                    Eigen::MatrixXd DiBj(6, nZetaDof + 1);
-                                    Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
-                                    vfv->FDiffBaseValue(
-                                        iCell, eCell, coords, DiNj,
-                                        pparam, center, sScale,
-                                        Eigen::VectorXd::Zero(nZetaDof + 1),
-                                        DiBj);
-                                    Eigen::MatrixXd DiBjSlice = DiBj({1, 2}, Eigen::all); //? why can't use auto to recieve
-                                    // Eigen::MatrixXd DiBjSlice0 = DiBj({0}, Eigen::all);
-                                    // real recVal = (vfv->cellDiBjGaussBatch->operator[](iCell).m(ig)({0}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m())(0);
-                                    Eigen::Vector2d recGrad = vfv->cellDiBjGaussBatch->operator[](iCell).m(ig)({1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
-                                    Eigen::Matrix2d recGrad01;
-                                    recGrad01.col(0) = recGrad;
-                                    recGrad01.col(1)(0) = -recGrad(1), recGrad01.col(1)(1) = recGrad(0);
-                                    incFull = DiBjSlice.transpose() * recGrad01;
-
-                                    Eigen::VectorXd Weights(6);
-                                    real L = sScale(0);
-                                    Weights << 0, L, L, L * L, 2 * L * L, L * L;
-                                    Eigen::MatrixXd recAll = vfv->cellDiBjGaussBatch->operator[](iCell).m(ig)({0, 1, 2, 3, 4, 5}, Eigen::all).rightCols(uRec[iCell].m().rows()) *
-                                                             uRec[iCell].m();
-                                    Eigen::MatrixXd recAll2(6, 2);
-                                    recAll2.col(0) = recAll;
-                                    recAll2.col(1).setZero();
-                                    recAll2.col(1)(1) = -recAll(2), recAll2.col(1)(2) = recAll(1);
-                                    incFull = DiBj.transpose() * Weights.asDiagonal() * recAll2;
-
-                                    inc = incFull.bottomRows(incFull.rows() - 1);
-                                    inc *= vfv->cellGaussJacobiDets[iCell][ig];
-                                });
-                            Eigen::MatrixXd Ainv;
-                            HardEigen::EigenLeastSquareInverse(A, Ainv);
-                            em = Ainv * b;
-                            Eigen::MatrixXd lengths = em({0, 1}, Eigen::all).colwise().norm();
-                            real length0 = lengths.norm() / std::sqrt(2);
-                            length0 = sScale(0);
-                            em /= length0;
-
-                            // std::cout << "REC " << uRec[iCell].m().transpose();
-                            // std::cout << " EM \n"
-                            //           << std::scientific << std::setprecision(6) << em.transpose() << std::endl;
-                            // exit(123);
-                        });
-
-                    vfv->uCurve.StartPersistentPullClean();
-                    vfv->uCurve.WaitPersistentPullClean();
-                    // InsertCheck(mpi, "CHECK VFVRENEW B");
-                    vfv->Initialization_RenewBase();
-                    // InsertCheck(mpi, "CHECK VFVRENEW");
-                    cfv = std::make_shared<CRFiniteVolume2D>(*vfv);
-                    // InsertCheck(mpi, "CHECK CFVDONE");
-                    cfv->Initialization();
-                    // std::cout << cfv->baseMoments.size() << "cfv- "<< cfv->faceNormCenter[0].size()
-                    eval.cfv = cfv.get();
-                    forEachInArray(
-                        *uRec.dist,
-                        [&](decltype(uRec.dist)::element_type::tComponent &e, index iCell)
-                        {
-                            e.m().setZero();
-                        });
-                    for (int i = 0; i < config.curvilinearRestartNstep; i++)
-                    {
-                        uRec.StartPersistentPullClean();
-                        uRec.WaitPersistentPullClean();
-                        vfv->ReconstructionJacobiStep(u, uRec, uRecNew);
-                        if (mpi.rank == 0)
-                            log() << "--- Restart Reconstruction " << i << std::endl;
-                    }
-                }
-#endif
 
                 stepCount++;
 
@@ -828,7 +699,7 @@ namespace DNDS
                 u.dist->size(),
                 [&](decltype(u) &data)
                 {
-                    data.resize(u.dist->size(), u.dist->getMPI());
+                    data.resize(u.dist->size(), u.dist->getMPI(), 5);
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                     data.InitPersistentPullClean();
                 });
@@ -836,7 +707,7 @@ namespace DNDS
                 config.nGmresSpace,
                 [&](decltype(u) &data)
                 {
-                    data.resize(u.dist->size(), u.dist->getMPI());
+                    data.resize(u.dist->size(), u.dist->getMPI(), 5);
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                     data.InitPersistentPullClean();
                 });
@@ -884,7 +755,7 @@ namespace DNDS
                 CFLNow = config.CFL;
                 ode.Step(
                     u, uInc,
-                    [&](ArrayDOF<5u> &crhs, ArrayDOF<5u> &cx, int iter, real ct)
+                    [&](ArrayDOFV &crhs, ArrayDOFV &cx, int iter, real ct)
                     {
                         eval.FixUMaxFilter(cx);
                         cx.StartPersistentPullClean();
@@ -1045,8 +916,8 @@ namespace DNDS
                         for (auto &i : dTau)
                             i /= alphaDiag;
                     },
-                    [&](ArrayDOF<5u> &cx, ArrayDOF<5u> &crhs, std::vector<real> &dTau,
-                        real dt, real alphaDiag, ArrayDOF<5u> &cxInc)
+                    [&](ArrayDOFV &cx, ArrayDOFV &crhs, std::vector<real> &dTau,
+                        real dt, real alphaDiag, ArrayDOFV &cxInc)
                     {
                         cxInc.setConstant(0.0);
 
@@ -1184,7 +1055,7 @@ namespace DNDS
                         }
                     },
                     config.nTimeStepInternal,
-                    [&](int iter, ArrayDOF<5u> &cxinc, int iStep) -> bool
+                    [&](int iter, ArrayDOFV &cxinc, int iStep) -> bool
                     {
                         Eigen::Vector<real, 5> res;
                         eval.EvaluateResidual(res, cxinc);
