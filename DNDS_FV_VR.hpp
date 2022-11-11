@@ -2329,9 +2329,9 @@ namespace DNDS
          * \pre u need to StartPersistentPullClean()
          * \post u,uR need to WaitPersistentPullClean();
          */
-        template <uint32_t vsize>
+        template <class TU_DOF>
         // static const int vsize = 1; // intellisense helper: give example...
-        void ReconstructionJacobiStep(ArrayLocal<VecStaticBatch<vsize>> &u,
+        void ReconstructionJacobiStep(TU_DOF &u,
                                       ArrayRecV &uRec,
                                       ArrayRecV &uRecNewBuf)
         {
@@ -2384,24 +2384,24 @@ namespace DNDS
                         if (!setting.SOR_Instead)
                             uRecNewBuf[iCell] +=
                                 relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCellOther]) +
-                                         ((u[iCellOther].p() - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                                         ((u[iCellOther] - u[iCell]) * vectorBatchElem.m(0).row(ic2f)).transpose());
                         else
                             uRec[iCell] +=
                                 relax * ((matrixBatchElem.m(ic2f + 1) * uRec[iCellOther]) +
-                                         ((u[iCellOther].p() - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                                         ((u[iCellOther] - u[iCell]) * vectorBatchElem.m(0).row(ic2f)).transpose());
                     }
                     else
                     {
                         if (faceAttribute.iPhy == BoundaryType::Wall)
                         {
-                            Eigen::Vector<real, vsize> uBV;
+                            Eigen::Vector<real, -1> uBV(u[iCell].size());
                             uBV.setZero();
                             if (!setting.SOR_Instead)
                                 uRecNewBuf[iCell]+=
-                                    relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                                    relax * (((uBV - u[iCell]) * vectorBatchElem.m(0).row(ic2f)).transpose());
                             else
                                 uRec[iCell] +=
-                                    relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                                    relax * (((uBV - u[iCell]) * vectorBatchElem.m(0).row(ic2f)).transpose());
 
                             // eFace.Integration(
                             //     BCCorrection,
@@ -2409,7 +2409,7 @@ namespace DNDS
                             //     {
                             //         auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
 
-                            //         Eigen::MatrixXd rowUD = (uBV - uRec[iCell].p()).transpose();
+                            //         Eigen::MatrixXd rowUD = (uBV - uRec[iCell]).transpose();
                             //         Eigen::MatrixXd rowDiffI = diffI.row(0);
                             //         FFaceFunctional(iFace,rowDiffI, rowUD, faceWeights[iFace]({0}), corInc);
                             //         corInc *= faceNorms[iFace][ig].norm();
@@ -2434,20 +2434,21 @@ namespace DNDS
                                 BCCorrection,
                                 [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
                                 {
-                                    // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
-                                    auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
-                                    Eigen::Vector<real, vsize> uBV;
-                                    Eigen::Vector<real, vsize> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
+                                    index nvars = u[iCell].size();
+                                        // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
+                                        auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
+                                    Eigen::Vector<real, -1> uBV(nvars);
+                                    Eigen::Vector<real, -1> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
                                                                       uRec[iCell])
                                                                          .transpose();
-                                    uBL += u[iCell].p().transpose();
+                                    uBL += u[iCell].transpose();
                                     uBV.setZero();
                                     uBV(0) = uBL(0);
                                     Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
                                     uBV({1, 2, 3}) = uBL({1, 2, 3}) - normOut * (normOut.dot(uBV({1, 2, 3})));
                                     uBV(4) = uBL(4);
 
-                                    Eigen::MatrixXd rowUD = (uBV - u[iCell].p()).transpose();
+                                    Eigen::MatrixXd rowUD = (uBV - u[iCell]).transpose();
                                     Eigen::MatrixXd rowDiffI = diffI.row(0).rightCols(uRec[iCell].rows());
                                     FFaceFunctional(iFace, ig, rowDiffI, rowUD, (*faceWeights)[iFace]({0}), corInc);
                                     corInc *= faceNorms[iFace][ig].norm();
@@ -2468,13 +2469,14 @@ namespace DNDS
                                 BCCorrection,
                                 [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
                                 {
+                                    index nvars = u[iCell].size();
                                     // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
                                     auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
-                                    Eigen::Vector<real, vsize> uBV;
-                                    Eigen::Vector<real, vsize> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
+                                    Eigen::Vector<real, -1> uBV(nvars);
+                                    Eigen::Vector<real, -1> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
                                                                       uRec[iCell])
                                                                          .transpose();
-                                    uBL += u[iCell].p().transpose();
+                                    uBL += u[iCell].transpose();
                                     uBV.setZero();
                                     uBV(0) = uBL(0);
                                     // Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
@@ -2484,7 +2486,7 @@ namespace DNDS
                                     uBV({1, 2, 3}) = -uBL({1, 2, 3});
                                     uBV(4) = uBL(4);
 
-                                    Eigen::MatrixXd rowUD = (uBV - u[iCell].p()).transpose();
+                                    Eigen::MatrixXd rowUD = (uBV - u[iCell]).transpose();
                                     Eigen::MatrixXd rowDiffI = diffI.row(0).rightCols(uRec[iCell].rows());
                                     FFaceFunctional(iFace, ig, rowDiffI, rowUD, (*faceWeights)[iFace]({0}), corInc);
                                     corInc *= faceNorms[iFace][ig].norm();
@@ -3095,9 +3097,9 @@ namespace DNDS
          * @brief FM(uLeft,uRight,norm) gives vsize * vsize mat of Left Eigen Vectors
          *
          */
-        template <uint32_t vsize = 1, typename TFM, typename TFMI>
+        template <class TU_DOF, typename TFM, typename TFMI>
         // static const int vsize = 1; // intellisense helper: give example...
-        void ReconstructionWBAPLimitFacialV2(ArrayLocal<VecStaticBatch<vsize>> &u,
+        void ReconstructionWBAPLimitFacialV2(TU_DOF &u,
                                              ArrayRecV &uRec,
                                              ArrayRecV &uRecNewBuf,
                                              ArrayRecV &uRecNewBuf1,
@@ -3140,12 +3142,12 @@ namespace DNDS
                             Eigen::MatrixXd uRecVal(nDiff, 2), uRecValL(nDiff, 2), uRecValR(nDiff, 2), uRecValJump(nDiff, 2);
                             uRecVal.setZero(), uRecValJump.setZero();
                             uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[iCell].rows()) * uRec[iCell](Eigen::all, {0, 4});
-                            uRecValL(0, Eigen::all) += u[iCell].p()({0, 4}).transpose();
+                            uRecValL(0, Eigen::all) += u[iCell]({0, 4}).transpose();
 
                             if (iCellOther != FACE_2_VOL_EMPTY)
                             {
                                 uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[iCellOther].rows()) * uRec[iCellOther](Eigen::all, {0, 4});
-                                uRecValR(0, Eigen::all) += u[iCellOther].p()({0, 4}).transpose();
+                                uRecValR(0, Eigen::all) += u[iCellOther]({0, 4}).transpose();
                                 uRecVal = (uRecValL + uRecValR) * 0.5;
                                 uRecValJump = (uRecValL - uRecValR) * 0.5;
                             }
@@ -3284,8 +3286,8 @@ namespace DNDS
                             Eigen::MatrixXd uThisIn =
                                 uC.matrix();
                             // 2 char space :
-                            auto uR = iCellAtFace ? u[iCell].p() : u[iCellOther].p();
-                            auto uL = iCellAtFace ? u[iCellOther].p() : u[iCell].p();
+                            auto uR = iCellAtFace ? u[iCell] : u[iCellOther];
+                            auto uL = iCellAtFace ? u[iCellOther] : u[iCell];
                             auto M = FM(uL, uR, unitNorm);
 
                             uOtherIn = (M * uOtherIn.transpose()).transpose();
@@ -3429,12 +3431,12 @@ namespace DNDS
                             Eigen::MatrixXd uRecVal(nDiff, 2), uRecValL(nDiff, 2), uRecValR(nDiff, 2), uRecValJump(nDiff, 2);
                             uRecVal.setZero(), uRecValJump.setZero();
                             uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[iCell].rows()) * uRec[iCell](Eigen::all, {0, 4});
-                            uRecValL(0, Eigen::all) += u[iCell].p()({0, 4}).transpose();
+                            uRecValL(0, Eigen::all) += u[iCell]({0, 4}).transpose();
 
                             if (iCellOther != FACE_2_VOL_EMPTY)
                             {
                                 uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[iCellOther].rows()) * uRec[iCellOther](Eigen::all, {0, 4});
-                                uRecValR(0, Eigen::all) += u[iCellOther].p()({0, 4}).transpose();
+                                uRecValR(0, Eigen::all) += u[iCellOther]({0, 4}).transpose();
                                 uRecVal = (uRecValL + uRecValR) * 0.5;
                                 uRecValJump = (uRecValL - uRecValR) * 0.5;
                             }
@@ -3583,8 +3585,8 @@ namespace DNDS
                                 uC.matrix();
 
                             // 2 char space :
-                            auto uR = iCellAtFace ? u[iCell].p() : u[iCellOther].p();
-                            auto uL = iCellAtFace ? u[iCellOther].p() : u[iCell].p();
+                            auto uR = iCellAtFace ? u[iCell] : u[iCellOther];
+                            auto uL = iCellAtFace ? u[iCellOther] : u[iCell];
                             auto M = FM(uL, uR, unitNorm);
 
                             uOtherIn = (M * uOtherIn.transpose()).transpose();
@@ -3698,10 +3700,10 @@ namespace DNDS
                         //     uBV.setZero();
                         //     if (!setting.SOR_Instead)
                         //         uRecNewBuf[iCell] +=
-                        //             relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                        //             relax * (((uBV - u[iCell]) * vectorBatchElem.m(0).row(ic2f)).transpose());
                         //     else
                         //         uRec[iCell] +=
-                        //             relax * (((uBV - u[iCell].p()) * vectorBatchElem.m(0).row(ic2f)).transpose());
+                        //             relax * (((uBV - u[iCell]) * vectorBatchElem.m(0).row(ic2f)).transpose());
 
                         //     // eFace.Integration(
                         //     //     BCCorrection,
@@ -3709,7 +3711,7 @@ namespace DNDS
                         //     //     {
                         //     //         auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
 
-                        //     //         Eigen::MatrixXd rowUD = (uBV - uRec[iCell].p()).transpose();
+                        //     //         Eigen::MatrixXd rowUD = (uBV - uRec[iCell]).transpose();
                         //     //         Eigen::MatrixXd rowDiffI = diffI.row(0);
                         //     //         FFaceFunctional(iFace,rowDiffI, rowUD, faceWeights[iFace]({0}), corInc);
                         //     //         corInc *= faceNorms[iFace][ig].norm();
