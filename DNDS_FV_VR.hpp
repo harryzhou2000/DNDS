@@ -3654,7 +3654,7 @@ namespace DNDS
                                     FWBAP_L2_Biway_PolynomialOrth(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
                                 else
                                     // FMEMM_Biway_Polynomial2D(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
-                                FWBAP_L2_Biway_Polynomial2D(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
+                                    FWBAP_L2_Biway_Polynomial2D(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
                             }
                             else
                                 FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
@@ -3684,7 +3684,7 @@ namespace DNDS
                             FWBAP_L2_Multiway_PolynomialOrth(uOthers, uOthers.size(), uLimOutArray);
                         else
                             // FMEMM_Multiway_Polynomial2D(uC, uOthers, uOthers.size(), uLimOutArray);
-                        FWBAP_L2_Multiway_Polynomial2D(uOthers, uOthers.size(), uLimOutArray);
+                            FWBAP_L2_Multiway_Polynomial2D(uOthers, uOthers.size(), uLimOutArray);
                     }
                     else
                         FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray);
@@ -3919,7 +3919,7 @@ namespace DNDS
                                     : matrixSecondaryBatchElem.m(1);
                             // std::cout << "A"<<std::endl;
                             //! note that when false == bool(iCellAtFace), this cell is at left of the face
-                            Eigen::MatrixXd uOtherOther = uRecNewBuf[iCellOther].m()(Eigen::seq(0, NRecDOFLim-1), Eigen::all);
+                            Eigen::MatrixXd uOtherOther = uRecNewBuf[iCellOther].m()(Eigen::seq(0, NRecDOFLim - 1), Eigen::all);
                             if (LimEnd < uOtherOther.rows() - 1)
                                 uOtherOther(Eigen::seq(LimEnd + 1, NRecDOFLim - 1), Eigen::all) =
                                     matrixSecondaryOther(Eigen::seq(LimEnd + 1, NRecDOFLim - 1), Eigen::seq(LimEnd + 1, NRecDOFLim - 1)) *
