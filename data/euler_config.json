@@ -1,7 +1,7 @@
 {
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 2000,
+    "nTimeStep": 1000,
     "nTimeStepInternal": 20,
     "nSGSIterationInternal": 0,
     "gmresCode": 0,
@@ -17,7 +17,7 @@
     "tDataOut": 1e100,
     "tEnd": 100e100,
     "CFL": 10,
-    "dtImplicit": 1e-4,
+    "dtImplicit": 2e-4,
     "rhsThresholdInternal": 1e-3,
     "useLocalDt": true,
     "useLimiter": true,

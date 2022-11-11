@@ -915,7 +915,7 @@ namespace DNDS
                         {
                             // vfv->ReconstructionWBAPLimitFacial(
                             //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
-                            vfv->ReconstructionWBAPLimitFacialV2(
+                            vfv->ReconstructionWBAPLimitFacialV3(
                                 cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                                 iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                                 [&](const auto &UL, const auto &UR, const auto &n) -> auto{
