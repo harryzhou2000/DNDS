@@ -79,11 +79,11 @@ int main(int argn, char *argv[])
         // InsertCheck(mpi, "FUCK D");
 
         ArrayLocal<VecStaticBatch<1u>> u;
-        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew;
+        ArrayRecV uRec, uRecNew;
         fv.BuildMean(u);
         // vfv.BuildRec(uRec);
-        jfv.BuildRec(uRec);
-        uRecNew.Copy(uRec);
+        jfv.BuildRec(uRec, 1);
+        jfv.BuildRec(uRecNew, 1);
 
         forEachInArrayPair(
             *u.pair,
@@ -109,7 +109,7 @@ int main(int argn, char *argv[])
             *uRec.dist,
             [&](decltype(uRec.dist)::element_type::tComponent &e, DNDS::index iCell)
             {
-                e.m().setZero();
+                e.p().setZero();
             });
 
         u.InitPersistentPullClean();
@@ -144,7 +144,7 @@ int main(int argn, char *argv[])
                 {
                     Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
                     int ndof = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
-                    Eigen::MatrixXd rec = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
+                    Eigen::MatrixXd rec = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell];
 
                     rec(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
@@ -158,7 +158,7 @@ int main(int argn, char *argv[])
                 {
                     Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
                     int ndof = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
-                    Eigen::MatrixXd rec = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
+                    Eigen::MatrixXd rec = jfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell];
                     rec(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().pow(2).matrix();

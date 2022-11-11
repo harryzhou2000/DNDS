@@ -109,7 +109,7 @@ namespace DNDS
         template <uint32_t vsize>
         // static const int vsize = 1;
         void Reconstruction(ArrayLocal<VecStaticBatch<vsize>> &u,
-                            ArrayLocal<SemiVarMatrix<vsize>> &uRec, ArrayLocal<SemiVarMatrix<vsize>> &uRecNew)
+                            ArrayRecV &uRec, ArrayRecV &uRecNew)
         {
             // InsertCheck(mpi, "JR Reconstruction 0");
             // InsertCheck(mpi, "ReconstructionJacobiStep Start");
@@ -155,9 +155,9 @@ namespace DNDS
 
                         //! don't forget the mean value between them
                         int NDOF = faceDiBjCenterBatchElem.m(iCellAtFace).cols();
-                        Eigen::MatrixXd uRecVal = faceDiBjCenterBatchElem.m(iCellAtFace).rightCols(NDOF - 1) * uRec[iCell].m();
+                        Eigen::MatrixXd uRecVal = faceDiBjCenterBatchElem.m(iCellAtFace).rightCols(NDOF - 1) * uRec[iCell];
                         int NDOFOther = faceDiBjCenterBatchElem.m(1 - iCellAtFace).cols();
-                        Eigen::MatrixXd uRecValOther = faceDiBjCenterBatchElem.m(1 - iCellAtFace).rightCols(NDOFOther - 1) * uRec[iCellOther].m();
+                        Eigen::MatrixXd uRecValOther = faceDiBjCenterBatchElem.m(1 - iCellAtFace).rightCols(NDOFOther - 1) * uRec[iCellOther];
                         uRecValOther.row(0) += (u[iCellOther].p() - u[iCell].p()).transpose();
 
                         Eigen::MatrixXd uRecBoundary = (uRecVal + uRecValOther) * 0.5;
@@ -178,7 +178,7 @@ namespace DNDS
                         if (faceAttribute.iPhy == BoundaryType::Wall)
                         {
                             int NDOF = faceDiBjCenterBatchElem.m(iCellAtFace).cols();
-                            Eigen::MatrixXd uRecVal = faceDiBjCenterBatchElem.m(iCellAtFace).rightCols(NDOF - 1) * uRec[iCell].m();
+                            Eigen::MatrixXd uRecVal = faceDiBjCenterBatchElem.m(iCellAtFace).rightCols(NDOF - 1) * uRec[iCell];
                             Eigen::MatrixXd uRecValOther = uRecVal * 0.0;
                             uRecValOther.row(0) += (u[iCell].p() * 0.0 - u[iCell].p()).transpose();
 
@@ -193,7 +193,7 @@ namespace DNDS
                         else if (faceAttribute.iPhy == BoundaryType::Farfield)
                         {
                             int NDOF = faceDiBjCenterBatchElem.m(iCellAtFace).cols();
-                            Eigen::MatrixXd uRecVal = faceDiBjCenterBatchElem.m(iCellAtFace).rightCols(NDOF - 1) * uRec[iCell].m();
+                            Eigen::MatrixXd uRecVal = faceDiBjCenterBatchElem.m(iCellAtFace).rightCols(NDOF - 1) * uRec[iCell];
                             Eigen::MatrixXd uRecValOther = uRecVal;
                             // uRecValOther.row(0) += (u[iCell].p() * 0.0 - u[iCell].p()).transpose();
 
@@ -212,9 +212,9 @@ namespace DNDS
                     }
                 }
 
-                uRecNew[iCell].m() = matrixBatchElem.m(0) * bi;
+                uRecNew[iCell] = matrixBatchElem.m(0) * bi;
                 // std::cout << "DIFF\n"
-                //           << uRecNewBuf[iCell].m() << std::endl;
+                //           << uRecNewBuf[iCell] << std::endl;
             }
             // InsertCheck(mpi, "JR Reconstruction 1");
             real vall = 0;
@@ -223,7 +223,7 @@ namespace DNDS
             for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
             {
                 auto &uRecE = uRec[iCell];
-                nall += (uRecE.m() - uRecNew[iCell].m()).squaredNorm();
+                nall += (uRecE - uRecNew[iCell]).squaredNorm();
                 vall += 1;
             }
             MPI_Allreduce(&vall, &vallR, 1, DNDS_MPI_REAL, MPI_SUM, mpi.comm); //? remove at release
@@ -239,7 +239,7 @@ namespace DNDS
             for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
             {
                 auto &uRecE = uRec[iCell];
-                uRecE.m() = uRecNew[iCell].m();
+                uRecE = uRecNew[iCell];
             }
         }
     };

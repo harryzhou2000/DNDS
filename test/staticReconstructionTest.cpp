@@ -96,15 +96,13 @@ int main(int argn, char *argv[])
         cfv.initReconstructionMatVec();
         // InsertCheck(mpi, "SDF 1");
         ArrayLocal<VecStaticBatch<1u>> u;
-        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecNew1, uRecOld, uRecCR, uRecF1, uRecF2;
+        ArrayRecV uRec, uRecNew, uRecNew1, uRecOld, uRecCR;
         fv.BuildMean(u);
-        vfv.BuildRec(uRec);
-        vfv.BuildRec(uRecNew);
-        vfv.BuildRec(uRecNew1);
-        vfv.BuildRec(uRecOld);
-        cfv.BuildRec(uRecCR);
-        vfv.BuildRecFacial(uRecF1);
-        vfv.BuildRecFacial(uRecF2);
+        vfv.BuildRec(uRec, 1);
+        vfv.BuildRec(uRecNew, 1);
+        vfv.BuildRec(uRecNew1, 1);
+        vfv.BuildRec(uRecOld, 1);
+        cfv.BuildRec(uRecCR, 1);
 
         ArrayLocal<Batch<real, 1>> ifUseLimiter;
         vfv.BuildIfUseLimiter(ifUseLimiter);
@@ -142,7 +140,7 @@ int main(int argn, char *argv[])
             *uRec.dist,
             [&](decltype(uRec.dist)::element_type::tComponent &e, DNDS::index iCell)
             {
-                e.m().setZero();
+                e.p().setZero();
             });
 
         u.InitPersistentPullClean();
@@ -155,7 +153,7 @@ int main(int argn, char *argv[])
         {
             for (DNDS::index i = 0; i < uRecOld.dist->size(); i++)
             {
-                uRecOld[i].m() = uRec[i].m();
+                uRecOld[i] = uRec[i];
             }
 
             u.StartPersistentPullClean();
@@ -193,7 +191,7 @@ int main(int argn, char *argv[])
             real inc2 = 0;
             for (DNDS::index i = 0; i < uRecOld.dist->size(); i++)
             {
-                inc2 += (uRecOld[i].m() - uRec[i].m()).array().pow(2).sum();
+                inc2 += (uRecOld[i] - uRec[i]).array().pow(2).sum();
             }
             real inc2All = 0;
             MPI_Allreduce(&inc2, &inc2All, 1, MPI_DOUBLE, MPI_SUM, mpi.comm);
@@ -250,8 +248,8 @@ int main(int argn, char *argv[])
                     Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
                     int ndof = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
                     int ndofCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
-                    Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
-                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell].m();
+                    Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell];
+                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell];
                     rec(0) += u[iCell].p()(0);
                     recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
@@ -266,8 +264,8 @@ int main(int argn, char *argv[])
                     Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
                     int ndof = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
                     int ndofCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
-                    Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell].m();
-                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell].m();
+                    Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell];
+                    Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell];
                     rec(0) += u[iCell].p()(0);
                     recCR(0) += u[iCell].p()(0);
                     auto vReal = fDiffs(pPhysics);
@@ -292,7 +290,7 @@ int main(int argn, char *argv[])
         std::move(*mesh);
         // if (mpi.rank == mpi.size - 1)
         // {
-        //     std::cout << uRec[0].m() << std::endl;
+        //     std::cout << uRec[0] << std::endl;
         // }
     }
 

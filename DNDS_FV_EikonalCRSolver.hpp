@@ -37,7 +37,7 @@ namespace DNDS
             // lambdaFace.resize(mesh->face2nodeLocal.size());
         }
 
-        void EvaluateDt(std::vector<real> &dt, ArrayLocal<SemiVarMatrix<1>> &uRec, real CFL, real MaxDt = 1, bool UseLocaldt = false)
+        void EvaluateDt(std::vector<real> &dt, ArrayRecV &uRec, real CFL, real MaxDt = 1, bool UseLocaldt = false)
         {
             for (auto &i : lambdaCell)
                 i = 0.0;
@@ -50,9 +50,9 @@ namespace DNDS
 
                 index iCellL = f2c[0];
                 Elem::tPoint gradL{0, 0, 0}, gradR{0, 0, 0};
-                gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(0)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(0).cols() - 1) * uRec[iCellL].m();
+                gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(0)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(0).cols() - 1) * uRec[iCellL];
                 if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
-                    gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(1).cols() - 1) * uRec[f2c[1]].m();
+                    gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(1).cols() - 1) * uRec[f2c[1]];
                 Elem::tPoint grad = (gradL + gradR) * 0.5;
                 real lamFace = (std::abs(grad.dot(unitNorm)) + 1) * fv->faceArea[iFace];
                 lambdaCell[iCellL] += lamFace;
@@ -85,7 +85,7 @@ namespace DNDS
          * \param rhs overwritten;
          *
          */
-        void EvaluateRHS(ArrayDOF<1u> &rhs, ArrayDOF<1u> &u, ArrayLocal<SemiVarMatrix<1u>> &uRec, ArrayLocal<SemiVarMatrix<1u>> &uRecCR)
+        void EvaluateRHS(ArrayDOF<1u> &rhs, ArrayDOF<1u> &u, ArrayRecV &uRec, ArrayRecV &uRecCR)
         {
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
@@ -100,8 +100,8 @@ namespace DNDS
                     [&](real &inc, int ig, Elem::tPoint p, Elem::tDiFj &DiNj)
                     {
                         Elem::tPoint vrGrad{0, 0, 0}, crGrad{0, 0, 0};
-                        vrGrad({0, 1}) = cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
-                        crGrad({0, 1}) = cellDiBjGaussBatchElemCR.m(ig)({1, 2}, Eigen::all).rightCols(uRecCR[iCell].m().rows()) * uRecCR[iCell].m();
+                        vrGrad({0, 1}) = cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::all).rightCols(uRec[iCell].rows()) * uRec[iCell];
+                        crGrad({0, 1}) = cellDiBjGaussBatchElemCR.m(ig)({1, 2}, Eigen::all).rightCols(uRecCR[iCell].rows()) * uRecCR[iCell];
                         inc = 1 - std::fabs(vrGrad.dot(crGrad));
                         // inc = 1 - std::fabs(crGrad.dot(crGrad));
                         inc *= vfv->cellGaussJacobiDets[iCell][ig];
@@ -133,11 +133,11 @@ namespace DNDS
                         Elem::tPoint unitNorm = vfv->faceNorms[iFace][ig].normalized();
                         Eigen::VectorXd uRecVal(nDiff), uRecValL(nDiff), uRecValR(nDiff), uRecValJump(nDiff); // 2-d specific, no gradient z!
                         uRecVal.setZero(), uRecValJump.setZero();
-                        uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[f2c[0]].m().rows()) * uRec[f2c[0]].m();
+                        uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[f2c[0]].rows()) * uRec[f2c[0]];
 
                         if (f2c[1] != FACE_2_VOL_EMPTY)
                         {
-                            uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[f2c[1]].m().rows()) * uRec[f2c[1]].m();
+                            uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[f2c[1]].rows()) * uRec[f2c[1]];
                             uRecVal = (uRecValL + uRecValR) * 0.5;
                             uRecValJump = (uRecValL - uRecValR) * 0.5;
                         }
@@ -520,7 +520,7 @@ namespace DNDS
             // std::cout << minResult << " M \n";
         }
 
-        void EvaluateError(real &err, real &errMax, ArrayDOF<1u> &u, ArrayLocal<SemiVarMatrix<1u>> &uRec)
+        void EvaluateError(real &err, real &errMax, ArrayDOF<1u> &u, ArrayRecV &uRec)
         {
             auto mpi = uRec.dist->getMPI();
             real volD = 0.0;
@@ -530,7 +530,7 @@ namespace DNDS
             {
                 if (sResult[iCell] < MaxD)
                 {
-                    Eigen::MatrixXd recval = vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
+                    Eigen::MatrixXd recval = vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0}, Eigen::all).rightCols(uRec[iCell].rows()) * uRec[iCell];
                     real diff = (recval(0) + u[iCell](0)) - sResult[iCell];
                     errD += std::fabs(diff) / sResult[iCell];
                     volD += 1.;
@@ -555,7 +555,7 @@ namespace DNDS
         std::shared_ptr<EikonalErrorEvaluator> err;
 
         ArrayDOF<1u> u, uPoisson;
-        ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
+        ArrayRecV uRec, uRecNew, uRecCR;
 
         static const int nOUTS = 4;
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outDist;
@@ -883,9 +883,9 @@ namespace DNDS
 
             fv->BuildMean(u);
             fv->BuildMean(uPoisson);
-            vfv->BuildRec(uRec);
-            uRecNew.Copy(uRec);
-            cfv->BuildRec(uRecCR);
+            vfv->BuildRec(uRec, 1);
+            vfv->BuildRec(uRecNew, 1);
+            cfv->BuildRec(uRecCR, 1);
 
             u.setConstant(0.0);
             uPoisson.setConstant(0);
@@ -1154,7 +1154,7 @@ namespace DNDS
                         *uRec.dist,
                         [&](decltype(uRec.dist)::element_type::tComponent &e, index iCell)
                         {
-                            e.m().setZero();
+                            e.p().setZero();
                         });
                     for (int i = 0; i < config.curvilinearRestartNstep; i++)
                     {
@@ -1179,7 +1179,7 @@ namespace DNDS
         {
             for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
-                Eigen::MatrixXd recval = vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0, 1, 2}, Eigen::all).rightCols(uRec[iCell].m().rows()) * uRec[iCell].m();
+                Eigen::MatrixXd recval = vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0, 1, 2}, Eigen::all).rightCols(uRec[iCell].rows()) * uRec[iCell];
                 (*outDist)[iCell][0] = recval(0) + u[iCell](0);
                 (*outDist)[iCell][1] = recval(1);
                 (*outDist)[iCell][2] = recval(2);

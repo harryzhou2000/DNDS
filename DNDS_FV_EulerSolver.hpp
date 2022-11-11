@@ -95,7 +95,6 @@ namespace DNDS
 
         void EvaluateDt(std::vector<real> &dt,
                         ArrayLocal<VecStaticBatch<5>> &u,
-                        // ArrayLocal<SemiVarMatrix<5>> &uRec,
                         real CFL, real &dtMinall, real MaxDt = 1,
                         bool UseLocaldt = false);
         /**
@@ -104,7 +103,7 @@ namespace DNDS
          *
          */
         void EvaluateRHS(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u,
-                         ArrayLocal<SemiVarMatrix<5u>> &uRec, real t);
+                         ArrayRecV &uRec, real t);
 
         void LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOF<5u> &u, int jacobianCode = 1,
                                real t = 0);
@@ -153,14 +152,13 @@ namespace DNDS
         std::shared_ptr<VRFiniteVolume2D> vfv;
 
         ArrayDOF<5u> u, uPoisson, uInc, uIncRHS, uTemp;
-        ArrayLocal<SemiVarMatrix<5u>> uRec, uRecNew, uRecNew1, uOld;
+        ArrayRecV uRec, uRecNew, uRecNew1, uOld;
 
         static const int nOUTS = 9;
         // rho u v w p T M ifUseLimiter RHS
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outDist;
         std::shared_ptr<Array<VecStaticBatch<nOUTS>>> outSerial;
 
-        ArrayLocal<SemiVarMatrix<5u>> uF0, uF1; // ! to be dumped
         // std::vector<uint32_t> ifUseLimiter;
         ArrayLocal<Batch<real, 1>> ifUseLimiter;
 
@@ -439,17 +437,10 @@ namespace DNDS
             fv->BuildMean(uInc);
             fv->BuildMean(uIncRHS);
             fv->BuildMean(uTemp);
-            vfv->BuildRec(uRec);
-            vfv->BuildRec(uRecNew);
-            vfv->BuildRec(uRecNew1);
-            vfv->BuildRec(uOld);
-            vfv->BuildRecFacial(uF0);
-
-            uF1.Copy(uF0);
-            uF1.InitPersistentPullClean();
-
-            // vfv->BuildRecFacial(uF1);//! why copy is bad ???
-            // vfv->BuildRec(uRecNew);
+            vfv->BuildRec(uRec, 5);
+            vfv->BuildRec(uRecNew, 5);
+            vfv->BuildRec(uRecNew1, 5);
+            vfv->BuildRec(uOld, 5);
 
             u.setConstant(config.eulerSetting.farFieldStaticValue);
             uPoisson.setConstant(0.0);
@@ -560,47 +551,52 @@ namespace DNDS
                         }
                         double tstartH = MPI_Wtime();
 
-                        vfv->ReconstructionWBAPLimitFacial(
-                            cx, uRec, uRec, uF0, uF1, ifUseLimiter,
+                        vfv->ReconstructionWBAPLimitFacialV2(
+                            cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
+                            iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                 Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                real ekFixRatio = 0.001;
-                                Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                                real vsqr = velo.squaredNorm();
-                                real Ek = vsqr * 0.5 * UC(0);
-                                real Efix = Ek * ekFixRatio;
-                                real e = UC(4) - Ek;
-                                if (e < 0)
-                                    e = 0.5 * Efix;
-                                else if (e < Efix)
-                                    e = (e * e + Efix * Efix) / (2 * Efix);
-                                UC(4) = Ek + e;
+                                // real ekFixRatio = 0.001;
+                                // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                // real vsqr = velo.squaredNorm();
+                                // real Ek = vsqr * 0.5 * UC(0);
+                                // real Efix = Ek * ekFixRatio;
+                                // real e = UC(4) - Ek;
+                                // if (e < 0)
+                                //     e = 0.5 * Efix;
+                                // else if (e < Efix)
+                                //     e = (e * e + Efix * Efix) / (2 * Efix);
+                                // UC(4) = Ek + e;
 
-                                // return Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                return Eigen::Matrix<real, 5, 5>::Identity();
+                                auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+                                return M;
+                                // return Eigen::Matrix<real, 5, 5>::Identity();
                             },
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
                                 Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                                real ekFixRatio = 0.001;
-                                Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                                real vsqr = velo.squaredNorm();
-                                real Ek = vsqr * 0.5 * UC(0);
-                                real Efix = Ek * ekFixRatio;
-                                real e = UC(4) - Ek;
-                                if (e < 0)
-                                    e = 0.5 * Efix;
-                                else if (e < Efix)
-                                    e = (e * e + Efix * Efix) / (2 * Efix);
-                                UC(4) = Ek + e;
+                                // real ekFixRatio = 0.001;
+                                // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                                // real vsqr = velo.squaredNorm();
+                                // real Ek = vsqr * 0.5 * UC(0);
+                                // real Efix = Ek * ekFixRatio;
+                                // real e = UC(4) - Ek;
+                                // if (e < 0)
+                                //     e = 0.5 * Efix;
+                                // else if (e < Efix)
+                                //     e = (e * e + Efix * Efix) / (2 * Efix);
+                                // UC(4) = Ek + e;
 
-                                // return Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                return Eigen::Matrix<real, 5, 5>::Identity();
+                                auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                                M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
+                                return M;
+                                // return Eigen::Matrix<real, 5, 5>::Identity();
                             });
                         tLim += MPI_Wtime() - tstartH;
 
@@ -1312,8 +1308,8 @@ namespace DNDS
             for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
                 Eigen::Vector<real, 5> recu =
-                    vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0}, Eigen::all).rightCols(uRec[iCell].m().rows()) *
-                    uRec[iCell].m();
+                    vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0}, Eigen::all).rightCols(uRec[iCell].rows()) *
+                    uRec[iCell];
                 // recu += u[iCell];
                 // assert(recu(0) > 0);
                 recu = EulerEvaluator::CompressRecPart(u[iCell], recu);

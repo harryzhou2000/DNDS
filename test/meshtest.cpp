@@ -38,8 +38,8 @@ void testA()
     // mesh.BuildSerialOut(0);
     // mesh.PrintSerialPartPltASCIIDBG("data/out/debugmeshSO.plt", 0);
     // mesh.BuildGhosts();
-    CompactFacedMeshSerialRW *mesh;
-    CompactFacedMeshSerialRWBuild(mpi, "data/mesh/in.msh", "data/out/debugmeshSO.plt", &mesh);
+    std::shared_ptr<CompactFacedMeshSerialRW> mesh;
+    CompactFacedMeshSerialRWBuild(mpi, "data/mesh/in.msh", "data/out/debugmeshSO.plt", mesh);
 
     Array<Real1> rk(Real1::Context(mesh->cell2faceDist->size()), mpi);
     forEachInArray(rk, [&](Real1 &e, DNDS::index i)
@@ -64,8 +64,8 @@ void testA()
             return rkSerial[iv][0];
         });
 
-    ImplicitFiniteVolume2D fv(mesh);
-    VRFiniteVolume2D vfv(mesh, &fv);
+    ImplicitFiniteVolume2D fv(mesh.get());
+    VRFiniteVolume2D vfv(mesh.get(), &fv);
 
     vfv.initIntScheme();
     vfv.initMoment();
@@ -76,13 +76,13 @@ void testA()
     cfv.initReconstructionMatVec();
 
     ArrayLocal<VecStaticBatch<1u>> u;
-    ArrayLocal<SemiVarMatrix<1u>> uRec, uRecNew, uRecCR;
+    ArrayRecV uRec, uRecNew, uRecCR;
     fv.BuildMean(u);
-    vfv.BuildRec(uRec);
+    vfv.BuildRec(uRec, 1);
     // InsertCheck(mpi, "B1", __FUNCTION__, __FILE__, __LINE__);
-    uRecNew.Copy(uRec);
+    vfv.BuildRec(uRecNew, 1);
     // InsertCheck(mpi, "C0", __FUNCTION__, __FILE__, __LINE__);
-    cfv.BuildRec(uRecCR);
+    cfv.BuildRec(uRecCR, 1);
     // InsertCheck(mpi, "C1", __FUNCTION__, __FILE__, __LINE__);
 
     forEachInArrayPair(
@@ -116,7 +116,7 @@ void testA()
         *uRec.dist,
         [&](decltype(uRec.dist)::element_type::tComponent &e, DNDS::index iCell)
         {
-            e.m().setZero();
+            e.p().setZero();
         });
 
     u.InitPersistentPullClean();
@@ -136,8 +136,8 @@ void testA()
     for (int i = 0; i < u.dist->size(); i++)
     {
         std::cout << "REC: \n"
-                  << uRecCR[i].m().transpose() << std::endl
-                  << uRec[i].m().transpose() << std::endl;
+                  << uRecCR[i].transpose() << std::endl
+                  << uRec[i].transpose() << std::endl;
     }
 
     // std::cout << "\n";

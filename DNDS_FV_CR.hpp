@@ -258,16 +258,11 @@ namespace DNDS
         template <uint32_t vsize>
         // static const int vsize = 1;
         void Reconstruction(ArrayLocal<VecStaticBatch<vsize>> &u,
-                            ArrayLocal<SemiVarMatrix<vsize>> &uRec, ArrayLocal<SemiVarMatrix<vsize>> &uRecCR)
+                            ArrayRecV &uRec, ArrayRecV &uRecCR)
         {
             // InsertCheck(mpi, "ReconstructionJacobiStep Start");
-            // forEachInArray(
-            //     *uRec.dist,
-            //     [&](typename decltype(uRec.dist)::element_type::tComponent &uRecE, index iCell)
-            //     {
             for (index iCell = 0; iCell < uRec.dist->size(); iCell++)
             {
-                auto &uRecE = uRec[iCell];
                 auto &cellRA = cellRecAtrLocal[iCell][0];
                 auto &cellVRRA = VFV->cellRecAtrLocal[iCell][0];
                 real relax = cellRA.relax;
@@ -301,9 +296,9 @@ namespace DNDS
                 //     Elem::tPoint faceN = faceNormCenter[iFace];
 
                 //     Elem::tPoint gradL{0, 0, 0};
-                //     // gradL({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m()
-                //     //                             : VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m();
-                //     gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m();
+                //     // gradL({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell]
+                //     //                             : VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell];
+                //     gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell];
 
                 //     if (iCellOther != FACE_2_VOL_EMPTY)
                 //     {
@@ -311,9 +306,9 @@ namespace DNDS
                 //         auto &cellVRRAOther = VFV->cellRecAtrLocal[iCellOther][0];
 
                 //         Elem::tPoint gradR{0, 0, 0}; // ! 2d here!!
-                //         // gradR({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m()
-                //         //                             : VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m();
-                //         gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1 - iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m();
+                //         // gradR({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther]
+                //         //                             : VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther];
+                //         gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1 - iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther];
 
                 //         gradL = 0.5 * (gradL + gradR);
                 //         Elem::tPoint convVelocity = 0.5 * (gradL + gradR);
@@ -357,9 +352,9 @@ namespace DNDS
                     Elem::tPoint faceN = faceNormCenter[iFace].normalized();
 
                     Elem::tPoint gradL{0, 0, 0};
-                    // gradL({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m()
-                    //                             : VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m();
-                    gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m();
+                    // gradL({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell]
+                    //                             : VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell];
+                    gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRA.NDOF - 1) * uRec[iCell];
 
                     if (iCellOther != FACE_2_VOL_EMPTY)
                     {
@@ -367,9 +362,9 @@ namespace DNDS
                         auto &cellVRRAOther = VFV->cellRecAtrLocal[iCellOther][0];
 
                         Elem::tPoint gradR{0, 0, 0}; // ! 2d here!!
-                        // gradR({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m()
-                        //                             : VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m();
-                        gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1 - iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m();
+                        // gradR({0, 1}) = iCellAtFace ? VFV->faceDiBjCenterCache[iFace].first({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther]
+                        //                             : VFV->faceDiBjCenterCache[iFace].second({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther];
+                        gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1 - iCellAtFace)({1, 2}, Eigen::all).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther];
 
                         Elem::tPoint convVelocity = 0.5 * (gradL + gradR);
                         // Elem::tPoint convVelocity = gradAll;
@@ -386,22 +381,22 @@ namespace DNDS
                         //     {
                         //         Eigen::MatrixXd FFace;
                         //         if (signLR > 0)
-                        //             FFace = VFV->faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m();
+                        //             FFace = VFV->faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellVRRA.NDOF - 1) * uRec[iCell];
                         //         else
-                        //             FFace = VFV->faceDiBjGaussCache[iFace][ig * 2 + 1 - iCellAtFace].row(0).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther].m() + u[iCellOther].p() - u[iCell].p();
+                        //             FFace = VFV->faceDiBjGaussCache[iFace][ig * 2 + 1 - iCellAtFace].row(0).rightCols(cellVRRAOther.NDOF - 1) * uRec[iCellOther] + u[iCellOther].p() - u[iCell].p();
                         //         //! don't forget the mean value between them
                         //         biInc = (faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellRA.NDOF - 1).transpose()) *
                         //                 FFace * std::pow((*faceWeights)[iFace][0], 2);
                         //         biInc *= faceNorms[iFace][ig].norm();
                         //     });
                         if (signLR > 0)
-                            bi += matrixBatchElem.m(1 + ic2f * 2 + 0) * uRec[iCell].m();
+                            bi += matrixBatchElem.m(1 + ic2f * 2 + 0) * uRec[iCell];
                         else if (signLR < 0)
-                            bi += matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther].m() + vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther].p() - u[iCell].p());
+                            bi += matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther] + vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther].p() - u[iCell].p());
                         else
                             bi += 0.5 *
-                                  (matrixBatchElem.m(1 + ic2f * 2 + 0) * uRec[iCell].m() +
-                                   matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther].m() +
+                                  (matrixBatchElem.m(1 + ic2f * 2 + 0) * uRec[iCell] +
+                                   matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther] +
                                    vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther].p() - u[iCell].p()).transpose());
                         //! don't forget the mean value between them
                     }
@@ -414,12 +409,12 @@ namespace DNDS
                         //         Eigen::MatrixXd FFace;
                         //         if (faceAttribute.iPhy == BoundaryType::Wall)
                         //         {
-                        //             FFace.resizeLike(VFV->faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m());
+                        //             FFace.resizeLike(VFV->faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellVRRA.NDOF - 1) * uRec[iCell]);
                         //             FFace.setZero();
                         //         }
                         //         else if (faceAttribute.iPhy == BoundaryType::Farfield)
                         //         {
-                        //             FFace = VFV->faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellVRRA.NDOF - 1) * uRec[iCell].m();
+                        //             FFace = VFV->faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellVRRA.NDOF - 1) * uRec[iCell];
                         //         }
                         //         else
                         //         {
@@ -448,17 +443,14 @@ namespace DNDS
                     }
                 }
 
-                uRecCR[iCell].m() = matrixBatchElem.m(0) * bi;
+                uRecCR[iCell] = matrixBatchElem.m(0) * bi;
                 // std::cout << "DIFF\n"
-                //           << uRecNewBuf[iCell].m() << std::endl;
+                //           << uRecNewBuf[iCell] << std::endl;
             }
             // );
         }
 
         void Initialization();
 
-        // static const int vsize = 1;
-        void Reconstruction(ArrayLocal<VecStaticBatch<1>> &u,
-                            ArrayLocal<SemiVarMatrix<1>> &uRec, ArrayLocal<SemiVarMatrix<1>> &uRecCR);
     };
 }

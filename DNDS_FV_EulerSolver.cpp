@@ -52,7 +52,6 @@ namespace DNDS
 
     void EulerEvaluator::EvaluateDt(std::vector<real> &dt,
                                     ArrayLocal<VecStaticBatch<5>> &u,
-                                    // ArrayLocal<SemiVarMatrix<5>> &uRec,
                                     real CFL, real &dtMinall, real MaxDt,
                                     bool UseLocaldt)
     {
@@ -116,9 +115,9 @@ namespace DNDS
                           std::max(4. / 3., settings.idealGasProperty.gamma / settings.idealGasProperty.prGas);
 
             // Elem::tPoint gradL{0, 0, 0},gradR{0, 0, 0};
-            // gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(0)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(0).cols() - 1) * uRec[iCellL].m();
+            // gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(0)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(0).cols() - 1) * uRec[iCellL];
             // if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
-            //     gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(1).cols() - 1) * uRec[f2c[1]].m();
+            //     gradR({0, 1}) = faceDiBjCenterBatchElemVR.m(1)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(1).cols() - 1) * uRec[f2c[1]];
             // Elem::tPoint grad = (gradL + gradR) * 0.5;
 
             real lamFace = lambdaConvection * fv->faceArea[iFace];
@@ -180,7 +179,7 @@ namespace DNDS
 
 #define IF_NOT_NOREC (1)
     void EulerEvaluator::EvaluateRHS(ArrayDOF<5u> &rhs, ArrayDOF<5u> &u,
-                                     ArrayLocal<SemiVarMatrix<5u>> &uRec, real t)
+                                     ArrayRecV &uRec, real t)
     {
         Setting::RiemannSolverType rsType = settings.rsType;
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
@@ -211,8 +210,8 @@ namespace DNDS
                     Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
 
                     Eigen::Vector<real, 5> UL =
-                        faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].m().rows()) *
-                        uRec[f2c[0]].m() * IF_NOT_NOREC;
+                        faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
+                        uRec[f2c[0]] * IF_NOT_NOREC;
                     // UL += u[f2c[0]]; //! do not forget the mean value
                     UL = CompressRecPart(u[f2c[0]], UL);
                     Eigen::Vector<real, 5> ULxy = UL;
@@ -222,24 +221,24 @@ namespace DNDS
                     Eigen::Matrix<real, 3, 5> GradULxy, GradURxy;
                     GradULxy.setZero(), GradURxy.setZero();
                     GradULxy({0, 1}, {0, 1, 2, 3, 4}) =
-                        faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(1, uRec[f2c[0]].m().rows() + 1 - 1)) *
-                        uRec[f2c[0]].m() * IF_NOT_NOREC; // ! 2d here
+                        faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(1, uRec[f2c[0]].rows() + 1 - 1)) *
+                        uRec[f2c[0]] * IF_NOT_NOREC; // ! 2d here
 
                     real minVol = fv->volumeLocal[f2c[0]];
 
                     if (f2c[1] != FACE_2_VOL_EMPTY)
                     {
                         UR =
-                            faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].m().rows()) *
-                            uRec[f2c[1]].m() * IF_NOT_NOREC;
+                            faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
+                            uRec[f2c[1]] * IF_NOT_NOREC;
                         // UR += u[f2c[1]];
                         UR = CompressRecPart(u[f2c[1]], UR);
                         URxy = UR;
                         UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
 
                         GradURxy({0, 1}, {0, 1, 2, 3, 4}) =
-                            faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(1, uRec[f2c[1]].m().rows() + 1 - 1)) *
-                            uRec[f2c[1]].m() * IF_NOT_NOREC; // ! 2d here
+                            faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(1, uRec[f2c[1]].rows() + 1 - 1)) *
+                            uRec[f2c[1]] * IF_NOT_NOREC; // ! 2d here
 
                         minVol = std::min(minVol, fv->volumeLocal[f2c[1]]);
                     }
