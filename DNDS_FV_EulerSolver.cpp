@@ -50,6 +50,7 @@ namespace DNDS
         return ret;
     }
 
+    //! evaluates dt and facial spectral radius
     void EulerEvaluator::EvaluateDt(std::vector<real> &dt,
                                     ArrayDOFV &u,
                                     real CFL, real &dtMinall, real MaxDt,
@@ -65,7 +66,7 @@ namespace DNDS
             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
 
             index iCellL = f2c[0];
-            Eigen::Vector<real, -1> uMean = u[iCellL](Eigen::seq(0,4));
+            Eigen::Vector<real, -1> uMean = u[iCellL](Eigen::seq(0, 4));
             real pL, asqrL, HL, pR, asqrR, HR;
             Gas::tVec vL = u[iCellL]({1, 2, 3}) / u[iCellL](0);
             Gas::tVec vR = vL;
@@ -75,7 +76,7 @@ namespace DNDS
             pR = pL, HR = HL, asqrR = asqrL;
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
-                uMean = (uMean + u[f2c[1]](Eigen::seq(0,4))) * 0.5;
+                uMean = (uMean + u[f2c[1]](Eigen::seq(0, 4))) * 0.5;
                 vR = u[f2c[1]]({1, 2, 3}) / u[f2c[1]](0);
                 Gas::IdealGasThermal(u[f2c[1]](4), u[f2c[1]](0), vR.squaredNorm(),
                                      settings.idealGasProperty.gamma,
@@ -181,10 +182,11 @@ namespace DNDS
     void EulerEvaluator::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
                                      ArrayRecV &uRec, real t)
     {
+        int nvars = nVars;
         Setting::RiemannSolverType rsType = settings.rsType;
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
         {
-            rhs[iCell](Eigen::seq(0,4)).setZero();
+            rhs[iCell](Eigen::seq(0, 4)).setZero();
         }
 
         for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
@@ -209,92 +211,53 @@ namespace DNDS
                     Elem::tPoint unitNorm = vfv->faceNorms[iFace][ig].normalized();
                     Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
 
-                    Eigen::Vector<real, 5> UL =
+                    Eigen::Vector<real, -1> ULxy =
                         faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
                         uRec[f2c[0]] * IF_NOT_NOREC;
                     // UL += u[f2c[0]]; //! do not forget the mean value
-                    UL = CompressRecPart(u[f2c[0]](Eigen::seq(0, 4)), UL);
-                    Eigen::Vector<real, 5> ULxy = UL;
-                    UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
-                    Eigen::Vector<real, 5> UR, URxy;
+                    ULxy = CompressRecPart(u[f2c[0]](Eigen::seq(0, 4)), ULxy);
 
-                    Eigen::Matrix<real, 3, 5> GradULxy, GradURxy;
-                    GradULxy.setZero(), GradURxy.setZero();
-                    GradULxy({0, 1}, {0, 1, 2, 3, 4}) =
-                        faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(1, uRec[f2c[0]].rows() + 1 - 1)) *
+                    Eigen::Vector<real, -1>  URxy;
+
+                    Eigen::Matrix<real, 3, -1> GradULxy, GradURxy;
+                    GradULxy.resize(Eigen::NoChange, 5);
+                    GradURxy.resize(Eigen::NoChange, 5);
+                    GradULxy.setZero(),GradURxy.setZero();
+                    GradULxy({0, 1}, Eigen::all) =
+                        faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(1, Eigen::last)) *
                         uRec[f2c[0]] * IF_NOT_NOREC; // ! 2d here
 
                     real minVol = fv->volumeLocal[f2c[0]];
 
                     if (f2c[1] != FACE_2_VOL_EMPTY)
                     {
-                        UR =
+                        URxy =
                             faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
                             uRec[f2c[1]] * IF_NOT_NOREC;
                         // UR += u[f2c[1]];
-                        UR = CompressRecPart(u[f2c[1]](Eigen::seq(0, 4)), UR);
-                        URxy = UR;
-                        UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+                        URxy = CompressRecPart(u[f2c[1]](Eigen::seq(0, 4)), URxy);
 
                         GradURxy({0, 1}, {0, 1, 2, 3, 4}) =
-                            faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(1, uRec[f2c[1]].rows() + 1 - 1)) *
+                            faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(1, Eigen::last)) *
                             uRec[f2c[1]] * IF_NOT_NOREC; // ! 2d here
 
                         minVol = std::min(minVol, fv->volumeLocal[f2c[1]]);
                     }
-                    else if (faceAtr.iPhy == BoundaryType::Farfield ||
-                             faceAtr.iPhy == BoundaryType::Special_DMRFar)
+                    else if (true)
                     {
-                        if (faceAtr.iPhy == BoundaryType::Farfield)
-                            UR = settings.farFieldStaticValue;
-                        else if (faceAtr.iPhy == BoundaryType::Special_DMRFar)
-                        {
-                            Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
-                            pPhysics = vfv->faceCenters[iFace]; //! using center!
-                            real uShock = 10;
-
-                            if (((pPhysics(0) - uShock / std::sin(pi / 3) * t - 1. / 6.) -
-                                 pPhysics(1) / std::tan(pi / 3)) > 0)
-                                UR = {1.4, 0, 0, 0, 2.5};
-                            else
-                                UR = {8, 57.157676649772960, -33, 0, 5.635e2};
-                        }
-                        else
-                            assert(false);
-
-                        URxy = UR;
-                        UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
-
+                        URxy = generateBoundaryValue(
+                            ULxy,
+                            unitNorm,
+                            normBase,
+                            vfv->faceCenters[iFace],
+                            t,
+                            BoundaryType(faceAtr.iPhy));
                         GradURxy = GradULxy;
                     }
-                    else if (faceAtr.iPhy == BoundaryType::Wall_Euler)
-                    {
-                        UR = UL;
-                        UR(1) *= -1;
-                        URxy = UR;
-                        URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
-
-                        GradURxy = GradULxy;
-                    }
-                    else if (faceAtr.iPhy == BoundaryType::Wall_NoSlip)
-                    {
-                        UR = UL;
-                        UR({1, 2, 3}) *= -1;
-                        URxy = UR;
-                        URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
-
-                        GradURxy = GradULxy;
-                        // assert(false);
-                    }
-                    else if (faceAtr.iPhy == BoundaryType::Wall)
-                    {
-                        std::cout << "Wall is not a proper bc" << std::endl;
-                        assert(false);
-                    }
-                    else
-                    {
-                        assert(false);
-                    }
+                    // UR = URxy;
+                    // UL = ULxy;
+                    // UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+                    // UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
 
                     real distGRP = minVol / fv->faceArea[iFace] * 2;
                     // real distGRP = (vfv->cellBaries[f2c[0]] -
@@ -306,66 +269,30 @@ namespace DNDS
                     Eigen::Matrix<real, 3, 5> GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
                                                             (1.0 / distGRP) *
                                                                 (unitNorm * (URxy - ULxy).transpose());
-                    Eigen::Matrix<real, 3, 5> VisFlux;
+                    finc = fluxFace(
+                        ULxy,
+                        URxy,
+                        GradUMeanXy,
+                        unitNorm,
+                        normBase,
+                        BoundaryType(faceAtr.iPhy),
+                        rsType,
+                        iFace, ig);
 
-                    real k = settings.idealGasProperty.CpGas * settings.idealGasProperty.muGas / settings.idealGasProperty.prGas;
-                    Gas::ViscousFlux_IdealGas(UMeanXy, GradUMeanXy, unitNorm, faceAtr.iPhy == BoundaryType::Wall_NoSlip,
-                                              settings.idealGasProperty.gamma,
-                                              settings.idealGasProperty.muGas,
-                                              k,
-                                              settings.idealGasProperty.CpGas,
-                                              VisFlux);
-
-                    // Eigen::Vector<real, 5> F;
-                    if (rsType == Setting::RiemannSolverType::HLLEP)
-                        Gas::HLLEPFlux_IdealGas(
-                            UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
-                            [&]()
-                            {
-                                std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
-                                std::cout << "UL" << UL.transpose() << '\n';
-                                std::cout << "UR" << UR.transpose() << std::endl;
-                            });
-                    else if (rsType == Setting::RiemannSolverType::HLLC)
-                        Gas::HLLCFlux_IdealGas_HartenYee(
-                            UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
-                            [&]()
-                            {
-                                std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
-                                std::cout << "UL" << UL.transpose() << '\n';
-                                std::cout << "UR" << UR.transpose() << std::endl;
-                            });
-                    else if (rsType == Setting::RiemannSolverType::Roe)
-                        Gas::RoeFlux_IdealGas_HartenYee(
-                            UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
-                            [&]()
-                            {
-                                std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
-                                std::cout << "UL" << UL.transpose() << '\n';
-                                std::cout << "UR" << UR.transpose() << std::endl;
-                            });
-                    else
-                        assert(false);
-
-                    finc({1, 2, 3}) = normBase * finc({1, 2, 3});
-                    finc -= VisFlux.transpose() * unitNorm;
-                    finc *= -vfv->faceNorms[iFace][ig].norm(); // don't forget this
+                    finc *= vfv->faceNorms[iFace][ig].norm(); // don't forget this
                 });
 
-            rhs[f2c[0]](Eigen::seq(0,4)) += flux / fv->volumeLocal[f2c[0]];
+            rhs[f2c[0]] += flux / fv->volumeLocal[f2c[0]];
             if (f2c[1] != FACE_2_VOL_EMPTY)
-                rhs[f2c[1]](Eigen::seq(0,4)) -= flux / fv->volumeLocal[f2c[1]];
+                rhs[f2c[1]] -= flux / fv->volumeLocal[f2c[1]];
         }
-        // for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
-        // {
-        //     rhs[iCell] = rhs[iCell].array().min(1e10).max(-1e10).matrix();
-        // }
     }
 
     void EulerEvaluator::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
                                            int jacobianCode,
                                            real t)
     {
+        assert(false);                                                      // TODO: to support model expanding
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
         {
             if (iCell < mesh->cell2nodeLocal.dist->size())
@@ -382,76 +309,38 @@ namespace DNDS
             auto f2c = mesh->face2cellLocal[iFace];
 
             Eigen::Matrix<real, 5, 1> UL, UR, ULxy, URxy;
-            UL = ULxy = u[f2c[0]](Eigen::seq(0,4));
+            ULxy = u[f2c[0]](Eigen::seq(0, 4));
 
             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
             Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
             Elem::tPoint centerRL;
             real volumeInverse;
 
-            UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
-
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
-                UR = URxy = u[f2c[1]](Eigen::seq(0,4));
+                UR = URxy = u[f2c[1]](Eigen::seq(0, 4));
                 UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
 
                 centerRL = vfv->getCellCenter(f2c[1]) - vfv->getCellCenter(f2c[0]);
                 volumeInverse = 0.5 / fv->volumeLocal[f2c[1]] + 0.5 / fv->volumeLocal[f2c[0]];
             }
-            else if (faceAtr.iPhy == BoundaryType::Farfield ||
-                     faceAtr.iPhy == BoundaryType::Special_DMRFar)
+            else if (true)
             {
-                if (faceAtr.iPhy == BoundaryType::Farfield)
-                    UR = URxy = settings.farFieldStaticValue;
-                else if (faceAtr.iPhy == BoundaryType::Special_DMRFar)
-                {
-                    Elem::tPoint pPhysics = vfv->faceCenters[iFace]; //! using center!
-                    real uShock = 10;
-
-                    if (((pPhysics(0) - uShock / std::sin(pi / 3) * t - 1. / 6.) -
-                         pPhysics(1) / std::tan(pi / 3)) > 0)
-                        UR = URxy = {1.4, 0, 0, 0, 2.5};
-                    else
-                        UR = URxy = {8, 57.157676649772960, -33, 0, 5.635e2};
-                }
-                else
-                    assert(false);
-
-                UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+                URxy = generateBoundaryValue(
+                    ULxy,
+                    unitNorm,
+                    normBase,
+                    vfv->faceCenters[iFace],
+                    t,
+                    BoundaryType(faceAtr.iPhy));
 
                 centerRL = (vfv->faceCenters[iFace] - vfv->getCellCenter(f2c[0])) * 2;
                 volumeInverse = 1.0 / fv->volumeLocal[f2c[0]];
             }
-            else if (faceAtr.iPhy == BoundaryType::Wall_Euler)
-            {
-                UR = UL;
-                UR(1) *= -1;
-                URxy = UR;
-                URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
+            UL = ULxy, UR = URxy;
+            UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
+            UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
 
-                centerRL = (vfv->faceCenters[iFace] - vfv->getCellCenter(f2c[0])) * 2;
-                volumeInverse = 1.0 / fv->volumeLocal[f2c[0]];
-            }
-            else if (faceAtr.iPhy == BoundaryType::Wall_NoSlip)
-            {
-                UR = UL;
-                UR({1, 2, 3}) *= -1;
-                URxy = UR;
-                URxy({1, 2, 3}) = normBase * URxy({1, 2, 3});
-
-                centerRL = (vfv->faceCenters[iFace] - vfv->getCellCenter(f2c[0])) * 2;
-                volumeInverse = 1.0 / fv->volumeLocal[f2c[0]];
-            }
-            else if (faceAtr.iPhy == BoundaryType::Wall)
-            {
-                std::cout << "Wall is not a proper bc" << std::endl;
-                assert(false);
-            }
-            else
-            {
-                assert(false);
-            }
             Eigen::Matrix<real, 5, 1> F;
             Eigen::Matrix<real, 5, 5> dFdUL, dFdUR;
 
@@ -598,6 +487,7 @@ namespace DNDS
 
     void EulerEvaluator::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
     {
+        assert(false); // TODO: to support model expanding
         for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
         {
             index iCell = iScan;
@@ -624,10 +514,10 @@ namespace DNDS
                     Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
                                                                   ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
                                                                   : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
-                    uIncNewBuf += jacobianOther * uInc[iCellOther](Eigen::seq(0,4));
+                    uIncNewBuf += jacobianOther * uInc[iCellOther](Eigen::seq(0, 4));
                 }
             }
-            AuInc[iCell](Eigen::seq(0,4)) = jacobianCell[iCell] * uInc[iCell](Eigen::seq(0,4)) + uIncNewBuf;
+            AuInc[iCell](Eigen::seq(0, 4)) = jacobianCell[iCell] * uInc[iCell](Eigen::seq(0, 4)) + uIncNewBuf;
         }
     }
 
@@ -636,6 +526,7 @@ namespace DNDS
      **/
     void EulerEvaluator::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
+        assert(false); // TODO: to support model expanding
         index nCellDist = mesh->cell2nodeLocal.dist->size();
         for (index iScan = 0; iScan < nCellDist; iScan++)
         {
@@ -678,6 +569,7 @@ namespace DNDS
 
     void EulerEvaluator::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
+        assert(false); // TODO: to support model expanding
         index nCellDist = mesh->cell2nodeLocal.dist->size();
         for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
         {
@@ -757,58 +649,18 @@ namespace DNDS
                     {
                         Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0, 4));
                         Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0, 4));
-                        Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
                         Eigen::Vector<real, 5> fInc;
-                        do
+
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
-                            Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
-                            real p, pN, asqr, asqrN, H, HN;
-                            // if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
-                            //     std::cout << umeanOther.transpose() << std::endl
-                            //               << umeanOtherN.transpose() << std::endl
-                            //               << uInc[iCellOther].transpose() << std::endl
-                            //               << "i " << iCell << "\t" << iCellOther << std::endl;
-                            // assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
-                            Elem::tPoint velo = umeanOther({1, 2, 3}) / umeanOther(0);
-                            Elem::tPoint veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
-                            real vsqr = velo.squaredNorm();
-                            real vsqrN = veloN.squaredNorm();
 
-                            Gas::IdealGasThermal(umeanOther(4), umeanOther(0), vsqr,
-                                                 settings.idealGasProperty.gamma, p, asqr, H);
-                            Gas::IdealGasThermal(umeanOtherN(4), umeanOtherN(0), vsqrN,
-                                                 settings.idealGasProperty.gamma, pN, asqrN, HN);
-                            Eigen::Vector<real, 5> f, fN;
-
-                            // linear version
-                            Gas::tVec dVelo;
-                            real dp;
-                            Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
-                            Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
-                            break;
-                            // abort();
-
-                            // get to norm coord
-                            umeanOther({1, 2, 3}) = normBase.transpose() * umeanOther({1, 2, 3});
-                            umeanOtherN({1, 2, 3}) = normBase.transpose() * umeanOtherN({1, 2, 3});
-                            velo = normBase.transpose() * velo;
-                            veloN = normBase.transpose() * veloN;
-                            Gas::GasInviscidFlux(umeanOther, velo, p, f);
-                            Gas::GasInviscidFlux(umeanOtherN, veloN, pN, fN);
-                            fInc = fN - f;
-                            fInc({1, 2, 3}) = normBase * fInc({1, 2, 3}); // to xy
-                            if (fInc.hasNaN() || (!fInc.allFinite()))
-                            {
-                                std::cout << p << "\t" << pN << std::endl
-                                          << umeanOther.transpose() << std::endl
-                                          << umeanOtherN.transpose() << std::endl
-                                          << umeanOtherInc.transpose() << std::endl
-                                          << vsqr << "\t" << vsqrN << std::endl;
-                                assert(!(fInc.hasNaN() || (!fInc.allFinite())));
-                            }
-                        } while (false);
+                            fInc = fluxJacobian0_Right(
+                                       umeanOther,
+                                       unitNorm,
+                                       BoundaryType::Inner) *
+                                   umeanOtherInc; //! always inner here
+                        }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
                                       (fInc - lambdaFace[iFace] * umeanOtherInc);
@@ -848,7 +700,7 @@ namespace DNDS
 
             auto &c2f = mesh->cell2faceLocal[iCell];
             Eigen::Vector<real, 5> uIncNewBuf;
-            uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell](Eigen::seq(0,4));
+            uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell](Eigen::seq(0, 4));
 
             real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
 
@@ -867,60 +719,20 @@ namespace DNDS
                                            : iScan + 1;
                     if (iScanOther < iScan)
                     {
-                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0,4));
-                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0,4));
-                        Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
+                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0, 4));
+                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0, 4));
                         Eigen::Vector<real, 5> fInc;
-                        do
+
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
-                            Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
-                            real p, pN, asqr, asqrN, H, HN;
-                            // if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
-                            //     std::cout << umeanOther.transpose() << std::endl
-                            //               << umeanOtherN.transpose() << std::endl
-                            //               << uInc[iCellOther].transpose() << std::endl
-                            //               << "i " << iCell << "\t" << iCellOther << std::endl;
-                            // assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
-                            Elem::tPoint velo = umeanOther({1, 2, 3}) / umeanOther(0);
-                            Elem::tPoint veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
-                            real vsqr = velo.squaredNorm();
-                            real vsqrN = veloN.squaredNorm();
 
-                            Gas::IdealGasThermal(umeanOther(4), umeanOther(0), vsqr,
-                                                 settings.idealGasProperty.gamma, p, asqr, H);
-                            Gas::IdealGasThermal(umeanOtherN(4), umeanOtherN(0), vsqrN,
-                                                 settings.idealGasProperty.gamma, pN, asqrN, HN);
-                            Eigen::Vector<real, 5> f, fN;
-
-                            // linear version
-                            Gas::tVec dVelo;
-                            real dp;
-                            Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
-                            Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
-                            break;
-                            // abort();
-
-                            // get to norm coord
-                            umeanOther({1, 2, 3}) = normBase.transpose() * umeanOther({1, 2, 3});
-                            umeanOtherN({1, 2, 3}) = normBase.transpose() * umeanOtherN({1, 2, 3});
-                            velo = normBase.transpose() * velo;
-                            veloN = normBase.transpose() * veloN;
-                            Gas::GasInviscidFlux(umeanOther, velo, p, f);
-                            Gas::GasInviscidFlux(umeanOtherN, veloN, pN, fN);
-                            fInc = fN - f;
-                            fInc({1, 2, 3}) = normBase * fInc({1, 2, 3}); // to xy
-                            if (fInc.hasNaN() || (!fInc.allFinite()))
-                            {
-                                std::cout << p << "\t" << pN << std::endl
-                                          << umeanOther.transpose() << std::endl
-                                          << umeanOtherN.transpose() << std::endl
-                                          << umeanOtherInc.transpose() << std::endl
-                                          << vsqr << "\t" << vsqrN << std::endl;
-                                assert(!(fInc.hasNaN() || (!fInc.allFinite())));
-                            }
-                        } while (false);
+                            fInc = fluxJacobian0_Right(
+                                       umeanOther,
+                                       unitNorm,
+                                       BoundaryType::Inner) *
+                                   umeanOtherInc; //! always inner here
+                        }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
                                       (fInc - lambdaFace[iFace] * umeanOtherInc);
@@ -935,7 +747,7 @@ namespace DNDS
                 }
             }
             uIncNewBuf /= fpDivisor;
-            uIncNew[iCell](Eigen::seq(0,4)) = uIncNewBuf;
+            uIncNew[iCell](Eigen::seq(0, 4)) = uIncNewBuf;
             if (uIncNew[iCell].hasNaN())
             {
                 std::cout << uIncNew[iCell].transpose() << std::endl
@@ -947,7 +759,7 @@ namespace DNDS
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNew[iCell](Eigen::seq(0,4)) = CompressRecPart(u[iCell](Eigen::seq(0,4)), uIncNew[iCell](Eigen::seq(0,4))) - u[iCell](Eigen::seq(0,4));
+            uIncNew[iCell](Eigen::seq(0, 4)) = CompressRecPart(u[iCell](Eigen::seq(0, 4)), uIncNew[iCell](Eigen::seq(0, 4))) - u[iCell](Eigen::seq(0, 4));
         }
     }
 
@@ -981,59 +793,20 @@ namespace DNDS
                                            : iScan + 1;
                     if (iScanOther > iScan) // backward
                     {
-                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0,4));
-                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0,4));
-                        Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
+                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0, 4));
+                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0, 4));
                         Eigen::Vector<real, 5> fInc;
-                        do
+
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
-                            Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
-                            real p, pN, asqr, asqrN, H, HN;
-                            // if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
-                            //     std::cout << umeanOther.transpose() << std::endl
-                            //               << umeanOtherN.transpose() << std::endl
-                            //               << uInc[iCellOther].transpose() << std::endl
-                            //               << "i " << iCell << "\t" << iCellOther << std::endl;
-                            // assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
-                            Elem::tPoint velo = umeanOther({1, 2, 3}) / umeanOther(0);
-                            Elem::tPoint veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
-                            real vsqr = velo.squaredNorm();
-                            real vsqrN = veloN.squaredNorm();
 
-                            Gas::IdealGasThermal(umeanOther(4), umeanOther(0), vsqr,
-                                                 settings.idealGasProperty.gamma, p, asqr, H);
-                            Gas::IdealGasThermal(umeanOtherN(4), umeanOtherN(0), vsqrN,
-                                                 settings.idealGasProperty.gamma, pN, asqrN, HN);
-                            Eigen::Vector<real, 5> f, fN;
-
-                            // linear version
-                            Gas::tVec dVelo;
-                            real dp;
-                            Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
-                            Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
-                            break;
-
-                            // get to norm coord
-                            umeanOther({1, 2, 3}) = normBase.transpose() * umeanOther({1, 2, 3});
-                            umeanOtherN({1, 2, 3}) = normBase.transpose() * umeanOtherN({1, 2, 3});
-                            velo = normBase.transpose() * velo;
-                            veloN = normBase.transpose() * veloN;
-                            Gas::GasInviscidFlux(umeanOther, velo, p, f);
-                            Gas::GasInviscidFlux(umeanOtherN, veloN, pN, fN);
-                            fInc = fN - f;
-                            fInc({1, 2, 3}) = normBase * fInc({1, 2, 3}); // to xy
-                            if (fInc.hasNaN() || (!fInc.allFinite()))
-                            {
-                                std::cout << p << "\t" << pN << std::endl
-                                          << umeanOther.transpose() << std::endl
-                                          << umeanOtherN.transpose() << std::endl
-                                          << umeanOtherInc.transpose() << std::endl
-                                          << vsqr << "\t" << vsqrN << std::endl;
-                                assert(!(fInc.hasNaN() || (!fInc.allFinite())));
-                            }
-                        } while (false);
+                            fInc = fluxJacobian0_Right(
+                                       umeanOther,
+                                       unitNorm,
+                                       BoundaryType::Inner) *
+                                   umeanOtherInc; //! always inner here
+                        }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
                                       (fInc - lambdaFace[iFace] * umeanOtherInc);
@@ -1041,7 +814,7 @@ namespace DNDS
                 }
             }
             uIncNewBuf /= fpDivisor;
-            uIncNew[iCell](Eigen::seq(0,4)) += uIncNewBuf; // backward
+            uIncNew[iCell](Eigen::seq(0, 4)) += uIncNewBuf; // backward
 
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
@@ -1079,62 +852,20 @@ namespace DNDS
                     // if (true) // full
                     if ((ifForward && iCellOther < iCell) || ((!ifForward) && iCellOther > iCell))
                     {
-                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0,4));
-                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0,4));
-                        Eigen::Vector<real, 5> umeanOtherN = umeanOther + umeanOtherInc;
+                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0, 4));
+                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0, 4));
                         Eigen::Vector<real, 5> fInc;
-                        do
+
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
-                            Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
-                            real p, pN, asqr, asqrN, H, HN;
-                            // if (!(umeanOther(0) > 0 && umeanOtherN(0) > 0))
-                            //     std::cout << umeanOther.transpose() << std::endl
-                            //               << umeanOtherN.transpose() << std::endl
-                            //               << uInc[iCellOther].transpose() << std::endl
-                            //               << "i " << iCell << "\t" << iCellOther << std::endl;
-                            // assert(umeanOther(0) > 0 && umeanOtherN(0) > 0);
-                            Elem::tPoint velo = umeanOther({1, 2, 3}) / umeanOther(0);
-                            Elem::tPoint veloN = umeanOtherN({1, 2, 3}) / umeanOtherN(0);
-                            real vsqr = velo.squaredNorm();
-                            real vsqrN = veloN.squaredNorm();
 
-                            Gas::IdealGasThermal(umeanOther(4), umeanOther(0), vsqr,
-                                                 settings.idealGasProperty.gamma, p, asqr, H);
-                            Gas::IdealGasThermal(umeanOtherN(4), umeanOtherN(0), vsqrN,
-                                                 settings.idealGasProperty.gamma, pN, asqrN, HN);
-                            Eigen::Vector<real, 5> f, fN;
-
-                            // linear version
-                            Gas::tVec dVelo;
-                            real dp;
-                            Gas::IdealGasUIncrement(umeanOther, umeanOtherInc, velo, settings.idealGasProperty.gamma, dVelo, dp);
-                            Gas::GasInviscidFluxFacialIncrement(umeanOther, umeanOtherInc, unitNorm, velo, dVelo, dp, p, fInc);
-                            break;
-
-                            // get to norm coord
-                            umeanOther({1, 2, 3}) = normBase.transpose() * umeanOther({1, 2, 3});
-                            umeanOtherN({1, 2, 3}) = normBase.transpose() * umeanOtherN({1, 2, 3});
-                            velo = normBase.transpose() * velo;
-                            veloN = normBase.transpose() * veloN;
-                            Gas::GasInviscidFlux(umeanOther, velo, p, f);
-                            Gas::GasInviscidFlux(umeanOtherN, veloN, pN, fN);
-                            fInc = fN - f;
-                            fInc({1, 2, 3}) = normBase * fInc({1, 2, 3}); // to xy
-                            if (fInc.hasNaN() || (!fInc.allFinite()))
-                            {
-                                std::cout << p << "\t" << pN << std::endl
-                                          << umeanOther.transpose() << std::endl
-                                          << umeanOtherN.transpose() << std::endl
-                                          << umeanOtherInc.transpose() << std::endl
-                                          << vsqr << "\t" << vsqrN << std::endl;
-                                assert(!(fInc.hasNaN() || (!fInc.allFinite())));
-                            }
-                            // std::cout << normBase << std::endl
-                            //            << normBase * normBase.transpose() << std::endl;
-                            // std::abort();
-                        } while (false);
+                            fInc = fluxJacobian0_Right(
+                                       umeanOther,
+                                       unitNorm,
+                                       BoundaryType::Inner) *
+                                   umeanOtherInc; //! always inner here
+                        }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
                                       (fInc - lambdaFace[iFace] * umeanOtherInc);
@@ -1143,7 +874,7 @@ namespace DNDS
             }
             uIncNewBuf /= fpDivisor;
             real relax = 1;
-            uIncNew[iCell](Eigen::seq(0,4)) = uIncNewBuf * relax + uInc[iCell](Eigen::seq(0,4)) * (1 - relax); // full
+            uIncNew[iCell](Eigen::seq(0, 4)) = uIncNewBuf * relax + uInc[iCell](Eigen::seq(0, 4)) * (1 - relax); // full
 
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
@@ -1269,11 +1000,12 @@ namespace DNDS
         }
     }
 
-    void EulerEvaluator::EvaluateResidual(Eigen::Vector<real, 5> &res, ArrayDOFV &rhs, index P)
+    void EulerEvaluator::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P)
     {
         if (P < 3)
         {
-            Eigen::Vector<real, 5> resc;
+            Eigen::Vector<real, -1> resc;
+            resc.resizeLike(rhs[0]);
             resc.setZero();
 
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
@@ -1283,7 +1015,7 @@ namespace DNDS
                     std::cout << rhs[iCell] << std::endl;
                     assert(false);
                 }
-                resc += rhs[iCell](Eigen::seq(0,4)).array().abs().pow(P).matrix();
+                resc += rhs[iCell].array().abs().pow(P).matrix();
             }
             MPI_Allreduce(resc.data(), res.data(), res.size(), DNDS_MPI_REAL, MPI_SUM, rhs.dist->getMPI().comm);
             res = res.array().pow(1.0 / P).matrix();
@@ -1291,10 +1023,11 @@ namespace DNDS
         }
         else
         {
-            Eigen::Vector<real, 5> resc;
+            Eigen::Vector<real, -1> resc;
+            resc.resizeLike(rhs[0]);
             resc.setZero();
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
-                resc = resc.array().max(rhs[iCell](Eigen::seq(0,4)).array().abs()).matrix();
+                resc = resc.array().max(rhs[iCell].array().abs()).matrix();
             MPI_Allreduce(resc.data(), res.data(), res.size(), DNDS_MPI_REAL, MPI_MAX, rhs.dist->getMPI().comm);
         }
     }

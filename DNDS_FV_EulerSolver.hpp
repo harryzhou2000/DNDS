@@ -6,16 +6,20 @@
 #include "DNDS_Scripting.hpp"
 #include "DNDS_Linear.hpp"
 #include <iomanip>
+#include <functional>
 
 namespace DNDS
 {
     class EulerEvaluator
     {
+        int nVars = 5;
     public:
         CompactFacedMeshSerialRW *mesh = nullptr;
         ImplicitFiniteVolume2D *fv = nullptr;
         VRFiniteVolume2D *vfv = nullptr;
         int kAv = 0;
+
+        
 
         std::vector<real> lambdaCell;
         std::vector<real> lambdaFace;
@@ -25,6 +29,8 @@ namespace DNDS
         std::vector<Eigen::Matrix<real, 10, 5>> jacobianFace;
         std::vector<Eigen::Matrix<real, 5, 5>> jacobianCell;
         std::vector<Eigen::Matrix<real, 5, 5>> jacobianCellInv;
+
+        std::vector<std::vector<real>> dWall;
 
         // ArrayVDOF<25> dRdUrec;
         // ArrayVDOF<25> dRdb;
@@ -45,6 +51,7 @@ namespace DNDS
                 real prGas = 0.7;
                 real CpGas = Rgas * gamma / (gamma - 1);
             } idealGasProperty;
+
             int nTimeFilterPass = 0;
 
             real visScale = 1;
@@ -84,9 +91,261 @@ namespace DNDS
             jacobianFace.resize(lambdaFace.size());
             jacobianCell.resize(lambdaCell.size());
             jacobianCellInv.resize(lambdaCell.size());
+            return;
 
             // vfv->BuildRec(dRdUrec);
             // vfv->BuildRec(dRdb);
+
+            //! wall dist code, to be imporved!!!
+            real maxD = 0.1;
+            dWall.resize(mesh->cell2nodeLocal.size());
+
+            MPIInfo mpi = mesh->mpi;
+            const int NSampleLine = 5;
+
+            index nBCPoint = 0;
+            for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
+                if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall ||
+                    mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_Euler ||
+                    mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_NoSlip)
+                {
+                    Elem::ElementManager eFace(mesh->faceAtrLocal[iFace][0].type, vfv->faceRecAtrLocal[iFace][0].intScheme);
+                    nBCPoint += NSampleLine; //! knowing as line //eFace.getNInt()
+                }
+            Array<VecStaticBatch<6>> BCPointDist(VecStaticBatch<6>::Context(nBCPoint), mpi);
+            index iFill = 0;
+            for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
+                if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall ||
+                    mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_Euler ||
+                    mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_NoSlip)
+                {
+                    Elem::ElementManager eFace(mesh->faceAtrLocal[iFace][0].type, vfv->faceRecAtrLocal[iFace][0].intScheme);
+                    Eigen::MatrixXd coords;
+                    mesh->LoadCoords(mesh->face2nodeLocal[iFace], coords);
+                    for (int ig = 0; ig < NSampleLine; ig++) //! knowing as line //eFace.getNInt()
+                    {
+                        Elem::tPoint pp;
+                        // eFace.GetIntPoint(ig, pp);
+                        pp << -1.0 + ig * 2.0 / double(NSampleLine - 1), 0, 0;
+                        Elem::tDiFj DiNj(1, eFace.getNNode());
+                        eFace.GetDiNj(pp, DiNj);
+                        Elem::tPoint pPhyG = coords * DiNj.transpose();
+                        BCPointDist[iFill].p()({0, 1, 2}) = pPhyG;
+                        BCPointDist[iFill].p()({3, 4, 5}) = vfv->faceNorms[iFace][ig].normalized();
+                        iFill++;
+                    }
+                }
+            Array<VecStaticBatch<6>> BCPointFull(&BCPointDist);
+            BCPointFull.createGlobalMapping();
+            std::vector<index> fullPull(BCPointFull.pLGlobalMapping->globalSize());
+            for (index i = 0; i < fullPull.size(); i++)
+                fullPull[i] = i;
+            BCPointFull.createGhostMapping(fullPull);
+            BCPointFull.createMPITypes();
+            BCPointFull.pullOnce();
+
+            real minResult = veryLargeReal;
+            for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++)
+            {
+                auto &cellAttribute = mesh->cellAtrLocal[iCell][0];
+                auto &cellRecAttribute = vfv->cellRecAtrLocal[iCell][0];
+                auto c2n = mesh->cell2nodeLocal[iCell];
+                Eigen::MatrixXd coords;
+                mesh->LoadCoords(c2n, coords);
+
+                Elem::ElementManager eCell(cellAttribute.type, cellRecAttribute.intScheme);
+                dWall[iCell].resize(eCell.getNInt());
+                for (int ig = 0; ig < eCell.getNInt(); ig++)
+                {
+                    Elem::tPoint p;
+                    eCell.GetIntPoint(ig, p);
+                    Eigen::MatrixXd DiNj(1, eCell.getNNode());
+                    eCell.GetDiNj(p, DiNj);
+                    Elem::tPoint pC = coords * DiNj(0, Eigen::all).transpose();
+
+                    index imin = -1;
+                    real distMin = veryLargeReal;
+                    for (index isearch = 0; isearch < BCPointFull.size(); isearch++)
+                    {
+                        real cdist = (BCPointFull[isearch].p()({0, 1, 2}) - pC).norm();
+                        if (cdist < distMin)
+                        {
+                            distMin = cdist;
+                            imin = isearch;
+                        }
+                    }
+                    dWall[iCell][ig] = distMin;
+
+                    minResult = std::min(minResult, dWall[iCell][ig]);
+                }
+            }
+            std::cout << minResult << " MinWallDist \n";
+        }
+
+        real muEff(const Eigen::VectorXd &U)
+        {
+        }
+
+        Eigen::VectorXd fluxFace(
+            const Eigen::VectorXd &ULxy,
+            const Eigen::VectorXd &URxy,
+            const Eigen::MatrixXd &DiffUxy,
+            const Elem::tPoint &unitNorm,
+            const Elem::tJacobi &normBase,
+            BoundaryType btype,
+            Setting::RiemannSolverType rsType,
+            index iFace, int ig)
+        {
+            Eigen::VectorXd UR = URxy;
+            Eigen::VectorXd UL = ULxy;
+            UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+            UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
+            Eigen::VectorXd UMeanXy = 0.5 * (ULxy + URxy);
+            Eigen::Matrix<real, 3, -1> VisFlux;
+            VisFlux.resizeLike(DiffUxy);
+
+            real k = settings.idealGasProperty.CpGas * settings.idealGasProperty.muGas / settings.idealGasProperty.prGas;
+            Gas::ViscousFlux_IdealGas(UMeanXy, DiffUxy, unitNorm, btype == BoundaryType::Wall_NoSlip,
+                                      settings.idealGasProperty.gamma,
+                                      settings.idealGasProperty.muGas,
+                                      k,
+                                      settings.idealGasProperty.CpGas,
+                                      VisFlux);
+
+            Eigen::VectorXd finc;
+            finc.resizeLike(ULxy);
+
+            if (rsType == Setting::RiemannSolverType::HLLEP)
+                Gas::HLLEPFlux_IdealGas(
+                    UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                    [&]()
+                    {
+                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                        std::cout << "UL" << UL.transpose() << '\n';
+                        std::cout << "UR" << UR.transpose() << std::endl;
+                    });
+            else if (rsType == Setting::RiemannSolverType::HLLC)
+                Gas::HLLCFlux_IdealGas_HartenYee(
+                    UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                    [&]()
+                    {
+                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                        std::cout << "UL" << UL.transpose() << '\n';
+                        std::cout << "UR" << UR.transpose() << std::endl;
+                    });
+            else if (rsType == Setting::RiemannSolverType::Roe)
+                Gas::RoeFlux_IdealGas_HartenYee(
+                    UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                    [&]()
+                    {
+                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                        std::cout << "UL" << UL.transpose() << '\n';
+                        std::cout << "UR" << UR.transpose() << std::endl;
+                    });
+            else
+                assert(false);
+
+            finc({1, 2, 3}) = normBase * finc({1, 2, 3});
+            finc -= VisFlux.transpose() * unitNorm;
+
+            return -finc;
+        }
+
+        Eigen::VectorXd source(
+            const Eigen::VectorXd &U,
+            const Eigen::MatrixXd &DiffU,
+            index iCell, index ig)
+        {
+        }
+
+        Eigen::MatrixXd fluxJacobian0_Right(
+            const Eigen::VectorXd &UR,
+            const Elem::tPoint &uNorm,
+            BoundaryType btype)
+        {
+            //! for euler!!
+            const Eigen::VectorXd &U = UR;
+            const Elem::tPoint &n = uNorm;
+
+            real rhoun = n.dot(U({1, 2, 3}));
+            real rhousqr = U({1, 2, 3}).squaredNorm();
+            real gamma = settings.idealGasProperty.gamma;
+            Eigen::MatrixXd subFdU(5, 5);
+            subFdU.setZero();
+            subFdU(0, 1) = n(1 - 1);
+            subFdU(0, 2) = n(2 - 1);
+            subFdU(0, 3) = n(3 - 1);
+            subFdU(1, 0) = -1.0 / (U(1 - 1) * U(1 - 1)) * U(2 - 1) * rhoun + (1.0 / (U(1 - 1) * U(1 - 1)) * n(1 - 1) * (gamma - 1.0) * (rhousqr - U(1 - 1) * U(5 - 1) * 2.0)) / 2.0 + (U(5 - 1) * n(1 - 1) * (gamma - 1.0)) / U(1 - 1);
+            subFdU(1, 1) = (rhoun + U(2 - 1) * n(1 - 1) * 2.0 - U(2 - 1) * gamma * n(1 - 1)) / U(1 - 1);
+            subFdU(1, 2) = (U(2 - 1) * n(2 - 1)) / U(1 - 1) - (U(3 - 1) * n(1 - 1) * (gamma - 1.0)) / U(1 - 1);
+            subFdU(1, 3) = (U(2 - 1) * n(3 - 1)) / U(1 - 1) - (U(4 - 1) * n(1 - 1) * (gamma - 1.0)) / U(1 - 1);
+            subFdU(1, 4) = n(1 - 1) * (gamma - 1.0);
+            subFdU(2, 0) = -1.0 / (U(1 - 1) * U(1 - 1)) * U(3 - 1) * rhoun + (1.0 / (U(1 - 1) * U(1 - 1)) * n(2 - 1) * (gamma - 1.0) * (rhousqr - U(1 - 1) * U(5 - 1) * 2.0)) / 2.0 + (U(5 - 1) * n(2 - 1) * (gamma - 1.0)) / U(1 - 1);
+            subFdU(2, 1) = (U(3 - 1) * n(1 - 1)) / U(1 - 1) - (U(2 - 1) * n(2 - 1) * (gamma - 1.0)) / U(1 - 1);
+            subFdU(2, 2) = (rhoun + U(3 - 1) * n(2 - 1) * 2.0 - U(3 - 1) * gamma * n(2 - 1)) / U(1 - 1);
+            subFdU(2, 3) = (U(3 - 1) * n(3 - 1)) / U(1 - 1) - (U(4 - 1) * n(2 - 1) * (gamma - 1.0)) / U(1 - 1);
+            subFdU(2, 4) = n(2 - 1) * (gamma - 1.0);
+            subFdU(3, 0) = -1.0 / (U(1 - 1) * U(1 - 1)) * U(4 - 1) * rhoun + (1.0 / (U(1 - 1) * U(1 - 1)) * n(3 - 1) * (gamma - 1.0) * (rhousqr - U(1 - 1) * U(5 - 1) * 2.0)) / 2.0 + (U(5 - 1) * n(3 - 1) * (gamma - 1.0)) / U(1 - 1);
+            subFdU(3, 1) = (U(4 - 1) * n(1 - 1)) / U(1 - 1) - (U(2 - 1) * n(3 - 1) * (gamma - 1.0)) / U(1 - 1);
+            subFdU(3, 2) = (U(4 - 1) * n(2 - 1)) / U(1 - 1) - (U(3 - 1) * n(3 - 1) * (gamma - 1.0)) / U(1 - 1);
+            subFdU(3, 3) = (rhoun + U(4 - 1) * n(3 - 1) * 2.0 - U(4 - 1) * gamma * n(3 - 1)) / U(1 - 1);
+            subFdU(3, 4) = n(3 - 1) * (gamma - 1.0);
+            subFdU(4, 0) = 1.0 / (U(1 - 1) * U(1 - 1) * U(1 - 1)) * rhoun * (-rhousqr + (U(2 - 1) * U(2 - 1)) * gamma + (U(3 - 1) * U(3 - 1)) * gamma + (U(4 - 1) * U(4 - 1)) * gamma - U(1 - 1) * U(5 - 1) * gamma);
+            subFdU(4, 1) = 1.0 / (U(1 - 1) * U(1 - 1)) * n(1 - 1) * (-rhousqr + (U(2 - 1) * U(2 - 1)) * gamma + (U(3 - 1) * U(3 - 1)) * gamma + (U(4 - 1) * U(4 - 1)) * gamma - U(1 - 1) * U(5 - 1) * gamma * 2.0) * (-1.0 / 2.0) - 1.0 / (U(1 - 1) * U(1 - 1)) * U(2 - 1) * rhoun * (gamma - 1.0);
+            subFdU(4, 2) = 1.0 / (U(1 - 1) * U(1 - 1)) * n(2 - 1) * (-rhousqr + (U(2 - 1) * U(2 - 1)) * gamma + (U(3 - 1) * U(3 - 1)) * gamma + (U(4 - 1) * U(4 - 1)) * gamma - U(1 - 1) * U(5 - 1) * gamma * 2.0) * (-1.0 / 2.0) - 1.0 / (U(1 - 1) * U(1 - 1)) * U(3 - 1) * rhoun * (gamma - 1.0);
+            subFdU(4, 3) = 1.0 / (U(1 - 1) * U(1 - 1)) * n(3 - 1) * (-rhousqr + (U(2 - 1) * U(2 - 1)) * gamma + (U(3 - 1) * U(3 - 1)) * gamma + (U(4 - 1) * U(4 - 1)) * gamma - U(1 - 1) * U(5 - 1) * gamma * 2.0) * (-1.0 / 2.0) - 1.0 / (U(1 - 1) * U(1 - 1)) * U(4 - 1) * rhoun * (gamma - 1.0);
+            subFdU(4, 4) = (gamma * rhoun) / U(1 - 1);
+            return subFdU;
+        }
+
+        Eigen::VectorXd generateBoundaryValue(
+            const Eigen::VectorXd &ULxy,
+            const Elem::tPoint &uNorm,
+            const Elem::tJacobi &normBase,
+            const Elem::tPoint &pPhysics,
+            real t,
+            BoundaryType btype)
+        {
+            Eigen::VectorXd URxy;
+
+            if (btype == BoundaryType::Farfield ||
+                btype == BoundaryType::Special_DMRFar)
+            {
+                if (btype == BoundaryType::Farfield)
+                    URxy = settings.farFieldStaticValue;
+                else if (btype == BoundaryType::Special_DMRFar)
+                {
+                    URxy = settings.farFieldStaticValue;
+                    real uShock = 10;
+                    if (((pPhysics(0) - uShock / std::sin(pi / 3) * t - 1. / 6.) -
+                         pPhysics(1) / std::tan(pi / 3)) > 0)
+                        URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{1.4, 0, 0, 0, 2.5};
+                    else
+                        URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{8, 57.157676649772960, -33, 0, 5.635e2};
+                }
+                else
+                    assert(false);
+            }
+            else if (btype == BoundaryType::Wall_Euler)
+            {
+                URxy = ULxy;
+                URxy({1, 2, 3}) -= URxy({1, 2, 3}).dot(uNorm) * uNorm;
+            }
+            else if (btype == BoundaryType::Wall_NoSlip)
+            {
+                URxy = ULxy;
+                URxy({1, 2, 3}) *= -1;
+            }
+            else if (btype == BoundaryType::Wall)
+            {
+                std::cout << "Wall is not a proper bc" << std::endl;
+                assert(false);
+            }
+            else
+            {
+                assert(false);
+            }
+            return URxy;
         }
 
         static Eigen::Vector<real, 5> CompressRecPart(
@@ -141,7 +400,7 @@ namespace DNDS
 
         void FixUMaxFilter(ArrayDOFV &u);
 
-        void EvaluateResidual(Eigen::Vector<real, 5> &res, ArrayDOFV &rhs, index P = 1);
+        void EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P = 1);
     };
 
     class EulerSolver
@@ -445,7 +704,6 @@ namespace DNDS
             u.setConstant(config.eulerSetting.farFieldStaticValue);
             uPoisson.setConstant(0.0);
 
-
             //! serial mesh specific output method
             outDist = std::make_shared<decltype(outDist)::element_type>(
                 decltype(outDist)::element_type::tContext([&](index)
@@ -634,7 +892,7 @@ namespace DNDS
                 tsimu += curDtMin;
                 if (ifOutT)
                     tsimu = nextTout;
-                Eigen::Vector<real, 5> res;
+                Eigen::Vector<real, -1> res(5);
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
                 if (stepCount == 0 && resBaseC.norm() == 0)
                     resBaseC = res;
@@ -726,8 +984,10 @@ namespace DNDS
             double tstart = MPI_Wtime();
             double trec{0}, tcomm{0}, trhs{0}, tLim{0};
             int stepCount = 0;
-            Eigen::Vector<real, 5> resBaseC;
-            Eigen::Vector<real, 5> resBaseCInternal;
+            Eigen::Vector<real, -1> resBaseC;
+            Eigen::Vector<real, -1> resBaseCInternal;
+            resBaseC.resize(5);
+            resBaseCInternal.resize(5);
             resBaseC.setConstant(config.res_base);
 
             // Doing Poisson Init:
@@ -1057,12 +1317,12 @@ namespace DNDS
                     config.nTimeStepInternal,
                     [&](int iter, ArrayDOFV &cxinc, int iStep) -> bool
                     {
-                        Eigen::Vector<real, 5> res;
+                        Eigen::Vector<real, -1> res(5);
                         eval.EvaluateResidual(res, cxinc);
                         // if (iter == 1 && iStep == 1) // * using 1st rk step for reference
                         if (iter == 1)
                             resBaseCInternal = res;
-                        Eigen::Vector<real, 5> resRel = (res.array() / resBaseCInternal.array()).matrix();
+                        Eigen::Vector<real, -1> resRel = (res.array() / resBaseCInternal.array()).matrix();
                         bool ifStop = resRel(0) < config.rhsThresholdInternal; // ! using only rho's residual
                         if (iter % config.nConsoleCheckInternal == 0 || iter > config.nTimeStepInternal || ifStop)
                         {
@@ -1114,7 +1374,7 @@ namespace DNDS
                 tsimu += curDtImplicit;
                 if (ifOutT)
                     tsimu = nextTout;
-                Eigen::Vector<real, 5> res;
+                Eigen::Vector<real, -1> res(5);
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
                 if (stepCount == 0 && resBaseC.norm() == 0)
                     resBaseC = res;
@@ -1178,7 +1438,7 @@ namespace DNDS
 
             for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
-                Eigen::Vector<real, 5> recu =
+                Eigen::Vector<real, -1> recu =
                     vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0}, Eigen::all).rightCols(uRec[iCell].rows()) *
                     uRec[iCell];
                 // recu += u[iCell];
