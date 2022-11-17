@@ -33,7 +33,7 @@ SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.ex
 test/eikonal.exe test/staticReconstructionTestJR.exe test/euler.exe
 
 
-PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_FV_EulerSolver.o DNDS_Scripting.o
+PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_FV_EulerEvaluator.o DNDS_Scripting.o
 PREBUILD_DEP:=$(PREBUILD:.o=.d)
 
 PREBUILD_FAST= DNDS_HardEigen.o DNDS_Mesh.o DNDS_Profiling.o
@@ -48,14 +48,14 @@ FLAGS=-g
 # FLAGS=-O2
 # FLAGS=-Og -g
 FLAGS=-O3
-# FLAGS=-O3 -DNDEBUG
+FLAGS=-O3 -DNDEBUG
 
 
 # FLAGS_FAST=-g
 # FLAGS_FAST=-Os
 # FLAGS_FAST=-g -O3
-FLAGS_FAST=-O3
-# FLAGS_FAST=-O3 -DNDEBUG
+# FLAGS_FAST=-O3
+FLAGS_FAST=-O3 -DNDEBUG
 
 
 -include $(PREBUILD_FAST_DEP)
