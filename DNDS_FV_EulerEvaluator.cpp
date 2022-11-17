@@ -16,6 +16,7 @@ namespace DNDS
                                     real CFL, real &dtMinall, real MaxDt,
                                     bool UseLocaldt)
     {
+        InsertCheck(u.dist->getMPI(), "EvaluateDt 1");
         for (auto &i : lambdaCell)
             i = 0.0;
 
@@ -26,7 +27,7 @@ namespace DNDS
             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
 
             index iCellL = f2c[0];
-            Eigen::Vector<real, -1> uMean = u[iCellL](Eigen::seq(0, 4));
+            Eigen::Vector<real, -1> uMean = u[iCellL];
             real pL, asqrL, HL, pR, asqrR, HR;
             Gas::tVec vL = u[iCellL]({1, 2, 3}) / u[iCellL](0);
             Gas::tVec vR = vL;
@@ -36,7 +37,7 @@ namespace DNDS
             pR = pL, HR = HL, asqrR = asqrL;
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
-                uMean = (uMean + u[f2c[1]](Eigen::seq(0, 4))) * 0.5;
+                uMean = (uMean + u[f2c[1]]) * 0.5;
                 vR = u[f2c[1]]({1, 2, 3}) / u[f2c[1]](0);
                 Gas::IdealGasThermal(u[f2c[1]](4), u[f2c[1]](0), vR.squaredNorm(),
                                      settings.idealGasProperty.gamma,
@@ -71,9 +72,22 @@ namespace DNDS
             // real aMean = std::sqrt(asqrMean); // original
             real lambdaConvection = std::abs(veloNMean) + aMean;
 
-            real muf = settings.idealGasProperty.muGas;
+            real gamma = settings.idealGasProperty.gamma;
+            real T = pMean / ((gamma - 1) / gamma * settings.idealGasProperty.CpGas / uMean(0));
+            real muf = settings.idealGasProperty.muGas *
+                       std::pow(T / settings.idealGasProperty.TRef, 1.5) *
+                       (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
+                       (T + settings.idealGasProperty.CSutherland);
+            if (model == NS_SA)
+            {
+                real cnu1 = 7.1;
+                real Chi = uMean(5) / muf;
+                real Chi3 = std::pow(std::abs(Chi), 3);
+                real fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
+                muf *= (1 + fnu1);
+            }
             real lamVis = muf / uMean(0) *
-                          std::max(4. / 3., settings.idealGasProperty.gamma / settings.idealGasProperty.prGas);
+                          std::max(4. / 3., gamma / settings.idealGasProperty.prGas);
 
             // Elem::tPoint gradL{0, 0, 0},gradR{0, 0, 0};
             // gradL({0, 1}) = faceDiBjCenterBatchElemVR.m(0)({1, 2}, Eigen::all).rightCols(faceDiBjCenterBatchElemVR.m(0).cols() - 1) * uRec[iCellL];
@@ -142,6 +156,7 @@ namespace DNDS
     void EulerEvaluator::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
                                      ArrayRecV &uRec, real t)
     {
+        InsertCheck(u.dist->getMPI(), "EvaluateRHS 1");
         int cnvars = nVars;
         Setting::RiemannSolverType rsType = settings.rsType;
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
@@ -183,6 +198,7 @@ namespace DNDS
                     GradULxy.resize(Eigen::NoChange, cnvars);
                     GradURxy.resize(Eigen::NoChange, cnvars);
                     GradULxy.setZero(), GradURxy.setZero();
+
                     GradULxy({0, 1}, Eigen::all) =
                         faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(1, Eigen::last)) *
                         uRec[f2c[0]] * IF_NOT_NOREC; // ! 2d here
@@ -240,12 +256,61 @@ namespace DNDS
                         iFace, ig);
 
                     finc *= vfv->faceNorms[iFace][ig].norm(); // don't forget this
+
+                    
                 });
 
             rhs[f2c[0]] += flux / fv->volumeLocal[f2c[0]];
             if (f2c[1] != FACE_2_VOL_EMPTY)
                 rhs[f2c[1]] -= flux / fv->volumeLocal[f2c[1]];
         }
+
+        InsertCheck(u.dist->getMPI(), "EvaluateRHS After Flux");
+        for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+        {
+            auto &cellRecAtr = vfv->cellRecAtrLocal[iCell][0];
+            auto &cellAtr = mesh->cellAtrLocal[iCell][0];
+            Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
+            auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
+
+            Eigen::Vector<real, -1> sourceV(cnvars);
+            sourceV.setZero();
+
+            eCell.Integration(
+                sourceV,
+                [&](decltype(sourceV) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+                {
+                    Eigen::Matrix<real, 3, -1> GradU;
+                    GradU.resize(Eigen::NoChange, cnvars);
+                    GradU.setZero();
+                    GradU({0, 1}, Eigen::all) =
+                        cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(1, Eigen::last)) *
+                        uRec[iCell] * IF_NOT_NOREC;
+
+                    Eigen::Vector<real, -1> ULxy =
+                        cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+                        uRec[iCell] * IF_NOT_NOREC;
+
+                    ULxy = CompressRecPart(u[iCell], ULxy); //! do not forget the mean value
+
+                    finc = source(
+                        ULxy,
+                        GradU,
+                        iCell, ig);
+
+                    finc *= vfv->cellGaussJacobiDets[iCell][ig]; // don't forget this
+                    if (finc.hasNaN() || (!finc.allFinite()))
+                    {
+                        std::cout << finc.transpose() << std::endl;
+                        std::cout << ULxy.transpose() << std::endl;
+                        std::cout << GradU << std::endl;
+                        assert(false);
+                    }
+                });
+
+            rhs[iCell] += sourceV / fv->volumeLocal[iCell];
+        }
+        InsertCheck(u.dist->getMPI(), "EvaluateRHS -1");
     }
 
     void EulerEvaluator::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,

@@ -14,6 +14,9 @@ namespace DNDS
 {
     class EulerSolver
     {
+        EulerModel model;
+        int nVars;
+
         MPIInfo mpi;
         std::shared_ptr<CompactFacedMeshSerialRW> mesh;
         std::shared_ptr<ImplicitFiniteVolume2D> fv;
@@ -22,7 +25,7 @@ namespace DNDS
         ArrayDOFV u, uPoisson, uInc, uIncRHS, uTemp;
         ArrayRecV uRec, uRecNew, uRecNew1, uOld;
 
-        static const int nOUTS = 9;
+        int nOUTS = 9;
         // rho u v w p T M ifUseLimiter RHS
         std::shared_ptr<Array<VarVector>> outDist;
         std::shared_ptr<Array<VarVector>> outSerial;
@@ -31,8 +34,9 @@ namespace DNDS
         ArrayLocal<Batch<real, 1>> ifUseLimiter;
 
     public:
-        EulerSolver(const MPIInfo &nmpi) : mpi(nmpi)
+        EulerSolver(const MPIInfo &nmpi, EulerModel nmodel) : model(nmodel), nVars(getNVars(nmodel)), mpi(nmpi)
         {
+            nOUTS = nVars + 4;
         }
 
         struct Configuration
@@ -51,7 +55,7 @@ namespace DNDS
             real tDataOut = veryLargeReal;
             real tEnd = veryLargeReal;
 
-            real CFL = 0.5;
+            real CFL = 0.2;
             real dtImplicit = 1e100;
             real rhsThresholdInternal = 1e-10;
 
@@ -189,7 +193,11 @@ namespace DNDS
                 eulerParser.AddObject("idealGasProperty", &eulerGasParser);
                 {
                     eulerGasParser.AddDNDS_Real("gamma", &config.eulerSetting.idealGasProperty.gamma);
-                    eulerGasParser.AddDNDS_Real("Rgas", &config.eulerSetting.idealGasProperty.Rgas);
+                    eulerGasParser.AddDNDS_Real("Rgas", &config.eulerSetting.idealGasProperty.Rgas, [&]()
+                                                { 
+                                                    real gamma = config.eulerSetting.idealGasProperty.gamma;
+                                                    config.eulerSetting.idealGasProperty.CpGas = config.eulerSetting.idealGasProperty.Rgas * gamma/(gamma -1);
+                                                 });
                     eulerGasParser.AddDNDS_Real("muGas", &config.eulerSetting.idealGasProperty.muGas);
                 }
             }
@@ -199,7 +207,7 @@ namespace DNDS
                     "farFieldStaticValue", &eulerSetting_farFieldStaticValueBuf,
                     [&]()
                     {
-                        assert(eulerSetting_farFieldStaticValueBuf.size() == 5);
+                        assert(eulerSetting_farFieldStaticValueBuf.size() == nVars);
                         config.eulerSetting.farFieldStaticValue = eulerSetting_farFieldStaticValueBuf;
                     });
             }
@@ -209,19 +217,19 @@ namespace DNDS
                     "boxInitializerValue", &eulerSetting_boxInitializerValueBuf,
                     [&]()
                     {
-                        assert(eulerSetting_boxInitializerValueBuf.size() % (6 + 5) == 0);
-                        config.eulerSetting.boxInitializers.resize(eulerSetting_boxInitializerValueBuf.size() / (6 + 5));
+                        assert(eulerSetting_boxInitializerValueBuf.size() % (6 + nVars) == 0);
+                        config.eulerSetting.boxInitializers.resize(eulerSetting_boxInitializerValueBuf.size() / (6 + nVars));
                         auto &boxVec = config.eulerSetting.boxInitializers;
                         for (int iInit = 0; iInit < boxVec.size(); iInit++)
                         {
-                            boxVec[iInit].x0 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 0);
-                            boxVec[iInit].x1 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 1);
-                            boxVec[iInit].y0 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 2);
-                            boxVec[iInit].y1 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 3);
-                            boxVec[iInit].z0 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 4);
-                            boxVec[iInit].z1 = eulerSetting_boxInitializerValueBuf((6 + 5) * iInit + 5);
+                            boxVec[iInit].x0 = eulerSetting_boxInitializerValueBuf((6 + nVars) * iInit + 0);
+                            boxVec[iInit].x1 = eulerSetting_boxInitializerValueBuf((6 + nVars) * iInit + 1);
+                            boxVec[iInit].y0 = eulerSetting_boxInitializerValueBuf((6 + nVars) * iInit + 2);
+                            boxVec[iInit].y1 = eulerSetting_boxInitializerValueBuf((6 + nVars) * iInit + 3);
+                            boxVec[iInit].z0 = eulerSetting_boxInitializerValueBuf((6 + nVars) * iInit + 4);
+                            boxVec[iInit].z1 = eulerSetting_boxInitializerValueBuf((6 + nVars) * iInit + 5);
                             boxVec[iInit].v = eulerSetting_boxInitializerValueBuf(
-                                Eigen::seq((6 + 5) * iInit + 6, (6 + 5) * iInit + 6 + 5 - 1));
+                                Eigen::seq((6 + nVars) * iInit + 6, (6 + nVars) * iInit + 6 + nVars - 1));
                         }
                     });
             }
@@ -231,17 +239,17 @@ namespace DNDS
                     "planeInitializerValue", &eulerSetting_planeInitializerValueBuf,
                     [&]()
                     {
-                        assert(eulerSetting_planeInitializerValueBuf.size() % (4 + 5) == 0);
-                        config.eulerSetting.planeInitializers.resize(eulerSetting_planeInitializerValueBuf.size() / (4 + 5));
+                        assert(eulerSetting_planeInitializerValueBuf.size() % (4 + nVars) == 0);
+                        config.eulerSetting.planeInitializers.resize(eulerSetting_planeInitializerValueBuf.size() / (4 + nVars));
                         auto &planeVec = config.eulerSetting.planeInitializers;
                         for (int iInit = 0; iInit < planeVec.size(); iInit++)
                         {
-                            planeVec[iInit].a = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 0);
-                            planeVec[iInit].b = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 1);
-                            planeVec[iInit].c = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 2);
-                            planeVec[iInit].h = eulerSetting_planeInitializerValueBuf((4 + 5) * iInit + 3);
+                            planeVec[iInit].a = eulerSetting_planeInitializerValueBuf((4 + nVars) * iInit + 0);
+                            planeVec[iInit].b = eulerSetting_planeInitializerValueBuf((4 + nVars) * iInit + 1);
+                            planeVec[iInit].c = eulerSetting_planeInitializerValueBuf((4 + nVars) * iInit + 2);
+                            planeVec[iInit].h = eulerSetting_planeInitializerValueBuf((4 + nVars) * iInit + 3);
                             planeVec[iInit].v = eulerSetting_planeInitializerValueBuf(
-                                Eigen::seq((4 + 5) * iInit + 4, (4 + 5) * iInit + 4 + 5 - 1));
+                                Eigen::seq((4 + nVars) * iInit + 4, (4 + nVars) * iInit + 4 + nVars - 1));
                         }
                     });
             }
@@ -300,15 +308,15 @@ namespace DNDS
             vfv->setting = config.vfvSetting; //* currently only copies, could upgrade to referencing
             vfv->Initialization();
 
-            fv->BuildMean(u, 5);
-            fv->BuildMean(uPoisson, 5);
-            fv->BuildMean(uInc, 5);
-            fv->BuildMean(uIncRHS, 5);
-            fv->BuildMean(uTemp, 5);
-            vfv->BuildRec(uRec, 5);
-            vfv->BuildRec(uRecNew, 5);
-            vfv->BuildRec(uRecNew1, 5);
-            vfv->BuildRec(uOld, 5);
+            fv->BuildMean(u, nVars);
+            fv->BuildMean(uPoisson, nVars);
+            fv->BuildMean(uInc, nVars);
+            fv->BuildMean(uIncRHS, nVars);
+            fv->BuildMean(uTemp, nVars);
+            vfv->BuildRec(uRec, nVars);
+            vfv->BuildRec(uRecNew, nVars);
+            vfv->BuildRec(uRecNew1, nVars);
+            vfv->BuildRec(uOld, nVars);
 
             u.setConstant(config.eulerSetting.farFieldStaticValue);
             uPoisson.setConstant(0.0);
@@ -364,10 +372,10 @@ namespace DNDS
                 u.dist->size(),
                 [&](decltype(u) &data)
                 {
-                    data.resize(u.dist->size(), u.dist->getMPI(), 5);
+                    data.resize(u.dist->size(), u.dist->getMPI(), nVars);
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                 });
-            EulerEvaluator eval(mesh.get(), fv.get(), vfv.get());
+            EulerEvaluator eval(mesh.get(), fv.get(), vfv.get(), model);
             std::ofstream logErr(config.outLogName + ".log");
             eval.settings = config.eulerSetting;
             // std::cout << uF0.dist->commStat.hasPersistentPullReqs << std::endl;
@@ -380,7 +388,7 @@ namespace DNDS
             double tstart = MPI_Wtime();
             double trec{0}, tcomm{0}, trhs{0}, tLim{0};
             int stepCount = 0;
-            Eigen::Vector<real, 5> resBaseC;
+            Eigen::Vector<real, -1> resBaseC(nVars);
             resBaseC.setConstant(config.res_base);
 
             // Doing Poisson Init:
@@ -427,7 +435,7 @@ namespace DNDS
                             cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                             iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
@@ -445,11 +453,15 @@ namespace DNDS
 
                                 auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
                                 M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
-                                return M;
+
+                                Eigen::MatrixXd ret(nVars, nVars);
+                                ret.setIdentity();
+                                ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                                return ret;
                                 // return Eigen::Matrix<real, 5, 5>::Identity();
                             },
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
                                 auto normBase = Elem::NormBuildLocalBaseV(n);
                                 UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
@@ -467,7 +479,11 @@ namespace DNDS
 
                                 auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
                                 M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
-                                return M;
+
+                                Eigen::MatrixXd ret(nVars, nVars);
+                                ret.setIdentity();
+                                ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                                return ret;
                                 // return Eigen::Matrix<real, 5, 5>::Identity();
                             });
                         tLim += MPI_Wtime() - tstartH;
@@ -501,7 +517,7 @@ namespace DNDS
                 tsimu += curDtMin;
                 if (ifOutT)
                     tsimu = nextTout;
-                Eigen::Vector<real, -1> res(5);
+                Eigen::Vector<real, -1> res(nVars);
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
                 if (stepCount == 0 && resBaseC.norm() == 0)
                     resBaseC = res;
@@ -561,12 +577,13 @@ namespace DNDS
 
         void RunImplicitEuler()
         {
-
+            InsertCheck(mpi, "Implicit 1 nvars " + std::to_string(nVars));
+            
             ODE::ImplicitSDIRK4DualTimeStep<decltype(u)> ode(
                 u.dist->size(),
                 [&](decltype(u) &data)
                 {
-                    data.resize(u.dist->size(), u.dist->getMPI(), 5);
+                    data.resize(u.dist->size(), u.dist->getMPI(), nVars);
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                     data.InitPersistentPullClean();
                 });
@@ -574,12 +591,12 @@ namespace DNDS
                 config.nGmresSpace,
                 [&](decltype(u) &data)
                 {
-                    data.resize(u.dist->size(), u.dist->getMPI(), 5);
+                    data.resize(u.dist->size(), u.dist->getMPI(), nVars);
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                     data.InitPersistentPullClean();
                 });
 
-            EulerEvaluator eval(mesh.get(), fv.get(), vfv.get());
+            EulerEvaluator eval(mesh.get(), fv.get(), vfv.get(), model);
 
             std::ofstream logErr(config.outLogName + ".log");
             eval.settings = config.eulerSetting;
@@ -595,8 +612,8 @@ namespace DNDS
             int stepCount = 0;
             Eigen::Vector<real, -1> resBaseC;
             Eigen::Vector<real, -1> resBaseCInternal;
-            resBaseC.resize(5);
-            resBaseCInternal.resize(5);
+            resBaseC.resize(nVars);
+            resBaseCInternal.resize(nVars);
             resBaseC.setConstant(config.res_base);
 
             // Doing Poisson Init:
@@ -612,7 +629,7 @@ namespace DNDS
             real CFLNow = config.CFL;
             for (int step = 1; step <= config.nTimeStep; step++)
             {
-
+                InsertCheck(mpi, "Implicit Step");
                 bool ifOutT = false;
                 real curDtMin;
                 real curDtImplicit = config.dtImplicit;
@@ -633,6 +650,7 @@ namespace DNDS
                         // for (index iCell = 0; iCell < uOld.size(); iCell++)
                         //     uOld[iCell].m() = uRec[iCell].m();
 
+                        InsertCheck(mpi, " Lambda RHS: StartRec");
                         for (int iRec = 0; iRec < config.nInternalRecStep; iRec++)
                         {
                             double tstartA = MPI_Wtime();
@@ -647,6 +665,7 @@ namespace DNDS
                         // for (index iCell = 0; iCell < uOld.size(); iCell++)
                         //     uRec[iCell].m() -= uOld[iCell].m();
 
+                        InsertCheck(mpi, " Lambda RHS: StartLim");
                         if (config.useLimiter)
                         {
                             // vfv->ReconstructionWBAPLimitFacial(
@@ -655,7 +674,7 @@ namespace DNDS
                                 cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                                 iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                                 [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                    Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                    Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
                                     auto normBase = Elem::NormBuildLocalBaseV(n);
                                     UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
@@ -673,11 +692,15 @@ namespace DNDS
 
                                     auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
                                     M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
-                                    return M;
+
+                                    Eigen::MatrixXd ret(nVars, nVars);
+                                    ret.setIdentity();
+                                    ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                                    return ret;
                                     // return Eigen::Matrix<real, 5, 5>::Identity();
                                 },
                                 [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                    Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
+                                    Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
                                     auto normBase = Elem::NormBuildLocalBaseV(n);
                                     UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
@@ -695,7 +718,11 @@ namespace DNDS
 
                                     auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
                                     M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
-                                    return M;
+
+                                    Eigen::MatrixXd ret(nVars, nVars);
+                                    ret.setIdentity();
+                                    ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                                    return ret;
                                     // return Eigen::Matrix<real, 5, 5>::Identity();
                                 });
                             uRecNew.StartPersistentPullClean();
@@ -712,49 +739,57 @@ namespace DNDS
                             //     cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                             //     iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                             //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                            //         Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
-                            //         auto normBase = Elem::NormBuildLocalBaseV(n);
-                            //         UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+                            //     Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
+                            //     auto normBase = Elem::NormBuildLocalBaseV(n);
+                            //     UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                            //         // real ekFixRatio = 0.001;
-                            //         // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                            //         // real vsqr = velo.squaredNorm();
-                            //         // real Ek = vsqr * 0.5 * UC(0);
-                            //         // real Efix = Ek * ekFixRatio;
-                            //         // real e = UC(4) - Ek;
-                            //         // if (e < 0)
-                            //         //     e = 0.5 * Efix;
-                            //         // else if (e < Efix)
-                            //         //     e = (e * e + Efix * Efix) / (2 * Efix);
-                            //         // UC(4) = Ek + e;
+                            //     // real ekFixRatio = 0.001;
+                            //     // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                            //     // real vsqr = velo.squaredNorm();
+                            //     // real Ek = vsqr * 0.5 * UC(0);
+                            //     // real Efix = Ek * ekFixRatio;
+                            //     // real e = UC(4) - Ek;
+                            //     // if (e < 0)
+                            //     //     e = 0.5 * Efix;
+                            //     // else if (e < Efix)
+                            //     //     e = (e * e + Efix * Efix) / (2 * Efix);
+                            //     // UC(4) = Ek + e;
 
-                            //         auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                            //         M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
-                            //         return M;
-                            //         // return Eigen::Matrix<real, 5, 5>::Identity();
-                            //     },
-                            //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                            //         Eigen::Vector<real, 5> UC = (UL + UR) * 0.5;
-                            //         auto normBase = Elem::NormBuildLocalBaseV(n);
-                            //         UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+                            //     auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                            //     M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
 
-                            //         // real ekFixRatio = 0.001;
-                            //         // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                            //         // real vsqr = velo.squaredNorm();
-                            //         // real Ek = vsqr * 0.5 * UC(0);
-                            //         // real Efix = Ek * ekFixRatio;
-                            //         // real e = UC(4) - Ek;
-                            //         // if (e < 0)
-                            //         //     e = 0.5 * Efix;
-                            //         // else if (e < Efix)
-                            //         //     e = (e * e + Efix * Efix) / (2 * Efix);
-                            //         // UC(4) = Ek + e;
+                            //     Eigen::MatrixXd ret(nVars, nVars);
+                            //     ret.setIdentity();
+                            //     ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                            //     return ret;
+                            //     // return Eigen::Matrix<real, 5, 5>::Identity();
+                            // },
+                            // [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                            //     Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
+                            //     auto normBase = Elem::NormBuildLocalBaseV(n);
+                            //     UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
 
-                            //         auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                            //         M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
-                            //         return M;
-                            //         // return Eigen::Matrix<real, 5, 5>::Identity();
-                            //     });
+                            //     // real ekFixRatio = 0.001;
+                            //     // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                            //     // real vsqr = velo.squaredNorm();
+                            //     // real Ek = vsqr * 0.5 * UC(0);
+                            //     // real Efix = Ek * ekFixRatio;
+                            //     // real e = UC(4) - Ek;
+                            //     // if (e < 0)
+                            //     //     e = 0.5 * Efix;
+                            //     // else if (e < Efix)
+                            //     //     e = (e * e + Efix * Efix) / (2 * Efix);
+                            //     // UC(4) = Ek + e;
+
+                            //     auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                            //     M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
+
+                            //     Eigen::MatrixXd ret(nVars, nVars);
+                            //     ret.setIdentity();
+                            //     ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                            //     return ret;
+                            //     // return Eigen::Matrix<real, 5, 5>::Identity();
+                            // });
                             // uRecNew.StartPersistentPullClean();
                             // uRecNew.WaitPersistentPullClean();
                             // //* embedded limiting or increment limiting
@@ -766,12 +801,15 @@ namespace DNDS
 
                         // }
 
+                        InsertCheck(mpi, " Lambda RHS: StartEval");
                         double tstartE = MPI_Wtime();
                         if (config.useLimiter)
                             eval.EvaluateRHS(crhs, cx, uRecNew, tsimu + ct * curDtImplicit);
                         else
                             eval.EvaluateRHS(crhs, cx, uRec, tsimu + ct * curDtImplicit);
                         trhs += MPI_Wtime() - tstartE;
+
+                        InsertCheck(mpi, " Lambda RHS: End");
                     },
                     [&](std::vector<real> &dTau, real alphaDiag)
                     {
@@ -789,41 +827,6 @@ namespace DNDS
                         real dt, real alphaDiag, ArrayDOFV &cxInc)
                     {
                         cxInc.setConstant(0.0);
-
-                        for (int iPass = 1; iPass <= 0; iPass++)
-                        {
-                            crhs.StartPersistentPullClean();
-                            crhs.WaitPersistentPullClean();
-                            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
-                            {
-                                auto &c2f = mesh->cell2faceLocal[iCell];
-                                // Eigen::Vector<real, 5> duC = crhs[iCell] * 1.0;
-                                // real duC_N = 1.0;
-
-                                Eigen::Vector<real, 5> duC;
-                                duC.setZero();
-                                real duC_N = 0.0;
-
-                                for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
-                                {
-                                    index iFace = c2f[ic2f];
-                                    auto &f2c = (*mesh->face2cellPair)[iFace];
-                                    index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                                    index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                                    if (iCellOther != FACE_2_VOL_EMPTY)
-                                    {
-                                        real dist = (eval.vfv->cellBaries[iCellOther] - eval.vfv->cellBaries[iCell]).norm();
-                                        real divisor = eval.fv->faceArea[iFace] / dist;
-                                        duC += crhs[iCellOther] * divisor;
-                                        duC_N += divisor;
-                                    }
-                                }
-                                uPoisson[iCell] = 0.5 * (duC / duC_N + crhs[iCell]);
-                            }
-                            uPoisson.StartPersistentPullClean();
-                            uPoisson.WaitPersistentPullClean();
-                            crhs = uPoisson;
-                        }
 
                         if (config.jacobianTypeCode != 0)
                         {
@@ -926,7 +929,7 @@ namespace DNDS
                     config.nTimeStepInternal,
                     [&](int iter, ArrayDOFV &cxinc, int iStep) -> bool
                     {
-                        Eigen::Vector<real, -1> res(5);
+                        Eigen::Vector<real, -1> res(nVars);
                         eval.EvaluateResidual(res, cxinc);
                         // if (iter == 1 && iStep == 1) // * using 1st rk step for reference
                         if (iter == 1)
@@ -983,7 +986,7 @@ namespace DNDS
                 tsimu += curDtImplicit;
                 if (ifOutT)
                     tsimu = nextTout;
-                Eigen::Vector<real, -1> res(5);
+                Eigen::Vector<real, -1> res(nVars);
                 eval.EvaluateResidual(res, ode.rhsbuf[0]);
                 if (stepCount == 0 && resBaseC.norm() == 0)
                     resBaseC = res;
@@ -1073,11 +1076,20 @@ namespace DNDS
                 // std::cout << iCell << ode.rhsbuf[0][iCell] << std::endl;
                 (*outDist)[iCell][8] = ode.rhsbuf[0][iCell](0);
                 // (*outDist)[iCell][8] = (*vfv->SOR_iCell2iScan)[iCell];//!using SOR rb seq instead
+
+                for (int i = 5; i < nVars; i++)
+                {
+                    (*outDist)[iCell][4 + i] = recu(i) / recu(0);
+                }
             }
             outSerial->startPersistentPull();
             outSerial->waitPersistentPull();
-            const static std::vector<std::string> names{
+            std::vector<std::string> names{
                 "R", "U", "V", "W", "P", "T", "M", "ifUseLimiter", "RHSr"};
+            for (int i = 5; i < nVars; i++)
+            {
+                names.push_back("V" + std::to_string(i - 4));
+            }
             mesh->PrintSerialPartPltBinaryDataArray(
                 fname, 0, nOUTS, //! oprank = 0
                 [&](int idata)

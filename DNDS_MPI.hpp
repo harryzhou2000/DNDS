@@ -63,7 +63,7 @@ namespace DNDS
     inline void InsertCheck(const MPIInfo &mpi, const std::string &info = "",
                             const std::string &FUNCTION = "", const std::string &FILE = "", int LINE = -1)
     {
-#ifndef NDEBUG
+#if  ! (defined(NDEBUG) || defined(NINSERT)) 
         MPI_Barrier(mpi.comm);
         std::cout << "=== CHECK \"" << info << "\"  RANK " << mpi.rank << " ==="
                   << " @  FName: " << FUNCTION
