@@ -6,7 +6,7 @@
     "nSGSIterationInternal": 0,
     "gmresCode": 0,
     "nGmresSpace": 10,
-    "nGmresIter": 1,
+    "nGmresIter": 3,
     "jacobianTypeCode": 0,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,

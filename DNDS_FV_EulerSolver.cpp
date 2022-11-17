@@ -6,49 +6,9 @@
 namespace DNDS
 {
 
-    Eigen::Vector<real, 5> EulerEvaluator::CompressRecPart(
-        const Eigen::Vector<real, 5> &umean,
-        const Eigen::Vector<real, 5> &uRecInc)
-    {
-
-        // if (umean(0) + uRecInc(0) < 0)
-        // {
-        //     std::cout << umean.transpose() << std::endl
-        //               << uRecInc.transpose() << std::endl;
-        //     assert(false);
-        // }
-        // return umean + uRecInc; // ! no compress shortcut
-        // return umean; // ! 0th order shortcut
-
-        // // * Compress Method
-        // real compressT = 0.00001;
-        // real eFixRatio = 0.00001;
-        // Eigen::Vector<real, 5> ret;
-
-        // real compress = 1.0;
-        // if ((umean(0) + uRecInc(0)) < umean(0) * compressT)
-        //     compress *= umean(0) * (1 - compressT) / uRecInc(0);
-
-        // ret = umean + uRecInc * compress;
-
-        // real Ek = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + ret(0));
-        // real eT = eFixRatio * Ek;
-        // real e = ret(4) - Ek;
-        // if (e < 0)
-        //     e = eT * 0.5;
-        // else if (e < eT)
-        //     e = (e * e + eT * eT) / (2 * eT);
-        // ret(4) = e + Ek;
-        // // * Compress Method
-
-        Eigen::Vector<real, 5> ret = umean + uRecInc;
-        real eK = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + std::abs(ret(0)));
-        real e = ret(4) - eK;
-        if (e <= 0 || ret(0) <= 0)
-            ret = umean;
-
-        return ret;
-    }
+    // Eigen::Vector<real, -1> EulerEvaluator::CompressRecPart(
+    //     const Eigen::Vector<real, -1> &umean,
+    //     const Eigen::Vector<real, -1> &uRecInc)
 
     //! evaluates dt and facial spectral radius
     void EulerEvaluator::EvaluateDt(std::vector<real> &dt,
@@ -182,11 +142,11 @@ namespace DNDS
     void EulerEvaluator::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
                                      ArrayRecV &uRec, real t)
     {
-        int nvars = nVars;
+        int cnvars = nVars;
         Setting::RiemannSolverType rsType = settings.rsType;
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
         {
-            rhs[iCell](Eigen::seq(0, 4)).setZero();
+            rhs[iCell].setZero();
         }
 
         for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
@@ -195,7 +155,7 @@ namespace DNDS
             auto &faceAtr = mesh->faceAtrLocal[iFace][0];
             auto f2c = mesh->face2cellLocal[iFace];
             Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
-            Eigen::Vector<real, 5> flux;
+            Eigen::Vector<real, -1> flux(cnvars);
             flux.setZero();
             auto faceDiBjGaussBatchElemVR = (*vfv->faceDiBjGaussBatch)[iFace];
 
@@ -215,14 +175,14 @@ namespace DNDS
                         faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
                         uRec[f2c[0]] * IF_NOT_NOREC;
                     // UL += u[f2c[0]]; //! do not forget the mean value
-                    ULxy = CompressRecPart(u[f2c[0]](Eigen::seq(0, 4)), ULxy);
+                    ULxy = CompressRecPart(u[f2c[0]], ULxy);
 
-                    Eigen::Vector<real, -1>  URxy;
+                    Eigen::Vector<real, -1> URxy;
 
                     Eigen::Matrix<real, 3, -1> GradULxy, GradURxy;
-                    GradULxy.resize(Eigen::NoChange, 5);
-                    GradURxy.resize(Eigen::NoChange, 5);
-                    GradULxy.setZero(),GradURxy.setZero();
+                    GradULxy.resize(Eigen::NoChange, cnvars);
+                    GradURxy.resize(Eigen::NoChange, cnvars);
+                    GradULxy.setZero(), GradURxy.setZero();
                     GradULxy({0, 1}, Eigen::all) =
                         faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(1, Eigen::last)) *
                         uRec[f2c[0]] * IF_NOT_NOREC; // ! 2d here
@@ -237,7 +197,7 @@ namespace DNDS
                         // UR += u[f2c[1]];
                         URxy = CompressRecPart(u[f2c[1]](Eigen::seq(0, 4)), URxy);
 
-                        GradURxy({0, 1}, {0, 1, 2, 3, 4}) =
+                        GradURxy({0, 1}, Eigen::all) =
                             faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(1, Eigen::last)) *
                             uRec[f2c[1]] * IF_NOT_NOREC; // ! 2d here
 
@@ -611,13 +571,14 @@ namespace DNDS
     void EulerEvaluator::LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
                                         ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
     {
+        int cnvars = nVars;
         for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
         {
             index iCell = iScan;
             // iCell = (*vfv->SOR_iScan2iCell)[iCell];//TODO: add rb-sor
 
             auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, 5> uIncNewBuf;
+            Eigen::Vector<real, -1> uIncNewBuf(cnvars);
             uIncNewBuf.setZero(); // norhs
 
             real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
@@ -647,28 +608,25 @@ namespace DNDS
 
                     if (true)
                     {
-                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0, 4));
-                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0, 4));
-                        Eigen::Vector<real, 5> fInc;
-
+                        Eigen::Vector<real, -1> fInc;
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
 
                             fInc = fluxJacobian0_Right(
-                                       umeanOther,
+                                       u[iCellOther],
                                        unitNorm,
                                        BoundaryType::Inner) *
-                                   umeanOtherInc; //! always inner here
+                                   uInc[iCellOther]; //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
-                                      (fInc - lambdaFace[iFace] * umeanOtherInc);
+                                      (fInc - lambdaFace[iFace] * uInc[iCellOther]);
                         if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
                         {
                             std::cout
                                 << fInc.transpose() << std::endl
-                                << umeanOtherInc.transpose() << std::endl;
+                                << uInc[iCellOther].transpose() << std::endl;
                             assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
                         }
                     }
@@ -676,7 +634,7 @@ namespace DNDS
             }
             // uIncNewBuf /= fpDivisor;
             // uIncNew[iCell] = uIncNewBuf;
-            AuInc[iCell](Eigen::seq(0, 4)) = uInc[iCell](Eigen::seq(0, 4)) * fpDivisor - uIncNewBuf;
+            AuInc[iCell] = uInc[iCell] * fpDivisor - uIncNewBuf;
             if (AuInc[iCell].hasNaN())
             {
                 std::cout << AuInc[iCell].transpose() << std::endl
@@ -692,6 +650,7 @@ namespace DNDS
     void EulerEvaluator::UpdateLUSGSForward(std::vector<real> &dTau, real dt, real alphaDiag,
                                             ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
+        int cnvars = nVars;
         index nCellDist = mesh->cell2nodeLocal.dist->size();
         for (index iScan = 0; iScan < nCellDist; iScan++)
         {
@@ -699,7 +658,7 @@ namespace DNDS
             iCell = (*vfv->SOR_iScan2iCell)[iCell]; // TODO: add rb-sor
 
             auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, 5> uIncNewBuf;
+            Eigen::Vector<real, -1> uIncNewBuf(nVars);
             uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell](Eigen::seq(0, 4));
 
             real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
@@ -719,35 +678,33 @@ namespace DNDS
                                            : iScan + 1;
                     if (iScanOther < iScan)
                     {
-                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0, 4));
-                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0, 4));
-                        Eigen::Vector<real, 5> fInc;
+                        Eigen::Vector<real, -1> fInc;
 
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
 
                             fInc = fluxJacobian0_Right(
-                                       umeanOther,
+                                       u[iCellOther],
                                        unitNorm,
                                        BoundaryType::Inner) *
-                                   umeanOtherInc; //! always inner here
+                                   uInc[iCellOther]; //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
-                                      (fInc - lambdaFace[iFace] * umeanOtherInc);
+                                      (fInc - lambdaFace[iFace] * uInc[iCellOther]);
                         if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
                         {
                             std::cout << rhs[iCell].transpose() << std::endl
                                       << fInc.transpose() << std::endl
-                                      << umeanOtherInc.transpose() << std::endl;
+                                      << uInc[iCellOther].transpose() << std::endl;
                             assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
                         }
                     }
                 }
             }
             uIncNewBuf /= fpDivisor;
-            uIncNew[iCell](Eigen::seq(0, 4)) = uIncNewBuf;
+            uIncNew[iCell] = uIncNewBuf;
             if (uIncNew[iCell].hasNaN())
             {
                 std::cout << uIncNew[iCell].transpose() << std::endl
@@ -759,13 +716,14 @@ namespace DNDS
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNew[iCell](Eigen::seq(0, 4)) = CompressRecPart(u[iCell](Eigen::seq(0, 4)), uIncNew[iCell](Eigen::seq(0, 4))) - u[iCell](Eigen::seq(0, 4));
+            uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
         }
     }
 
     void EulerEvaluator::UpdateLUSGSBackward(std::vector<real> &dTau, real dt, real alphaDiag,
                                              ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
+        int cnvars = nVars;
         index nCellDist = mesh->cell2nodeLocal.dist->size();
         for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
         {
@@ -773,7 +731,7 @@ namespace DNDS
             iCell = (*vfv->SOR_iScan2iCell)[iCell];
 
             auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, 5> uIncNewBuf;
+            Eigen::Vector<real, -1> uIncNewBuf(cnvars);
             uIncNewBuf.setZero(); // backward
 
             real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
@@ -793,39 +751,38 @@ namespace DNDS
                                            : iScan + 1;
                     if (iScanOther > iScan) // backward
                     {
-                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0, 4));
-                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0, 4));
-                        Eigen::Vector<real, 5> fInc;
+                        Eigen::Vector<real, -1> fInc;
 
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
 
                             fInc = fluxJacobian0_Right(
-                                       umeanOther,
+                                       u[iCellOther],
                                        unitNorm,
                                        BoundaryType::Inner) *
-                                   umeanOtherInc; //! always inner here
+                                   uInc[iCellOther]; //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
-                                      (fInc - lambdaFace[iFace] * umeanOtherInc);
+                                      (fInc - lambdaFace[iFace] * uInc[iCellOther]);
                     }
                 }
             }
             uIncNewBuf /= fpDivisor;
-            uIncNew[iCell](Eigen::seq(0, 4)) += uIncNewBuf; // backward
+            uIncNew[iCell] += uIncNewBuf; // backward
 
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNew[iCell](Eigen::seq(0, 4)) = CompressRecPart(u[iCell](Eigen::seq(0, 4)), uIncNew[iCell](Eigen::seq(0, 4))) - u[iCell](Eigen::seq(0, 4));
+            uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
         }
     }
 
     void EulerEvaluator::UpdateSGS(std::vector<real> &dTau, real dt, real alphaDiag,
                                    ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward)
     {
+        int cnvars = nVars;
         for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
         {
             index iCell;
@@ -834,9 +791,9 @@ namespace DNDS
             else
                 iCell = mesh->cell2nodeLocal.dist->size() - 1 - iScan;
             auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, 5> uIncNewBuf;
+            Eigen::Vector<real, -1> uIncNewBuf;
             // uIncNewBuf.setZero(); // backward
-            uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell](Eigen::seq(0, 4)); // full
+            uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell]; // full
 
             real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
 
@@ -852,29 +809,27 @@ namespace DNDS
                     // if (true) // full
                     if ((ifForward && iCellOther < iCell) || ((!ifForward) && iCellOther > iCell))
                     {
-                        Eigen::Vector<real, 5> umeanOther = u[iCellOther](Eigen::seq(0, 4));
-                        Eigen::Vector<real, 5> umeanOtherInc = uInc[iCellOther](Eigen::seq(0, 4));
-                        Eigen::Vector<real, 5> fInc;
+                        Eigen::Vector<real, -1> fInc;
 
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
 
                             fInc = fluxJacobian0_Right(
-                                       umeanOther,
+                                       u[iCellOther],
                                        unitNorm,
                                        BoundaryType::Inner) *
-                                   umeanOtherInc; //! always inner here
+                                   uInc[iCellOther]; //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
-                                      (fInc - lambdaFace[iFace] * umeanOtherInc);
+                                      (fInc - lambdaFace[iFace] * uInc[iCellOther]);
                     }
                 }
             }
             uIncNewBuf /= fpDivisor;
             real relax = 1;
-            uIncNew[iCell](Eigen::seq(0, 4)) = uIncNewBuf * relax + uInc[iCell](Eigen::seq(0, 4)) * (1 - relax); // full
+            uIncNew[iCell] = uIncNewBuf * relax + uInc[iCell] * (1 - relax); // full
 
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)

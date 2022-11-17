@@ -91,7 +91,6 @@ namespace DNDS
             jacobianFace.resize(lambdaFace.size());
             jacobianCell.resize(lambdaCell.size());
             jacobianCellInv.resize(lambdaCell.size());
-            return;
 
             // vfv->BuildRec(dRdUrec);
             // vfv->BuildRec(dRdb);
@@ -348,9 +347,51 @@ namespace DNDS
             return URxy;
         }
 
-        static Eigen::Vector<real, 5> CompressRecPart(
-            const Eigen::Vector<real, 5> &umean,
-            const Eigen::Vector<real, 5> &uRecInc);
+        static Eigen::Vector<real, -1> CompressRecPart(
+            const Eigen::Vector<real, -1> &umean,
+            const Eigen::Vector<real, -1> &uRecInc)
+        {
+
+        // if (umean(0) + uRecInc(0) < 0)
+        // {
+        //     std::cout << umean.transpose() << std::endl
+        //               << uRecInc.transpose() << std::endl;
+        //     assert(false);
+        // }
+        // return umean + uRecInc; // ! no compress shortcut
+        // return umean; // ! 0th order shortcut
+
+        // // * Compress Method
+        // real compressT = 0.00001;
+        // real eFixRatio = 0.00001;
+        // Eigen::Vector<real, 5> ret;
+
+        // real compress = 1.0;
+        // if ((umean(0) + uRecInc(0)) < umean(0) * compressT)
+        //     compress *= umean(0) * (1 - compressT) / uRecInc(0);
+
+        // ret = umean + uRecInc * compress;
+
+        // real Ek = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + ret(0));
+        // real eT = eFixRatio * Ek;
+        // real e = ret(4) - Ek;
+        // if (e < 0)
+        //     e = eT * 0.5;
+        // else if (e < eT)
+        //     e = (e * e + eT * eT) / (2 * eT);
+        // ret(4) = e + Ek;
+        // // * Compress Method
+
+
+        //! for euler now!
+        Eigen::Vector<real, -1> ret = umean + uRecInc;
+        real eK = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + std::abs(ret(0)));
+        real e = ret(4) - eK;
+        if (e <= 0 || ret(0) <= 0)
+            ret = umean;
+
+        return ret;
+    }
 
         void EvaluateDt(std::vector<real> &dt,
                         ArrayDOFV &u,
