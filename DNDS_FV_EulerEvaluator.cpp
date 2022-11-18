@@ -204,6 +204,7 @@ namespace DNDS
                         uRec[f2c[0]] * IF_NOT_NOREC; // ! 2d here
 
                     real minVol = fv->volumeLocal[f2c[0]];
+                    // InsertCheck(u.dist->getMPI(), "RHS inner 2");
 
                     if (f2c[1] != FACE_2_VOL_EMPTY)
                     {
@@ -211,7 +212,7 @@ namespace DNDS
                             faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
                             uRec[f2c[1]] * IF_NOT_NOREC;
                         // UR += u[f2c[1]];
-                        URxy = CompressRecPart(u[f2c[1]](Eigen::seq(0, 4)), URxy);
+                        URxy = CompressRecPart(u[f2c[1]], URxy);
 
                         GradURxy({0, 1}, Eigen::all) =
                             faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(1, Eigen::last)) *
@@ -241,8 +242,9 @@ namespace DNDS
                     //                      ? vfv->cellBaries[f2c[1]]
                     //                      : 2 * vfv->faceCenters[iFace] - vfv->cellBaries[f2c[0]]))
                     //                    .norm();
-                    Eigen::Vector<real, 5> UMeanXy = 0.5 * (ULxy + URxy);
-                    Eigen::Matrix<real, 3, 5> GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
+                    // InsertCheck(u.dist->getMPI(), "RHS inner 1");
+                    Eigen::VectorXd UMeanXy = 0.5 * (ULxy + URxy);
+                    Eigen::Matrix<real, 3, -1> GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
                                                             (1.0 / distGRP) *
                                                                 (unitNorm * (URxy - ULxy).transpose());
                     finc = fluxFace(
@@ -636,6 +638,7 @@ namespace DNDS
     void EulerEvaluator::LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
                                         ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
     {
+        InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec 1");
         int cnvars = nVars;
         for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
         {
@@ -710,11 +713,13 @@ namespace DNDS
                 assert(!AuInc[iCell].hasNaN());
             }
         }
+        InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec -1");
     }
 
     void EulerEvaluator::UpdateLUSGSForward(std::vector<real> &dTau, real dt, real alphaDiag,
                                             ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
+        InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward 1");
         int cnvars = nVars;
         index nCellDist = mesh->cell2nodeLocal.dist->size();
         for (index iScan = 0; iScan < nCellDist; iScan++)
@@ -724,7 +729,7 @@ namespace DNDS
 
             auto &c2f = mesh->cell2faceLocal[iCell];
             Eigen::Vector<real, -1> uIncNewBuf(nVars);
-            uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell](Eigen::seq(0, 4));
+            uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell];
 
             real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
 
@@ -783,11 +788,13 @@ namespace DNDS
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
             uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
         }
+        InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
     }
 
     void EulerEvaluator::UpdateLUSGSBackward(std::vector<real> &dTau, real dt, real alphaDiag,
                                              ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
+        InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward 1");
         int cnvars = nVars;
         index nCellDist = mesh->cell2nodeLocal.dist->size();
         for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
@@ -842,6 +849,7 @@ namespace DNDS
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
             uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
         }
+        InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward -1");
     }
 
     void EulerEvaluator::UpdateSGS(std::vector<real> &dTau, real dt, real alphaDiag,

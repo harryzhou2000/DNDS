@@ -30,7 +30,7 @@ CXX_LINK_FLAGS=${LINK}
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe\
  test/meshtest.exe test/staticReconstructionTest.exe\
  test/gmrestest.exe test/adtest.exe test/testGas.exe\
-test/eikonal.exe test/staticReconstructionTestJR.exe test/euler.exe
+test/eikonal.exe test/staticReconstructionTestJR.exe test/euler.exe test/eulerSA.exe
 
 
 PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_FV_EulerEvaluator.o DNDS_Scripting.o

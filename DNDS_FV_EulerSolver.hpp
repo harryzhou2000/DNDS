@@ -197,7 +197,8 @@ namespace DNDS
                                                 { 
                                                     real gamma = config.eulerSetting.idealGasProperty.gamma;
                                                     config.eulerSetting.idealGasProperty.CpGas = config.eulerSetting.idealGasProperty.Rgas * gamma/(gamma -1);
-                                                 });
+                                                    if(mpi.rank == 0)
+                                                        std::cout << "\tCpGas = " << config.eulerSetting.idealGasProperty.CpGas << std::endl; });
                     eulerGasParser.AddDNDS_Real("muGas", &config.eulerSetting.idealGasProperty.muGas);
                 }
             }
@@ -578,7 +579,7 @@ namespace DNDS
         void RunImplicitEuler()
         {
             InsertCheck(mpi, "Implicit 1 nvars " + std::to_string(nVars));
-            
+
             ODE::ImplicitSDIRK4DualTimeStep<decltype(u)> ode(
                 u.dist->size(),
                 [&](decltype(u) &data)
@@ -1055,7 +1056,8 @@ namespace DNDS
                     uRec[iCell];
                 // recu += u[iCell];
                 // assert(recu(0) > 0);
-                recu = EulerEvaluator::CompressRecPart(u[iCell], recu);
+                // recu = EulerEvaluator::CompressRecPart(u[iCell], recu);
+                recu = u[iCell] + recu;
                 Gas::tVec velo = (recu({1, 2, 3}).array() / recu(0)).matrix();
                 real vsqr = velo.squaredNorm();
                 real asqr, p, H;

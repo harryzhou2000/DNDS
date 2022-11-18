@@ -77,7 +77,7 @@ namespace DNDS
         template <typename TU, typename TF>
         inline void GasInviscidFlux(const TU &U, const tVec &velo, real p, TF &F)
         {
-            F = U * velo(0);
+            F = U(Eigen::seq(0, 4)) * velo(0);
             F(1) += p;
             F(4) += velo(0) * p;
         }
@@ -187,7 +187,7 @@ namespace DNDS
             // alpha = LeVRoe * (UR - UL);
             // std::cout << alpha.transpose() << "\n";
 
-            Eigen::Vector<real, 5> incU = UR - UL;
+            Eigen::Vector<real, 5> incU = UR(Eigen::seq(0, 4)) - UL(Eigen::seq(0, 4));
             real incP = pR - pL;
             Gas::tVec incVelo = veloR - veloL;
 
@@ -217,7 +217,7 @@ namespace DNDS
             div += sign(div) * verySmallReal;
 
             // F = (SP * FL - SM * FR) / div + (SP * SM / div) * (UR - UL - dfix * ReVRoe(Eigen::all, {1, 2, 3}) * alpha({1, 2, 3}));
-            F = (SP * FL - SM * FR) / div + (SP * SM / div) * (UR - UL - dfix * ReVRoe(Eigen::all, {1}) * alpha({1}));
+            F(Eigen::seq(0, 4)) = (SP * FL - SM * FR) / div + (SP * SM / div) * (UR(Eigen::seq(0, 4)) - UL(Eigen::seq(0, 4)) - dfix * ReVRoe(Eigen::all, {1}) * alpha({1}));
         }
 
         template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
@@ -270,12 +270,12 @@ namespace DNDS
 
             if (0 <= SL)
             {
-                F = FL;
+                F(Eigen::seq(0, 4)) = FL;
                 return;
             }
             if (SR <= 0)
             {
-                F = FR;
+                F(Eigen::seq(0, 4)) = FR;
                 return;
             }
             real SS = 0;
@@ -288,17 +288,17 @@ namespace DNDS
             {
                 real div = SL - SS;
                 if (std::abs(div) < verySmallReal)
-                    F = FL;
+                    F(Eigen::seq(0, 4)) = FL;
                 else
-                    F = ((UL * SL - FL) * SS + DS * ((pL + UL(0) * (SL - veloL(0)) * (SS - veloL(0))) * SL)) / div;
+                    F(Eigen::seq(0, 4)) = ((UL(Eigen::seq(0, 4)) * SL - FL) * SS + DS * ((pL + UL(0) * (SL - veloL(0)) * (SS - veloL(0))) * SL)) / div;
             }
             else
             {
                 real div = SR - SS;
                 if (std::abs(div) < verySmallReal)
-                    F = FR;
+                    F(Eigen::seq(0, 4)) = FR;
                 else
-                    F = ((UR * SR - FR) * SS + DS * ((pR + UR(0) * (SR - veloR(0)) * (SS - veloR(0))) * SR)) / div;
+                    F(Eigen::seq(0, 4)) = ((UR(Eigen::seq(0, 4)) * SR - FR) * SS + DS * ((pR + UR(0) * (SR - veloR(0)) * (SS - veloR(0))) * SR)) / div;
             }
         }
 
@@ -354,7 +354,7 @@ namespace DNDS
             Eigen::Matrix<real, 5, 5> ReVRoe;
             EulerGasRightEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
 
-            Eigen::Vector<real, 5> incU = UR - UL;
+            Eigen::Vector<real, 5> incU = UR(Eigen::seq(0, 4)) - UL(Eigen::seq(0, 4));
             real incP = pR - pL;
             Gas::tVec incVelo = veloR - veloL;
             Eigen::Vector<real, 5> alpha;
@@ -380,7 +380,7 @@ namespace DNDS
             Eigen::Vector<real, 5> FL, FR;
             GasInviscidFlux(UL, veloL, pL, FL);
             GasInviscidFlux(UR, veloR, pR, FR);
-            F = (FL + FR) * 0.5 - 0.5 * incF;
+            F(Eigen::seq(0, 4)) = (FL + FR) * 0.5 - 0.5 * incF;
         }
 
         template <typename TUL, typename TUR, typename TF, typename TdFdU, typename TFdumpInfo>
@@ -509,7 +509,7 @@ namespace DNDS
             ADEigenMat FOut = (FL + FR - FInc) * 0.5;
             FOut.back();
 
-            F = FOut.d();
+            F(Eigen::seq(0, 4)) = FOut.d();
             dFdUL = ULad.g();
             dFdUR = URad.g();
             // std::cout << F.transpose() << std::endl;
