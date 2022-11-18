@@ -1177,15 +1177,12 @@ namespace DNDS
 
         // derive intscheme, ndof ,ndiff in rec attributes
         void initIntScheme(); //  2-d specific
-       
 
         void initMoment();
 
         void initBaseDiffCache();
-        
 
         void initReconstructionMatVec();
-        
 
         template <uint32_t vsize>
         // static const int vsize = 1; // intellisense helper: give example...
@@ -1382,7 +1379,6 @@ namespace DNDS
                 if (setting.SOR_Instead)
                     iCell = (*SOR_iScan2iCell)[iCell];
 
-                
                 real relax = cellRecAtrLocal[iCell][0].relax;
                 auto &c2f = mesh->cell2faceLocal[iCell];
                 if (!setting.SOR_Instead)
@@ -1425,7 +1421,7 @@ namespace DNDS
                             Eigen::Vector<real, -1> uBV(u[iCell].size());
                             uBV.setZero();
                             if (!setting.SOR_Instead)
-                                uRecNewBuf[iCell]+=
+                                uRecNewBuf[iCell] +=
                                     relax * (((uBV - u[iCell]) * vectorBatchElem.m(0).row(ic2f)).transpose());
                             else
                                 uRec[iCell] +=
@@ -1463,12 +1459,12 @@ namespace DNDS
                                 [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
                                 {
                                     index nvars = u[iCell].size();
-                                        // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
-                                        auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
+                                    // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
+                                    auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
                                     Eigen::Vector<real, -1> uBV(nvars);
                                     Eigen::Vector<real, -1> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
-                                                                      uRec[iCell])
-                                                                         .transpose();
+                                                                   uRec[iCell])
+                                                                      .transpose();
                                     uBL += u[iCell].transpose();
                                     uBV.setZero();
                                     uBV(0) = uBL(0);
@@ -1502,8 +1498,12 @@ namespace DNDS
                                     auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
                                     Eigen::Vector<real, -1> uBV(nvars);
                                     Eigen::Vector<real, -1> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
-                                                                      uRec[iCell])
-                                                                         .transpose();
+                                                                   uRec[iCell])
+                                                                      .transpose();
+                                    // Eigen::Matrix<real, -1, 2> graduBL = (diffI.row({1,2}).rightCols(uRec[iCell].rows()) *
+                                    //                                       uRec[iCell])
+                                    //                                          .transpose();//!2D!!
+
                                     uBL += u[iCell].transpose();
                                     uBV.setZero();
                                     uBV(0) = uBL(0);

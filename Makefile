@@ -30,10 +30,10 @@ CXX_LINK_FLAGS=${LINK}
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe\
  test/meshtest.exe test/staticReconstructionTest.exe\
  test/gmrestest.exe test/adtest.exe test/testGas.exe\
-test/eikonal.exe test/staticReconstructionTestJR.exe test/euler.exe
+test/eikonal.exe test/staticReconstructionTestJR.exe test/euler.exe test/eulerSA.exe
 
 
-PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_FV_EulerSolver.o DNDS_Scripting.o
+PREBUILD=DNDS_Defines.o DNDS_Elements.o DNDS_MPI.o DNDS_FV_VR.o DNDS_FV_CR.o DNDS_FV_EulerEvaluator.o DNDS_Scripting.o
 PREBUILD_DEP:=$(PREBUILD:.o=.d)
 
 PREBUILD_FAST= DNDS_HardEigen.o DNDS_Mesh.o DNDS_Profiling.o
@@ -47,8 +47,9 @@ FLAGS=-g
 # FLAGS=-Os
 # FLAGS=-O2
 # FLAGS=-Og -g
-FLAGS=-O3
-# FLAGS=-O3 -DNDEBUG
+FLAGS=-O3 
+FLAGS=-O3 -DNINSERT
+# FLAGS=-O3 -DNDEBUG  -DNINSERT
 
 
 # FLAGS_FAST=-g
