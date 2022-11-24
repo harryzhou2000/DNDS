@@ -63,11 +63,40 @@ namespace DNDS
             LeV *= gammaBar / (2 * a * a);
         }
 
-        inline void IdealGasThermal(real E, real rho, real vSqr, real gamma, real &p, real &asqr, real &H)
+        inline void IdealGasThermal(
+            real E, real rho, real vSqr, real gamma, real &p, real &asqr, real &H)
         {
             p = (gamma - 1) * (E - rho * 0.5 * vSqr);
             asqr = gamma * p / rho;
             H = (E + p) / rho;
+        }
+
+        template <class TCons, class TPrim>
+        inline void IdealGasThermalConservative2Primitive(
+            const TCons &U, TPrim &prim, real gamma)
+        {
+            prim = U / U(0);
+            real vSqr = (U({1, 2, 3}) / U(0)).squaredNorm();
+            real rho = U(0);
+            real E = U(4);
+            real p = (gamma - 1) * (E - rho * 0.5 * vSqr);
+            prim(0) = rho;
+            prim(4) = p;
+            assert(rho > 0);
+        }
+
+        template <class TCons, class TPrim>
+        inline void IdealGasThermalPrimitive2Conservative(
+            const TPrim &prim, TCons &U, real gamma)
+        {
+            U = prim * prim(0);
+            real vSqr = prim({1,2,3}).squaredNorm();
+            real rho = prim(0);
+            real p = prim(4);
+            real E = p / (gamma - 1) + rho * 0.5 * vSqr;
+            U(0) = rho;
+            U(4) = E;
+            assert(rho > 0);
         }
 
         /**
@@ -540,7 +569,7 @@ namespace DNDS
             real p = (gamma - 1) * (U(4) - U(0) * 0.5 * vSqr);
             Eigen::Vector3d GradT = (gamma / ((gamma - 1) * Cp * U(0) * U(0))) *
                                     (U(0) * GradP - p * GradU({0, 1, 2}, 0));
-            if (adiabatic)
+            if (adiabatic) //!is this fix reasonable?
                 GradT -= GradT.dot(norm) * norm;
 
             Flux({0, 1, 2}, 0).setZero();
