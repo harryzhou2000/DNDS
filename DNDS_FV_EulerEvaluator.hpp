@@ -126,12 +126,11 @@ namespace DNDS
             dWall.resize(mesh->cell2nodeLocal.size());
 
             MPIInfo mpi = mesh->mpi;
-            const int NSampleLine = 5;
+            const int NSampleLine = 11;
 
             index nBCPoint = 0;
             for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
-                if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall ||
-                    mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_Euler ||
+                if (
                     mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_NoSlip)
                 {
                     Elem::ElementManager eFace(mesh->faceAtrLocal[iFace][0].type, vfv->faceRecAtrLocal[iFace][0].intScheme);
@@ -140,8 +139,7 @@ namespace DNDS
             Array<VecStaticBatch<6>> BCPointDist(VecStaticBatch<6>::Context(nBCPoint), mpi);
             index iFill = 0;
             for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
-                if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall ||
-                    mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_Euler ||
+                if (
                     mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_NoSlip)
                 {
                     Elem::ElementManager eFace(mesh->faceAtrLocal[iFace][0].type, vfv->faceRecAtrLocal[iFace][0].intScheme);
@@ -179,7 +177,7 @@ namespace DNDS
                 mesh->LoadCoords(c2n, coords);
 
                 Elem::ElementManager eCell(cellAttribute.type, cellRecAttribute.intScheme);
-                dWall[iCell].resize(eCell.getNInt());
+                dWall[iCell].resize(eCell.getNInt(), std::pow(veryLargeReal, 1. / 6.));
                 for (int ig = 0; ig < eCell.getNInt(); ig++)
                 {
                     Elem::tPoint p;
@@ -189,7 +187,7 @@ namespace DNDS
                     Elem::tPoint pC = coords * DiNj(0, Eigen::all).transpose();
 
                     index imin = -1;
-                    real distMin = veryLargeReal;
+                    real distMin = std::pow(veryLargeReal, 1. / 6.);
                     for (index isearch = 0; isearch < BCPointFull.size(); isearch++)
                     {
                         real cdist = (BCPointFull[isearch].p()({0, 1, 2}) - pC).norm();
@@ -200,6 +198,7 @@ namespace DNDS
                         }
                     }
                     dWall[iCell][ig] = distMin;
+                    // dWall[iCell][ig] = std::min(pC(1), distMin); // ! debugging!
 
                     minResult = std::min(minResult, dWall[iCell][ig]);
                 }
@@ -235,7 +234,10 @@ namespace DNDS
             Gas::IdealGasThermal(UMeanXy(4), UMeanXy(0), (UMeanXy({1, 2, 3}) / UMeanXy(0)).squaredNorm(),
                                  gamma, pMean, asqrMean, Hmean);
 
-            real T = pMean / ((gamma - 1) / gamma * settings.idealGasProperty.CpGas / UMeanXy(0));
+            // ! refvalue:
+            real muRef = settings.idealGasProperty.muGas;
+
+            real T = pMean / ((gamma - 1) / gamma * settings.idealGasProperty.CpGas * UMeanXy(0));
             real mufPhy, muf;
             mufPhy = muf = settings.idealGasProperty.muGas *
                            std::pow(T / settings.idealGasProperty.TRef, 1.5) *
@@ -246,8 +248,10 @@ namespace DNDS
             if (model == NS_SA)
             {
                 real cnu1 = 7.1;
-                real Chi = UMeanXy(5) / mufPhy;
-                real Chi3 = std::pow(std::max(Chi, 0.0), 3);
+                real Chi = UMeanXy(5) * muRef / mufPhy;
+                if (Chi < 10)
+                    Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
+                real Chi3 = std::pow(Chi, 3);
                 fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
                 muf *= (1 + fnu1);
             }
@@ -264,18 +268,18 @@ namespace DNDS
             {
                 real sigma = 2. / 3.;
                 real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) + UR(1)) * 0.5;
-                Eigen::Matrix<real, 3, 1> diffRhoNu = DiffUxy({0, 1, 2}, {5});
+                Eigen::Matrix<real, 3, 1> diffRhoNu = DiffUxy({0, 1, 2}, {5}) * muRef;
                 Eigen::Matrix<real, 3, 1> diffRho = DiffUxy({0, 1, 2}, {0});
-                Eigen::Matrix<real, 3, 1> diffNu = (diffRhoNu - UMeanXy(5) / UMeanXy(0) * diffRho) / UMeanXy(0);
+                Eigen::Matrix<real, 3, 1> diffNu = (diffRhoNu - UMeanXy(5) * muRef / UMeanXy(0) * diffRho) / UMeanXy(0);
 
                 real cn1 = 16;
                 real fn = 1;
                 if (UMeanXy(5) < 0)
                 {
-                    real chi = UMeanXy(5) / mufPhy;
-                    fn = (cn1 + std::pow(chi, 3)) / (cn1 - std::pow(chi, 3));
+                    real Chi = UMeanXy(5) * muRef / mufPhy;
+                    fn = (cn1 + std::pow(Chi, 3)) / (cn1 - std::pow(Chi, 3));
                 }
-                VisFlux({0, 1, 2}, {5}) = diffNu * (mufPhy + UMeanXy(5) * fn) / sigma;
+                VisFlux({0, 1, 2}, {5}) = diffNu * (mufPhy + UMeanXy(5) * muRef * fn) / sigma / muRef;
             }
 
             Eigen::VectorXd finc;
@@ -315,7 +319,7 @@ namespace DNDS
 
             if (model == NS_SA)
             {
-                real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) + UR(1)) * 0.5;
+                real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
                 finc(5) = ((UL(1) / UL(0) * UL(5) + UR(1) / UR(0) * UR(5)) -
                            (UR(5) - UL(5)) * lambdaFaceC) *
                           0.5;
@@ -351,7 +355,7 @@ namespace DNDS
             }
             else if (model == NS_SA)
             {
-                real d = dWall[iCell][ig];
+                real d = std::min(dWall[iCell][ig], std::pow(veryLargeReal, 1. / 6.));
                 real cb1 = 0.1355;
                 real cb2 = 0.622;
                 real sigma = 2. / 3.;
@@ -367,26 +371,28 @@ namespace DNDS
                 real ct3 = 1.2;
                 real ct4 = 0.5;
 
-                real nuh = UMeanXy(5) / UMeanXy(0);
-
                 real pMean, asqrMean, Hmean;
                 real gamma = settings.idealGasProperty.gamma;
                 Gas::IdealGasThermal(UMeanXy(4), UMeanXy(0), (UMeanXy({1, 2, 3}) / UMeanXy(0)).squaredNorm(),
                                      gamma, pMean, asqrMean, Hmean);
+                // ! refvalue:
+                real muRef = settings.idealGasProperty.muGas;
 
-                real T = pMean / ((gamma - 1) / gamma * settings.idealGasProperty.CpGas / UMeanXy(0));
+                real nuh = UMeanXy(5) * muRef / UMeanXy(0);
+
+                real T = pMean / ((gamma - 1) / gamma * settings.idealGasProperty.CpGas * UMeanXy(0));
                 real mufPhy, muf;
                 mufPhy = muf = settings.idealGasProperty.muGas *
                                std::pow(T / settings.idealGasProperty.TRef, 1.5) *
                                (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
                                (T + settings.idealGasProperty.CSutherland);
 
-                real chi = std::abs(UMeanXy(5) / mufPhy);
-                real fnu1 = std::pow(chi, 3) / (std::pow(chi, 3) + std::pow(cnu1, 3));
-                real fnu2 = 1 - chi / (1 + chi * fnu1);
+                real Chi = std::abs(UMeanXy(5) * muRef / mufPhy);
+                real fnu1 = std::pow(Chi, 3) / (std::pow(Chi, 3) + std::pow(cnu1, 3));
+                real fnu2 = 1 - Chi / (1 + Chi * fnu1);
 
                 Eigen::Matrix<real, 3, 1> velo = UMeanXy({1, 2, 3}) / UMeanXy(0);
-                Eigen::Matrix<real, 3, 1> diffRhoNu = DiffUxy({0, 1, 2}, {5});
+                Eigen::Matrix<real, 3, 1> diffRhoNu = DiffUxy({0, 1, 2}, {5}) * muRef;
                 Eigen::Matrix<real, 3, 1> diffRho = DiffUxy({0, 1, 2}, {0});
                 Eigen::Matrix<real, 3, 1> diffNu = (diffRhoNu - nuh * diffRho) / UMeanXy(0);
                 Eigen::Matrix<real, 3, 3> diffRhoU = DiffUxy({0, 1, 2}, {1, 2, 3});
@@ -402,19 +408,21 @@ namespace DNDS
                 else
                     Sh = S + Sbar;
 
-                real r = std::min(nuh / (Sh * sqr(kappa * d)), rlim);
+                real r = std::min(nuh / (Sh * sqr(kappa * d) + verySmallReal), rlim);
                 real g = r + cw2 * (std::pow(r, 6) - r);
                 real fw = g * std::pow((1 + std::pow(cw3, 6)) / (std::pow(g, 6) + std::pow(cw3, 6)), 1. / 6.);
 
-                real ft2 = ct3 * std::exp(-ct4 * sqr(chi));
-                real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d);
-                real P = cb1 * (1 - ft2) * Sh * nuh;
+                real ft2 = ct3 * std::exp(-ct4 * sqr(Chi));
+                // real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //! modified >>
+                // real P = cb1 * (1 - ft2) * Sh * nuh;                         //! modified >>
+                real D = cw1 * fw * sqr(nuh / d);
+                real P = cb1 * Sh * nuh;
                 real fn = 1;
                 if (UMeanXy(5) < 0)
                 {
                     real cn1 = 16;
-                    real chi = UMeanXy(5) / mufPhy;
-                    fn = (cn1 + std::pow(chi, 3)) / (cn1 - std::pow(chi, 3));
+                    real Chi = UMeanXy(5) * muRef / mufPhy;
+                    fn = (cn1 + std::pow(Chi, 3)) / (cn1 - std::pow(Chi, 3));
                     P = cb1 * (1 - ct3) * S * nuh;
                     D = -cw1 * sqr(nuh / d);
                 }
@@ -423,8 +431,8 @@ namespace DNDS
                 ret.resizeLike(UMeanXy);
                 ret.setZero();
 
-                ret(5) = UMeanXy(0) * (P - D + diffNu.squaredNorm() * cb2 / sigma) -
-                         (UMeanXy(5) * fn + mufPhy) / (UMeanXy(0) * sigma) * diffRho.dot(diffNu);
+                ret(5) = UMeanXy(0) * (P - D + diffNu.squaredNorm() * cb2 / sigma) / muRef -
+                         (UMeanXy(5) * fn * muRef + mufPhy) / (UMeanXy(0) * sigma) * diffRho.dot(diffNu) / muRef;
 
                 if (ret.hasNaN())
                 {
@@ -509,13 +517,52 @@ namespace DNDS
             real t,
             BoundaryType btype)
         {
+            assert(ULxy(0) > 0);
             Eigen::VectorXd URxy;
 
             if (btype == BoundaryType::Farfield ||
                 btype == BoundaryType::Special_DMRFar)
             {
                 if (btype == BoundaryType::Farfield)
-                    URxy = settings.farFieldStaticValue;
+                {
+                    const Eigen::VectorXd &far = settings.farFieldStaticValue;
+
+                    real un = ULxy({1, 2, 3}).dot(uNorm) / ULxy(0);
+                    real vsqr = (ULxy({1, 2, 3}) / ULxy(0)).squaredNorm();
+                    real gamma = settings.idealGasProperty.gamma;
+                    real asqr, H, p;
+                    Gas::IdealGasThermal(ULxy(4), ULxy(0), vsqr, gamma, p, asqr, H);
+
+                    assert(asqr >= 0);
+                    real a = std::sqrt(asqr);
+
+                    if (un - a > 0) // full outflow
+                    {
+                        URxy = ULxy;
+                    }
+                    else if (un > 0) //  1 sonic outflow, 1 sonic inflow, other outflow (subsonic out)
+                    {
+                        Eigen::VectorXd farPrimitive, ULxyPrimitive;
+                        Gas::IdealGasThermalConservative2Primitive(far, farPrimitive, gamma);
+                        Gas::IdealGasThermalConservative2Primitive(ULxy, ULxyPrimitive, gamma);
+                        ULxyPrimitive(4) = farPrimitive(4); // using far pressure
+                        Gas::IdealGasThermalPrimitive2Conservative(ULxyPrimitive, URxy, gamma);
+                    }
+                    else if (un + a > 0) //  1 sonic outflow, 1 sonic inflow, other inflow (subsonic in)
+                    {
+                        Eigen::VectorXd farPrimitive, ULxyPrimitive;
+                        Gas::IdealGasThermalConservative2Primitive(far, farPrimitive, gamma);
+                        Gas::IdealGasThermalConservative2Primitive(ULxy, ULxyPrimitive, gamma);
+                        // farPrimitive(0) = ULxyPrimitive(0); // using inner density
+                        farPrimitive(4) = ULxyPrimitive(4); // using inner pressure
+                        Gas::IdealGasThermalPrimitive2Conservative(farPrimitive, URxy, gamma);
+                    }
+                    else // full inflow
+                    {
+                        URxy = settings.farFieldStaticValue;
+                    }
+                    // URxy = settings.farFieldStaticValue; //!override
+                }
                 else if (btype == BoundaryType::Special_DMRFar)
                 {
                     URxy = settings.farFieldStaticValue;

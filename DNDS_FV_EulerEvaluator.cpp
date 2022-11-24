@@ -72,8 +72,11 @@ namespace DNDS
             // real aMean = std::sqrt(asqrMean); // original
             real lambdaConvection = std::abs(veloNMean) + aMean;
 
+            // ! refvalue:
+            real muRef = settings.idealGasProperty.muGas;
+
             real gamma = settings.idealGasProperty.gamma;
-            real T = pMean / ((gamma - 1) / gamma * settings.idealGasProperty.CpGas / uMean(0));
+            real T = pMean / ((gamma - 1) / gamma * settings.idealGasProperty.CpGas * uMean(0));
             real muf = settings.idealGasProperty.muGas *
                        std::pow(T / settings.idealGasProperty.TRef, 1.5) *
                        (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
@@ -81,8 +84,10 @@ namespace DNDS
             if (model == NS_SA)
             {
                 real cnu1 = 7.1;
-                real Chi = uMean(5) / muf;
-                real Chi3 = std::pow(std::abs(Chi), 3);
+                real Chi = uMean(5) * muRef / muf;
+                if (Chi < 10)
+                    Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
+                real Chi3 = std::pow(Chi, 3);
                 real fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
                 muf *= (1 + fnu1);
             }
@@ -245,8 +250,8 @@ namespace DNDS
                     // InsertCheck(u.dist->getMPI(), "RHS inner 1");
                     Eigen::VectorXd UMeanXy = 0.5 * (ULxy + URxy);
                     Eigen::Matrix<real, 3, -1> GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
-                                                            (1.0 / distGRP) *
-                                                                (unitNorm * (URxy - ULxy).transpose());
+                                                             (1.0 / distGRP) *
+                                                                 (unitNorm * (URxy - ULxy).transpose());
                     finc = fluxFace(
                         ULxy,
                         URxy,
@@ -258,8 +263,6 @@ namespace DNDS
                         iFace, ig);
 
                     finc *= vfv->faceNorms[iFace][ig].norm(); // don't forget this
-
-                    
                 });
 
             rhs[f2c[0]] += flux / fv->volumeLocal[f2c[0]];
@@ -287,7 +290,7 @@ namespace DNDS
                     GradU.setZero();
                     GradU({0, 1}, Eigen::all) =
                         cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(1, Eigen::last)) *
-                        uRec[iCell] * IF_NOT_NOREC;
+                        uRec[iCell] * IF_NOT_NOREC; //!2d specific
 
                     Eigen::Vector<real, -1> ULxy =
                         cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *

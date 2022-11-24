@@ -1467,6 +1467,7 @@ namespace DNDS
                                                                       .transpose();
                                     uBL += u[iCell].transpose();
                                     uBV.setZero();
+                                    uBV = uBL;
                                     uBV(0) = uBL(0);
                                     Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
                                     uBV({1, 2, 3}) = uBL({1, 2, 3}) - normOut * (normOut.dot(uBV({1, 2, 3})));
@@ -1505,7 +1506,8 @@ namespace DNDS
                                     //                                          .transpose();//!2D!!
 
                                     uBL += u[iCell].transpose();
-                                    uBV.setZero();
+                                    // uBV.setZero();
+                                    uBV = -uBL;
                                     uBV(0) = uBL(0);
                                     // Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
                                     // auto uBLMomentum = uBL({1, 2, 3});
