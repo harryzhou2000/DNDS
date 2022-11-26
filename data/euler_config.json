@@ -13,11 +13,11 @@
     "nConsoleCheckInternal": 10,
     "nDataOutC": 1,
     "nDataOut": 1,
-    "nDataOutCInternal": 100,
+    "nDataOutCInternal": 10,
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 40,
+    "CFL": 100,
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-100,
     "useLocalDt": true,
@@ -79,7 +79,7 @@
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
-            "Rgas": 289,
+            "Rgas": 0.0033,
             "muGas": 1.1832e-04
         },
         "comment_euler": "the artificial vis params are unused;",

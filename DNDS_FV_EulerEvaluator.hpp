@@ -260,7 +260,7 @@ namespace DNDS
                     Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
                 real Chi3 = std::pow(Chi, 3);
                 fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
-                muf *= (1 + fnu1);
+                muf *= (1 + Chi * fnu1);
             }
 
             real k = settings.idealGasProperty.CpGas * muf / settings.idealGasProperty.prGas;

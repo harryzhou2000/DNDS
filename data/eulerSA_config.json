@@ -4,7 +4,7 @@
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
     "nSGSIterationInternal": 0,
-    "gmresCode": 1,
+    "gmresCode": 0,
     "nGmresSpace": 10,
     "nGmresIter": 2,
     "jacobianTypeCode": 0,
@@ -31,7 +31,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": -0,
-    "meshFile": "data/mesh/grid_NACA0012_vis.msh",
+    "meshFile": "data/mesh/NACA0012_WIDE_H3_NS.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -53,8 +53,8 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.grid_NACA0012_vis",
-    "outLogName": "data/out/test_Euler_.grid_NACA0012_vis",
+    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
+    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -77,11 +77,11 @@
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
-        "riemannSolverType": "HLLEP",
+        "riemannSolverType": "Roe",
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
-            "Rgas": 0.0072,
+            "Rgas": 0.0092,
             "muGas": 5e-6
         },
         "comment_euler": "the artificial vis params are unused;",
