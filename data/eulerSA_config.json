@@ -1,5 +1,5 @@
 {
-    "recOrder": 2,
+    "recOrder": 1,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
@@ -8,6 +8,7 @@
     "nGmresSpace": 10,
     "nGmresIter": 2,
     "jacobianTypeCode": 0,
+    "nFreezePassiveInner": 1000,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
     "nDataOutC": 1,
@@ -30,7 +31,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": -0,
-    "meshFile": "data/mesh/BL_A1.msh",
+    "meshFile": "data/mesh/grid_NACA0012_vis.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -48,12 +49,12 @@
         "data/mesh/NACA0012_WIDE_H3G_NS.msh",
         "data/mesh/NACA0012_TIP_WIDE_NS",
         "data/mesh/NACA0012_TIP_SPARSE_NS",
-        "data/mesh/NACA0012_WIDE_H3_M.msh",
+        "data/mesh/NACA0012_WIDE_H3_M.msh", 
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.BL_A1",
-    "outLogName": "data/out/test_Euler_.BL_A1",
+    "outPltName": "data/out/test_Euler_.grid_NACA0012_vis",
+    "outLogName": "data/out/test_Euler_.grid_NACA0012_vis",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -98,7 +99,7 @@
             0,
             0,
             6.75,
-            3
+            5
         ],
         "boxInitializerValue": [],
         "planeInitializerValue": [],

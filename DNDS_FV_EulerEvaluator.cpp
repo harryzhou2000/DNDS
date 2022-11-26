@@ -684,11 +684,15 @@ namespace DNDS
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
 
-                            fInc = fluxJacobian0_Right(
+                            // fInc = fluxJacobian0_Right(
+                            //            u[iCellOther],
+                            //            unitNorm,
+                            //            BoundaryType::Inner) *
+                            //        uInc[iCellOther]; //! always inner here
+                            fInc = fluxJacobian0_Right_Times_du(
                                        u[iCellOther],
                                        unitNorm,
-                                       BoundaryType::Inner) *
-                                   uInc[iCellOther]; //! always inner here
+                                       BoundaryType::Inner, uInc[iCellOther]); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
@@ -757,11 +761,15 @@ namespace DNDS
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
 
-                            fInc = fluxJacobian0_Right(
-                                       u[iCellOther],
-                                       unitNorm,
-                                       BoundaryType::Inner) *
-                                   uInc[iCellOther]; //! always inner here
+                            // fInc = fluxJacobian0_Right(
+                            //            u[iCellOther],
+                            //            unitNorm,
+                            //            BoundaryType::Inner) *
+                            //        uInc[iCellOther]; //! always inner here
+                            fInc = fluxJacobian0_Right_Times_du(
+                                u[iCellOther],
+                                unitNorm,
+                                BoundaryType::Inner, uInc[iCellOther]); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
@@ -832,11 +840,15 @@ namespace DNDS
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
 
-                            fInc = fluxJacobian0_Right(
-                                       u[iCellOther],
-                                       unitNorm,
-                                       BoundaryType::Inner) *
-                                   uInc[iCellOther]; //! always inner here
+                            // fInc = fluxJacobian0_Right(
+                            //            u[iCellOther],
+                            //            unitNorm,
+                            //            BoundaryType::Inner) *
+                            //        uInc[iCellOther]; //! always inner here
+                            fInc = fluxJacobian0_Right_Times_du(
+                                u[iCellOther],
+                                unitNorm,
+                                BoundaryType::Inner, uInc[iCellOther]); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
@@ -891,11 +903,15 @@ namespace DNDS
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
 
-                            fInc = fluxJacobian0_Right(
-                                       u[iCellOther],
-                                       unitNorm,
-                                       BoundaryType::Inner) *
-                                   uInc[iCellOther]; //! always inner here
+                            // fInc = fluxJacobian0_Right(
+                            //            u[iCellOther],
+                            //            unitNorm,
+                            //            BoundaryType::Inner) *
+                            //        uInc[iCellOther]; //! always inner here
+                            fInc = fluxJacobian0_Right_Times_du(
+                                u[iCellOther],
+                                unitNorm,
+                                BoundaryType::Inner, uInc[iCellOther]); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *

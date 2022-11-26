@@ -36,6 +36,12 @@ namespace DNDS
         int nVars = 5;
         EulerModel model = NS;
 
+        bool passiveDiscardSource = false;
+
+    public:
+        void setPassiveDiscardSource(bool n) { passiveDiscardSource = n; }
+
+    private:
     public:
         CompactFacedMeshSerialRW *mesh = nullptr;
         ImplicitFiniteVolume2D *fv = nullptr;
@@ -198,7 +204,8 @@ namespace DNDS
                         }
                     }
                     dWall[iCell][ig] = distMin;
-                    // dWall[iCell][ig] = std::min(pC(1), distMin); // ! debugging!
+                    // if (pC(0) > 0)
+                    //     dWall[iCell][ig] = std::min(pC(1), distMin); // ! debugging!
 
                     minResult = std::min(minResult, dWall[iCell][ig]);
                 }
@@ -319,7 +326,8 @@ namespace DNDS
 
             if (model == NS_SA)
             {
-                real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
+                // real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
+                real lambdaFaceC = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5; //! using velo instead of velo + a
                 finc(5) = ((UL(1) / UL(0) * UL(5) + UR(1) / UR(0) * UR(5)) -
                            (UR(5) - UL(5)) * lambdaFaceC) *
                           0.5;
@@ -413,10 +421,10 @@ namespace DNDS
                 real fw = g * std::pow((1 + std::pow(cw3, 6)) / (std::pow(g, 6) + std::pow(cw3, 6)), 1. / 6.);
 
                 real ft2 = ct3 * std::exp(-ct4 * sqr(Chi));
-                // real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //! modified >>
-                // real P = cb1 * (1 - ft2) * Sh * nuh;                         //! modified >>
-                real D = cw1 * fw * sqr(nuh / d);
-                real P = cb1 * Sh * nuh;
+                real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //! modified >>
+                real P = cb1 * (1 - ft2) * Sh * nuh;                         //! modified >>
+                // real D = cw1 * fw * sqr(nuh / d);
+                // real P = cb1 * Sh * nuh;
                 real fn = 1;
                 if (UMeanXy(5) < 0)
                 {
@@ -431,6 +439,8 @@ namespace DNDS
                 ret.resizeLike(UMeanXy);
                 ret.setZero();
 
+                if (passiveDiscardSource)
+                    P = D = 0;
                 ret(5) = UMeanXy(0) * (P - D + diffNu.squaredNorm() * cb2 / sigma) / muRef -
                          (UMeanXy(5) * fn * muRef + mufPhy) / (UMeanXy(0) * sigma) * diffRho.dot(diffNu) / muRef;
 
@@ -449,6 +459,8 @@ namespace DNDS
                     std::cout << mufPhy << std::endl;
                     assert(false);
                 }
+                // if (passiveDiscardSource)
+                //     ret(Eigen::seq(5, Eigen::last)).setZero();
                 return ret;
             }
             else
@@ -507,6 +519,32 @@ namespace DNDS
                 subFdU(5, 3) = n(2) * U(5) / U(0);
             }
             return subFdU;
+        }
+
+        Eigen::VectorXd fluxJacobian0_Right_Times_du(
+            const Eigen::VectorXd &U,
+            const Elem::tPoint &n,
+            BoundaryType btype,
+            const Eigen::VectorXd &dU)
+        {
+            real gamma = settings.idealGasProperty.gamma;
+            Elem::tPoint velo = U({1, 2, 3}) / U(0);
+            real p, H, asqr;
+            Gas::IdealGasThermal(U(4), U(0), velo.squaredNorm(), gamma, p, asqr, H);
+            Elem::tPoint dVelo;
+            real dp;
+            Gas::IdealGasUIncrement(U, dU, velo, gamma, dVelo, dp);
+            Eigen::VectorXd dF(U.size());
+            Gas::GasInviscidFluxFacialIncrement(U, dU,
+                                                n,
+                                                velo, dVelo,
+                                                dp, p,
+                                                dF);
+            if (model == NS_SA)
+            {
+                dF(5) = dU(5) * n.dot(velo) + U(5) * n.dot(dVelo);
+            }
+            return dF;
         }
 
         Eigen::VectorXd generateBoundaryValue(
