@@ -36,6 +36,12 @@ namespace DNDS
         int nVars = 5;
         EulerModel model = NS;
 
+        bool passiveDiscardSource = false;
+
+    public:
+        void setPassiveDiscardSource(bool n) { passiveDiscardSource = n; }
+
+    private:
     public:
         CompactFacedMeshSerialRW *mesh = nullptr;
         ImplicitFiniteVolume2D *fv = nullptr;
@@ -198,7 +204,8 @@ namespace DNDS
                         }
                     }
                     dWall[iCell][ig] = distMin;
-                    // dWall[iCell][ig] = std::min(pC(1), distMin); // ! debugging!
+                    // if (pC(0) > 0)
+                    //     dWall[iCell][ig] = std::min(pC(1), distMin); // ! debugging!
 
                     minResult = std::min(minResult, dWall[iCell][ig]);
                 }
@@ -253,7 +260,7 @@ namespace DNDS
                     Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
                 real Chi3 = std::pow(Chi, 3);
                 fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
-                muf *= (1 + fnu1);
+                muf *= (1 + Chi * fnu1);
             }
 
             real k = settings.idealGasProperty.CpGas * muf / settings.idealGasProperty.prGas;
@@ -319,7 +326,8 @@ namespace DNDS
 
             if (model == NS_SA)
             {
-                real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
+                // real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
+                real lambdaFaceC = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5; //! using velo instead of velo + a
                 finc(5) = ((UL(1) / UL(0) * UL(5) + UR(1) / UR(0) * UR(5)) -
                            (UR(5) - UL(5)) * lambdaFaceC) *
                           0.5;
@@ -413,10 +421,10 @@ namespace DNDS
                 real fw = g * std::pow((1 + std::pow(cw3, 6)) / (std::pow(g, 6) + std::pow(cw3, 6)), 1. / 6.);
 
                 real ft2 = ct3 * std::exp(-ct4 * sqr(Chi));
-                // real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //! modified >>
-                // real P = cb1 * (1 - ft2) * Sh * nuh;                         //! modified >>
-                real D = cw1 * fw * sqr(nuh / d);
-                real P = cb1 * Sh * nuh;
+                real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //! modified >>
+                real P = cb1 * (1 - ft2) * Sh * nuh;                         //! modified >>
+                // real D = cw1 * fw * sqr(nuh / d);
+                // real P = cb1 * Sh * nuh;
                 real fn = 1;
                 if (UMeanXy(5) < 0)
                 {
@@ -431,6 +439,8 @@ namespace DNDS
                 ret.resizeLike(UMeanXy);
                 ret.setZero();
 
+                if (passiveDiscardSource)
+                    P = D = 0;
                 ret(5) = UMeanXy(0) * (P - D + diffNu.squaredNorm() * cb2 / sigma) / muRef -
                          (UMeanXy(5) * fn * muRef + mufPhy) / (UMeanXy(0) * sigma) * diffRho.dot(diffNu) / muRef;
 
@@ -449,6 +459,126 @@ namespace DNDS
                     std::cout << mufPhy << std::endl;
                     assert(false);
                 }
+                // if (passiveDiscardSource)
+                //     ret(Eigen::seq(5, Eigen::last)).setZero();
+                return ret;
+            }
+            else
+            {
+                assert(false);
+            }
+
+            return Eigen::VectorXd::Zero(UMeanXy.size());
+        }
+
+        // zeroth means needs not derivative
+        Eigen::VectorXd sourceJacobianDiag_Zeroth(
+            const Eigen::VectorXd &UMeanXy,
+            const Eigen::MatrixXd &DiffUxy,
+            index iCell, index ig)
+        {
+            if (model == NS)
+            {
+            }
+            else if (model == NS_SA)
+            {
+                real d = std::min(dWall[iCell][ig], std::pow(veryLargeReal, 1. / 6.));
+                real cb1 = 0.1355;
+                real cb2 = 0.622;
+                real sigma = 2. / 3.;
+                real cnu1 = 7.1;
+                real cnu2 = 0.7;
+                real cnu3 = 0.9;
+                real cw2 = 0.3;
+                real cw3 = 2;
+                real kappa = 0.41;
+                real rlim = 10;
+                real cw1 = cb1 / sqr(kappa) + (1 + cb2) / sigma;
+
+                real ct3 = 1.2;
+                real ct4 = 0.5;
+
+                real pMean, asqrMean, Hmean;
+                real gamma = settings.idealGasProperty.gamma;
+                Gas::IdealGasThermal(UMeanXy(4), UMeanXy(0), (UMeanXy({1, 2, 3}) / UMeanXy(0)).squaredNorm(),
+                                     gamma, pMean, asqrMean, Hmean);
+                // ! refvalue:
+                real muRef = settings.idealGasProperty.muGas;
+
+                real nuh = UMeanXy(5) * muRef / UMeanXy(0);
+
+                real T = pMean / ((gamma - 1) / gamma * settings.idealGasProperty.CpGas * UMeanXy(0));
+                real mufPhy, muf;
+                mufPhy = muf = settings.idealGasProperty.muGas *
+                               std::pow(T / settings.idealGasProperty.TRef, 1.5) *
+                               (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
+                               (T + settings.idealGasProperty.CSutherland);
+
+                real Chi = std::abs(UMeanXy(5) * muRef / mufPhy);
+                real fnu1 = std::pow(Chi, 3) / (std::pow(Chi, 3) + std::pow(cnu1, 3));
+                real fnu2 = 1 - Chi / (1 + Chi * fnu1);
+
+                Eigen::Matrix<real, 3, 1> velo = UMeanXy({1, 2, 3}) / UMeanXy(0);
+                Eigen::Matrix<real, 3, 1> diffRhoNu = DiffUxy({0, 1, 2}, {5}) * muRef;
+                Eigen::Matrix<real, 3, 1> diffRho = DiffUxy({0, 1, 2}, {0});
+                Eigen::Matrix<real, 3, 1> diffNu = (diffRhoNu - nuh * diffRho) / UMeanXy(0);
+                Eigen::Matrix<real, 3, 3> diffRhoU = DiffUxy({0, 1, 2}, {1, 2, 3});
+                Eigen::Matrix<real, 3, 3> diffU = (diffRhoU - diffRho * velo.transpose()) / UMeanXy(0);
+
+                Eigen::Matrix<real, 3, 3> Omega = 0.5 * (diffU.transpose() - diffU);
+                real S = Omega.norm() * std::sqrt(2);
+                real Sbar = nuh / (sqr(kappa) * sqr(d)) * fnu2;
+
+                real Sh;
+                if (Sbar < -cnu2 * S)
+                    Sh = S + S * (sqr(cnu2) * S + cnu3 * Sbar) / ((cnu3 - 2 * cnu2) * S - Sbar);
+                else
+                    Sh = S + Sbar;
+
+                real r = std::min(nuh / (Sh * sqr(kappa * d) + verySmallReal), rlim);
+                real g = r + cw2 * (std::pow(r, 6) - r);
+                real fw = g * std::pow((1 + std::pow(cw3, 6)) / (std::pow(g, 6) + std::pow(cw3, 6)), 1. / 6.);
+
+                real ft2 = ct3 * std::exp(-ct4 * sqr(Chi));
+                real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //! modified >>
+                real P = cb1 * (1 - ft2) * Sh * nuh;                         //! modified >>
+                // real D = cw1 * fw * sqr(nuh / d);
+                // real P = cb1 * Sh * nuh;
+                real fn = 1;
+                if (UMeanXy(5) < 0)
+                {
+                    real cn1 = 16;
+                    real Chi = UMeanXy(5) * muRef / mufPhy;
+                    fn = (cn1 + std::pow(Chi, 3)) / (cn1 - std::pow(Chi, 3));
+                    P = cb1 * (1 - ct3) * S * nuh;
+                    D = -cw1 * sqr(nuh / d);
+                }
+
+                Eigen::VectorXd ret;
+                ret.resizeLike(UMeanXy);
+                ret.setZero();
+
+                if (passiveDiscardSource)
+                    P = D = 0;
+                ret(5) = UMeanXy(0) * (-D) / muRef / UMeanXy(5);
+
+                if (ret.hasNaN())
+                {
+                    std::cout << P << std::endl;
+                    std::cout << D << std::endl;
+                    std::cout << UMeanXy(0) << std::endl;
+                    std::cout << Sh << std::endl;
+                    std::cout << nuh << std::endl;
+                    std::cout << g << std::endl;
+                    std::cout << r << std::endl;
+                    std::cout << S << std::endl;
+                    std::cout << d << std::endl;
+                    std::cout << fnu2 << std::endl;
+                    std::cout << mufPhy << std::endl;
+                    assert(false);
+                }
+                // if (passiveDiscardSource)
+                //     ret(Eigen::seq(5, Eigen::last)).setZero();
                 return ret;
             }
             else
@@ -507,6 +637,32 @@ namespace DNDS
                 subFdU(5, 3) = n(2) * U(5) / U(0);
             }
             return subFdU;
+        }
+
+        Eigen::VectorXd fluxJacobian0_Right_Times_du(
+            const Eigen::VectorXd &U,
+            const Elem::tPoint &n,
+            BoundaryType btype,
+            const Eigen::VectorXd &dU)
+        {
+            real gamma = settings.idealGasProperty.gamma;
+            Elem::tPoint velo = U({1, 2, 3}) / U(0);
+            real p, H, asqr;
+            Gas::IdealGasThermal(U(4), U(0), velo.squaredNorm(), gamma, p, asqr, H);
+            Elem::tPoint dVelo;
+            real dp;
+            Gas::IdealGasUIncrement(U, dU, velo, gamma, dVelo, dp);
+            Eigen::VectorXd dF(U.size());
+            Gas::GasInviscidFluxFacialIncrement(U, dU,
+                                                n,
+                                                velo, dVelo,
+                                                dp, p,
+                                                dF);
+            if (model == NS_SA)
+            {
+                dF(5) = dU(5) * n.dot(velo) + U(5) * n.dot(dVelo);
+            }
+            return dF;
         }
 
         Eigen::VectorXd generateBoundaryValue(
@@ -669,6 +825,11 @@ namespace DNDS
         void UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
         void UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+
+        void EulerEvaluator::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
+                                             ArrayDOFV &u, ArrayRecV &uRec,
+                                             int jacobianCode,
+                                             real t);
 
         void LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
                             ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);

@@ -228,7 +228,7 @@ namespace DNDS
                     rhs *= 1.0 / dt;
                     rhs += rhsbuf[0]; // crhs = rhs + (x_i - x_j) / dt
 
-                    fsolve(x, rhs, dTau, dt, 1.0, xinc);
+                    fsolve(x, rhs, dTau, dt, 1.0, xinc, iter);
                     x += xinc;
 
                     if (fstop(iter, xinc, 1))
@@ -310,7 +310,7 @@ namespace DNDS
                         for (int jB = 0; jB <= iB; jB++)
                             rhs.addTo(rhsbuf[jB], butcherA(iB, jB)); // crhs = rhs + (x_i - x_j) / dt
 
-                        fsolve(x, rhs, dTau, dt, butcherA(iB, iB), xinc);
+                        fsolve(x, rhs, dTau, dt, butcherA(iB, iB), xinc, iter);
                         // x += xinc;
                         x.addTo(xinc, 1.0);
                         // x.addTo(xIncPrev, -0.5);

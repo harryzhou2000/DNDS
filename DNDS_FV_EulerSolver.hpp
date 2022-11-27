@@ -94,6 +94,8 @@ namespace DNDS
             int nGmresIter = 2;
 
             int jacobianTypeCode = 0; // 0 for original LUSGS jacobian, 1 for ad roe, 2 for ad roe ad vis
+
+            int nFreezePassiveInner = 0;
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -141,6 +143,8 @@ namespace DNDS
             root.AddInt("nGmresIter", &config.nGmresIter);
             root.AddInt("jacobianTypeCode", &config.jacobianTypeCode);
 
+            root.AddInt("nFreezePassiveInner", &config.nFreezePassiveInner);
+
             JSON::ParamParser vfvParser(mpi);
             root.AddObject("vfvSetting", &vfvParser);
             {
@@ -179,6 +183,7 @@ namespace DNDS
                         else
                             assert(false);
                     });
+                eulerParser.AddInt("nTimeFilterPass", &config.eulerSetting.nTimeFilterPass);
                 eulerParser.AddDNDS_Real("visScale", &config.eulerSetting.visScale);
                 eulerParser.AddDNDS_Real("visScaleIn", &config.eulerSetting.visScaleIn);
                 eulerParser.AddDNDS_Real("ekCutDown", &config.eulerSetting.ekCutDown);
@@ -186,7 +191,6 @@ namespace DNDS
                 eulerParser.AddDNDS_Real("isiScaleIn", &config.eulerSetting.isiScaleIn);
                 eulerParser.AddDNDS_Real("isiCutDown", &config.eulerSetting.isiCutDown);
                 eulerParser.AddDNDS_Real("visScale", &config.eulerSetting.visScale);
-                eulerParser.AddInt("nTimeFilterPass", &config.eulerSetting.nTimeFilterPass);
             }
             JSON::ParamParser eulerGasParser(mpi);
             {
@@ -319,7 +323,22 @@ namespace DNDS
             vfv->BuildRec(uRecNew1, nVars);
             vfv->BuildRec(uOld, nVars);
 
-            u.setConstant(config.eulerSetting.farFieldStaticValue);
+            Eigen::VectorXd initConstVal = config.eulerSetting.farFieldStaticValue;
+            u.setConstant(initConstVal);
+            if (model == EulerModel::NS_SA)
+            {
+                for (int iCell = 0; iCell < u.dist->size(); iCell++)
+                {
+                    auto c2f = mesh->cell2faceLocal[iCell];
+                    for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+                    {
+                        index iFace = c2f[ic2f];
+                        if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_NoSlip)
+                            u[iCell](5) *= 0.6;
+                    }
+                }
+            }
+
             uPoisson.setConstant(0.0);
 
             //! serial mesh specific output method
@@ -493,7 +512,14 @@ namespace DNDS
                         uRec.WaitPersistentPullClean();
 
                         double tstartE = MPI_Wtime();
+                        eval.setPassiveDiscardSource(iter <= 0);
                         eval.EvaluateRHS(crhs, cx, uRec, tsimu + ct * curDtMin);
+                        if (getNVars(model) > 5 && step <= config.nFreezePassiveInner)
+                        {
+                            for (int i = 0; i < crhs.size(); i++)
+                                crhs[i](Eigen::seq(5, Eigen::last)).setZero();
+                        }
+
                         trhs += MPI_Wtime() - tstartE;
                     },
                     [&](std::vector<real> &dt)
@@ -804,10 +830,18 @@ namespace DNDS
 
                         InsertCheck(mpi, " Lambda RHS: StartEval");
                         double tstartE = MPI_Wtime();
+                        eval.setPassiveDiscardSource(iter <= 0);
                         if (config.useLimiter)
                             eval.EvaluateRHS(crhs, cx, uRecNew, tsimu + ct * curDtImplicit);
                         else
                             eval.EvaluateRHS(crhs, cx, uRec, tsimu + ct * curDtImplicit);
+                        if (getNVars(model) > 5 && iter <= config.nFreezePassiveInner)
+                        {
+                            for (int i = 0; i < crhs.size(); i++)
+                                crhs[i](Eigen::seq(5, Eigen::last)).setZero();
+                            // if (mpi.rank == 0)
+                            //     std::cout << "Freezing all passive" << std::endl;
+                        }
                         trhs += MPI_Wtime() - tstartE;
 
                         InsertCheck(mpi, " Lambda RHS: End");
@@ -825,7 +859,7 @@ namespace DNDS
                             i /= alphaDiag;
                     },
                     [&](ArrayDOFV &cx, ArrayDOFV &crhs, std::vector<real> &dTau,
-                        real dt, real alphaDiag, ArrayDOFV &cxInc)
+                        real dt, real alphaDiag, ArrayDOFV &cxInc, int iter)
                     {
                         cxInc.setConstant(0.0);
 
@@ -926,6 +960,13 @@ namespace DNDS
                                     return false;
                                 });
                         }
+                        if (getNVars(model) > 5 && iter <= config.nFreezePassiveInner)
+                        {
+                            for (int i = 0; i < crhs.size(); i++)
+                                cxInc[i](Eigen::seq(5, Eigen::last)).setZero();
+                            // if (mpi.rank == 0)
+                            //     std::cout << "Freezing all passive" << std::endl;
+                        }
                     },
                     config.nTimeStepInternal,
                     [&](int iter, ArrayDOFV &cxinc, int iStep) -> bool
@@ -935,6 +976,8 @@ namespace DNDS
                         // if (iter == 1 && iStep == 1) // * using 1st rk step for reference
                         if (iter == 1)
                             resBaseCInternal = res;
+                        else
+                            resBaseCInternal = resBaseCInternal.array().max(res.array()); //! using max !
                         Eigen::Vector<real, -1> resRel = (res.array() / resBaseCInternal.array()).matrix();
                         bool ifStop = resRel(0) < config.rhsThresholdInternal; // ! using only rho's residual
                         if (iter % config.nConsoleCheckInternal == 0 || iter > config.nTimeStepInternal || ifStop)
@@ -952,7 +995,7 @@ namespace DNDS
                                       << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
                                 log().setf(fmt);
                                 logErr << step << "\t" << iter << "\t" << std::setprecision(9) << std::scientific
-                                       << resRel.transpose() << " "
+                                       << res.transpose() << " "
                                        << tsimu << " " << curDtMin << std::endl;
                             }
                             tstart = MPI_Wtime();
@@ -1007,7 +1050,7 @@ namespace DNDS
                               << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
                         log().setf(fmt);
                         logErr << step << "\t" << std::setprecision(9) << std::scientific
-                               << (res.array() / resBaseC.array()).transpose() << " "
+                               << res.transpose() << " "
                                << tsimu << " " << curDtMin << std::endl;
                     }
                     tstart = MPI_Wtime();

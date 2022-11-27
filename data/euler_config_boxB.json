@@ -8,6 +8,7 @@
     "nGmresSpace": 10,
     "nGmresIter": 1,
     "jacobianTypeCode": 0,
+    "nFreezePassiveInner": 0,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
     "nDataOutC": 100,
