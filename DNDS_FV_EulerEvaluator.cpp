@@ -290,7 +290,7 @@ namespace DNDS
                     GradU.setZero();
                     GradU({0, 1}, Eigen::all) =
                         cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(1, Eigen::last)) *
-                        uRec[iCell] * IF_NOT_NOREC; //!2d specific
+                        uRec[iCell] * IF_NOT_NOREC; //! 2d specific
 
                     Eigen::Vector<real, -1> ULxy =
                         cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
@@ -638,6 +638,14 @@ namespace DNDS
         }
     }
 
+    void EulerEvaluator::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
+                                         ArrayDOFV &u, ArrayRecV &uRec,
+                                         int jacobianCode,
+                                         real t)
+    {
+        //TODO: for code0: flux jacobian with lambdaFace, and source jacobian with integration, only diagpart dealt with
+    }
+
     void EulerEvaluator::LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
                                         ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
     {
@@ -690,9 +698,9 @@ namespace DNDS
                             //            BoundaryType::Inner) *
                             //        uInc[iCellOther]; //! always inner here
                             fInc = fluxJacobian0_Right_Times_du(
-                                       u[iCellOther],
-                                       unitNorm,
-                                       BoundaryType::Inner, uInc[iCellOther]); //! always inner here
+                                u[iCellOther],
+                                unitNorm,
+                                BoundaryType::Inner, uInc[iCellOther]); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *

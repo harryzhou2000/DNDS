@@ -1,5 +1,5 @@
 {
-    "recOrder": 3,
+    "recOrder": 1,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
@@ -13,7 +13,7 @@
     "nConsoleCheckInternal": 10,
     "nDataOutC": 1,
     "nDataOut": 1,
-    "nDataOutCInternal": 10,
+    "nDataOutCInternal": 100,
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
@@ -31,7 +31,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": -0,
-    "meshFile": "data/mesh/BL_A1.msh",
+    "meshFile": "data/mesh/NACA0012_WIDE_H3_NS.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -49,12 +49,12 @@
         "data/mesh/NACA0012_WIDE_H3G_NS.msh",
         "data/mesh/NACA0012_TIP_WIDE_NS",
         "data/mesh/NACA0012_TIP_SPARSE_NS",
-        "data/mesh/NACA0012_WIDE_H3_M.msh", 
+        "data/mesh/NACA0012_WIDE_H3_M.msh",
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.BL_A1",
-    "outLogName": "data/out/test_Euler_.BL_A1",
+    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
+    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -64,7 +64,7 @@
         "JacobiRelax": 1,
         "anistropicLengths": false,
         "tangWeight": 0.1,
-        "wallWeight": 0.5,
+        "wallWeight": 1.5,
         "farWeight": 1,
         "weightSchemeGeom": "None",
         "baseCenterType": "Bary",
@@ -81,8 +81,8 @@
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
-            "Rgas": 0.0092,
-            "muGas": 5e-6
+            "Rgas": 0.0654,
+            "muGas": 3.4722e-07
         },
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
@@ -95,13 +95,21 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
+            0.9962,
+            0.0872,
+            0,
+            45.1429,
+            1
+        ],
+        "boxInitializerValue": [
+            -1e100,1e100,-1e100,1e100,-1e100,1e100,
+            1,
             1,
             0,
             0,
-            6.75,
-            5
+            45.1429,
+            1
         ],
-        "boxInitializerValue": [],
         "planeInitializerValue": [],
         "comment_farSatic": [
             [
