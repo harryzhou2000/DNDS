@@ -1,5 +1,5 @@
 {
-    "recOrder": 1,
+    "recOrder": 3,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
@@ -17,7 +17,7 @@
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 1,
+    "CFL": 10,
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-100,
     "useLocalDt": true,
@@ -31,7 +31,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": -0,
-    "meshFile": "data/mesh/NACA0012_WIDE_H3_NS.msh",
+    "meshFile": "data/mesh/BL_A1.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -53,8 +53,8 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
+    "outPltName": "data/out/test_Euler_.BL_A1",
+    "outLogName": "data/out/test_Euler_.BL_A1",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
