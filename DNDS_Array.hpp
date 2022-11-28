@@ -12,7 +12,7 @@
 #include <vector>
 #include <utility>
 
-#define ARRAY_COMM_USE_BUFFERED_SEND
+// #define ARRAY_COMM_USE_BUFFERED_SEND
 
 namespace DNDS
 {

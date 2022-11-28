@@ -8,4 +8,4 @@ if [[ $# -gt 0 ]]; then
 fi
 
 
-mpirun.mpich -np ${NP} test/eulerSA.exe
+mpirun.openmpi -np ${NP} test/eulerSA.exe
