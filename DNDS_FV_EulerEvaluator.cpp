@@ -302,7 +302,6 @@ namespace DNDS
 
                     ULxy = CompressRecPart(u[iCell], ULxy); //! do not forget the mean value
 
-
                     finc.resizeLike(sourceV);
                     finc(Eigen::seq(0, cnvars - 1)) =
                         source(
@@ -680,8 +679,7 @@ namespace DNDS
 
             // jacobian diag
 
-            
-            jacobianCell[iCell] += jacobianCellSourceDiag[iCell].asDiagonal();
+            jacobianCell[iCell] += alphaDiag * jacobianCellSourceDiag[iCell].asDiagonal();
 
             jacobianCellInv[iCell] = jacobianCell[iCell].partialPivLu().inverse();
 
