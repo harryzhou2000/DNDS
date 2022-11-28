@@ -53,9 +53,12 @@ namespace DNDS
         std::vector<real> lambdaFaceVis;
         std::vector<real> deltaLambdaFace;
         std::vector<Eigen::Matrix<real, 10, 5>> dFdUFace;
-        std::vector<Eigen::Matrix<real, 10, 5>> jacobianFace;
-        std::vector<Eigen::Matrix<real, 5, 5>> jacobianCell;
-        std::vector<Eigen::Matrix<real, 5, 5>> jacobianCellInv;
+
+        //todo: improve to contagious
+        std::vector<Eigen::Vector<real, -1>> jacobianCellSourceDiag;
+        std::vector<Eigen::Matrix<real, -1, -1>> jacobianFace;
+        std::vector<Eigen::Matrix<real, -1, -1>> jacobianCell;
+        std::vector<Eigen::Matrix<real, -1, -1>> jacobianCellInv;
 
         std::vector<std::vector<real>> dWall;
 
@@ -120,9 +123,11 @@ namespace DNDS
             deltaLambdaFace.resize(lambdaFace.size());
 
             dFdUFace.resize(lambdaFace.size());
-            jacobianFace.resize(lambdaFace.size());
-            jacobianCell.resize(lambdaCell.size());
-            jacobianCellInv.resize(lambdaCell.size());
+            
+            jacobianFace.resize(lambdaFace.size(), decltype(jacobianFace)::value_type(nVars * 2, nVars));
+            jacobianCell.resize(lambdaCell.size(), decltype(jacobianCell)::value_type(nVars, nVars));
+            jacobianCellInv.resize(lambdaCell.size(), decltype(jacobianCellInv)::value_type(nVars, nVars));
+            jacobianCellSourceDiag.resize(lambdaCell.size(), decltype(jacobianCellSourceDiag)::value_type::Zero(nVars)); // zeroed
 
             // vfv->BuildRec(dRdUrec);
             // vfv->BuildRec(dRdb);
@@ -472,7 +477,7 @@ namespace DNDS
         }
 
         // zeroth means needs not derivative
-        Eigen::VectorXd sourceJacobianDiag_Zeroth(
+        Eigen::VectorXd sourceJacobianDiag(
             const Eigen::VectorXd &UMeanXy,
             const Eigen::MatrixXd &DiffUxy,
             index iCell, index ig)
@@ -560,7 +565,7 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
-                ret(5) = UMeanXy(0) * (-D) / muRef / UMeanXy(5);
+                ret(5) = std::abs(UMeanXy(0) * (-D) / muRef / UMeanXy(5));
 
                 if (ret.hasNaN())
                 {
@@ -826,12 +831,12 @@ namespace DNDS
 
         void UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
-        void EulerEvaluator::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
+        void LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
                                              ArrayDOFV &u, ArrayRecV &uRec,
                                              int jacobianCode,
                                              real t);
 
-        void LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
+        void LUSGSMatrixVec(real alphaDiag,
                             ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
 
         /**
@@ -842,7 +847,7 @@ namespace DNDS
          * \param uIncNew overwritten;
          *
          */
-        void UpdateLUSGSForward(std::vector<real> &dTau, real dt, real alphaDiag,
+        void UpdateLUSGSForward(real alphaDiag,
                                 ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
         /**
@@ -850,10 +855,10 @@ namespace DNDS
          * \param uIncNew overwritten;
          *
          */
-        void UpdateLUSGSBackward(std::vector<real> &dTau, real dt, real alphaDiag,
+        void UpdateLUSGSBackward(real alphaDiag,
                                  ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
-        void UpdateSGS(std::vector<real> &dTau, real dt, real alphaDiag,
+        void UpdateSGS(real alphaDiag,
                        ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
 
         void FixUMaxFilter(ArrayDOFV &u);
