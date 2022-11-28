@@ -7,7 +7,7 @@
     "gmresCode": 1,
     "nGmresSpace": 10,
     "nGmresIter": 2,
-    "jacobianTypeCode": 2,
+    "jacobianTypeCode": 0,
     "nFreezePassiveInner": 0,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
@@ -52,7 +52,7 @@
         "data/mesh/grid_NACA0012_vis"
     ],
     "outPltName": "data/out/test_Euler_.grid_NACA0012_vis",
-    "outLogName": "data/out/test_Euler_.grid_NACA0012_vis_CFL100_TYPE2",
+    "outLogName": "data/out/test_Euler_.grid_NACA0012_vis",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -79,8 +79,8 @@
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
-            "Rgas": 289,
-            "muGas": 1.1832e-02
+            "Rgas": 0.0033,
+            "muGas": 1.1832e-04
         },
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",

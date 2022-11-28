@@ -571,7 +571,7 @@ namespace DNDS
                 MPI_Pack_size(1, dtypeInfo.second, mpi.comm, &csize);
                 csize += MPI_BSEND_OVERHEAD;
                 assert(MAX_MPI_int - pushSendSize >= csize && csize > 0);
-                pushSendSize += csize;
+                pushSendSize += csize * 2;
             }
             for (auto ip = 0; ip < pPushTypeVec->size(); ip++)
             {
@@ -582,7 +582,7 @@ namespace DNDS
                 // cascade from father
             }
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-            MPIBufferHandler::Instance().claim(pushSendSize, mpi.rank);
+            // MPIBufferHandler::Instance().claim(pushSendSize, mpi.rank);
 #endif
             commStat.hasPersistentPushReqs = true;
         }
@@ -633,10 +633,10 @@ namespace DNDS
                 MPI_Pack_size(1, dtypeInfo.second, mpi.comm, &csize);
                 csize += MPI_BSEND_OVERHEAD * 8;
                 assert(MAX_MPI_int - pullSendSize >= csize && csize > 0);
-                pullSendSize += csize;
+                pullSendSize += csize * 2;
             }
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-            MPIBufferHandler::Instance().claim(pullSendSize, mpi.rank);
+            // MPIBufferHandler::Instance().claim(pullSendSize, mpi.rank);
 #endif
             commStat.hasPersistentPullReqs = true;
         }
@@ -647,7 +647,7 @@ namespace DNDS
             PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             assert(commStat.hasPersistentPushReqs && commStat.PersistentPushFinished);
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-// MPIBufferHandler::Instance().claim(pushSendSize, mpi.rank);
+MPIBufferHandler::Instance().claim(pushSendSize, mpi.rank);
 #endif
             if (PushReqVec.size())
                 MPI_Startall(PushReqVec.size(), PushReqVec.data());
@@ -659,7 +659,7 @@ namespace DNDS
             PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             assert(commStat.hasPersistentPullReqs && commStat.PersistentPullFinished);
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-// MPIBufferHandler::Instance().claim(pullSendSize, mpi.rank);
+MPIBufferHandler::Instance().claim(pullSendSize, mpi.rank);
 #endif
             if (PullReqVec.size())
                 MPI_Startall(PullReqVec.size(), PullReqVec.data());
@@ -675,7 +675,7 @@ namespace DNDS
             if (PushReqVec.size())
                 MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data());
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-// MPIBufferHandler::Instance().unclaim(pushSendSize);
+MPIBufferHandler::Instance().unclaim(pushSendSize);
 #endif
             commStat.PersistentPushFinished = true;
             PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
@@ -690,7 +690,7 @@ namespace DNDS
                 MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data());
                 // std::cout << "waiting DONE" << std::endl;
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-// MPIBufferHandler::Instance().unclaim(pullSendSize);
+MPIBufferHandler::Instance().unclaim(pullSendSize);
 #endif
             commStat.PersistentPullFinished = true;
             PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
