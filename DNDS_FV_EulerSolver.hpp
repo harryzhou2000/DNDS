@@ -916,11 +916,7 @@ namespace DNDS
                         if (config.gmresCode != 0)
                         {
                             // !  GMRES
-                            for (index iCell = 0; iCell < crhs.dist->size(); iCell++)
-                            {
-                                uIncRHS[iCell] = crhs[iCell] * eval.fv->volumeLocal[iCell];
-                            }
-
+                            // !  for gmres solver: A * uinc = rhsinc, rhsinc is average value insdead of cumulated on vol
                             gmres.solve(
                                 [&](decltype(u) &x, decltype(u) &Ax)
                                 {
@@ -938,28 +934,28 @@ namespace DNDS
 
                                     if (config.jacobianTypeCode == 0)
                                     {
-                                        for (index iCell = 0; iCell < x.dist->size(); iCell++)
-                                        {
-                                            uTemp[iCell] = x[iCell] / eval.fv->volumeLocal[iCell]; //! UpdateLUSGS needs not these volumes multiplied
-                                        }
-                                        eval.UpdateLUSGSForward(alphaDiag, uTemp, cx, MLx, MLx);
+                                        eval.UpdateLUSGSForward(alphaDiag, x, cx, MLx, MLx);
                                         MLx.StartPersistentPullClean();
                                         MLx.WaitPersistentPullClean();
-                                        eval.UpdateLUSGSBackward(alphaDiag, uTemp, cx, MLx, MLx);
+                                        eval.UpdateLUSGSBackward(alphaDiag, x, cx, MLx, MLx);
                                         MLx.StartPersistentPullClean();
                                         MLx.WaitPersistentPullClean();
                                     }
                                     else
                                     {
-                                        eval.UpdateLUSGSADForward(x, cx, MLx, MLx);
+                                        for (index iCell = 0; iCell < x.dist->size(); iCell++) // ad series now takes rhs with volume
+                                        {
+                                            uTemp[iCell] = x[iCell] * eval.fv->volumeLocal[iCell];
+                                        }
+                                        eval.UpdateLUSGSADForward(uTemp, cx, MLx, MLx);
                                         MLx.StartPersistentPullClean();
                                         MLx.WaitPersistentPullClean();
-                                        eval.UpdateLUSGSADBackward(x, cx, MLx, MLx);
+                                        eval.UpdateLUSGSADBackward(uTemp, cx, MLx, MLx);
                                         MLx.StartPersistentPullClean();
                                         MLx.WaitPersistentPullClean();
                                     }
                                 },
-                                uIncRHS, cxInc, config.nGmresIter,
+                                crhs, cxInc, config.nGmresIter,
                                 [&](uint32_t i, real res, real resB) -> bool
                                 {
                                     if (i > 0)
@@ -973,6 +969,7 @@ namespace DNDS
                                     return false;
                                 });
                         }
+                        // !freeze something
                         if (getNVars(model) > 5 && iter <= config.nFreezePassiveInner)
                         {
                             for (int i = 0; i < crhs.size(); i++)

@@ -55,6 +55,7 @@ namespace DNDS
         std::vector<Eigen::Matrix<real, 10, 5>> dFdUFace;
 
         //todo: improve to contagious
+        std::vector<Eigen::Vector<real, -1>> jacobianCellSourceDiag;
         std::vector<Eigen::Matrix<real, -1, -1>> jacobianFace;
         std::vector<Eigen::Matrix<real, -1, -1>> jacobianCell;
         std::vector<Eigen::Matrix<real, -1, -1>> jacobianCellInv;
@@ -122,9 +123,11 @@ namespace DNDS
             deltaLambdaFace.resize(lambdaFace.size());
 
             dFdUFace.resize(lambdaFace.size());
+            
             jacobianFace.resize(lambdaFace.size(), decltype(jacobianFace)::value_type(nVars * 2, nVars));
             jacobianCell.resize(lambdaCell.size(), decltype(jacobianCell)::value_type(nVars, nVars));
             jacobianCellInv.resize(lambdaCell.size(), decltype(jacobianCellInv)::value_type(nVars, nVars));
+            jacobianCellSourceDiag.resize(lambdaCell.size(), decltype(jacobianCellSourceDiag)::value_type::Zero(nVars)); // zeroed
 
             // vfv->BuildRec(dRdUrec);
             // vfv->BuildRec(dRdb);

@@ -1,5 +1,5 @@
 {
-    "recOrder": 3,
+    "recOrder": 1,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
@@ -8,7 +8,7 @@
     "nGmresSpace": 10,
     "nGmresIter": 2,
     "jacobianTypeCode": 0,
-    "nFreezePassiveInner": 0,
+    "nFreezePassiveInner": 1000,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
     "nDataOutC": 1,
@@ -17,7 +17,7 @@
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 20,
+    "CFL": 10,
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-100,
     "useLocalDt": true,
@@ -95,13 +95,25 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            0.9659,
-            0.2588,
+            0.9962,
+            0.0872,
             0,
             45.1429,
             1
         ],
         "boxInitializerValue": [
+            -1e100,
+            1e100,
+            -1e100,
+            1e100,
+            -1e100,
+            1e100,
+            1,
+            1,
+            0,
+            0,
+            45.1429,
+            1
         ],
         "planeInitializerValue": [],
         "comment_farSatic": [
@@ -144,33 +156,6 @@
                 0,
                 0,
                 2.528
-            ],
-            [
-                "0.2M alpha=00",
-                1,
-                1,
-                0,
-                0,
-                45.1429,
-                1
-            ],
-            [
-                "0.2M alpha=05",
-                1,
-                0.9962,
-                0.0872,
-                0,
-                45.1429,
-                1
-            ],
-            [
-                "0.2M alpha=15",
-                1,
-                0.9659,
-                0.2588,
-                0,
-                45.1429,
-                1
             ]
         ]
     },

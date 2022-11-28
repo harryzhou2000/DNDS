@@ -4,7 +4,7 @@
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
     "nSGSIterationInternal": 0,
-    "gmresCode": 0,
+    "gmresCode": 1,
     "nGmresSpace": 10,
     "nGmresIter": 2,
     "jacobianTypeCode": 0,

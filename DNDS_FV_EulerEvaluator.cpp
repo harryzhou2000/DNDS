@@ -271,6 +271,10 @@ namespace DNDS
         }
 
         InsertCheck(u.dist->getMPI(), "EvaluateRHS After Flux");
+
+        for (index iCell = 0; iCell < jacobianCellSourceDiag.size(); iCell++) // force zero source jacobian
+            jacobianCellSourceDiag[iCell].setZero();
+
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
         {
             auto &cellRecAtr = vfv->cellRecAtrLocal[iCell][0];
@@ -278,7 +282,7 @@ namespace DNDS
             Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
             auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
 
-            Eigen::Vector<real, -1> sourceV(cnvars);
+            Eigen::Vector<real, -1> sourceV(cnvars * 2); // now includes sourcejacobian diag
             sourceV.setZero();
 
             eCell.Integration(
@@ -298,10 +302,18 @@ namespace DNDS
 
                     ULxy = CompressRecPart(u[iCell], ULxy); //! do not forget the mean value
 
-                    finc = source(
-                        ULxy,
-                        GradU,
-                        iCell, ig);
+
+                    finc.resizeLike(sourceV);
+                    finc(Eigen::seq(0, cnvars - 1)) =
+                        source(
+                            ULxy,
+                            GradU,
+                            iCell, ig);
+                    finc(Eigen::seq(cnvars, 2 * cnvars - 1)) =
+                        sourceJacobianDiag(
+                            ULxy,
+                            GradU,
+                            iCell, ig);
 
                     finc *= vfv->cellGaussJacobiDets[iCell][ig]; // don't forget this
                     if (finc.hasNaN() || (!finc.allFinite()))
@@ -313,7 +325,8 @@ namespace DNDS
                     }
                 });
 
-            rhs[iCell] += sourceV / fv->volumeLocal[iCell];
+            rhs[iCell] += sourceV(Eigen::seq(0, cnvars - 1)) / fv->volumeLocal[iCell];
+            jacobianCellSourceDiag[iCell] = sourceV(Eigen::seq(cnvars, 2 * cnvars - 1)) / fv->volumeLocal[iCell];
         }
         InsertCheck(u.dist->getMPI(), "EvaluateRHS -1");
     }
@@ -657,54 +670,23 @@ namespace DNDS
             jacobianCell[iCell].setIdentity();
 
             // LUSGS diag part
-            real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
+            real fpDivisor = 1.0 / dTau[iCell] + 1.0 / dt;
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
                 index iFace = c2f[ic2f];
-                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
+                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace] / fv->volumeLocal[iCell];
             }
             jacobianCell[iCell] *= fpDivisor; //! all passive vars use same diag for flux part
 
-            // integrate on source jacobian diag
+            // jacobian diag
 
-            Eigen::Vector<real, -1> sourceJacobianDiagV(cnvars);
-            sourceJacobianDiagV.setZero();
-
-            eCell.Integration(
-                sourceJacobianDiagV,
-                [&](decltype(sourceJacobianDiagV) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
-                {
-                    Eigen::Matrix<real, 3, -1> GradU;
-                    GradU.resize(Eigen::NoChange, cnvars);
-                    GradU.setZero();
-                    GradU({0, 1}, Eigen::all) =
-                        cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(1, Eigen::last)) *
-                        uRec[iCell] * IF_NOT_NOREC; //! 2d specific
-
-                    Eigen::Vector<real, -1> ULxy =
-                        cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
-                        uRec[iCell] * IF_NOT_NOREC;
-
-                    ULxy = CompressRecPart(u[iCell], ULxy); //! do not forget the mean value
-
-                    finc = sourceJacobianDiag(
-                        ULxy,
-                        GradU,
-                        iCell, ig);
-
-                    finc *= vfv->cellGaussJacobiDets[iCell][ig]; // don't forget this
-                    if (finc.hasNaN() || (!finc.allFinite()))
-                    {
-                        std::cout << finc.transpose() << std::endl;
-                        std::cout << ULxy.transpose() << std::endl;
-                        std::cout << GradU << std::endl;
-                        assert(false);
-                    }
-                });
-
-            jacobianCell[iCell] += sourceJacobianDiagV.asDiagonal();
+            
+            jacobianCell[iCell] += jacobianCellSourceDiag[iCell].asDiagonal();
 
             jacobianCellInv[iCell] = jacobianCell[iCell].partialPivLu().inverse();
+
+            // std::cout << "jacobian Diag\n"
+            //           << jacobianCell[iCell] << std::endl;
         }
     }
 
@@ -754,7 +736,7 @@ namespace DNDS
                                 BoundaryType::Inner, uInc[iCellOther]); //! always inner here
                         }
 
-                        uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
+                        uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
                                       (fInc - lambdaFace[iFace] * uInc[iCellOther]);
                         if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
                         {
@@ -795,7 +777,7 @@ namespace DNDS
 
             auto &c2f = mesh->cell2faceLocal[iCell];
             Eigen::Vector<real, -1> uIncNewBuf(nVars);
-            uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell];
+            uIncNewBuf = rhs[iCell];
 
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
@@ -828,7 +810,7 @@ namespace DNDS
                                 BoundaryType::Inner, uInc[iCellOther]); //! always inner here
                         }
 
-                        uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
+                        uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
                                       (fInc - lambdaFace[iFace] * uInc[iCellOther]);
                         if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
                         {
@@ -857,7 +839,7 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
     }
 
-    void EulerEvaluator::UpdateLUSGSBackward( real alphaDiag,
+    void EulerEvaluator::UpdateLUSGSBackward(real alphaDiag,
                                              ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward 1");
@@ -903,7 +885,7 @@ namespace DNDS
                                 BoundaryType::Inner, uInc[iCellOther]); //! always inner here
                         }
 
-                        uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
+                        uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
                                       (fInc - lambdaFace[iFace] * uInc[iCellOther]);
                     }
                 }
@@ -932,7 +914,7 @@ namespace DNDS
             auto &c2f = mesh->cell2faceLocal[iCell];
             Eigen::Vector<real, -1> uIncNewBuf;
             // uIncNewBuf.setZero(); // backward
-            uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell]; // full
+            uIncNewBuf = rhs[iCell]; // full
 
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
@@ -962,7 +944,7 @@ namespace DNDS
                                 BoundaryType::Inner, uInc[iCellOther]); //! always inner here
                         }
 
-                        uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] *
+                        uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
                                       (fInc - lambdaFace[iFace] * uInc[iCellOther]);
                     }
                 }
