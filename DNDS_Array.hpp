@@ -12,7 +12,7 @@
 #include <vector>
 #include <utility>
 
-
+// #define ARRAY_COMM_USE_BUFFERED_SEND
 
 namespace DNDS
 {
@@ -171,6 +171,8 @@ namespace DNDS
         MPIReqHolder PullReqVec;
         tMPI_statVec PushStatVec;
         tMPI_statVec PullStatVec;
+        MPI_int pushSendSize;
+        MPI_int pullSendSize;
 
         // ** comm aux info: safe guard status **
         ArrayCommStat commStat;
@@ -546,6 +548,7 @@ namespace DNDS
         {
             assert(commStat.hasCommTypes);
             assert(pPullTypeVec.use_count() > 0 && pPushTypeVec.use_count() > 0);
+            pushSendSize = 0;
             auto nReqs = pPullTypeVec->size() + pPushTypeVec->size();
             // assert(nReqs > 0);
             PushReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PushStatVec.resize(nReqs);
@@ -554,8 +557,21 @@ namespace DNDS
                 auto dtypeInfo = (*pPullTypeVec)[ip];
                 MPI_int rankOther = dtypeInfo.first;
                 MPI_int tag = rankOther + mpi.rank;
-                MPI_Send_init(data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PushReqVec.data() + ip);
+#ifndef ARRAY_COMM_USE_BUFFERED_SEND
+                MPI_Send_init
+#else
+                MPI_Bsend_init
+#endif
+                    (data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PushReqVec.data() + ip);
+
                 // cascade from father
+
+                // buffer calculate
+                MPI_int csize;
+                MPI_Pack_size(1, dtypeInfo.second, mpi.comm, &csize);
+                csize += MPI_BSEND_OVERHEAD;
+                assert(MAX_MPI_int - pushSendSize >= csize && csize > 0);
+                pushSendSize += csize;
             }
             for (auto ip = 0; ip < pPushTypeVec->size(); ip++)
             {
@@ -565,6 +581,9 @@ namespace DNDS
                 MPI_Recv_init(father->data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PushReqVec.data() + pPullTypeVec->size() + ip);
                 // cascade from father
             }
+#ifdef ARRAY_COMM_USE_BUFFERED_SEND
+            MPIBufferHandler::Instance().claim(pushSendSize, mpi.rank);
+#endif
             commStat.hasPersistentPushReqs = true;
         }
         /******************************************************************************************************************************/
@@ -581,6 +600,7 @@ namespace DNDS
             assert(commStat.hasCommTypes);
             assert(pPullTypeVec.use_count() > 0 && pPushTypeVec.use_count() > 0);
             auto nReqs = pPullTypeVec->size() + pPushTypeVec->size();
+            pullSendSize = 0;
             // assert(nReqs > 0);
             PullReqVec.resize(nReqs, (MPI_REQUEST_NULL)), PullStatVec.resize(nReqs);
             for (typename decltype(pPullTypeVec)::element_type::size_type ip = 0; ip < pPullTypeVec->size(); ip++)
@@ -599,10 +619,25 @@ namespace DNDS
                 MPI_int rankOther = dtypeInfo.first;
                 MPI_int tag = rankOther + mpi.rank;
                 // std::cout << mpi.rank << " Send " << rankOther << std::endl;
-                MPI_Send_init(father->data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PullReqVec.data() + pPullTypeVec->size() + ip);
+#ifndef ARRAY_COMM_USE_BUFFERED_SEND
+                MPI_Send_init
+#else
+                MPI_Bsend_init
+#endif
+                    (father->data.data(), 1, dtypeInfo.second, rankOther, tag, mpi.comm, PullReqVec.data() + pPullTypeVec->size() + ip);
                 // std::cout << *(real *)(data.data() + 8 * 1) << std::endl;
                 // cascade from father
+
+                // buffer calculate
+                MPI_int csize;
+                MPI_Pack_size(1, dtypeInfo.second, mpi.comm, &csize);
+                csize += MPI_BSEND_OVERHEAD * 8;
+                assert(MAX_MPI_int - pullSendSize >= csize && csize > 0);
+                pullSendSize += csize;
             }
+#ifdef ARRAY_COMM_USE_BUFFERED_SEND
+            MPIBufferHandler::Instance().claim(pullSendSize, mpi.rank);
+#endif
             commStat.hasPersistentPullReqs = true;
         }
         /******************************************************************************************************************************/
@@ -611,6 +646,9 @@ namespace DNDS
         {
             PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             assert(commStat.hasPersistentPushReqs && commStat.PersistentPushFinished);
+#ifdef ARRAY_COMM_USE_BUFFERED_SEND
+// MPIBufferHandler::Instance().claim(pushSendSize, mpi.rank);
+#endif
             if (PushReqVec.size())
                 MPI_Startall(PushReqVec.size(), PushReqVec.data());
             commStat.PersistentPushFinished = false;
@@ -620,6 +658,9 @@ namespace DNDS
         {
             PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             assert(commStat.hasPersistentPullReqs && commStat.PersistentPullFinished);
+#ifdef ARRAY_COMM_USE_BUFFERED_SEND
+// MPIBufferHandler::Instance().claim(pullSendSize, mpi.rank);
+#endif
             if (PullReqVec.size())
                 MPI_Startall(PullReqVec.size(), PullReqVec.data());
             commStat.PersistentPullFinished = false;
@@ -633,6 +674,9 @@ namespace DNDS
             assert(commStat.hasPersistentPushReqs);
             if (PushReqVec.size())
                 MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data());
+#ifdef ARRAY_COMM_USE_BUFFERED_SEND
+// MPIBufferHandler::Instance().unclaim(pushSendSize);
+#endif
             commStat.PersistentPushFinished = true;
             PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
         }
@@ -641,8 +685,13 @@ namespace DNDS
             PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             // assert(commStat.hasPersistentPullReqs && !commStat.PersistentPullFinished);
             assert(commStat.hasPersistentPullReqs);
+            // std::cout << "waiting "<<std::endl;
             if (PullReqVec.size())
                 MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data());
+                // std::cout << "waiting DONE" << std::endl;
+#ifdef ARRAY_COMM_USE_BUFFERED_SEND
+// MPIBufferHandler::Instance().unclaim(pullSendSize);
+#endif
             commStat.PersistentPullFinished = true;
             PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
         }

@@ -1,10 +1,13 @@
 export OMPI_CXX=clang++
 # export OMPI_CXX=g++
+export MPICH_CXX=clang++
+# export MPICH_CXX=g++
 
 first: what
 
 
 CPC=mpicxx.openmpi
+# CPC=mpicxx.mpich
 # MPIINC=-I "C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
 # MPILIB=-L "C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" -lmsmpi
 # CGNSINC=-I "E:\projects\tools\CGNS-4.2.0\build\include"
@@ -47,7 +50,7 @@ FLAGS=-g
 # FLAGS=-Os
 # FLAGS=-O2
 # FLAGS=-Og -g
-FLAGS=-O3 
+# FLAGS=-O3 
 FLAGS=-O3 -DNINSERT
 # FLAGS=-O3 -DNDEBUG  -DNINSERT
 

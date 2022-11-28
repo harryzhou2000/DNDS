@@ -11,6 +11,8 @@
 #include <cmath>
 #include <iomanip>
 
+static_assert(sizeof(uint8_t) == 1, "bad uint8_t");
+
 namespace DNDS
 {
     typedef double real;
