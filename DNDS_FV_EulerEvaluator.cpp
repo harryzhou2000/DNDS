@@ -643,11 +643,72 @@ namespace DNDS
                                          int jacobianCode,
                                          real t)
     {
-        //TODO: for code0: flux jacobian with lambdaFace, and source jacobian with integration, only diagpart dealt with
+        // TODO: for code0: flux jacobian with lambdaFace, and source jacobian with integration, only diagpart dealt with
+        assert(jacobianCode == 0);
+        int cnvars = nVars;
+        for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+        {
+            auto &cellRecAtr = vfv->cellRecAtrLocal[iCell][0];
+            auto &cellAtr = mesh->cellAtrLocal[iCell][0];
+            Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
+            auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
+            auto &c2f = mesh->cell2faceLocal[iCell];
+
+            jacobianCell[iCell].setIdentity();
+
+            // LUSGS diag part
+            real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
+            for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+            {
+                index iFace = c2f[ic2f];
+                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
+            }
+            jacobianCell[iCell] *= fpDivisor; //! all passive vars use same diag for flux part
+
+            // integrate on source jacobian diag
+
+            Eigen::Vector<real, -1> sourceJacobianDiagV(cnvars);
+            sourceJacobianDiagV.setZero();
+
+            eCell.Integration(
+                sourceJacobianDiagV,
+                [&](decltype(sourceJacobianDiagV) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+                {
+                    Eigen::Matrix<real, 3, -1> GradU;
+                    GradU.resize(Eigen::NoChange, cnvars);
+                    GradU.setZero();
+                    GradU({0, 1}, Eigen::all) =
+                        cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(1, Eigen::last)) *
+                        uRec[iCell] * IF_NOT_NOREC; //! 2d specific
+
+                    Eigen::Vector<real, -1> ULxy =
+                        cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+                        uRec[iCell] * IF_NOT_NOREC;
+
+                    ULxy = CompressRecPart(u[iCell], ULxy); //! do not forget the mean value
+
+                    finc = sourceJacobianDiag(
+                        ULxy,
+                        GradU,
+                        iCell, ig);
+
+                    finc *= vfv->cellGaussJacobiDets[iCell][ig]; // don't forget this
+                    if (finc.hasNaN() || (!finc.allFinite()))
+                    {
+                        std::cout << finc.transpose() << std::endl;
+                        std::cout << ULxy.transpose() << std::endl;
+                        std::cout << GradU << std::endl;
+                        assert(false);
+                    }
+                });
+
+            jacobianCell[iCell] += sourceJacobianDiagV.asDiagonal();
+
+            jacobianCellInv[iCell] = jacobianCell[iCell].partialPivLu().inverse();
+        }
     }
 
-    void EulerEvaluator::LUSGSMatrixVec(std::vector<real> &dTau, real dt, real alphaDiag,
-                                        ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
+    void EulerEvaluator::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
     {
         InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec 1");
         int cnvars = nVars;
@@ -660,15 +721,6 @@ namespace DNDS
             Eigen::Vector<real, -1> uIncNewBuf(cnvars);
             uIncNewBuf.setZero(); // norhs
 
-            real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
-            if (isnan(fpDivisor))
-            {
-                std::cout << fpDivisor << std::endl
-                          << fv->volumeLocal[iCell] << std::endl
-                          << dTau[iCell] << std::endl
-                          << dt << std::endl;
-                assert(false);
-            }
             if (uInc[iCell].hasNaN())
             {
                 std::cout << uInc[iCell] << std::endl;
@@ -681,7 +733,6 @@ namespace DNDS
                 auto &f2c = (*mesh->face2cellPair)[iFace];
                 index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                 index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
 
@@ -717,13 +768,13 @@ namespace DNDS
             }
             // uIncNewBuf /= fpDivisor;
             // uIncNew[iCell] = uIncNewBuf;
-            AuInc[iCell] = uInc[iCell] * fpDivisor - uIncNewBuf;
+            AuInc[iCell] = jacobianCell[iCell] * uInc[iCell] - uIncNewBuf;
             if (AuInc[iCell].hasNaN())
             {
                 std::cout << AuInc[iCell].transpose() << std::endl
                           << uInc[iCell].transpose() << std::endl
                           << u[iCell].transpose() << std::endl
-                          << fpDivisor << std::endl
+                          << jacobianCell[iCell] << std::endl
                           << iCell << std::endl;
                 assert(!AuInc[iCell].hasNaN());
             }
@@ -731,7 +782,7 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec -1");
     }
 
-    void EulerEvaluator::UpdateLUSGSForward(std::vector<real> &dTau, real dt, real alphaDiag,
+    void EulerEvaluator::UpdateLUSGSForward(real alphaDiag,
                                             ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward 1");
@@ -746,15 +797,12 @@ namespace DNDS
             Eigen::Vector<real, -1> uIncNewBuf(nVars);
             uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell];
 
-            real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
-
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
                 index iFace = c2f[ic2f];
                 auto &f2c = (*mesh->face2cellPair)[iFace];
                 index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                 index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
 
@@ -792,12 +840,11 @@ namespace DNDS
                     }
                 }
             }
-            uIncNewBuf /= fpDivisor;
-            uIncNew[iCell] = uIncNewBuf;
+            uIncNew[iCell] = jacobianCellInv[iCell] * uIncNewBuf;
             if (uIncNew[iCell].hasNaN())
             {
                 std::cout << uIncNew[iCell].transpose() << std::endl
-                          << fpDivisor << std::endl
+                          << jacobianCellInv[iCell] << std::endl
                           << iCell << std::endl;
                 assert(!uIncNew[iCell].hasNaN());
             }
@@ -810,7 +857,7 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
     }
 
-    void EulerEvaluator::UpdateLUSGSBackward(std::vector<real> &dTau, real dt, real alphaDiag,
+    void EulerEvaluator::UpdateLUSGSBackward( real alphaDiag,
                                              ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward 1");
@@ -825,15 +872,12 @@ namespace DNDS
             Eigen::Vector<real, -1> uIncNewBuf(cnvars);
             uIncNewBuf.setZero(); // backward
 
-            real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
-
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
                 index iFace = c2f[ic2f];
                 auto &f2c = (*mesh->face2cellPair)[iFace];
                 index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                 index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
 
@@ -864,8 +908,7 @@ namespace DNDS
                     }
                 }
             }
-            uIncNewBuf /= fpDivisor;
-            uIncNew[iCell] += uIncNewBuf; // backward
+            uIncNew[iCell] += jacobianCellInv[iCell] * uIncNewBuf; // backward
 
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
@@ -875,7 +918,7 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward -1");
     }
 
-    void EulerEvaluator::UpdateSGS(std::vector<real> &dTau, real dt, real alphaDiag,
+    void EulerEvaluator::UpdateSGS(real alphaDiag,
                                    ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward)
     {
         int cnvars = nVars;
@@ -891,15 +934,12 @@ namespace DNDS
             // uIncNewBuf.setZero(); // backward
             uIncNewBuf = fv->volumeLocal[iCell] * rhs[iCell]; // full
 
-            real fpDivisor = fv->volumeLocal[iCell] / dTau[iCell] + fv->volumeLocal[iCell] / dt;
-
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
                 index iFace = c2f[ic2f];
                 auto &f2c = (*mesh->face2cellPair)[iFace];
                 index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                 index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace];
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
                     // if (true) // full
@@ -927,9 +967,8 @@ namespace DNDS
                     }
                 }
             }
-            uIncNewBuf /= fpDivisor;
             real relax = 1;
-            uIncNew[iCell] = uIncNewBuf * relax + uInc[iCell] * (1 - relax); // full
+            uIncNew[iCell] = jacobianCellInv[iCell] * uIncNewBuf * relax + uInc[iCell] * (1 - relax); // full
 
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)

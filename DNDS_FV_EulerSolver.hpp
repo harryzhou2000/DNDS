@@ -867,26 +867,39 @@ namespace DNDS
                         {
                             eval.LUSGSADMatrixInit(dTau, dt, alphaDiag, cx, config.jacobianTypeCode, tsimu);
                         }
+                        else
+                        {
+                            if (config.useLimiter) // uses urec value
+                                eval.LUSGSMatrixInit(dTau, dt, alphaDiag,
+                                                     cx, uRecNew,
+                                                     config.jacobianTypeCode,
+                                                     tsimu);
+                            else
+                                eval.LUSGSMatrixInit(dTau, dt, alphaDiag,
+                                                     cx, uRec,
+                                                     config.jacobianTypeCode,
+                                                     tsimu);
+                        }
 
                         if (config.gmresCode == 0 || config.gmresCode == 2)
                         {
                             // //! LUSGS
                             if (config.jacobianTypeCode == 0)
                             {
-                                eval.UpdateLUSGSForward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
+                                eval.UpdateLUSGSForward(alphaDiag, crhs, cx, cxInc, cxInc);
                                 cxInc.StartPersistentPullClean();
                                 cxInc.WaitPersistentPullClean();
-                                eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc);
+                                eval.UpdateLUSGSBackward(alphaDiag, crhs, cx, cxInc, cxInc);
                                 cxInc.StartPersistentPullClean();
                                 cxInc.WaitPersistentPullClean();
                                 for (int iIter = 1; iIter <= config.nSGSIterationInternal; iIter++)
                                 {
                                     cxInc.StartPersistentPullClean();
                                     cxInc.WaitPersistentPullClean();
-                                    eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, true);
+                                    eval.UpdateSGS(alphaDiag, crhs, cx, cxInc, cxInc, true);
                                     cxInc.StartPersistentPullClean();
                                     cxInc.WaitPersistentPullClean();
-                                    eval.UpdateSGS(dTau, dt, alphaDiag, crhs, cx, cxInc, cxInc, false);
+                                    eval.UpdateSGS(alphaDiag, crhs, cx, cxInc, cxInc, false);
                                 }
                             }
                             else
@@ -912,7 +925,7 @@ namespace DNDS
                                 [&](decltype(u) &x, decltype(u) &Ax)
                                 {
                                     if (config.jacobianTypeCode == 0)
-                                        eval.LUSGSMatrixVec(dTau, dt, alphaDiag, cx, x, Ax);
+                                        eval.LUSGSMatrixVec(alphaDiag, cx, x, Ax);
                                     else
                                         eval.LUSGSADMatrixVec(cx, x, Ax);
 
@@ -929,10 +942,10 @@ namespace DNDS
                                         {
                                             uTemp[iCell] = x[iCell] / eval.fv->volumeLocal[iCell]; //! UpdateLUSGS needs not these volumes multiplied
                                         }
-                                        eval.UpdateLUSGSForward(dTau, dt, alphaDiag, uTemp, cx, MLx, MLx);
+                                        eval.UpdateLUSGSForward(alphaDiag, uTemp, cx, MLx, MLx);
                                         MLx.StartPersistentPullClean();
                                         MLx.WaitPersistentPullClean();
-                                        eval.UpdateLUSGSBackward(dTau, dt, alphaDiag, uTemp, cx, MLx, MLx);
+                                        eval.UpdateLUSGSBackward(alphaDiag, uTemp, cx, MLx, MLx);
                                         MLx.StartPersistentPullClean();
                                         MLx.WaitPersistentPullClean();
                                     }
