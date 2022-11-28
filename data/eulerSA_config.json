@@ -17,7 +17,7 @@
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 20,
+    "CFL": 100,
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-100,
     "useLocalDt": true,

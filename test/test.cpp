@@ -18,8 +18,8 @@ int main(int argc, char *argv[])
     int ierr;
     ierr = MPI_Init(&argc, &argv);
 
-    // testGhostLarge_Cascade();
-    testPoint();
+    testGhostLarge_Cascade();
+    // testPoint();
     // testAdj();
 
     ierr = MPI_Finalize();

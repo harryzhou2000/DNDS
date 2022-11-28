@@ -71,3 +71,13 @@ namespace DNDS
         }
     }
 }
+
+
+namespace DNDS
+{
+    MPIBufferHandler &MPIBufferHandler::Instance()
+    {
+        static MPIBufferHandler instance;
+        return instance;
+    }
+}

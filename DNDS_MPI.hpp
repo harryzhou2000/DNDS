@@ -5,12 +5,17 @@
 #include <vector>
 #include <fstream>
 
+#ifdef NDEBUG
+#define NDEBUG_DISABLED
+#undef NDEBUG
+#endif
 
 namespace DNDS
 {
 
     typedef int MPI_int;
     typedef MPI_Aint MPI_index;
+#define MAX_MPI_int INT32_MAX
 
     typedef std::vector<MPI_int> tMPI_sizeVec;
     typedef tMPI_sizeVec tMPI_intVec;
@@ -63,7 +68,7 @@ namespace DNDS
     inline void InsertCheck(const MPIInfo &mpi, const std::string &info = "",
                             const std::string &FUNCTION = "", const std::string &FILE = "", int LINE = -1)
     {
-#if  ! (defined(NDEBUG) || defined(NINSERT)) 
+#if !(defined(NDEBUG) || defined(NINSERT))
         MPI_Barrier(mpi.comm);
         std::cout << "=== CHECK \"" << info << "\"  RANK " << mpi.rank << " ==="
                   << " @  FName: " << FUNCTION
@@ -100,7 +105,7 @@ namespace DNDS
 
     typedef std::shared_ptr<MPITypePairHolder> tpMPITypePairHolder;
     /**
-     * \brief wrapper of tMPI_reqVec
+     * \brief wrapper of tMPI_reqVec, so that the requests are freed automatically
      */
     struct MPIReqHolder : public tMPI_reqVec
     {
@@ -130,3 +135,77 @@ namespace DNDS
         void MPIDebugHold(const MPIInfo &mpi);
     }
 }
+
+// MPI buffer handler
+#define MPIBufferHandler_REPORT_CHANGE // for monitoring
+namespace DNDS
+{
+    class MPIBufferHandler // cxx11 + thread-safe singleton
+    {
+    private:
+        std::vector<uint8_t> buf;
+
+    public:
+        using size_type = decltype(buf)::size_type;
+
+    private:
+        size_type claimed = 0;
+
+    private:
+        MPIBufferHandler()
+        {
+            uint8_t *obuf;
+            int osize;
+            MPI_Buffer_detach(&obuf, &osize);
+
+            buf.resize(1024);
+            MPI_Buffer_attach(buf.data(), buf.size());
+        };
+        MPIBufferHandler(const MPIBufferHandler &);
+        MPIBufferHandler &operator=(const MPIBufferHandler &);
+
+    public:
+        static MPIBufferHandler &Instance();
+        MPI_int size()
+        {
+            assert(buf.size() <= MAX_MPI_int);
+            return buf.size();
+        }
+        void claim(MPI_int cs, int reportRank = 0)
+        {
+            if (buf.size() - claimed < static_cast<size_type>(cs))
+            {
+                // std::cout << "claim in " << std::endl;
+                uint8_t *obuf;
+                int osize;
+                MPI_Buffer_detach(&obuf, &osize);
+#ifdef MPIBufferHandler_REPORT_CHANGE
+                std::cout << "New BUf at " << reportRank << std::endl
+                          << osize << std::endl;
+#endif
+                assert(static_cast<size_type>(osize) == buf.size());
+                buf.resize(claimed + cs);
+                MPI_Buffer_attach(buf.data(), buf.size());
+#ifdef MPIBufferHandler_REPORT_CHANGE
+                std::cout << " -> " << buf.size() << std::endl;
+#endif
+            }
+            claimed += cs;
+        }
+        void unclaim(MPI_int cs)
+        {
+            assert(claimed >= cs);
+            claimed -= cs;
+        }
+        void *getBuf()
+        {
+            return (void *)(buf.data());
+        }
+    };
+
+}
+
+#ifdef NDEBUG_DISABLED
+#define NDEBUG
+#undef NDEBUG_DISABLED
+#endif
