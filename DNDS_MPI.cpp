@@ -1,5 +1,10 @@
 #include "DNDS_MPI.hpp"
 
+#ifdef NDEBUG
+#define NDEBUG_DISABLED
+#undef NDEBUG
+#endif
+
 namespace DNDS
 {
     namespace Debug
@@ -81,3 +86,8 @@ namespace DNDS
         return instance;
     }
 }
+
+#ifdef NDEBUG_DISABLED
+#define NDEBUG
+#undef NDEBUG_DISABLED
+#endif

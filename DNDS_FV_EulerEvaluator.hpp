@@ -54,7 +54,7 @@ namespace DNDS
         std::vector<real> deltaLambdaFace;
         std::vector<Eigen::Matrix<real, 10, 5>> dFdUFace;
 
-        //todo: improve to contagious
+        // todo: improve to contagious
         std::vector<Eigen::Vector<real, -1>> jacobianCellSourceDiag;
         std::vector<Eigen::Matrix<real, -1, -1>> jacobianFace;
         std::vector<Eigen::Matrix<real, -1, -1>> jacobianCell;
@@ -123,7 +123,7 @@ namespace DNDS
             deltaLambdaFace.resize(lambdaFace.size());
 
             dFdUFace.resize(lambdaFace.size());
-            
+
             jacobianFace.resize(lambdaFace.size(), decltype(jacobianFace)::value_type(nVars * 2, nVars));
             jacobianCell.resize(lambdaCell.size(), decltype(jacobianCell)::value_type(nVars, nVars));
             jacobianCellInv.resize(lambdaCell.size(), decltype(jacobianCellInv)::value_type(nVars, nVars));
@@ -165,7 +165,7 @@ namespace DNDS
                         eFace.GetDiNj(pp, DiNj);
                         Elem::tPoint pPhyG = coords * DiNj.transpose();
                         BCPointDist[iFill].p()({0, 1, 2}) = pPhyG;
-                        BCPointDist[iFill].p()({3, 4, 5}) = vfv->faceNorms[iFace][ig].normalized();
+                        BCPointDist[iFill].p()({3, 4, 5}) = vfv->faceNormCenter[iFace].normalized(); //! ig is not gauss index!
                         iFill++;
                     }
                 }
@@ -832,9 +832,9 @@ namespace DNDS
         void UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
         void LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
-                                             ArrayDOFV &u, ArrayRecV &uRec,
-                                             int jacobianCode,
-                                             real t);
+                             ArrayDOFV &u, ArrayRecV &uRec,
+                             int jacobianCode,
+                             real t);
 
         void LUSGSMatrixVec(real alphaDiag,
                             ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);

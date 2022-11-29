@@ -5,7 +5,7 @@
 html
 latex
 data
-log.txt
+log*.txt
 *.lnk
 Eigen
 unsupported

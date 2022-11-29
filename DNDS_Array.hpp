@@ -11,6 +11,12 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <set>
+
+#ifdef NDEBUG
+#define NDEBUG_DISABLED
+#undef NDEBUG
+#endif
 
 // #define ARRAY_COMM_USE_BUFFERED_SEND
 
@@ -139,7 +145,9 @@ namespace DNDS
         // ** the user is partly responsible for maintaining the validity of the naked pointer **
         // can only have one father, but multiple sons; son points to current son which is used as ghost part data
         Array<T> *father = nullptr;
+        std::set<Array<T> *> sons;
         Array<T> *son = nullptr;
+        // Todo: improve this hierachy?
         /******************************************************************************************************************************/
 
     public:
@@ -212,7 +220,9 @@ namespace DNDS
             assert(nfather);
             // std::cout << "Call pointer init " << nfather << std::endl;
             father = nfather;
+            auto sonInsert = father->sons.insert(this);
             father->son = this;
+            assert(sonInsert.second);
         }
         /******************************************************************************************************************************/
 
@@ -236,7 +246,9 @@ namespace DNDS
             if (nfather)
             {
                 father = nfather;
+                auto sonInsert = father->sons.insert(this);
                 father->son = this;
+                assert(sonInsert.second);
             }
             commStat = Rarray.commStat;
             commStat.hasPersistentPushReqs = false;
@@ -268,7 +280,9 @@ namespace DNDS
             if (nfather)
             {
                 father = nfather;
+                auto sonInsert = father->sons.insert(this);
                 father->son = this;
+                assert(sonInsert.second);
             }
             commStat = Rarray.commStat;
             commStat.hasCommTypes = false;
@@ -292,17 +306,10 @@ namespace DNDS
 
         ~Array()
         {
-            if (son)
-            {
-                son->father = nullptr;
-                son = nullptr;
-            }
-            if (father)
-            {
-                if (father->son == this)
-                    father->son = nullptr;
-                father = nullptr;
-            }
+            for (auto s : sons)
+                s->father = nullptr;
+            sons.clear();
+            ForgetFather();
         }
 
         void initializeData()
@@ -362,13 +369,35 @@ namespace DNDS
 
         void SwitchSon(Array<T> *nson)
         {
-            assert(nson->father == this);
+            assert((sons.count(nson) == 1) && nson->father == this);
             son = nson;
+        }
+
+        bool hasSon(Array<T> *nson)
+        {
+            return sons.count(nson) == 1;
+        }
+
+        Array<T> * getCurrentSon()
+        {
+            return son;
+        }
+
+        Array<T> * getFather()
+        {
+            return father;
         }
 
         void ForgetFather()
         {
-            father = nullptr;
+            if (father)
+            {
+                auto eraseNum = father->sons.erase(this);
+                if (father->son == this)
+                    father->son = nullptr;
+                assert(eraseNum == 1);
+                father = nullptr;
+            }
             clearPersistentPull();
             clearPersistentPush();
             clearMPITypes();
@@ -647,7 +676,7 @@ namespace DNDS
             PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             assert(commStat.hasPersistentPushReqs && commStat.PersistentPushFinished);
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-MPIBufferHandler::Instance().claim(pushSendSize, mpi.rank);
+            MPIBufferHandler::Instance().claim(pushSendSize, mpi.rank);
 #endif
             if (PushReqVec.size())
                 MPI_Startall(PushReqVec.size(), PushReqVec.data());
@@ -659,7 +688,7 @@ MPIBufferHandler::Instance().claim(pushSendSize, mpi.rank);
             PerformanceTimer::Instance().StartTimer(PerformanceTimer::TimerType::Comm);
             assert(commStat.hasPersistentPullReqs && commStat.PersistentPullFinished);
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-MPIBufferHandler::Instance().claim(pullSendSize, mpi.rank);
+            MPIBufferHandler::Instance().claim(pullSendSize, mpi.rank);
 #endif
             if (PullReqVec.size())
                 MPI_Startall(PullReqVec.size(), PullReqVec.data());
@@ -675,7 +704,7 @@ MPIBufferHandler::Instance().claim(pullSendSize, mpi.rank);
             if (PushReqVec.size())
                 MPI_Waitall(PushReqVec.size(), PushReqVec.data(), PushStatVec.data());
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-MPIBufferHandler::Instance().unclaim(pushSendSize);
+            MPIBufferHandler::Instance().unclaim(pushSendSize);
 #endif
             commStat.PersistentPushFinished = true;
             PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
@@ -690,7 +719,7 @@ MPIBufferHandler::Instance().unclaim(pushSendSize);
                 MPI_Waitall(PullReqVec.size(), PullReqVec.data(), PullStatVec.data());
                 // std::cout << "waiting DONE" << std::endl;
 #ifdef ARRAY_COMM_USE_BUFFERED_SEND
-MPIBufferHandler::Instance().unclaim(pullSendSize);
+            MPIBufferHandler::Instance().unclaim(pullSendSize);
 #endif
             commStat.PersistentPullFinished = true;
             PerformanceTimer::Instance().EndTimer(PerformanceTimer::TimerType::Comm);
@@ -873,3 +902,8 @@ namespace DNDS
     }
 
 }
+
+#ifdef NDEBUG_DISABLED
+#define NDEBUG
+#undef NDEBUG_DISABLED
+#endif
