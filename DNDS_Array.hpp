@@ -378,12 +378,12 @@ namespace DNDS
             return sons.count(nson) == 1;
         }
 
-        Array<T> * getCurrentSon()
+        Array<T> *getCurrentSon()
         {
             return son;
         }
 
-        Array<T> * getFather()
+        Array<T> *getFather()
         {
             return father;
         }
@@ -537,6 +537,15 @@ namespace DNDS
                     MPI_int *pPushSizes = pushingSizes.data() + pLGhostMapping->pushIndexStarts[r];
                     // std::cout <<mpi.rank<< " pushSlice " << pPushDisps[0] << outputDelim << pPushSizes[0] << std::endl;
                     MPI_Datatype dtype;
+                    // if (mpi.rank == 0)
+                    // {
+                    //     std::cout << "pushing to " << r << "  size" << pushNumber << "\n";
+                    //     for (int i = 0; i < pushNumber; i++)
+                    //         std::cout << "b[" << i << "] = " << pPushSizes[i] << std::endl;
+                    //     for (int i = 0; i < pushNumber; i++)
+                    //         std::cout << "d[" << i << "] = " << pPushDisps[i] << std::endl;
+                    // }
+                    // std::cout << "=== PUSH TYPE : " << mpi.rank << " from " << r << std::endl;
                     MPI_Type_create_hindexed(pushNumber, pPushSizes, pPushDisps, MPI_BYTE, &dtype);
                     MPI_Type_commit(&dtype);
                     pPushTypeVec->push_back(std::make_pair(r, dtype));
@@ -552,6 +561,7 @@ namespace DNDS
                 pullDisp[0] = gLbyte;
                 if (pullBytes[0] > 0)
                 {
+                    // std::cout << "=== PULL TYPE : " << mpi.rank << " from " << r << std::endl;
                     MPI_Datatype dtype;
                     MPI_Type_create_hindexed(1, pullBytes, pullDisp, MPI_BYTE, &dtype);
                     // std::cout << mpi.rank << " pullSlice " << pullDisp[0] << outputDelim << pullBytes[0] << std::endl;

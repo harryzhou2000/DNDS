@@ -40,7 +40,8 @@ void testGhostLarge_Cascade()
 
     DNDS::Array<DNDS::VReal> ArrayA(
         DNDS::VReal::Context([](DNDS::index i) -> DNDS::rowsize
-                             { return (i % 3 + 1); },
+                             //  { return (i % 3 + 1); },
+                             { return (1); },
                              dsize),
         mpi);
     for (int i = 0; i < ArrayA.size(); i++)
@@ -54,8 +55,10 @@ void testGhostLarge_Cascade()
     srand(mpi.rank);
     DNDS::tIndexVec PullDemand(demandSize);
     for (int i = 0; i < PullDemand.size(); i++)
-        PullDemand[i] = std::abs(RAND_MAX * rand() + rand()) % dmax;
-    std::sort(PullDemand.begin(), PullDemand.end());
+        // PullDemand[i] = std::abs(RAND_MAX * rand() + rand()) % dmax;
+        PullDemand[i] = i;
+    // if(mpi.rank == 1)
+    //     PullDemand.clear();
 
     decltype(ArrayA) ArrayAGhost(&ArrayA);
 

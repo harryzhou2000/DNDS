@@ -158,7 +158,7 @@ namespace DNDS
             int osize;
             MPI_Buffer_detach(&obuf, &osize);
 
-            buf.resize(1024);
+            buf.resize(1024 * 1024);
             MPI_Buffer_attach(buf.data(), buf.size());
         };
         MPIBufferHandler(const MPIBufferHandler &);
@@ -180,7 +180,7 @@ namespace DNDS
                 int osize;
                 MPI_Buffer_detach(&obuf, &osize);
 #ifdef MPIBufferHandler_REPORT_CHANGE
-                std::cout << "New BUf at " << reportRank << std::endl
+                std::cout << "MPIBufferHandler: New BUf at " << reportRank << std::endl
                           << osize << std::endl;
 #endif
                 assert(static_cast<size_type>(osize) == buf.size());

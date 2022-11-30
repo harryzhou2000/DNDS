@@ -8,6 +8,8 @@ first: what
 
 CPC=mpicxx.openmpi
 # CPC=mpicxx.mpich
+# CPC=/home/harry/tools/openmpi-4.1.4/BUILD_GCC/bin/mpicxx
+
 # MPIINC=-I "C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
 # MPILIB=-L "C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" -lmsmpi
 # CGNSINC=-I "E:\projects\tools\CGNS-4.2.0\build\include"
