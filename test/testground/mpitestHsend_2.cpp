@@ -4,10 +4,11 @@
 #include <cassert>
 
 // mpicxx.openmpi -o mpitestHsend_2.exe mpitestHsend_2.cpp -Wall
+// mpirun.openmpi -np 2 ./mpitestHsend_2.exe
 
 int bufsize = 36864 * 100;
 int Nlocal = 1024 * 1024;
-int dCount = 32;
+int dCount = 1024;
 int NREPEAT = 100;
 
 int main(int argc, char *argv[])
@@ -38,18 +39,24 @@ int main(int argc, char *argv[])
         {
             int b[1];
             MPI_Aint d[1];
+            int dAlt[1];
             b[0] = dCount * dSize;
             d[0] = 0;
-            MPI_Type_create_hindexed(1, b, d, MPI_UINT8_T, &typePullRecv);
+            dAlt[0] = 0;
+            // MPI_Type_create_hindexed(1, b, d, MPI_UINT8_T, &typePullRecv);
+            MPI_Type_indexed(1, b, dAlt, MPI_UINT8_T, &typePullRecv);
         }
         {
             int *b = new int[dCount];
             MPI_Aint *d = new MPI_Aint[dCount];
+            int *dAlt = new int[dCount];
             for (int i = 0; i < dCount; i++)
-                b[i] = dSize, d[i] = dSize * i * 2;
-            MPI_Type_create_hindexed(dCount, b, d, MPI_UINT8_T, &typePushRecv);
+                b[i] = dSize, d[i] = dSize * i * 2, dAlt[i] = i * 2 * dSize;
+            // MPI_Type_create_hindexed(dCount, b, d, MPI_UINT8_T, &typePushRecv);
+            MPI_Type_indexed(dCount, b, dAlt, MPI_UINT8_T, &typePushRecv);
             delete[] d;
             delete[] b;
+            delete[] dAlt;
         }
 
         MPI_Type_commit(&typePullRecv);

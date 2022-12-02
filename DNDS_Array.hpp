@@ -19,6 +19,7 @@
 #endif
 
 // #define ARRAY_COMM_USE_BUFFERED_SEND
+#define ARRAY_COMM_USE_TYPE_HINDEXED
 
 namespace DNDS
 {
@@ -492,8 +493,12 @@ namespace DNDS
             assert(pLGhostMapping.use_count() > 0 && pLGlobalMapping.use_count() > 0);
             /*********************************************/ // starts to deal with actual byte sizes
             // phase2.1: build push sizes and push disps
-            tMPI_intVec pushingSizes(pLGhostMapping->pushingIndexGlobal.size());  // pushing sizes in bytes
+            tMPI_intVec pushingSizes(pLGhostMapping->pushingIndexGlobal.size()); // pushing sizes in bytes
+#ifdef ARRAY_COMM_USE_TYPE_HINDEXED
             tMPI_AintVec pushingDisps(pLGhostMapping->pushingIndexGlobal.size()); // pushing disps in bytes
+#else
+            tMPI_intVec pushingDisps(pLGhostMapping->pushingIndexGlobal.size()); // pushing disps in bytes  //!hindexed is wrong
+#endif
 
             for (index i = 0; i < pLGhostMapping->pushingIndexGlobal.size(); i++)
             {
@@ -533,7 +538,11 @@ namespace DNDS
                 // std::cout << "PN" << pushNumber << std::endl;
                 if (pushNumber > 0)
                 {
-                    MPI_Aint *pPushDisps = pushingDisps.data() + pLGhostMapping->pushIndexStarts[r];
+#ifdef ARRAY_COMM_USE_TYPE_HINDEXED
+                    MPI_Aint *pPushDisps = pushingDisps.data() + pLGhostMapping->pushIndexStarts[r]; //! hindexed is wrong
+#else
+                    MPI_int *pPushDisps = pushingDisps.data() + pLGhostMapping->pushIndexStarts[r];
+#endif
                     MPI_int *pPushSizes = pushingSizes.data() + pLGhostMapping->pushIndexStarts[r];
                     // std::cout <<mpi.rank<< " pushSlice " << pPushDisps[0] << outputDelim << pPushSizes[0] << std::endl;
                     MPI_Datatype dtype;
@@ -546,13 +555,18 @@ namespace DNDS
                     //         std::cout << "d[" << i << "] = " << pPushDisps[i] << std::endl;
                     // }
                     // std::cout << "=== PUSH TYPE : " << mpi.rank << " from " << r << std::endl;
-                    MPI_Type_create_hindexed(pushNumber, pPushSizes, pPushDisps, MPI_BYTE, &dtype);
+                    // MPI_Type_create_hindexed(pushNumber, pPushSizes, pPushDisps, MPI_BYTE, &dtype); //!hindexed is wrong
+                    MPI_Type_indexed(pushNumber, pPushSizes, pPushDisps, MPI_UINT8_T, &dtype);
                     MPI_Type_commit(&dtype);
                     pPushTypeVec->push_back(std::make_pair(r, dtype));
                     // OPT: could use MPI_Type_create_hindexed_block to save some space
                 }
-                // pull
-                MPI_Aint pullDisp[1];
+// pull
+#ifdef ARRAY_COMM_USE_TYPE_HINDEXED
+                MPI_Aint pullDisp[1]; //! hindexed is wrong
+#else
+                MPI_int pullDisp[1];
+#end
                 MPI_int pullBytes[1];
                 auto gRbyte = indexer(index(pLGhostMapping->ghostStart[r + 1])); // cascade from father
                 auto gLbyte = indexer(index(pLGhostMapping->ghostStart[r]));     // cascade from father
@@ -563,7 +577,11 @@ namespace DNDS
                 {
                     // std::cout << "=== PULL TYPE : " << mpi.rank << " from " << r << std::endl;
                     MPI_Datatype dtype;
-                    MPI_Type_create_hindexed(1, pullBytes, pullDisp, MPI_BYTE, &dtype);
+#ifdef ARRAY_COMM_USE_TYPE_HINDEXED
+                    MPI_Type_create_hindexed(1, pullBytes, pullDisp, MPI_BYTE, &dtype); //! hindexed is wrong
+#else
+                    MPI_Type_indexed(1, pullBytes, pullDisp, MPI_UINT8_T, &dtype);
+#endif
                     // std::cout << mpi.rank << " pullSlice " << pullDisp[0] << outputDelim << pullBytes[0] << std::endl;
                     MPI_Type_commit(&dtype);
                     pPullTypeVec->push_back(std::make_pair(r, dtype));
