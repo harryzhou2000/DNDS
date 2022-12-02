@@ -555,8 +555,11 @@ namespace DNDS
                     //         std::cout << "d[" << i << "] = " << pPushDisps[i] << std::endl;
                     // }
                     // std::cout << "=== PUSH TYPE : " << mpi.rank << " from " << r << std::endl;
-                    // MPI_Type_create_hindexed(pushNumber, pPushSizes, pPushDisps, MPI_BYTE, &dtype); //!hindexed is wrong
+#ifdef ARRAY_COMM_USE_TYPE_HINDEXED
+                    MPI_Type_create_hindexed(pushNumber, pPushSizes, pPushDisps, MPI_BYTE, &dtype); //! hindexed is wrong
+#else
                     MPI_Type_indexed(pushNumber, pPushSizes, pPushDisps, MPI_UINT8_T, &dtype);
+#endif
                     MPI_Type_commit(&dtype);
                     pPushTypeVec->push_back(std::make_pair(r, dtype));
                     // OPT: could use MPI_Type_create_hindexed_block to save some space
@@ -566,7 +569,7 @@ namespace DNDS
                 MPI_Aint pullDisp[1]; //! hindexed is wrong
 #else
                 MPI_int pullDisp[1];
-#end
+#endif
                 MPI_int pullBytes[1];
                 auto gRbyte = indexer(index(pLGhostMapping->ghostStart[r + 1])); // cascade from father
                 auto gLbyte = indexer(index(pLGhostMapping->ghostStart[r]));     // cascade from father

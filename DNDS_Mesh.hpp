@@ -27,7 +27,6 @@ namespace DNDS
         Wall_Euler = 3,
         Wall_NoSlip = 4,
 
-
         Special_DMRFar = -2,
 
     };
@@ -78,6 +77,9 @@ namespace DNDS
 
         std::vector<GmshElem> faceElems;
         std::vector<std::pair<index, index>> face2vol;
+        std::vector<index> faceIdxBnd;
+
+        std::vector<std::vector<index>> node2face;
 
         inline void FileRead(const std::string &fname)
         {
@@ -278,7 +280,7 @@ namespace DNDS
                         node2faceSiz[n]++;
                 }
             };
-            std::vector<std::vector<index>> node2face(readPoints.size());
+            node2face.resize(readPoints.size());
             for (index i = 0; i < readPoints.size(); i++)
                 node2face[i].reserve(node2faceSiz[i]);
             for (index iv = 0; iv < volElems.size(); iv++)
@@ -293,7 +295,7 @@ namespace DNDS
                     index checkNode = faceNodes[0];
                     GmshElem faceElem;
                     faceElem.elemType = ef.getType();
-                    faceElem.phyGrp = -1;
+                    faceElem.phyGrp = -1; //! default phyGrp!
                     faceElem.nodeList = faceNodes;
                     bool found = false;
                     for (auto f : node2face[checkNode])
@@ -334,6 +336,14 @@ namespace DNDS
             // std::vector<std::vector<index>> volAtNode;
             faceElems.shrink_to_fit();
             face2vol.shrink_to_fit();
+
+            for (index f = 0; f < faceElems.size(); f++)
+            {
+                if (faceElems[f].phyGrp == -1)
+                    faceIdxBnd.push_back(f);
+            }
+
+            // start getting bnd vols
         }
 
         inline void WriteMeshDebugTecASCII(const std::string &fname)
@@ -519,9 +529,11 @@ namespace DNDS
     }
 
     template <class TComp>
-    void DistributeByPushLocal(std::shared_ptr<Array<TComp>> &arraySerial,
-                               std::shared_ptr<Array<TComp>> &arrayDist,
-                               const std::vector<index> &partitionIPushLocal, const std::vector<index> &partitionIPushLocalStarts)
+    void DistributeByPushLocal(
+        std::shared_ptr<Array<TComp>> &arraySerial,
+        std::shared_ptr<Array<TComp>> &arrayDist,
+        const std::vector<index> &partitionIPushLocal,
+        const std::vector<index> &partitionIPushLocalStarts)
     {
         arrayDist = std::make_shared<Array<TComp>>(arraySerial.get()); // arraySerialAdj->arrayDistAdj
         arrayDist->createGlobalMapping();
@@ -533,7 +545,9 @@ namespace DNDS
     }
 
     template <class TPartitionIdx>
-    void Partition2Serial2Global(const std::vector<TPartitionIdx> &partition, std::vector<index> &serial2Global, const MPIInfo &mpi, MPI_int nPart)
+    void Partition2Serial2Global(
+        const std::vector<TPartitionIdx> &partition,
+        std::vector<index> &serial2Global, const MPIInfo &mpi, MPI_int nPart)
     {
         serial2Global.resize(partition.size());
         index iFill = 0;
@@ -557,7 +571,10 @@ namespace DNDS
 
     // for one-shot usage, partition data corresponds to mpi
     template <class TPartitionIdx>
-    void Partition2LocalIdx(const std::vector<TPartitionIdx> &partition, std::vector<index> &localPush, std::vector<index> &localPushStart, const MPIInfo &mpi)
+    void Partition2LocalIdx(
+        const std::vector<TPartitionIdx> &partition,
+        std::vector<index> &localPush,
+        std::vector<index> &localPushStart, const MPIInfo &mpi)
     {
         // localPushStart.resize(mpi.size);
         std::vector<index> localPushSizes(mpi.size, 0);
@@ -606,6 +623,7 @@ namespace DNDS
     };
 
     typedef Array<VarBatch<index>> tAdjArray;
+    typedef Array<Batch<index, 1>> tIndexArray;
     typedef Array<Batch<index, 2>> tAdjStatic2Array;
     typedef Array<Batch<ElemAttributes, 1>> tElemAtrArray;
     typedef Array<Vec3DBatch> tVec3DArray;
@@ -622,6 +640,8 @@ namespace DNDS
         index numFaceGlobal;
         index numNodeGlobal;
 
+        index numFaceBndGlobal;
+
         std::shared_ptr<tAdjArray> cell2node; // serial node index
         std::shared_ptr<tAdjArray> cell2face; // serial face index
         std::shared_ptr<tElemAtrArray> cellAtr;
@@ -629,6 +649,10 @@ namespace DNDS
         std::shared_ptr<tAdjArray> face2node;        // serial node index
         std::shared_ptr<tAdjStatic2Array> face2cell; // serial cell index
         std::shared_ptr<tElemAtrArray> faceAtr;
+        // std::shared_ptr<tIndexArray> faceIndexBoundary;
+        std::shared_ptr<tIndexArray> faceBndLocalIdxDist; // only dist, not father of some ghost part
+        std::shared_ptr<tIndexArray> faceBndGlobalIdxDist;
+        std::shared_ptr<tIndexArray> faceBndGlobalIdx; // serial part
 
         // std::shared_ptr<tAdjStatic2Array> face2cellGlobal; // global cell index
         // // ! currently only cell needs to be indexed explicitly in global order.
@@ -987,19 +1011,25 @@ namespace DNDS
         void BuildSerialOut(MPI_int oprank)
         {
             cell2node = std::make_shared<tAdjArray>(cell2nodeDist.get());
+            face2node = std::make_shared<tAdjArray>(face2nodeDist.get());
             cellAtr = std::make_shared<tElemAtrArray>(cellAtrDist.get());
+            faceAtr = std::make_shared<tElemAtrArray>(faceAtrDist.get());
             nodeCoords = std::make_shared<tVec3DArray>(nodeCoordsDist.get());
             std::vector<index> serialPullCell;
             std::vector<index> serialPullNode;
+            std::vector<index> serialPullFace;
             assert(cell2nodeDist->obtainTotalSize() == numCellGlobal);
             if (mpi.rank == oprank)
             {
                 serialPullCell.resize(numCellGlobal);
                 serialPullNode.resize(numNodeGlobal);
+                serialPullFace.resize(numFaceGlobal);
                 for (index i = 0; i < serialPullCell.size(); i++)
                     serialPullCell[i] = i;
                 for (index i = 0; i < serialPullNode.size(); i++)
                     serialPullNode[i] = i;
+                for (index i = 0; i < serialPullFace.size(); i++)
+                    serialPullFace[i] = i;
             }
             else
             {
@@ -1017,6 +1047,16 @@ namespace DNDS
             nodeCoords->createGhostMapping(serialPullNode);
             nodeCoords->createMPITypes();
             nodeCoords->pullOnce();
+
+            face2node->createGlobalMapping();
+            face2node->createGhostMapping(serialPullFace);
+            face2node->createMPITypes();
+            face2node->pullOnce();
+
+            faceAtr->createGlobalMapping();
+            faceAtr->createGhostMapping(serialPullFace);
+            faceAtr->createMPITypes();
+            faceAtr->pullOnce();
         }
 
         /**
@@ -1030,7 +1070,7 @@ namespace DNDS
             face2cellDistGhost->createGlobalMapping();
             pFaceGlobalMapping = face2cellDistGhost->pLGlobalMapping;
 
-            // get ghost face set
+            // *** get ghost face set
             index nghostFaces = 0;
             forEachBasicInArray(
                 *cell2faceDist,
@@ -1083,7 +1123,7 @@ namespace DNDS
             cell2faceDistGhost->createGlobalMapping();
             pCellGlobalMapping = cell2faceDistGhost->pLGlobalMapping;
 
-            // get ghost cell set
+            // *** get ghost cell set
             index nghostCells = 0;
             forEachInArray(
                 *cell2faceDist,
@@ -1163,7 +1203,7 @@ namespace DNDS
             pNodeGlobalMapping = nodeCoordsDistGhost->pLGlobalMapping;
 
             // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts D2");
-            // get ghost node set
+            // *** get ghost node set
             index nghostNode = 0;
             forEachBasicInArrayPair(
                 *cell2nodePair,
@@ -1311,6 +1351,57 @@ namespace DNDS
                     assert(ic2f < c2f.size());
                 });
             // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts End");
+        }
+
+        // builds faceBndLocal and global indexes, used for bnd facial value output
+        void DeriveDistFaceBndAndBuildSerialBnd(MPI_int oprank)
+        {
+            index nFaceBndDist = 0;
+            for (index iFace = 0; iFace < faceAtrDist->size(); iFace++)
+                if ((*faceAtrDist)[iFace][0].iPhy != BoundaryType::Inner)
+                    nFaceBndDist++;
+            faceBndLocalIdxDist = std::make_shared<tIndexArray>(tIndexArray::tContext(nFaceBndDist), mpi);
+            faceBndGlobalIdxDist = std::make_shared<tIndexArray>(tIndexArray::tContext(nFaceBndDist), mpi);
+            nFaceBndDist = 0;
+            for (index iFace = 0; iFace < faceAtrDist->size(); iFace++)
+            {
+                if ((*faceAtrDist)[iFace][0].iPhy != BoundaryType::Inner)
+                {
+                    (*faceBndLocalIdxDist)[nFaceBndDist][0] = iFace;
+                    (*faceBndGlobalIdxDist)[nFaceBndDist][0] = face2cellDistGhost->pLGlobalMapping->operator()(mpi.rank, iFace);
+                    nFaceBndDist++;
+                }
+            }
+            faceBndGlobalIdx = std::make_shared<tIndexArray>(faceBndGlobalIdxDist.get());
+            faceBndGlobalIdx->createGlobalMapping();
+            numFaceBndGlobal = faceBndGlobalIdx->pLGlobalMapping->globalSize();
+            assert(numFaceBndGlobal == faceBndGlobalIdxDist->obtainTotalSize());
+            
+            std::vector<index> serialDemand;
+            if (mpi.rank == oprank)
+            {
+                serialDemand.resize(numFaceBndGlobal);
+                for (index i = 0; i < numFaceBndGlobal; i++)
+                    serialDemand[i] = i;
+            }
+            else
+            {
+                serialDemand.resize(0);
+            }
+            faceBndGlobalIdx->createGhostMapping(serialDemand);
+            faceBndGlobalIdx->createMPITypes();
+            // std::cout << "FUCKED1" << std::endl;
+            faceBndGlobalIdx->pullOnce();
+            
+            // if (mpi.rank == oprank)
+            // {
+            //     for (index i = 0; i < faceBndGlobalIdx->size(); i++)
+            //     {
+            //         index iFace = (*faceBndGlobalIdx)[i][0];
+            //         std::cout << iFace << std::endl;
+            //         std::cout << "Bnd Face Serial " << iFace <<" "<< (*faceAtr)[iFace][0].iPhy << std::endl;
+            //     }
+            // }
         }
 
         // c2n must be pointing to local

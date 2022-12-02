@@ -29,6 +29,7 @@ namespace DNDS
             (mesh)->PrintSerialPartPltASCIIDBG(distDebugFile, 0);
         // InsertCheck(mpi, "PB1");
         (mesh)->BuildGhosts();
+        (mesh)->DeriveDistFaceBndAndBuildSerialBnd(0);
         // InsertCheck(mpi, "PBEND");
         if (mpi.rank == 0)
             log() << "=== CompactFacedMeshSerialRWBuild ===" << std::endl;

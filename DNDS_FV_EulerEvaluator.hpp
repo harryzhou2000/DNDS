@@ -565,7 +565,7 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
-                ret(5) = std::abs(UMeanXy(0) * (-D) / muRef / UMeanXy(5)) * 2;
+                ret(5) = std::abs(UMeanXy(0) * (-D) / muRef / UMeanXy(5)) * 1;
 
                 if (ret.hasNaN())
                 {

@@ -4,6 +4,8 @@
 
 namespace DNDS
 {
+
+    // pair indexes ghost without referencing father's son, so multiple ghosts are allowed
     template <class T>
     class ArrayPair
     {
