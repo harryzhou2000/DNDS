@@ -54,7 +54,7 @@ namespace DNDS
         std::vector<real> deltaLambdaFace;
         std::vector<Eigen::Matrix<real, 10, 5>> dFdUFace;
 
-        // todo: improve to contagious
+        // todo: improve to contiguous
         std::vector<Eigen::Vector<real, -1>> jacobianCellSourceDiag;
         std::vector<Eigen::Matrix<real, -1, -1>> jacobianFace;
         std::vector<Eigen::Matrix<real, -1, -1>> jacobianCell;
@@ -64,6 +64,8 @@ namespace DNDS
 
         // ArrayVDOF<25> dRdUrec;
         // ArrayVDOF<25> dRdb;
+
+        Eigen::Vector<real, -1> fluxWallSum;
 
         struct Setting
         {

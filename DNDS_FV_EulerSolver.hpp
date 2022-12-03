@@ -46,6 +46,7 @@ namespace DNDS
             int nTimeStep = 1000;
             int nConsoleCheck = 10;
             int nConsoleCheckInternal = 1;
+            int consoleOutputMode = 0; // 0 for basic, 1 for wall force out
             int nSGSIterationInternal = 0;
             int nDataOut = 10000;
             int nDataOutC = 50;
@@ -96,6 +97,7 @@ namespace DNDS
             int jacobianTypeCode = 0; // 0 for original LUSGS jacobian, 1 for ad roe, 2 for ad roe ad vis
 
             int nFreezePassiveInner = 0;
+
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -111,6 +113,7 @@ namespace DNDS
             root.AddInt("nSGSIterationInternal", &config.nSGSIterationInternal);
             root.AddInt("nConsoleCheck", &config.nConsoleCheck);
             root.AddInt("nConsoleCheckInternal", &config.nConsoleCheckInternal);
+            root.AddInt("consoleOutputMode", &config.consoleOutputMode);
             root.AddInt("nDataOutC", &config.nDataOutC);
             root.AddInt("nDataOut", &config.nDataOut);
             root.AddInt("nDataOutCInternal", &config.nDataOutCInternal);
@@ -1002,11 +1005,17 @@ namespace DNDS
                                       << "res \033[91m[" << resRel.transpose() << "]\033[39m   "
                                       << "t,dTaumin,CFL \033[92m[" << tsimu << ", " << curDtMin << ", " << CFLNow << "]\033[39m   "
                                       << std::setprecision(3) << std::fixed
-                                      << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
+                                      << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  ";
+                                if (config.consoleOutputMode == 1)
+                                {
+                                    log() << std::setprecision(4) << std::setw(10) << std::scientific
+                                          << "Wall Flux \033[93m[" << eval.fluxWallSum.transpose() << "]\033[39m";
+                                }
+                                log() << std::endl;
                                 log().setf(fmt);
                                 logErr << step << "\t" << iter << "\t" << std::setprecision(9) << std::scientific
                                        << res.transpose() << " "
-                                       << tsimu << " " << curDtMin << std::endl;
+                                       << tsimu << "\t" << curDtMin << "\t" << eval.fluxWallSum.transpose() << std::endl;
                             }
                             tstart = MPI_Wtime();
                             trec = tcomm = trhs = tLim = 0.;

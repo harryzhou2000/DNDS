@@ -11,6 +11,7 @@
     "nFreezePassiveInner": 0,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
+    "consoleOutputMode": 0,
     "nDataOutC": 1,
     "nDataOut": 1,
     "nDataOutCInternal": 100,

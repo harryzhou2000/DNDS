@@ -168,6 +168,9 @@ namespace DNDS
         {
             rhs[iCell].setZero();
         }
+        Eigen::Vector<real, -1> fluxWallSumLocal;
+        fluxWallSumLocal.setZero(cnvars);
+        fluxWallSum.setZero(cnvars);
 
         for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
         {
@@ -268,7 +271,14 @@ namespace DNDS
             rhs[f2c[0]] += flux / fv->volumeLocal[f2c[0]];
             if (f2c[1] != FACE_2_VOL_EMPTY)
                 rhs[f2c[1]] -= flux / fv->volumeLocal[f2c[1]];
+
+            if (faceAtr.iPhy == BoundaryType::Wall_NoSlip || faceAtr.iPhy == BoundaryType::Wall_Euler)
+            {
+                fluxWallSumLocal -= flux;
+            }
         }
+        // quick aux: reduce the wall flux sum
+        MPI_Allreduce(fluxWallSumLocal.data(), fluxWallSum.data(), fluxWallSum.size(), DNDS_MPI_REAL, MPI_SUM, u.dist->getMPI().comm);
 
         InsertCheck(u.dist->getMPI(), "EvaluateRHS After Flux");
 

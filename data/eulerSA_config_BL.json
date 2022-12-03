@@ -8,9 +8,10 @@
     "nGmresSpace": 10,
     "nGmresIter": 2,
     "jacobianTypeCode": 0,
-    "nFreezePassiveInner": 1000,
+    "nFreezePassiveInner": 0,
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
+    "consoleOutputMode": 0,
     "nDataOutC": 1,
     "nDataOut": 1,
     "nDataOutCInternal": 10,
@@ -31,7 +32,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": -0,
-    "meshFile": "data/mesh/BL_A1.msh",
+    "meshFile": "data/mesh/BL_A2.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -49,12 +50,12 @@
         "data/mesh/NACA0012_WIDE_H3G_NS.msh",
         "data/mesh/NACA0012_TIP_WIDE_NS",
         "data/mesh/NACA0012_TIP_SPARSE_NS",
-        "data/mesh/NACA0012_WIDE_H3_M.msh", 
+        "data/mesh/NACA0012_WIDE_H3_M.msh",
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.BL_A1",
-    "outLogName": "data/out/test_Euler_.BL_A1",
+    "outPltName": "data/out/test_Euler_.BL_A2",
+    "outLogName": "data/out/test_Euler_.BL_A2",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -63,7 +64,7 @@
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
         "anistropicLengths": false,
-        "tangWeight": 0.1,
+        "tangWeight": 0.0,
         "wallWeight": 0.5,
         "farWeight": 1,
         "weightSchemeGeom": "None",
@@ -82,7 +83,7 @@
         "idealGasProperty": {
             "gamma": 1.4,
             "Rgas": 0.0092,
-            "muGas": 5e-6
+            "muGas": 5e-7
         },
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
