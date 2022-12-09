@@ -842,7 +842,7 @@ namespace DNDS
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
+            uIncNew[iCell] = CompressInc(u[iCell], uIncNew[iCell], rhs[iCell]);
         }
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
     }
@@ -903,7 +903,7 @@ namespace DNDS
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNew[iCell] = CompressRecPart(u[iCell], uIncNew[iCell]) - u[iCell];
+            uIncNew[iCell] = CompressInc(u[iCell], uIncNew[iCell], rhs[iCell]);
         }
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward -1");
     }

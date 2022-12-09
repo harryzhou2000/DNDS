@@ -1,5 +1,5 @@
 {
-    "recOrder": 3,
+    "recOrder": 2,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
@@ -18,7 +18,7 @@
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 100,
+    "CFL": 10,
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-100,
     "useLocalDt": true,
@@ -64,8 +64,8 @@
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
         "anistropicLengths": false,
-        "tangWeight": 0.1,
-        "wallWeight": 1.5,
+        "tangWeight": 0.001,
+        "wallWeight": 0.5,
         "farWeight": 1,
         "weightSchemeGeom": "None",
         "baseCenterType": "Bary",
@@ -96,8 +96,8 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            0.9659,
-            0.2588,
+            1,
+            0,
             0,
             45.1429,
             1

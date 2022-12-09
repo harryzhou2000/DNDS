@@ -567,7 +567,7 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
-                ret(5) = std::abs(UMeanXy(0) * (-D) / muRef / UMeanXy(5)) * 1;
+                ret(5) = std::abs(UMeanXy(0) * (-D) / muRef / UMeanXy(5)) * 2;
 
                 if (ret.hasNaN())
                 {
@@ -800,7 +800,6 @@ namespace DNDS
             // ret(4) = e + Ek;
             // // * Compress Method
 
-            //! for euler now!
             Eigen::Vector<real, -1> ret = umean + uRecInc;
             real eK = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + std::abs(ret(0)));
             real e = ret(4) - eK;
@@ -808,6 +807,31 @@ namespace DNDS
                 ret = umean;
             if (model == NS_SA && ret(5) < 0)
                 ret = umean;
+
+            return ret;
+        }
+
+        inline Eigen::Vector<real, -1> CompressInc(
+            const Eigen::Vector<real, -1> &u,
+            const Eigen::Vector<real, -1> &uInc,
+            const Eigen::Vector<real, -1> &rhs)
+        {
+
+            Eigen::Vector<real, -1> ret = uInc;
+            if (model == NS_SA)
+            {
+                if (u(5) + uInc(5) < 0)
+                {
+                    // std::cout << "Fixing SA inc " << std::endl;
+                    assert(u(5) >= 0); //!might be bad using gmeres, add this to gmres inc!
+                    real declineV = uInc(5) / (u(5) + verySmallReal);
+                    real newu5 = u(5) * std::exp(declineV);
+                    // ! refvalue:
+                    real muRef = settings.idealGasProperty.muGas;
+                    newu5 = std::max(1e-12, newu5);
+                    ret(5) = newu5 - u(5);
+                }
+            }
 
             return ret;
         }

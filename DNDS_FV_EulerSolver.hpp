@@ -1119,7 +1119,7 @@ namespace DNDS
                 // recu += u[iCell];
                 // assert(recu(0) > 0);
                 // recu = EulerEvaluator::CompressRecPart(u[iCell], recu);
-                recu = u[iCell] + recu;
+                recu = u[iCell] + recu *0;
                 Gas::tVec velo = (recu({1, 2, 3}).array() / recu(0)).matrix();
                 real vsqr = velo.squaredNorm();
                 real asqr, p, H;
