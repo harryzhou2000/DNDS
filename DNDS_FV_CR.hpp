@@ -255,9 +255,9 @@ namespace DNDS
             // InsertCheck(mpi, "initReconstructionMatVec _ CR END");
         }
 
-        template <uint32_t vsize>
+        template <class TU_DOF>
         // static const int vsize = 1;
-        void Reconstruction(ArrayLocal<VecStaticBatch<vsize>> &u,
+        void Reconstruction(TU_DOF &u,
                             ArrayRecV &uRec, ArrayRecV &uRecCR)
         {
             // InsertCheck(mpi, "ReconstructionJacobiStep Start");
@@ -392,12 +392,12 @@ namespace DNDS
                         if (signLR > 0)
                             bi += matrixBatchElem.m(1 + ic2f * 2 + 0) * uRec[iCell];
                         else if (signLR < 0)
-                            bi += matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther] + vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther].p() - u[iCell].p());
+                            bi += matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther] + vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther] - u[iCell]);
                         else
                             bi += 0.5 *
                                   (matrixBatchElem.m(1 + ic2f * 2 + 0) * uRec[iCell] +
                                    matrixBatchElem.m(1 + ic2f * 2 + 1) * uRec[iCellOther] +
-                                   vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther].p() - u[iCell].p()).transpose());
+                                   vectorBatchElem.m(0)(Eigen::all, ic2f) * (u[iCellOther] - u[iCell]).transpose());
                         //! don't forget the mean value between them
                     }
                     else
@@ -427,14 +427,14 @@ namespace DNDS
                         if (faceAttribute.iPhy == BoundaryType::Wall)
                         {
                             Eigen::MatrixXd bcval;
-                            bcval.resizeLike(u[iCell].p());
+                            bcval.resizeLike(u[iCell]);
                             bcval.setZero();
                             // adds zero here for zero-valued VR value
-                            bi += matrixBatchElem.m(1 + ic2f * 2 + 1) * (bcval - u[iCell].p());
+                            bi += matrixBatchElem.m(1 + ic2f * 2 + 1) * (bcval - u[iCell]);
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Farfield)
                         {
-                            bi += matrixBatchElem.m(1 + ic2f * 2 + 1) * u[iCell].p() * 0;
+                            bi += matrixBatchElem.m(1 + ic2f * 2 + 1) * u[iCell] * 0;
                         }
                         else
                         {

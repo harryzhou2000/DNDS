@@ -22,7 +22,7 @@
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-100,
     "useLocalDt": true,
-    "useLimiter": true,
+    "useLimiter": false,
     "nPartialLimiterStart": 100,
     "nPartialLimiterStartLocal": 5000,
     "nLimiterTurnOn": 0,

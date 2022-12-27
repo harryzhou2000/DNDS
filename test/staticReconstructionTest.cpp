@@ -56,15 +56,15 @@ int main(int argn, char *argv[])
         return d;
     };
     std::vector<std::string> meshNames = {
-        "data/mesh/Uniform/UniformA0.msh",
-        "data/mesh/Uniform/UniformA1.msh",
-        "data/mesh/Uniform/UniformA2.msh",
-        "data/mesh/Uniform/UniformA3.msh",
+        // "data/mesh/Uniform/UniformA0.msh",
+        // "data/mesh/Uniform/UniformA1.msh",
+        // "data/mesh/Uniform/UniformA2.msh",
+        // "data/mesh/Uniform/UniformA3.msh",
         // "data/mesh/Uniform/UniformA4.msh",
-        // "data/mesh/Uniform/UniformB0.msh",
-        // "data/mesh/Uniform/UniformB1.msh",
-        // "data/mesh/Uniform/UniformB2.msh",
-        // "data/mesh/Uniform/UniformB3.msh",
+        "data/mesh/Uniform/UniformB0.msh",
+        "data/mesh/Uniform/UniformB1.msh",
+        "data/mesh/Uniform/UniformB2.msh",
+        "data/mesh/Uniform/UniformB3.msh",
     };
     // std::vector<std::string> meshNames = {
     //     "data/mesh/Uniform/UniformAR00_0.msh",
@@ -95,9 +95,10 @@ int main(int argn, char *argv[])
         CRFiniteVolume2D cfv(vfv); //! mind the order!
         cfv.initReconstructionMatVec();
         // InsertCheck(mpi, "SDF 1");
-        ArrayLocal<VecStaticBatch<1u>> u;
+        // ArrayLocal<VecStaticBatch<1u>> u;
+        ArrayDOFV u;
         ArrayRecV uRec, uRecNew, uRecNew1, uRecOld, uRecCR;
-        fv.BuildMean(u);
+        fv.BuildMean(u,1);
         vfv.BuildRec(uRec, 1);
         vfv.BuildRec(uRecNew, 1);
         vfv.BuildRec(uRecNew1, 1);
@@ -250,8 +251,8 @@ int main(int argn, char *argv[])
                     int ndofCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
                     Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell];
                     Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell];
-                    rec(0) += u[iCell].p()(0);
-                    recCR(0) += u[iCell].p()(0);
+                    rec(0) += u[iCell](0);
+                    recCR(0) += u[iCell](0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().abs().matrix();
                     inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant(); //! not doing to acquire element-wise error
@@ -266,8 +267,8 @@ int main(int argn, char *argv[])
                     int ndofCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).cols();
                     Eigen::MatrixXd rec = vfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndof - 1) * uRec[iCell];
                     Eigen::MatrixXd recCR = cfv.cellDiBjGaussBatch->operator[](iCell).m(ng).rightCols(ndofCR - 1) * uRecCR[iCell];
-                    rec(0) += u[iCell].p()(0);
-                    recCR(0) += u[iCell].p()(0);
+                    rec(0) += u[iCell](0);
+                    recCR(0) += u[iCell](0);
                     auto vReal = fDiffs(pPhysics);
                     inc = (vReal - rec.topRows(6)).array().pow(2).matrix();
                     inc *= Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant(); //! not doing to acquire element-wise error
