@@ -5,7 +5,6 @@ export MPICH_CXX=clang++
 
 first: what
 
-
 CPC=mpicxx.openmpi
 # CPC=mpicxx.mpich
 # CPC=/home/harry/tools/openmpi-4.1.4/BUILD_GCC/bin/mpicxx
@@ -20,7 +19,7 @@ CPC=mpicxx.openmpi
 MPIINC=
 MPILIB=
 CGNSINC=
-CGNSLIB=-lcgns
+CGNSLIB=
 
 PYTHON_CFLAGS=$(/usr/bin/python3-config  --cflags)
 PYTHON_LDFLAGS=$(/usr/bin/python3-config  --ldflags)

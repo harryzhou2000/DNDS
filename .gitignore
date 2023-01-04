@@ -21,3 +21,4 @@ pulldata.sh
 *.pdf*
 *.log
 *.tmp
+*.zip
