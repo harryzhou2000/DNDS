@@ -349,8 +349,8 @@ namespace DNDS
             auto ncoords = (invPJacobi * coordsC.topRows(2));
             auto nSizes = ncoords.rowwise().maxCoeff() - ncoords.rowwise().minCoeff();
 
-            scaleL0 = nSizes(0);
-            scaleL1 = nSizes(1);
+            scaleL0 = nSizes(0) * 0.5;
+            scaleL1 = nSizes(1) * 0.5;
             // std::cout << scaleM << "\t" << scaleL0 << "\t" << scaleL1 << "\t" << std::endl;
             // abort();
             real scaleUni = std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
@@ -964,6 +964,7 @@ namespace DNDS
             // here DiBj's direvatives are dBdxi-s, where xi is defined by xi = invPJacobi * (x - xc)
             if (!options.disableLocalCoord2GlobalDiffs)
                 Elem::Convert2dDiffsLinMap(DiBj, invPJacobi.transpose());
+            // std::cout << DiBj(0, Eigen::all) << std::endl;
             DiBj(0, Eigen::all) -= baseMoment.transpose();
 
             return;

@@ -691,7 +691,10 @@ namespace DNDS
 
             jacobianCell[iCell] += alphaDiag * jacobianCellSourceDiag[iCell].asDiagonal();
 
-            jacobianCellInv[iCell] = jacobianCell[iCell].partialPivLu().inverse();
+
+            //! assuming diagonal here!
+            jacobianCellInv[iCell] = jacobianCell[iCell].diagonal().array().inverse().matrix().asDiagonal();
+            // jacobianCellInv[iCell] = jacobianCell[iCell].partialPivLu().inverse();
 
             // std::cout << "jacobian Diag\n"
             //           << jacobianCell[iCell] << std::endl;

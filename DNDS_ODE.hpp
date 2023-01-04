@@ -76,7 +76,7 @@ namespace DNDS
                 // x += xLast;
                 // x *= 1 - Coef[2];
 
-                frhs(rhs, x, 1, 1./6.);
+                frhs(rhs, x, 1, 1. / 6.);
                 rhs += rhsbuf[0];
                 rhsbuf[1] *= 2.0;
                 rhs += rhsbuf[1];
@@ -322,13 +322,12 @@ namespace DNDS
 
                         // TODO: add time dependent rhs
                     }
-                    if(iter > maxIter)
+                    if (iter > maxIter)
                         fstop(iter, xinc, iB + 1);
                 }
                 x = xLast;
                 for (int jB = 0; jB < 3; jB++)
                     x.addTo(rhsbuf[jB], butcherB(jB) * dt);
-                
             }
         };
 
@@ -350,6 +349,101 @@ namespace DNDS
             1. / (6 * sqr(2 * _zeta - 1))};
 #undef _zeta
 
+        template <class TDATA>
+        class ImplicitBDFDualTimeStep
+        {
+
+            static const Eigen::Matrix<real, 4, 5> BDFCoefs;
+
+        public:
+            std::vector<real> dTau;
+            std::vector<TDATA> xPrevs;
+            Eigen::VectorXd dtPrevs;
+            TDATA rhs;
+            TDATA xLast;
+            TDATA xIncPrev;
+            index DOF;
+            index cnPrev;
+            index prevStart;
+            index kBDF;
+
+            /**
+             * @brief mind that NDOF is the dof of dt
+             * finit(TDATA& data)
+             */
+            template <class Finit>
+            ImplicitBDFDualTimeStep(
+                index k,
+                index NDOF, Finit &&finit = [](TDATA &) {}) : DOF(NDOF), cnPrev(0), prevStart(k - 2), kBDF(k)
+            {
+                assert(k > 0 && k <= 4);
+                dTau.resize(NDOF);
+                xPrevs.resize(k - 1);
+                dtPrevs.resize(k - 1);
+                for (auto &i : xPrevs)
+                    finit(i);
+                finit(rhs);
+                finit(xLast);
+                finit(xIncPrev);
+            }
+
+            /**
+             * @brief
+             * frhs(TDATA &rhs, TDATA &x)
+             * fdt(std::vector<real>& dTau)
+             * fsolve(TDATA &x, TDATA &rhs, std::vector<real>& dTau, real dt, real alphaDiag, TDATA &xinc)
+             * bool fstop(int iter, TDATA &xinc, int iInternal)
+             */
+            template <class Frhs, class Fdt, class Fsolve, class Fstop>
+            void Step(TDATA &x, TDATA &xinc, Frhs &&frhs, Fdt &&fdt, Fsolve &&fsolve,
+                      int maxIter, Fstop &&fstop, real dt)
+            {
+                index kCurrent = cnPrev + 1;
+                index prevSiz = kBDF - 1;
+
+                xLast = x;
+                // x = xLast;
+                xIncPrev.setConstant(0.0);
+                int iter = 1;
+                for (; iter <= maxIter; iter++)
+                {
+                    fdt(dTau, BDFCoefs(kCurrent - 1, 0));
+
+                    frhs(rhs, x, iter, 1.0);
+
+                    rhs *= BDFCoefs(kCurrent - 1, 0);
+                    rhs.addTo(x, -1. / dt);
+                    rhs.addTo(xLast, BDFCoefs(kCurrent - 1, 1));
+                    for (index iPrev = 0; iPrev < cnPrev; iPrev++)
+                        rhs.addTo(xPrevs[(iPrev + prevStart) % prevSiz], BDFCoefs(kCurrent - 1, 2 + iPrev));
+
+                    fsolve(x, rhs, dTau, dt, BDFCoefs(kCurrent - 1, 0), xinc, iter);
+                    // xinc = (I/dtau-A*alphaDiag)\rhs
+
+                    // x += xinc;
+                    x.addTo(xinc, 1.0);
+                    // x.addTo(xIncPrev, -0.5);
+
+                    xIncPrev = xinc;
+
+                    if (fstop(iter, xinc, 1))
+                        break;
+                }
+                if (iter > maxIter)
+                    fstop(iter, xinc, 1);
+
+                prevStart = (prevStart - 1) % prevSiz;
+                xPrevs[prevStart] = xLast;
+                cnPrev = std::min(cnPrev + 1, prevSiz);
+            }
+        };
+
+        template <class TDATA>
+        const Eigen::Matrix<real, 4, 5> ImplicitBDFDualTimeStep<TDATA>::BDFCoefs{
+            {1. / 1., 1. / 1., 0. / 0., 0. / 0., 0. / 0.},
+            {2. / 3., 4. / 3., -1. / 3., 0. / 0., 0. / 0.},
+            {6. / 11., 18. / 11., -9. / 11., 2. / 11., 0. / 0.},
+            {12. / 25., 48. / 25., -36. / 25., 16. / 25., -3. / 25.}};
     }
 
 }
