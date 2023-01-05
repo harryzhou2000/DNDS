@@ -359,7 +359,7 @@ namespace DNDS
             std::vector<real> dTau;
             std::vector<TDATA> xPrevs;
             Eigen::VectorXd dtPrevs;
-            TDATA rhs;
+            std::vector<TDATA> rhsbuf;
             TDATA xLast;
             TDATA xIncPrev;
             index DOF;
@@ -373,8 +373,8 @@ namespace DNDS
              */
             template <class Finit>
             ImplicitBDFDualTimeStep(
-                index k,
-                index NDOF, Finit &&finit = [](TDATA &) {}) : DOF(NDOF), cnPrev(0), prevStart(k - 2), kBDF(k)
+                index NDOF, Finit &&finit = [](TDATA &) {},
+                index k = 2) : DOF(NDOF), cnPrev(0), prevStart(k - 2), kBDF(k)
             {
                 assert(k > 0 && k <= 4);
                 dTau.resize(NDOF);
@@ -382,7 +382,8 @@ namespace DNDS
                 dtPrevs.resize(k - 1);
                 for (auto &i : xPrevs)
                     finit(i);
-                finit(rhs);
+                rhsbuf.resize(1);
+                finit(rhsbuf[0]);
                 finit(xLast);
                 finit(xIncPrev);
             }
@@ -400,6 +401,8 @@ namespace DNDS
             {
                 index kCurrent = cnPrev + 1;
                 index prevSiz = kBDF - 1;
+                for (index iPrev = 0; iPrev < cnPrev; iPrev++)
+                    assert(std::abs(dtPrevs[(iPrev + prevStart) % prevSiz] - dt) < dt * 1e-8);
 
                 xLast = x;
                 // x = xLast;
@@ -409,16 +412,19 @@ namespace DNDS
                 {
                     fdt(dTau, BDFCoefs(kCurrent - 1, 0));
 
-                    frhs(rhs, x, iter, 1.0);
+                    frhs(rhsbuf[0], x, iter, 1.0);
 
-                    rhs *= BDFCoefs(kCurrent - 1, 0);
-                    rhs.addTo(x, -1. / dt);
-                    rhs.addTo(xLast, BDFCoefs(kCurrent - 1, 1));
+                    rhsbuf[0] *= BDFCoefs(kCurrent - 1, 0);
+                    rhsbuf[0].addTo(x, -1. / dt);
+                    rhsbuf[0].addTo(xLast, BDFCoefs(kCurrent - 1, 1) / dt);
                     for (index iPrev = 0; iPrev < cnPrev; iPrev++)
-                        rhs.addTo(xPrevs[(iPrev + prevStart) % prevSiz], BDFCoefs(kCurrent - 1, 2 + iPrev));
+                        rhsbuf[0].addTo(xPrevs[(iPrev + prevStart) % prevSiz], BDFCoefs(kCurrent - 1, 2 + iPrev) / dt);
 
-                    fsolve(x, rhs, dTau, dt, BDFCoefs(kCurrent - 1, 0), xinc, iter);
-                    // xinc = (I/dtau-A*alphaDiag)\rhs
+                    fsolve(x, rhsbuf[0], dTau, dt, BDFCoefs(kCurrent - 1, 0), xinc, iter);
+                    //* xinc = (I/dtau-A*alphaDiag)\rhs
+
+                    // std::cout << "BDF::\n";
+                    // std::cout << kCurrent << " " << BDFCoefs(kCurrent - 1, 0) << std::endl;
 
                     // x += xinc;
                     x.addTo(xinc, 1.0);
@@ -434,6 +440,7 @@ namespace DNDS
 
                 prevStart = (prevStart - 1) % prevSiz;
                 xPrevs[prevStart] = xLast;
+                dtPrevs[prevStart] = dt;
                 cnPrev = std::min(cnPrev + 1, prevSiz);
             }
         };

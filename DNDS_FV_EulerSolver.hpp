@@ -609,7 +609,15 @@ namespace DNDS
         {
             InsertCheck(mpi, "Implicit 1 nvars " + std::to_string(nVars));
 
-            ODE::ImplicitSDIRK4DualTimeStep<decltype(u)> ode(
+            // ODE::ImplicitSDIRK4DualTimeStep<decltype(u)> ode(
+            //     u.dist->size(),
+            //     [&](decltype(u) &data)
+            //     {
+            //         data.resize(u.dist->size(), u.dist->getMPI(), nVars);
+            //         data.CreateGhostCopyComm(mesh->cell2faceLocal);
+            //         data.InitPersistentPullClean();
+            //     });
+            ODE::ImplicitBDFDualTimeStep<decltype(u)> ode(
                 u.dist->size(),
                 [&](decltype(u) &data)
                 {
@@ -617,6 +625,7 @@ namespace DNDS
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                     data.InitPersistentPullClean();
                 });
+
             Linear::GMRES_LeftPreconditioned<decltype(u)> gmres(
                 config.nGmresSpace,
                 [&](decltype(u) &data)
@@ -656,396 +665,400 @@ namespace DNDS
             int nextStepOut = config.nDataOut;
             int nextStepOutC = config.nDataOutC;
             PerformanceTimer::Instance().clearAllTimer();
+
+            // *** Loop variables
             real CFLNow = config.CFL;
-            for (int step = 1; step <= config.nTimeStep; step++)
+            bool ifOutT = false;
+            real curDtMin;
+            real curDtImplicit = config.dtImplicit;
+            int step;
+
+            /*******************************************************/
+            /*                   DEFINE LAMBDAS                    */
+            /*******************************************************/
+            auto frhs = [&](ArrayDOFV &crhs, ArrayDOFV &cx, int iter, real ct)
             {
-                InsertCheck(mpi, "Implicit Step");
-                bool ifOutT = false;
-                real curDtMin;
-                real curDtImplicit = config.dtImplicit;
-                if (tsimu + curDtImplicit > nextTout)
+                eval.FixUMaxFilter(cx);
+                cx.StartPersistentPullClean();
+                cx.WaitPersistentPullClean();
+
+                // for (index iCell = 0; iCell < uOld.size(); iCell++)
+                //     uOld[iCell].m() = uRec[iCell].m();
+
+                InsertCheck(mpi, " Lambda RHS: StartRec");
+                for (int iRec = 0; iRec < config.nInternalRecStep; iRec++)
                 {
-                    ifOutT = true;
-                    curDtImplicit = (nextTout - tsimu);
+                    double tstartA = MPI_Wtime();
+                    vfv->ReconstructionJacobiStep(cx, uRec, uRecNew);
+                    trec += MPI_Wtime() - tstartA;
+
+                    uRec.StartPersistentPullClean();
+                    uRec.WaitPersistentPullClean();
                 }
-                CFLNow = config.CFL;
-                ode.Step(
-                    u, uInc,
-                    [&](ArrayDOFV &crhs, ArrayDOFV &cx, int iter, real ct)
+                double tstartH = MPI_Wtime();
+
+                // for (index iCell = 0; iCell < uOld.size(); iCell++)
+                //     uRec[iCell].m() -= uOld[iCell].m();
+
+                InsertCheck(mpi, " Lambda RHS: StartLim");
+                if (config.useLimiter)
+                {
+                    // vfv->ReconstructionWBAPLimitFacial(
+                    //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
+                    vfv->ReconstructionWBAPLimitFacialV2(
+                        cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
+                        iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
+                        [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                            Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
+                            auto normBase = Elem::NormBuildLocalBaseV(n);
+                            UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+
+                            // real ekFixRatio = 0.001;
+                            // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                            // real vsqr = velo.squaredNorm();
+                            // real Ek = vsqr * 0.5 * UC(0);
+                            // real Efix = Ek * ekFixRatio;
+                            // real e = UC(4) - Ek;
+                            // if (e < 0)
+                            //     e = 0.5 * Efix;
+                            // else if (e < Efix)
+                            //     e = (e * e + Efix * Efix) / (2 * Efix);
+                            // UC(4) = Ek + e;
+
+                            auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                            M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+
+                            Eigen::MatrixXd ret(nVars, nVars);
+                            ret.setIdentity();
+                            ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                            return ret;
+                            // return Eigen::Matrix<real, 5, 5>::Identity();
+                        },
+                        [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                            Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
+                            auto normBase = Elem::NormBuildLocalBaseV(n);
+                            UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+
+                            // real ekFixRatio = 0.001;
+                            // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                            // real vsqr = velo.squaredNorm();
+                            // real Ek = vsqr * 0.5 * UC(0);
+                            // real Efix = Ek * ekFixRatio;
+                            // real e = UC(4) - Ek;
+                            // if (e < 0)
+                            //     e = 0.5 * Efix;
+                            // else if (e < Efix)
+                            //     e = (e * e + Efix * Efix) / (2 * Efix);
+                            // UC(4) = Ek + e;
+
+                            auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                            M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
+
+                            Eigen::MatrixXd ret(nVars, nVars);
+                            ret.setIdentity();
+                            ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                            return ret;
+                            // return Eigen::Matrix<real, 5, 5>::Identity();
+                        });
+                    uRecNew.StartPersistentPullClean();
+                    uRecNew.WaitPersistentPullClean();
+
+                    // //* embedded limiting or increment limiting
+                    // for (int i = 0; i < uRec.size(); i++)
+                    // {
+                    //     uRec[i].m() = uRecNew[i].m(); // Do Embedded Limiting
+                    // }
+                    // for (index iCell = 0; iCell < uOld.size(); iCell++)
+                    //     uRec[iCell].m() += uOld[iCell].m();
+                    // vfv->ReconstructionWBAPLimitFacialV2(
+                    //     cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
+                    //     iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
+                    //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                    //     Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
+                    //     auto normBase = Elem::NormBuildLocalBaseV(n);
+                    //     UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+
+                    //     // real ekFixRatio = 0.001;
+                    //     // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                    //     // real vsqr = velo.squaredNorm();
+                    //     // real Ek = vsqr * 0.5 * UC(0);
+                    //     // real Efix = Ek * ekFixRatio;
+                    //     // real e = UC(4) - Ek;
+                    //     // if (e < 0)
+                    //     //     e = 0.5 * Efix;
+                    //     // else if (e < Efix)
+                    //     //     e = (e * e + Efix * Efix) / (2 * Efix);
+                    //     // UC(4) = Ek + e;
+
+                    //     auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                    //     M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+
+                    //     Eigen::MatrixXd ret(nVars, nVars);
+                    //     ret.setIdentity();
+                    //     ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                    //     return ret;
+                    //     // return Eigen::Matrix<real, 5, 5>::Identity();
+                    // },
+                    // [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                    //     Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
+                    //     auto normBase = Elem::NormBuildLocalBaseV(n);
+                    //     UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
+
+                    //     // real ekFixRatio = 0.001;
+                    //     // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                    //     // real vsqr = velo.squaredNorm();
+                    //     // real Ek = vsqr * 0.5 * UC(0);
+                    //     // real Efix = Ek * ekFixRatio;
+                    //     // real e = UC(4) - Ek;
+                    //     // if (e < 0)
+                    //     //     e = 0.5 * Efix;
+                    //     // else if (e < Efix)
+                    //     //     e = (e * e + Efix * Efix) / (2 * Efix);
+                    //     // UC(4) = Ek + e;
+
+                    //     auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
+                    //     M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
+
+                    //     Eigen::MatrixXd ret(nVars, nVars);
+                    //     ret.setIdentity();
+                    //     ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                    //     return ret;
+                    //     // return Eigen::Matrix<real, 5, 5>::Identity();
+                    // });
+                    // uRecNew.StartPersistentPullClean();
+                    // uRecNew.WaitPersistentPullClean();
+                    // //* embedded limiting or increment limiting
+                }
+                tLim += MPI_Wtime() - tstartH;
+
+                uRec.StartPersistentPullClean(); //! this also need to update!
+                uRec.WaitPersistentPullClean();
+
+                // }
+
+                InsertCheck(mpi, " Lambda RHS: StartEval");
+                double tstartE = MPI_Wtime();
+                eval.setPassiveDiscardSource(iter <= 0);
+                if (config.useLimiter)
+                    eval.EvaluateRHS(crhs, cx, uRecNew, tsimu + ct * curDtImplicit);
+                else
+                    eval.EvaluateRHS(crhs, cx, uRec, tsimu + ct * curDtImplicit);
+                if (getNVars(model) > 5 && iter <= config.nFreezePassiveInner)
+                {
+                    for (int i = 0; i < crhs.size(); i++)
+                        crhs[i](Eigen::seq(5, Eigen::last)).setZero();
+                    // if (mpi.rank == 0)
+                    //     std::cout << "Freezing all passive" << std::endl;
+                }
+                trhs += MPI_Wtime() - tstartE;
+
+                InsertCheck(mpi, " Lambda RHS: End");
+            };
+
+            auto fdtau = [&](std::vector<real> &dTau, real alphaDiag)
+            {
+                eval.FixUMaxFilter(u);
+                u.StartPersistentPullClean(); //! this also need to update!
+                u.WaitPersistentPullClean();
+                // uRec.StartPersistentPullClean();
+                // uRec.WaitPersistentPullClean();
+
+                eval.EvaluateDt(dTau, u, CFLNow, curDtMin, 1e100, config.useLocalDt);
+                for (auto &i : dTau)
+                    i /= alphaDiag;
+            };
+
+            auto fsolve = [&](ArrayDOFV &cx, ArrayDOFV &crhs, std::vector<real> &dTau,
+                              real dt, real alphaDiag, ArrayDOFV &cxInc, int iter)
+            {
+                cxInc.setConstant(0.0);
+
+                if (config.jacobianTypeCode != 0)
+                {
+                    eval.LUSGSADMatrixInit(dTau, dt, alphaDiag, cx, config.jacobianTypeCode, tsimu);
+                }
+                else
+                {
+                    if (config.useLimiter) // uses urec value
+                        eval.LUSGSMatrixInit(dTau, dt, alphaDiag,
+                                             cx, uRecNew,
+                                             config.jacobianTypeCode,
+                                             tsimu);
+                    else
+                        eval.LUSGSMatrixInit(dTau, dt, alphaDiag,
+                                             cx, uRec,
+                                             config.jacobianTypeCode,
+                                             tsimu);
+                }
+
+                if (config.gmresCode == 0 || config.gmresCode == 2)
+                {
+                    // //! LUSGS
+                    if (config.jacobianTypeCode == 0)
                     {
-                        eval.FixUMaxFilter(cx);
-                        cx.StartPersistentPullClean();
-                        cx.WaitPersistentPullClean();
-
-                        // for (index iCell = 0; iCell < uOld.size(); iCell++)
-                        //     uOld[iCell].m() = uRec[iCell].m();
-
-                        InsertCheck(mpi, " Lambda RHS: StartRec");
-                        for (int iRec = 0; iRec < config.nInternalRecStep; iRec++)
+                        eval.UpdateLUSGSForward(alphaDiag, crhs, cx, cxInc, cxInc);
+                        cxInc.StartPersistentPullClean();
+                        cxInc.WaitPersistentPullClean();
+                        eval.UpdateLUSGSBackward(alphaDiag, crhs, cx, cxInc, cxInc);
+                        cxInc.StartPersistentPullClean();
+                        cxInc.WaitPersistentPullClean();
+                        for (int iIter = 1; iIter <= config.nSGSIterationInternal; iIter++)
                         {
-                            double tstartA = MPI_Wtime();
-                            vfv->ReconstructionJacobiStep(cx, uRec, uRecNew);
-                            trec += MPI_Wtime() - tstartA;
-
-                            uRec.StartPersistentPullClean();
-                            uRec.WaitPersistentPullClean();
+                            cxInc.StartPersistentPullClean();
+                            cxInc.WaitPersistentPullClean();
+                            eval.UpdateSGS(alphaDiag, crhs, cx, cxInc, cxInc, true);
+                            cxInc.StartPersistentPullClean();
+                            cxInc.WaitPersistentPullClean();
+                            eval.UpdateSGS(alphaDiag, crhs, cx, cxInc, cxInc, false);
                         }
-                        double tstartH = MPI_Wtime();
-
-                        // for (index iCell = 0; iCell < uOld.size(); iCell++)
-                        //     uRec[iCell].m() -= uOld[iCell].m();
-
-                        InsertCheck(mpi, " Lambda RHS: StartLim");
-                        if (config.useLimiter)
-                        {
-                            // vfv->ReconstructionWBAPLimitFacial(
-                            //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
-                            vfv->ReconstructionWBAPLimitFacialV2(
-                                cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
-                                iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
-                                [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                    Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
-                                    auto normBase = Elem::NormBuildLocalBaseV(n);
-                                    UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
-
-                                    // real ekFixRatio = 0.001;
-                                    // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                                    // real vsqr = velo.squaredNorm();
-                                    // real Ek = vsqr * 0.5 * UC(0);
-                                    // real Efix = Ek * ekFixRatio;
-                                    // real e = UC(4) - Ek;
-                                    // if (e < 0)
-                                    //     e = 0.5 * Efix;
-                                    // else if (e < Efix)
-                                    //     e = (e * e + Efix * Efix) / (2 * Efix);
-                                    // UC(4) = Ek + e;
-
-                                    auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                    M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
-
-                                    Eigen::MatrixXd ret(nVars, nVars);
-                                    ret.setIdentity();
-                                    ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
-                                    return ret;
-                                    // return Eigen::Matrix<real, 5, 5>::Identity();
-                                },
-                                [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                                    Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
-                                    auto normBase = Elem::NormBuildLocalBaseV(n);
-                                    UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
-
-                                    // real ekFixRatio = 0.001;
-                                    // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                                    // real vsqr = velo.squaredNorm();
-                                    // real Ek = vsqr * 0.5 * UC(0);
-                                    // real Efix = Ek * ekFixRatio;
-                                    // real e = UC(4) - Ek;
-                                    // if (e < 0)
-                                    //     e = 0.5 * Efix;
-                                    // else if (e < Efix)
-                                    //     e = (e * e + Efix * Efix) / (2 * Efix);
-                                    // UC(4) = Ek + e;
-
-                                    auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                                    M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
-
-                                    Eigen::MatrixXd ret(nVars, nVars);
-                                    ret.setIdentity();
-                                    ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
-                                    return ret;
-                                    // return Eigen::Matrix<real, 5, 5>::Identity();
-                                });
-                            uRecNew.StartPersistentPullClean();
-                            uRecNew.WaitPersistentPullClean();
-
-                            // //* embedded limiting or increment limiting
-                            // for (int i = 0; i < uRec.size(); i++)
-                            // {
-                            //     uRec[i].m() = uRecNew[i].m(); // Do Embedded Limiting
-                            // }
-                            // for (index iCell = 0; iCell < uOld.size(); iCell++)
-                            //     uRec[iCell].m() += uOld[iCell].m();
-                            // vfv->ReconstructionWBAPLimitFacialV2(
-                            //     cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
-                            //     iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
-                            //     [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                            //     Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
-                            //     auto normBase = Elem::NormBuildLocalBaseV(n);
-                            //     UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
-
-                            //     // real ekFixRatio = 0.001;
-                            //     // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                            //     // real vsqr = velo.squaredNorm();
-                            //     // real Ek = vsqr * 0.5 * UC(0);
-                            //     // real Efix = Ek * ekFixRatio;
-                            //     // real e = UC(4) - Ek;
-                            //     // if (e < 0)
-                            //     //     e = 0.5 * Efix;
-                            //     // else if (e < Efix)
-                            //     //     e = (e * e + Efix * Efix) / (2 * Efix);
-                            //     // UC(4) = Ek + e;
-
-                            //     auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                            //     M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
-
-                            //     Eigen::MatrixXd ret(nVars, nVars);
-                            //     ret.setIdentity();
-                            //     ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
-                            //     return ret;
-                            //     // return Eigen::Matrix<real, 5, 5>::Identity();
-                            // },
-                            // [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                            //     Eigen::Vector<real, 5> UC = (UL + UR)(Eigen::seq(0, 4)) * 0.5;
-                            //     auto normBase = Elem::NormBuildLocalBaseV(n);
-                            //     UC({1, 2, 3}) = normBase.transpose() * UC({1, 2, 3});
-
-                            //     // real ekFixRatio = 0.001;
-                            //     // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                            //     // real vsqr = velo.squaredNorm();
-                            //     // real Ek = vsqr * 0.5 * UC(0);
-                            //     // real Efix = Ek * ekFixRatio;
-                            //     // real e = UC(4) - Ek;
-                            //     // if (e < 0)
-                            //     //     e = 0.5 * Efix;
-                            //     // else if (e < Efix)
-                            //     //     e = (e * e + Efix * Efix) / (2 * Efix);
-                            //     // UC(4) = Ek + e;
-
-                            //     auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
-                            //     M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
-
-                            //     Eigen::MatrixXd ret(nVars, nVars);
-                            //     ret.setIdentity();
-                            //     ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
-                            //     return ret;
-                            //     // return Eigen::Matrix<real, 5, 5>::Identity();
-                            // });
-                            // uRecNew.StartPersistentPullClean();
-                            // uRecNew.WaitPersistentPullClean();
-                            // //* embedded limiting or increment limiting
-                        }
-                        tLim += MPI_Wtime() - tstartH;
-
-                        uRec.StartPersistentPullClean(); //! this also need to update!
-                        uRec.WaitPersistentPullClean();
-
-                        // }
-
-                        InsertCheck(mpi, " Lambda RHS: StartEval");
-                        double tstartE = MPI_Wtime();
-                        eval.setPassiveDiscardSource(iter <= 0);
-                        if (config.useLimiter)
-                            eval.EvaluateRHS(crhs, cx, uRecNew, tsimu + ct * curDtImplicit);
-                        else
-                            eval.EvaluateRHS(crhs, cx, uRec, tsimu + ct * curDtImplicit);
-                        if (getNVars(model) > 5 && iter <= config.nFreezePassiveInner)
-                        {
-                            for (int i = 0; i < crhs.size(); i++)
-                                crhs[i](Eigen::seq(5, Eigen::last)).setZero();
-                            // if (mpi.rank == 0)
-                            //     std::cout << "Freezing all passive" << std::endl;
-                        }
-                        trhs += MPI_Wtime() - tstartE;
-
-                        InsertCheck(mpi, " Lambda RHS: End");
-                    },
-                    [&](std::vector<real> &dTau, real alphaDiag)
+                    }
+                    else
                     {
-                        eval.FixUMaxFilter(u);
-                        u.StartPersistentPullClean(); //! this also need to update!
-                        u.WaitPersistentPullClean();
-                        // uRec.StartPersistentPullClean();
-                        // uRec.WaitPersistentPullClean();
+                        eval.UpdateLUSGSADForward(crhs, cx, cxInc, cxInc);
+                        cxInc.StartPersistentPullClean();
+                        cxInc.WaitPersistentPullClean();
+                        eval.UpdateLUSGSADBackward(crhs, cx, cxInc, cxInc);
+                        cxInc.StartPersistentPullClean();
+                        cxInc.WaitPersistentPullClean();
+                    }
+                }
 
-                        eval.EvaluateDt(dTau, u, CFLNow, curDtMin, 1e100, config.useLocalDt);
-                        for (auto &i : dTau)
-                            i /= alphaDiag;
-                    },
-                    [&](ArrayDOFV &cx, ArrayDOFV &crhs, std::vector<real> &dTau,
-                        real dt, real alphaDiag, ArrayDOFV &cxInc, int iter)
-                    {
-                        cxInc.setConstant(0.0);
-
-                        if (config.jacobianTypeCode != 0)
+                if (config.gmresCode != 0)
+                {
+                    // !  GMRES
+                    // !  for gmres solver: A * uinc = rhsinc, rhsinc is average value insdead of cumulated on vol
+                    gmres.solve(
+                        [&](decltype(u) &x, decltype(u) &Ax)
                         {
-                            eval.LUSGSADMatrixInit(dTau, dt, alphaDiag, cx, config.jacobianTypeCode, tsimu);
-                        }
-                        else
-                        {
-                            if (config.useLimiter) // uses urec value
-                                eval.LUSGSMatrixInit(dTau, dt, alphaDiag,
-                                                     cx, uRecNew,
-                                                     config.jacobianTypeCode,
-                                                     tsimu);
+                            if (config.jacobianTypeCode == 0)
+                                eval.LUSGSMatrixVec(alphaDiag, cx, x, Ax);
                             else
-                                eval.LUSGSMatrixInit(dTau, dt, alphaDiag,
-                                                     cx, uRec,
-                                                     config.jacobianTypeCode,
-                                                     tsimu);
-                        }
+                                eval.LUSGSADMatrixVec(cx, x, Ax);
 
-                        if (config.gmresCode == 0 || config.gmresCode == 2)
+                            Ax.StartPersistentPullClean();
+                            Ax.WaitPersistentPullClean();
+                        },
+                        [&](decltype(u) &x, decltype(u) &MLx)
                         {
-                            // //! LUSGS
+                            // x as rhs, and MLx as uinc
+
                             if (config.jacobianTypeCode == 0)
                             {
-                                eval.UpdateLUSGSForward(alphaDiag, crhs, cx, cxInc, cxInc);
-                                cxInc.StartPersistentPullClean();
-                                cxInc.WaitPersistentPullClean();
-                                eval.UpdateLUSGSBackward(alphaDiag, crhs, cx, cxInc, cxInc);
-                                cxInc.StartPersistentPullClean();
-                                cxInc.WaitPersistentPullClean();
-                                for (int iIter = 1; iIter <= config.nSGSIterationInternal; iIter++)
-                                {
-                                    cxInc.StartPersistentPullClean();
-                                    cxInc.WaitPersistentPullClean();
-                                    eval.UpdateSGS(alphaDiag, crhs, cx, cxInc, cxInc, true);
-                                    cxInc.StartPersistentPullClean();
-                                    cxInc.WaitPersistentPullClean();
-                                    eval.UpdateSGS(alphaDiag, crhs, cx, cxInc, cxInc, false);
-                                }
+                                eval.UpdateLUSGSForward(alphaDiag, x, cx, MLx, MLx);
+                                MLx.StartPersistentPullClean();
+                                MLx.WaitPersistentPullClean();
+                                eval.UpdateLUSGSBackward(alphaDiag, x, cx, MLx, MLx);
+                                MLx.StartPersistentPullClean();
+                                MLx.WaitPersistentPullClean();
                             }
                             else
                             {
-                                eval.UpdateLUSGSADForward(crhs, cx, cxInc, cxInc);
-                                cxInc.StartPersistentPullClean();
-                                cxInc.WaitPersistentPullClean();
-                                eval.UpdateLUSGSADBackward(crhs, cx, cxInc, cxInc);
-                                cxInc.StartPersistentPullClean();
-                                cxInc.WaitPersistentPullClean();
-                            }
-                        }
-
-                        if (config.gmresCode != 0)
-                        {
-                            // !  GMRES
-                            // !  for gmres solver: A * uinc = rhsinc, rhsinc is average value insdead of cumulated on vol
-                            gmres.solve(
-                                [&](decltype(u) &x, decltype(u) &Ax)
+                                for (index iCell = 0; iCell < x.dist->size(); iCell++) // ad series now takes rhs with volume
                                 {
-                                    if (config.jacobianTypeCode == 0)
-                                        eval.LUSGSMatrixVec(alphaDiag, cx, x, Ax);
-                                    else
-                                        eval.LUSGSADMatrixVec(cx, x, Ax);
-
-                                    Ax.StartPersistentPullClean();
-                                    Ax.WaitPersistentPullClean();
-                                },
-                                [&](decltype(u) &x, decltype(u) &MLx)
-                                {
-                                    // x as rhs, and MLx as uinc
-
-                                    if (config.jacobianTypeCode == 0)
-                                    {
-                                        eval.UpdateLUSGSForward(alphaDiag, x, cx, MLx, MLx);
-                                        MLx.StartPersistentPullClean();
-                                        MLx.WaitPersistentPullClean();
-                                        eval.UpdateLUSGSBackward(alphaDiag, x, cx, MLx, MLx);
-                                        MLx.StartPersistentPullClean();
-                                        MLx.WaitPersistentPullClean();
-                                    }
-                                    else
-                                    {
-                                        for (index iCell = 0; iCell < x.dist->size(); iCell++) // ad series now takes rhs with volume
-                                        {
-                                            uTemp[iCell] = x[iCell] * eval.fv->volumeLocal[iCell];
-                                        }
-                                        eval.UpdateLUSGSADForward(uTemp, cx, MLx, MLx);
-                                        MLx.StartPersistentPullClean();
-                                        MLx.WaitPersistentPullClean();
-                                        eval.UpdateLUSGSADBackward(uTemp, cx, MLx, MLx);
-                                        MLx.StartPersistentPullClean();
-                                        MLx.WaitPersistentPullClean();
-                                    }
-                                },
-                                crhs, cxInc, config.nGmresIter,
-                                [&](uint32_t i, real res, real resB) -> bool
-                                {
-                                    if (i > 0)
-                                    {
-                                        if (mpi.rank == 0)
-                                        {
-                                            // log() << std::scientific;
-                                            // log() << "GMRES: " << i << " " << resB << " -> " << res << std::endl;
-                                        }
-                                    }
-                                    return false;
-                                });
-                        }
-                        // !freeze something
-                        if (getNVars(model) > 5 && iter <= config.nFreezePassiveInner)
-                        {
-                            for (int i = 0; i < crhs.size(); i++)
-                                cxInc[i](Eigen::seq(5, Eigen::last)).setZero();
-                            // if (mpi.rank == 0)
-                            //     std::cout << "Freezing all passive" << std::endl;
-                        }
-                    },
-                    config.nTimeStepInternal,
-                    [&](int iter, ArrayDOFV &cxinc, int iStep) -> bool
-                    {
-                        Eigen::Vector<real, -1> res(nVars);
-                        eval.EvaluateResidual(res, cxinc);
-                        // if (iter == 1 && iStep == 1) // * using 1st rk step for reference
-                        if (iter == 1)
-                            resBaseCInternal = res;
-                        else
-                            resBaseCInternal = resBaseCInternal.array().max(res.array()); //! using max !
-                        Eigen::Vector<real, -1> resRel = (res.array() / resBaseCInternal.array()).matrix();
-                        bool ifStop = resRel(0) < config.rhsThresholdInternal; // ! using only rho's residual
-                        if (iter % config.nConsoleCheckInternal == 0 || iter > config.nTimeStepInternal || ifStop)
-                        {
-                            double telapsed = MPI_Wtime() - tstart;
-                            if (mpi.rank == 0)
-                            {
-                                tcomm = PerformanceTimer::Instance().getTimer(PerformanceTimer::Comm);
-                                auto fmt = log().flags();
-                                log() << std::setprecision(3) << std::scientific
-                                      << "\t Internal === Step [" << iStep << ", " << iter << "]   "
-                                      << "res \033[91m[" << resRel.transpose() << "]\033[39m   "
-                                      << "t,dTaumin,CFL \033[92m[" << tsimu << ", " << curDtMin << ", " << CFLNow << "]\033[39m   "
-                                      << std::setprecision(3) << std::fixed
-                                      << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  ";
-                                if (config.consoleOutputMode == 1)
-                                {
-                                    log() << std::setprecision(4) << std::setw(10) << std::scientific
-                                          << "Wall Flux \033[93m[" << eval.fluxWallSum.transpose() << "]\033[39m";
+                                    uTemp[iCell] = x[iCell] * eval.fv->volumeLocal[iCell];
                                 }
-                                log() << std::endl;
-                                log().setf(fmt);
-                                logErr << step << "\t" << iter << "\t" << std::setprecision(9) << std::scientific
-                                       << res.transpose() << " "
-                                       << tsimu << "\t" << curDtMin << "\t" << eval.fluxWallSum.transpose() << std::endl;
+                                eval.UpdateLUSGSADForward(uTemp, cx, MLx, MLx);
+                                MLx.StartPersistentPullClean();
+                                MLx.WaitPersistentPullClean();
+                                eval.UpdateLUSGSADBackward(uTemp, cx, MLx, MLx);
+                                MLx.StartPersistentPullClean();
+                                MLx.WaitPersistentPullClean();
                             }
-                            tstart = MPI_Wtime();
-                            trec = tcomm = trhs = tLim = 0.;
-                            PerformanceTimer::Instance().clearAllTimer();
-                        }
-
-                        if (iter % config.nDataOutInternal == 0)
+                        },
+                        crhs, cxInc, config.nGmresIter,
+                        [&](uint32_t i, real res, real resB) -> bool
                         {
-                            eval.FixUMaxFilter(u);
-                            PrintData(config.outPltName + "_" + std::to_string(step) + "_" + std::to_string(iter) + ".plt", ode);
-                            nextStepOut += config.nDataOut;
-                        }
-                        if (iter % config.nDataOutCInternal == 0)
-                        {
-                            eval.FixUMaxFilter(u);
-                            PrintData(config.outPltName + "_" + "C" + ".plt", ode);
-                            nextStepOutC += config.nDataOutC;
-                        }
-                        if (iter >= config.nCFLRampStart && iter <= config.nCFLRampLength + config.nCFLRampStart)
-                        {
-                            real inter = real(iter - config.nCFLRampStart) / config.nCFLRampLength;
-                            real logCFL = std::log(config.CFL) + (std::log(config.CFLRampEnd / config.CFL) * inter);
-                            CFLNow = std::exp(logCFL);
-                        }
+                            if (i > 0)
+                            {
+                                if (mpi.rank == 0)
+                                {
+                                    // log() << std::scientific;
+                                    // log() << "GMRES: " << i << " " << resB << " -> " << res << std::endl;
+                                }
+                            }
+                            return false;
+                        });
+                }
+                // !freeze something
+                if (getNVars(model) > 5 && iter <= config.nFreezePassiveInner)
+                {
+                    for (int i = 0; i < crhs.size(); i++)
+                        cxInc[i](Eigen::seq(5, Eigen::last)).setZero();
+                    // if (mpi.rank == 0)
+                    //     std::cout << "Freezing all passive" << std::endl;
+                }
+            };
 
-                        // return resRel.maxCoeff() < config.rhsThresholdInternal;
-                        return ifStop;
-                    },
-                    curDtImplicit + verySmallReal);
+            auto fstop = [&](int iter, ArrayDOFV &cxinc, int iStep) -> bool
+            {
+                Eigen::Vector<real, -1> res(nVars);
+                eval.EvaluateResidual(res, cxinc);
+                // if (iter == 1 && iStep == 1) // * using 1st rk step for reference
+                if (iter == 1)
+                    resBaseCInternal = res;
+                else
+                    resBaseCInternal = resBaseCInternal.array().max(res.array()); //! using max !
+                Eigen::Vector<real, -1> resRel = (res.array() / resBaseCInternal.array()).matrix();
+                bool ifStop = resRel(0) < config.rhsThresholdInternal; // ! using only rho's residual
+                if (iter % config.nConsoleCheckInternal == 0 || iter > config.nTimeStepInternal || ifStop)
+                {
+                    double telapsed = MPI_Wtime() - tstart;
+                    if (mpi.rank == 0)
+                    {
+                        tcomm = PerformanceTimer::Instance().getTimer(PerformanceTimer::Comm);
+                        auto fmt = log().flags();
+                        log() << std::setprecision(3) << std::scientific
+                              << "\t Internal === Step [" << iStep << ", " << iter << "]   "
+                              << "res \033[91m[" << resRel.transpose() << "]\033[39m   "
+                              << "t,dTaumin,CFL \033[92m[" << tsimu << ", " << curDtMin << ", " << CFLNow << "]\033[39m   "
+                              << std::setprecision(3) << std::fixed
+                              << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  ";
+                        if (config.consoleOutputMode == 1)
+                        {
+                            log() << std::setprecision(4) << std::setw(10) << std::scientific
+                                  << "Wall Flux \033[93m[" << eval.fluxWallSum.transpose() << "]\033[39m";
+                        }
+                        log() << std::endl;
+                        log().setf(fmt);
+                        logErr << step << "\t" << iter << "\t" << std::setprecision(9) << std::scientific
+                               << res.transpose() << " "
+                               << tsimu << "\t" << curDtMin << "\t" << eval.fluxWallSum.transpose() << std::endl;
+                    }
+                    tstart = MPI_Wtime();
+                    trec = tcomm = trhs = tLim = 0.;
+                    PerformanceTimer::Instance().clearAllTimer();
+                }
 
+                if (iter % config.nDataOutInternal == 0)
+                {
+                    eval.FixUMaxFilter(u);
+                    PrintData(config.outPltName + "_" + std::to_string(step) + "_" + std::to_string(iter) + ".plt", ode);
+                    nextStepOut += config.nDataOut;
+                }
+                if (iter % config.nDataOutCInternal == 0)
+                {
+                    eval.FixUMaxFilter(u);
+                    PrintData(config.outPltName + "_" + "C" + ".plt", ode);
+                    nextStepOutC += config.nDataOutC;
+                }
+                if (iter >= config.nCFLRampStart && iter <= config.nCFLRampLength + config.nCFLRampStart)
+                {
+                    real inter = real(iter - config.nCFLRampStart) / config.nCFLRampLength;
+                    real logCFL = std::log(config.CFL) + (std::log(config.CFLRampEnd / config.CFL) * inter);
+                    CFLNow = std::exp(logCFL);
+                }
+
+                // return resRel.maxCoeff() < config.rhsThresholdInternal;
+                return ifStop;
+            };
+
+
+            // fmainloop gets the time-variant residual norm, 
+            // handles the output / log nested loops, 
+            // integrates physical time tsimu
+            // and finally decides if break time loop
+            auto fmainloop = [&]()->bool
+            {
                 tsimu += curDtImplicit;
                 if (ifOutT)
                     tsimu = nextTout;
@@ -1099,7 +1112,34 @@ namespace DNDS
 
                 stepCount++;
 
-                if (tsimu >= config.tEnd)
+                return tsimu >= config.tEnd;
+            };
+
+            /**********************************/
+            /*           MAIN LOOP            */
+            /**********************************/
+
+            for (step = 1; step <= config.nTimeStep; step++)
+            {
+                InsertCheck(mpi, "Implicit Step");
+                ifOutT = false;
+                curDtImplicit = config.dtImplicit;//* could add CFL driven dt here
+                if (tsimu + curDtImplicit > nextTout)
+                {
+                    ifOutT = true;
+                    curDtImplicit = (nextTout - tsimu);
+                }
+                CFLNow = config.CFL;
+                ode.Step(
+                    u, uInc,
+                    frhs,
+                    fdtau,
+                    fsolve,
+                    config.nTimeStepInternal,
+                    fstop,
+                    curDtImplicit + verySmallReal);
+
+                if (fmainloop())
                     break;
             }
 
@@ -1119,7 +1159,7 @@ namespace DNDS
                 // recu += u[iCell];
                 // assert(recu(0) > 0);
                 // recu = EulerEvaluator::CompressRecPart(u[iCell], recu);
-                recu = u[iCell] + recu *0;
+                recu = u[iCell] + recu * 0;
                 Gas::tVec velo = (recu({1, 2, 3}).array() / recu(0)).matrix();
                 real vsqr = velo.squaredNorm();
                 real asqr, p, H;
