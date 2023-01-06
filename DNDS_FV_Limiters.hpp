@@ -6,7 +6,7 @@ namespace DNDS
      * @brief input vector<Eigen::Array-like>
      */
     template <typename TinOthers, typename Tout>
-    static inline void FWBAP_L2_Multiway_Polynomial2D(const TinOthers &uOthers, int Nother, Tout &uOut)
+    static inline void FWBAP_L2_Multiway_Polynomial2D(const TinOthers &uOthers, int Nother, Tout &uOut, real n1 = 1)
     {
         using namespace DNDS;
         static const int p = 4;
@@ -56,8 +56,9 @@ namespace DNDS
             thetaNorm += verySmallReal_pDiP;
             thetaNorm = thetaNorm.pow(-p / 2);
 
-            uDown += thetaNorm;
-            uUp += theta.rowwise() * thetaNorm.transpose();
+real exn = iOther ? 1.0 : n1;
+            uDown += thetaNorm * exn;
+            uUp += theta.rowwise() * thetaNorm.transpose() * exn;
         }
 
         // std::cout << uUp << std::endl;
@@ -112,7 +113,7 @@ namespace DNDS
      * @brief input vector<Eigen::Array-like>
      */
     template <typename Tcenter, typename TinOthers, typename Tout>
-    static inline void FMEMM_Multiway_Polynomial2D(const Tcenter &u, const TinOthers &uOthers, int Nother, Tout &uOut)
+    static inline void FMEMM_Multiway_Polynomial2D(const Tcenter &u, const TinOthers &uOthers, int Nother, Tout &uOut, real n1 = 1)
     {
         using namespace DNDS;
         static const int p = 4;
@@ -251,7 +252,7 @@ namespace DNDS
      * @brief input vector<Eigen::Array-like>
      */
     template <typename TinOthers, typename Tout>
-    static inline void FWBAP_L2_Multiway_PolynomialOrth(const TinOthers &uOthers, int Nother, Tout &uOut)
+    static inline void FWBAP_L2_Multiway_PolynomialOrth(const TinOthers &uOthers, int Nother, Tout &uOut, real n1 = 1)
     {
         using namespace DNDS;
         static const int p = 4;
@@ -277,8 +278,11 @@ namespace DNDS
             thetaNorm += verySmallReal_pDiP;
             thetaNorm = thetaNorm.pow(-p / 2);
 
-            uDown += thetaNorm;
-            uUp += theta.rowwise() * thetaNorm.transpose();
+
+            real exn = iOther ? 1.0 : n1;
+            uDown += thetaNorm * exn;
+            uUp += theta.rowwise() * thetaNorm.transpose() * exn;
+            
         }
         // std::cout << uUp << std::endl;
         // std::cout << uDown << std::endl;
@@ -297,7 +301,7 @@ namespace DNDS
      * @brief input vector<Eigen::Array-like>
      */
     template <typename TinOthers, typename Tout>
-    inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut)
+    inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut, real n1 = 1.0)
     {
         static const int p = 4;
         static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
@@ -316,8 +320,9 @@ namespace DNDS
         {
             auto thetaInverse = uMax / (uOthers[iOther].sign() * (uOthers[iOther].abs() + verySmallReal_pDiP) +
                                         verySmallReal_pDiP * (-2));
-            uDown += thetaInverse.pow(p);
-            uUp += thetaInverse.pow(p - 1);
+            real exn = iOther ? 1.0 : n1;
+            uDown += thetaInverse.pow(p) * exn;
+            uUp += thetaInverse.pow(p - 1) * exn;
         }
         uOut *= uUp / (uDown + verySmallReal);
 

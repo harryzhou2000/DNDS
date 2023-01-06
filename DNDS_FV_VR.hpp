@@ -1898,9 +1898,9 @@ namespace DNDS
          * @brief FM(uLeft,uRight,norm) gives vsize * vsize mat of Left Eigen Vectors
          *
          */
-        template <uint32_t vsize = 1, typename TFM, typename TFMI>
+        template <class TU_DOF, typename TFM, typename TFMI>
         // static const int vsize = 1; // intellisense helper: give example...
-        void ReconstructionWBAPLimitFacialV3(ArrayLocal<VecStaticBatch<vsize>> &u,
+        void ReconstructionWBAPLimitFacialV3(TU_DOF &u,
                                              ArrayRecV &uRec,
                                              ArrayRecV &uRecNewBuf,
                                              ArrayRecV &uRecNewBuf1,
@@ -2039,6 +2039,7 @@ namespace DNDS
                             LimStart,
                             LimEnd),
                         Eigen::all);
+                    uOthers.push_back(uC); // using uC centered
 
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                     {
@@ -2105,18 +2106,18 @@ namespace DNDS
                             uThisIn = (M * uThisIn.transpose()).transpose();
 
                             Eigen::ArrayXXd uLimOutArray;
-                            real n = setting.WBAP_nStd;
 
+                            real n = setting.WBAP_nStd;
                             if (setting.normWBAP)
                             {
                                 if (setting.orthogonalizeBase)
-                                    FWBAP_L2_Biway_PolynomialOrth(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
+                                    FWBAP_L2_Biway_PolynomialOrth(uThisIn.array(), uOtherIn.array(), uLimOutArray, 1);
                                 else
                                     // FMEMM_Biway_Polynomial2D(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
-                                    FWBAP_L2_Biway_Polynomial2D(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
+                                    FWBAP_L2_Biway_Polynomial2D(uThisIn.array(), uOtherIn.array(), uLimOutArray, 1);
                             }
                             else
-                                FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, n);
+                                FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, 1);
 
                             if (uLimOutArray.hasNaN())
                             {
@@ -2139,16 +2140,17 @@ namespace DNDS
                     }
                     Eigen::ArrayXXd uLimOutArray;
 
+                    real n = setting.WBAP_nStd;
                     if (setting.normWBAP)
                     {
                         if (setting.orthogonalizeBase)
-                            FWBAP_L2_Multiway_PolynomialOrth(uOthers, uOthers.size(), uLimOutArray);
+                            FWBAP_L2_Multiway_PolynomialOrth(uOthers, uOthers.size(), uLimOutArray, n);
                         else
                             // FMEMM_Multiway_Polynomial2D(uC, uOthers, uOthers.size(), uLimOutArray);
-                            FWBAP_L2_Multiway_Polynomial2D(uOthers, uOthers.size(), uLimOutArray);
+                            FWBAP_L2_Multiway_Polynomial2D(uOthers, uOthers.size(), uLimOutArray, n);
                     }
                     else
-                        FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray);
+                        FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray, n);
 
                     if (uLimOutArray.hasNaN())
                     {
