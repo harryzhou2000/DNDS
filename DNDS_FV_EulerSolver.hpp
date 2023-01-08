@@ -624,7 +624,7 @@ namespace DNDS
                     data.resize(u.dist->size(), u.dist->getMPI(), nVars);
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                     data.InitPersistentPullClean();
-                });
+                },3);
 
             Linear::GMRES_LeftPreconditioned<decltype(u)> gmres(
                 config.nGmresSpace,

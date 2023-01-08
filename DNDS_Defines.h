@@ -126,6 +126,16 @@ namespace DNDS
     {
         return a > 0 ? 1 : (a < 0 ? -1 : 0);
     }
+
+    template <typename T>
+    inline constexpr T mod(T a, T b)
+    {
+        static_assert(std::is_signed<T>::value && std::is_integral<T>::value, "not legal mod type");
+        T val = a % b;
+        if (val < 0)
+            val += b;
+        return val;
+    }
 }
 
 /*

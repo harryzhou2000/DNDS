@@ -28,6 +28,10 @@ PYTHON_LDFLAGS=$(/usr/bin/python3-config  --ldflags)
 INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS}
 LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis -llapacke -lopenblas
 
+# for TH2B pp089
+# INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS} -I/PARA/pp089/BIGDATA-2/apps/include
+# LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -L/PARA/pp089/BIGDATA-2/apps/lib -L/PARA/pp089/BIGDATA-2/apps/lib64 -lmetis -llapacke -lblas
+
 CXX_COMPILE_FLAGS=${INCLUDE} -std=c++14 -Wall -Wno-comment -Wno-unused-variable -Wno-sign-compare -Wno-unused-but-set-variable -Wno-class-memaccess
 CXX_LINK_FLAGS=${LINK}
 
