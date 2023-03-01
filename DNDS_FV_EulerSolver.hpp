@@ -261,6 +261,21 @@ namespace DNDS
                         }
                     });
             }
+            {
+                eulerParser.AddInt(
+                    "specialBuiltinInitializer", &config.eulerSetting.specialBuiltinInitializer, []() {}, JSON::ParamParser::FLAG_NULL);
+            }
+            Eigen::VectorXd eulerSetting_constMassForceValueBuf;
+            {
+                eulerParser.AddEigen_RealVec(
+                    "constMassForce", &eulerSetting_constMassForceValueBuf,
+                    [&]()
+                    {
+                        assert(eulerSetting_constMassForceValueBuf.size() == 3);
+                        config.eulerSetting.constMassForce = eulerSetting_constMassForceValueBuf;
+                    },
+                    JSON::ParamParser::FLAG_NULL);
+            }
 
             root.AddInt("curvilinearOneStep", &config.curvilinearOneStep);
             root.AddInt("curvilinearRestartNstep", &config.curvilinearRestartNstep);
@@ -383,6 +398,33 @@ namespace DNDS
                         u[iCell] = i.v;
                     }
                 }
+            }
+
+            switch (config.eulerSetting.specialBuiltinInitializer)
+            {
+            case 1: // for RT problem
+                assert(model == NS);
+                for (index iCell = 0; iCell < u.dist->size(); iCell++)
+                {
+                    Elem::tPoint &pos = vfv->cellBaries[iCell];
+                    real gamma = config.eulerSetting.idealGasProperty.gamma;
+                    real rho = 2;
+                    real p = 1 + 2 * pos(1);
+                    if (pos(1) >= 0.5)
+                    {
+                        rho = 1;
+                        p = 1.5 + pos(1);
+                    }
+                    real v = -0.025 * sqrt(gamma * p / rho) * std::cos(8 * pi * pos(0));
+                    u[iCell] = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
+                }
+                break;
+            case 0:
+                break;
+            default:
+                log() << "Wrong specialBuiltinInitializer" << std::endl;
+                assert(false);
+                break;
             }
 
             vfv->BuildIfUseLimiter(ifUseLimiter);
@@ -609,22 +651,23 @@ namespace DNDS
         {
             InsertCheck(mpi, "Implicit 1 nvars " + std::to_string(nVars));
 
-            // ODE::ImplicitSDIRK4DualTimeStep<decltype(u)> ode(
-            //     u.dist->size(),
-            //     [&](decltype(u) &data)
-            //     {
-            //         data.resize(u.dist->size(), u.dist->getMPI(), nVars);
-            //         data.CreateGhostCopyComm(mesh->cell2faceLocal);
-            //         data.InitPersistentPullClean();
-            //     });
-            ODE::ImplicitBDFDualTimeStep<decltype(u)> ode(
+            ODE::ImplicitSDIRK4DualTimeStep<decltype(u)> ode(
                 u.dist->size(),
                 [&](decltype(u) &data)
                 {
                     data.resize(u.dist->size(), u.dist->getMPI(), nVars);
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                     data.InitPersistentPullClean();
-                },3);
+                });
+            // ODE::ImplicitBDFDualTimeStep<decltype(u)> ode(
+            //     u.dist->size(),
+            //     [&](decltype(u) &data)
+            //     {
+            //         data.resize(u.dist->size(), u.dist->getMPI(), nVars);
+            //         data.CreateGhostCopyComm(mesh->cell2faceLocal);
+            //         data.InitPersistentPullClean();
+            //     },
+            //     3);
 
             Linear::GMRES_LeftPreconditioned<decltype(u)> gmres(
                 config.nGmresSpace,
@@ -1052,12 +1095,11 @@ namespace DNDS
                 return ifStop;
             };
 
-
-            // fmainloop gets the time-variant residual norm, 
-            // handles the output / log nested loops, 
+            // fmainloop gets the time-variant residual norm,
+            // handles the output / log nested loops,
             // integrates physical time tsimu
             // and finally decides if break time loop
-            auto fmainloop = [&]()->bool
+            auto fmainloop = [&]() -> bool
             {
                 tsimu += curDtImplicit;
                 if (ifOutT)
@@ -1123,7 +1165,7 @@ namespace DNDS
             {
                 InsertCheck(mpi, "Implicit Step");
                 ifOutT = false;
-                curDtImplicit = config.dtImplicit;//* could add CFL driven dt here
+                curDtImplicit = config.dtImplicit; //* could add CFL driven dt here
                 if (tsimu + curDtImplicit > nextTout)
                 {
                     ifOutT = true;

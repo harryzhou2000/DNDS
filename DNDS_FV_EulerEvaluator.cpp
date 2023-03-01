@@ -487,7 +487,8 @@ namespace DNDS
                 jacobianCell[f2c[1]] -= jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
             }
             else if (faceAtr.iPhy == BoundaryType::Farfield ||
-                     faceAtr.iPhy == BoundaryType::Special_DMRFar)
+                     faceAtr.iPhy == BoundaryType::Special_DMRFar||
+                     faceAtr.iPhy == BoundaryType::Special_RTFar)
             {
                 // jacobianCell[f2c[0]];
                 // nothing

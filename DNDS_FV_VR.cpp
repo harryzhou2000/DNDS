@@ -281,7 +281,6 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 cellGaussJacobiDets[iCell][ig] = Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
             }
 
-            
             (*matrixInnerProd)[iCell].resize(cellRecAtr.NDOF - 1, cellRecAtr.NDOF - 1);
             (*matrixInnerProd)[iCell].setZero();
 
@@ -707,7 +706,9 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 delta = pFace - cellBaries[f2c[0]];
                 delta *= 1.0;
             }
-            else if (faceAtr.iPhy == BoundaryType::Farfield || faceAtr.iPhy == BoundaryType::Special_DMRFar)
+            else if (faceAtr.iPhy == BoundaryType::Farfield ||
+                     faceAtr.iPhy == BoundaryType::Special_DMRFar ||
+                     faceAtr.iPhy == BoundaryType::Special_RTFar)
             {
                 (*faceWeights)[iFace].setConstant(0.0);
                 (*faceWeights)[iFace][0] = setting.farWeight;
@@ -787,11 +788,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 matSizes[(ic2f + 1) * 2 + 0] = cellRecAttribute.NDOF - 1;
                 matSizes[(ic2f + 1) * 2 + 1] = cellRecAttributeOther.NDOF - 1;
             }
-            else if (faceAttribute.iPhy == BoundaryType::Wall ||
-                     faceAttribute.iPhy == BoundaryType::Farfield ||
-                     faceAttribute.iPhy == BoundaryType::Wall_Euler ||
-                     faceAttribute.iPhy == BoundaryType::Wall_NoSlip ||
-                     faceAttribute.iPhy == BoundaryType::Special_DMRFar)
+            else if (faceAttribute.iPhy != BoundaryType::Inner)
             {
                 matSizes[(ic2f + 1) * 2 + 0] = cellRecAttribute.NDOF - 1;
                 matSizes[(ic2f + 1) * 2 + 1] = cellRecAttribute.NDOF - 1;
@@ -955,7 +952,8 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                     matrixBatchElem.m(ic2f + 1).setZero(); // the other 'cell' has no rec
                 }
                 else if (faceAttribute.iPhy == BoundaryType::Farfield ||
-                         faceAttribute.iPhy == BoundaryType::Special_DMRFar)
+                         faceAttribute.iPhy == BoundaryType::Special_DMRFar ||
+                         faceAttribute.iPhy == BoundaryType::Special_RTFar)
                 {
                     Eigen::MatrixXd B;
                     B.resizeLike(matrixBatchElem.m(ic2f + 1));

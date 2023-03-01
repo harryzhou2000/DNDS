@@ -1441,7 +1441,8 @@ namespace DNDS
                             //     });
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Farfield ||
-                                 faceAttribute.iPhy == BoundaryType::Special_DMRFar)
+                                 faceAttribute.iPhy == BoundaryType::Special_DMRFar||
+                                 faceAttribute.iPhy == BoundaryType::Special_RTFar)
                         {
                             if (!setting.SOR_Instead)
                                 uRecNewBuf[iCell] +=

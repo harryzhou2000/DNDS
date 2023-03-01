@@ -110,6 +110,10 @@ namespace DNDS
             };
             std::vector<PlaneInitializer> planeInitializers;
 
+            int specialBuiltinInitializer = 0;
+
+            Eigen::Vector<real, 3> constMassForce = Eigen::Vector<real, 3>{0, 0, 0};
+
         } settings;
 
         EulerEvaluator(CompactFacedMeshSerialRW *Nmesh, ImplicitFiniteVolume2D *Nfv, VRFiniteVolume2D *Nvfv,
@@ -366,6 +370,11 @@ namespace DNDS
         {
             if (model == NS)
             {
+                Eigen::VectorXd ret;
+                ret.resizeLike(UMeanXy);
+                ret.setZero();
+                ret({1, 2, 3}) = settings.constMassForce * UMeanXy(0);
+                return ret;
             }
             else if (model == NS_SA)
             {
@@ -444,6 +453,7 @@ namespace DNDS
                 Eigen::VectorXd ret;
                 ret.resizeLike(UMeanXy);
                 ret.setZero();
+                ret({1, 2, 3}) = settings.constMassForce * UMeanXy(0);
 
                 if (passiveDiscardSource)
                     P = D = 0;
@@ -473,8 +483,6 @@ namespace DNDS
             {
                 assert(false);
             }
-
-            return Eigen::VectorXd::Zero(UMeanXy.size());
         }
 
         // zeroth means needs not derivative
@@ -683,7 +691,8 @@ namespace DNDS
             Eigen::VectorXd URxy;
 
             if (btype == BoundaryType::Farfield ||
-                btype == BoundaryType::Special_DMRFar)
+                btype == BoundaryType::Special_DMRFar ||
+                btype == BoundaryType::Special_RTFar)
             {
                 if (btype == BoundaryType::Farfield)
                 {
@@ -734,6 +743,15 @@ namespace DNDS
                         URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{1.4, 0, 0, 0, 2.5};
                     else
                         URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{8, 57.157676649772960, -33, 0, 5.635e2};
+                }
+                else if (btype == BoundaryType::Special_RTFar)
+                {
+                    URxy = settings.farFieldStaticValue;
+                    real gamma = settings.idealGasProperty.gamma;
+                    if (pPhysics(1) < 0.5)
+                        URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{2, 0, 0, 0, 1.0 / (gamma - 1)};
+                    else
+                        URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{1, 0, 0, 0, 2.5 / (gamma - 1)};
                 }
                 else
                     assert(false);
@@ -822,7 +840,7 @@ namespace DNDS
                 if (u(5) + uInc(5) < 0)
                 {
                     // std::cout << "Fixing SA inc " << std::endl;
-                    assert(u(5) >= 0); //!might be bad using gmeres, add this to gmres inc!
+                    assert(u(5) >= 0); //! might be bad using gmeres, add this to gmres inc!
                     real declineV = uInc(5) / (u(5) + verySmallReal);
                     real newu5 = u(5) * std::exp(declineV);
                     // ! refvalue:

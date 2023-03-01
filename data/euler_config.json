@@ -1,7 +1,7 @@
 {
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 3200,
+    "nTimeStep": 1950,
     "nTimeStepInternal": 20,
     "nSGSIterationInternal": 0,
     "gmresCode": 0,
@@ -12,14 +12,14 @@
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
     "consoleOutputMode": 0,
-    "nDataOutC": 100,
+    "nDataOutC": 10,
     "nDataOut": 100,
     "nDataOutCInternal": 100,
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
     "CFL": 10,
-    "dtImplicit": 6.25e-5,
+    "dtImplicit": 1e-3,
     "rhsThresholdInternal": 1e-3,
     "useLocalDt": true,
     "useLimiter": true,
@@ -32,12 +32,13 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/UniformDM120.msh",
+    "meshFile": "data/mesh/UniformRT512_Tri.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform128.msh",
         "data/mesh/UniformDM240.msh",
         "data/mesh/UniformDM120.msh",
+        "data/mesh/UniformRT512_Tri.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
         "data/mesh/Uniform/UniformA6_Euler.msh",
         "data/mesh/NACA0012_WIDE_H3_Euler.msh",
@@ -48,8 +49,8 @@
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
         "data/mesh/NACA0012_WIDE_H3G_NS.msh"
     ],
-    "outPltName": "data/out/test_Euler_.UniformDM120_3WBAP_NN_TW0_BDF2_3200",
-    "outLogName": "data/out/test_Euler_.UniformDM120",
+    "outPltName": "data/out/test_Euler_.UniformRT512_Tri",
+    "outLogName": "data/out/test_Euler_.UniformRT512_Tri",
     "err_dMax": 0.00,
     "res_base": 0,
     "vfvSetting": {
@@ -58,7 +59,7 @@
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
         "anistropicLengths": false,
-        "tangWeight": 0,
+        "tangWeight": 0.00,
         "wallWeight": 0.5,
         "farWeight": 1,
         "weightSchemeGeom": "None",
@@ -89,23 +90,19 @@
         "ekCutDown": 0.5,
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
-            1.4,
+            2,
             0,
             0,
             0,
-            2.5
+            1
         ],
         "boxInitializerValue": [],
-        "planeInitializerValue": [
-            -1,
-            0.577350269189626,
+        "planeInitializerValue": [],
+        "specialBuiltinInitializer": 1,
+        "constMassForce": [
             0,
-            0.166666666666667,
-            8,
-            57.157676649772960,
-            -33,
-            0,
-            5.635e2
+            1,
+            0
         ],
         "comment_farSatic": [
             [

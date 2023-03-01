@@ -43,7 +43,13 @@ namespace DNDS
             // rapidjson::Document *doc = nullptr;
             // rapidjson::Value::Object obj;
             // std::vector<std::string> prefix;
-            typedef std::tuple<ItemType, void *, std::string, tFPost> listComponent;
+            public:
+            static const uint32_t FLAG_MANDATORY = 0x00000001U;
+            static const uint32_t FLAG_NULL = 0U;
+            static const uint32_t FLAG_DEFAULT = FLAG_MANDATORY;
+            private:
+
+            typedef std::tuple<ItemType, void *, std::string, tFPost, uint32_t> listComponent;
             std::vector<listComponent> list;
 
         public:
@@ -73,44 +79,44 @@ namespace DNDS
             }
 
             void AddObject(
-                const std::string &name, ParamParser *pParser, const tFPost &post = []() {})
+                const std::string &name, ParamParser *pParser, const tFPost &post = []() {}, uint32_t flag = FLAG_DEFAULT)
             {
                 // std::vector<std::string> newPrefix = prefix;
                 // newPrefix.push_back(name);
 
                 // assert(obj[name.c_str()].IsObject());
                 // ParamParser *pParser = new ParamParser(obj[name.c_str()].GetObject(), mpi);
-                list.push_back(std::make_tuple(Object, (void *)(pParser), name, post));
+                list.push_back(std::make_tuple(Object, (void *)(pParser), name, post, flag));
             }
 
             void AddInt(
-                const std::string &name, int *dest, const tFPost &post = []() {})
+                const std::string &name, int *dest, const tFPost &post = []() {}, uint32_t flag = FLAG_DEFAULT)
             {
-                list.push_back(std::make_tuple(ItemType::Int, (void *)(dest), name, post));
+                list.push_back(std::make_tuple(ItemType::Int, (void *)(dest), name, post, flag));
             }
 
             void AddDNDS_Real(
-                const std::string &name, real *dest, const tFPost &post = []() {})
+                const std::string &name, real *dest, const tFPost &post = []() {}, uint32_t flag = FLAG_DEFAULT)
             {
-                list.push_back(std::make_tuple(ItemType::DNDS_Real, (void *)(dest), name, post));
+                list.push_back(std::make_tuple(ItemType::DNDS_Real, (void *)(dest), name, post, flag));
             }
 
             void AddBool(
-                const std::string &name, bool *dest, const tFPost &post = []() {})
+                const std::string &name, bool *dest, const tFPost &post = []() {}, uint32_t flag = FLAG_DEFAULT)
             {
-                list.push_back(std::make_tuple(ItemType::Bool, (void *)(dest), name, post));
+                list.push_back(std::make_tuple(ItemType::Bool, (void *)(dest), name, post, flag));
             }
 
             void Addstd_String(
-                const std::string &name, std::string *dest, const tFPost &post = []() {})
+                const std::string &name, std::string *dest, const tFPost &post = []() {}, uint32_t flag = FLAG_DEFAULT)
             {
-                list.push_back(std::make_tuple(ItemType::std_String, (void *)(dest), name, post));
+                list.push_back(std::make_tuple(ItemType::std_String, (void *)(dest), name, post, flag));
             }
 
             void AddEigen_RealVec(
-                const std::string &name, Eigen::VectorXd *dest, const tFPost &post = []() {})
+                const std::string &name, Eigen::VectorXd *dest, const tFPost &post = []() {}, uint32_t flag = FLAG_DEFAULT)
             {
-                list.push_back(std::make_tuple(ItemType::Eigen_RealVec, (void *)(dest), name, post));
+                list.push_back(std::make_tuple(ItemType::Eigen_RealVec, (void *)(dest), name, post, flag));
             }
 
             void Parse(const rapidjson::Value::Object &cObj, int iden);

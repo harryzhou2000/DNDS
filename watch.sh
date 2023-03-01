@@ -6,4 +6,4 @@ if [[ $# -gt 0 ]]; then
 fi
 
 
-watch -cn${NSEE} tail -n40 log.txt 
+watch -cn${NSEE} tail -n20 log.txt 

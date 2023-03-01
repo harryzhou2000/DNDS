@@ -1,4 +1,4 @@
-#include"DNDS_Scripting.hpp"
+#include "DNDS_Scripting.hpp"
 
 namespace DNDS
 {
@@ -6,12 +6,15 @@ namespace DNDS
     {
         void ParamParser::Parse(const rapidjson::Value::Object &cObj, int iden)
         {
-            for (auto &i : list)
+            auto processListComponent =
+                [&](listComponent &i)
             {
                 auto type = std::get<0>(i);
                 auto ptr = std::get<1>(i);
                 auto &name = std::get<2>(i);
                 auto &post = std::get<3>(i);
+                auto &flag = std::get<4>(i);
+                bool mandatory = static_cast<bool>(flag & FLAG_MANDATORY);
                 switch (type)
                 {
                 case ItemType::Object:
@@ -20,16 +23,24 @@ namespace DNDS
                     if (!cObj.HasMember(name.c_str()) ||
                         !(cObj[name.c_str()].IsObject()))
                     {
-                        log() << "JSON: ";
-                        for (int den = 0; den < iden; den++)
-                            log() << "    ";
-                        log() << name << std::endl;
-                        log() << "=== !! Failed !! not object ===" << std::endl;
-                        assert(false);
+                        if (mandatory)
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not object ===" << std::endl;
+                            assert(false);
+                        }
+                        else
+                        {
+                            return;
+                        }
                     }
 
                     if (mpi.rank == 0)
                     {
+
                         log() << "JSON: ";
                         for (int den = 0; den < iden; den++)
                             log() << "    ";
@@ -45,12 +56,19 @@ namespace DNDS
                     if (!cObj.HasMember(name.c_str()) ||
                         !(cObj[name.c_str()].IsInt()))
                     {
-                        log() << "JSON: ";
-                        for (int den = 0; den < iden; den++)
-                            log() << "    ";
-                        log() << name << std::endl;
-                        log() << "=== !! Failed !! not int ===" << std::endl;
-                        assert(false);
+                        if (mandatory)
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not int ===" << std::endl;
+                            assert(false);
+                        }
+                        else
+                        {
+                            return;
+                        }
                     }
                     *dest = cObj[name.c_str()].GetInt();
                     if (mpi.rank == 0)
@@ -68,12 +86,19 @@ namespace DNDS
                     if (!cObj.HasMember(name.c_str()) ||
                         !(cObj[name.c_str()].IsNumber()))
                     {
-                        log() << "JSON: ";
-                        for (int den = 0; den < iden; den++)
-                            log() << "    ";
-                        log() << name << std::endl;
-                        log() << "=== !! Failed !! not real ===" << std::endl;
-                        assert(false);
+                        if (mandatory)
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not real ===" << std::endl;
+                            assert(false);
+                        }
+                        else
+                        {
+                            return;
+                        }
                     }
                     *dest = cObj[name.c_str()].GetDouble();
                     if (mpi.rank == 0)
@@ -91,12 +116,19 @@ namespace DNDS
                     if (!cObj.HasMember(name.c_str()) ||
                         !(cObj[name.c_str()].IsBool()))
                     {
-                        log() << "JSON: ";
-                        for (int den = 0; den < iden; den++)
-                            log() << "    ";
-                        log() << name << std::endl;
-                        log() << "=== !! Failed !! not bool ===" << std::endl;
-                        assert(false);
+                        if (mandatory)
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not bool ===" << std::endl;
+                            assert(false);
+                        }
+                        else
+                        {
+                            return;
+                        }
                     }
                     *dest = cObj[name.c_str()].GetBool();
                     if (mpi.rank == 0)
@@ -114,12 +146,19 @@ namespace DNDS
                     if (!cObj.HasMember(name.c_str()) ||
                         !(cObj[name.c_str()].IsArray()))
                     {
-                        log() << "JSON: ";
-                        for (int den = 0; den < iden; den++)
-                            log() << "    ";
-                        log() << name << std::endl;
-                        log() << "=== !! Failed !! not array ===" << std::endl;
-                        assert(false);
+                        if (mandatory)
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not array ===" << std::endl;
+                            assert(false);
+                        }
+                        else
+                        {
+                            return;
+                        }
                     }
                     const auto &arr = cObj[name.c_str()].GetArray();
                     dest->resize(arr.Size());
@@ -146,12 +185,19 @@ namespace DNDS
                     if (!cObj.HasMember(name.c_str()) ||
                         !(cObj[name.c_str()].IsString()))
                     {
-                        log() << "JSON: ";
-                        for (int den = 0; den < iden; den++)
-                            log() << "    ";
-                        log() << name << std::endl;
-                        log() << "=== !! Failed !! not string ===" << std::endl;
-                        assert(false);
+                        if (mandatory)
+                        {
+                            log() << "JSON: ";
+                            for (int den = 0; den < iden; den++)
+                                log() << "    ";
+                            log() << name << std::endl;
+                            log() << "=== !! Failed !! not string ===" << std::endl;
+                            assert(false);
+                        }
+                        else
+                        {
+                            return;
+                        }
                     }
                     *dest = cObj[name.c_str()].GetString();
                     if (mpi.rank == 0)
@@ -169,6 +215,11 @@ namespace DNDS
                     break;
                 }
                 post();
+            };
+
+            for (auto &i : list)
+            {
+                processListComponent(i);
             }
         }
     }
