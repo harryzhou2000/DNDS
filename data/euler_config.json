@@ -76,7 +76,7 @@
         "riemannSolverType": "HLLEP",
         "nTimeFilterPass": 0,
         "idealGasProperty": {
-            "gamma": 1.4,
+            "gamma": 1.66666666,
             "Rgas": 289,
             "muGas": 1e-200
         },

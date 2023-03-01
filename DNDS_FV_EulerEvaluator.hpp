@@ -746,12 +746,48 @@ namespace DNDS
                 }
                 else if (btype == BoundaryType::Special_RTFar)
                 {
-                    URxy = settings.farFieldStaticValue;
+                    Eigen::VectorXd far = settings.farFieldStaticValue;
                     real gamma = settings.idealGasProperty.gamma;
                     if (pPhysics(1) < 0.5)
-                        URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{2, 0, 0, 0, 1.0 / (gamma - 1)};
+                        far({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{2, 0, 0, 0, 1.0 / (gamma - 1)};
                     else
-                        URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{1, 0, 0, 0, 2.5 / (gamma - 1)};
+                        far({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{1, 0, 0, 0, 2.5 / (gamma - 1)};
+                    
+                    real un = ULxy({1, 2, 3}).dot(uNorm) / ULxy(0);
+                    real vsqr = (ULxy({1, 2, 3}) / ULxy(0)).squaredNorm();
+                    real gamma = settings.idealGasProperty.gamma;
+                    real asqr, H, p;
+                    Gas::IdealGasThermal(ULxy(4), ULxy(0), vsqr, gamma, p, asqr, H);
+
+                    assert(asqr >= 0);
+                    real a = std::sqrt(asqr);
+
+                    if (un - a > 0) // full outflow
+                    {
+                        URxy = ULxy;
+                    }
+                    else if (un > 0) //  1 sonic outflow, 1 sonic inflow, other outflow (subsonic out)
+                    {
+                        Eigen::VectorXd farPrimitive, ULxyPrimitive;
+                        Gas::IdealGasThermalConservative2Primitive(far, farPrimitive, gamma);
+                        Gas::IdealGasThermalConservative2Primitive(ULxy, ULxyPrimitive, gamma);
+                        ULxyPrimitive(4) = farPrimitive(4); // using far pressure
+                        Gas::IdealGasThermalPrimitive2Conservative(ULxyPrimitive, URxy, gamma);
+                    }
+                    else if (un + a > 0) //  1 sonic outflow, 1 sonic inflow, other inflow (subsonic in)
+                    {
+                        Eigen::VectorXd farPrimitive, ULxyPrimitive;
+                        Gas::IdealGasThermalConservative2Primitive(far, farPrimitive, gamma);
+                        Gas::IdealGasThermalConservative2Primitive(ULxy, ULxyPrimitive, gamma);
+                        // farPrimitive(0) = ULxyPrimitive(0); // using inner density
+                        farPrimitive(4) = ULxyPrimitive(4); // using inner pressure
+                        Gas::IdealGasThermalPrimitive2Conservative(farPrimitive, URxy, gamma);
+                    }
+                    else // full inflow
+                    {
+                        URxy = settings.farFieldStaticValue;
+                    }
+                    // URxy = settings.farFieldStaticValue; //!override
                 }
                 else
                     assert(false);
