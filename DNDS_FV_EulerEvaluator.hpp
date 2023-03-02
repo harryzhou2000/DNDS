@@ -748,19 +748,28 @@ namespace DNDS
                 {
                     Eigen::VectorXd far = settings.farFieldStaticValue;
                     real gamma = settings.idealGasProperty.gamma;
-                    if (pPhysics(1) < 0.5)
-                        far({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{2, 0, 0, 0, 1.0 / (gamma - 1)};
-                    else
-                        far({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{1, 0, 0, 0, 2.5 / (gamma - 1)};
-                    
                     real un = ULxy({1, 2, 3}).dot(uNorm) / ULxy(0);
                     real vsqr = (ULxy({1, 2, 3}) / ULxy(0)).squaredNorm();
-                    real gamma = settings.idealGasProperty.gamma;
                     real asqr, H, p;
                     Gas::IdealGasThermal(ULxy(4), ULxy(0), vsqr, gamma, p, asqr, H);
 
                     assert(asqr >= 0);
                     real a = std::sqrt(asqr);
+                    real v = -0.025 * a * cos(pPhysics(0) * 8 * pi);
+
+                    if (pPhysics(1) < 0.5)
+                    {
+                        
+                        real rho = 2;
+                        real p = 1;
+                        far({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
+                    }
+                    else
+                    {
+                        real rho = 1;
+                        real p = 2.5;
+                        far({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
+                    }
 
                     if (un - a > 0) // full outflow
                     {
