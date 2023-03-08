@@ -1,9 +1,11 @@
 -include Makefile.arc.in
 
-# export OMPI_CXX=clang++
+ifneq (${NATIVE_ARCH},TH2B)
+export OMPI_CXX=clang++
 # export OMPI_CXX=g++
-# export MPICH_CXX=clang++
+export MPICH_CXX=clang++
 # export MPICH_CXX=g++
+endif
 
 first: what
 
@@ -45,7 +47,8 @@ INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS} -I/PARA/pp089/BIGDATA-2/apps/inclu
 LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -L/PARA/pp089/BIGDATA-2/apps/lib -L/PARA/pp089/BIGDATA-2/apps/lib64 -lmetis -llapacke -lblas
 endif
 
-CXX_COMPILE_FLAGS=${INCLUDE} -std=c++14 -Wall -Wno-comment -Wno-unused-variable -Wno-sign-compare -Wno-unused-but-set-variable -Wno-class-memaccess
+CXX_COMPILE_FLAGS=${INCLUDE} -std=c++17 -Wall \
+ -Wno-comment -Wno-unused-variable -Wno-sign-compare -Wno-unused-but-set-variable -Wno-class-memaccess
 CXX_LINK_FLAGS=${LINK}
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe\
@@ -70,7 +73,7 @@ FLAGS=-g
 # FLAGS=-Og -g
 # FLAGS=-O3 
 FLAGS=-O3 -DNINSERT
-FLAGS=-O3 -DNDEBUG  -DNINSERT
+# FLAGS=-O3 -DNDEBUG  -DNINSERT
 
 
 # FLAGS_FAST=-g

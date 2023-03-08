@@ -224,6 +224,8 @@ namespace DNDS
             auto sonInsert = father->sons.insert(this);
             father->son = this;
             assert(sonInsert.second);
+
+            context = father->context;
         }
         /******************************************************************************************************************************/
 
@@ -517,7 +519,7 @@ namespace DNDS
 
             // phase2.2: be informed of pulled sub-indexer
             // equals to: building pullingSizes and pullingDisps, bytes size and disps of ghost
-            indexer.buildAsGhostAlltoall(indexer, pushingSizes, *pLGhostMapping, mpi); // cascade from father
+            indexer.buildAsGhostAlltoall(father->indexer, pushingSizes, *pLGhostMapping, mpi); // cascade from father
             data.resize(indexer.LengthByte(), 0);                                      // data section must correspond to indexer  // cascade from father
                                                                                        // std::cout << "Resize Ghost" << dataGhost.size() << std::endl;
             commStat.hasGhostIndexer = true;                                           // note that "hasGhostIndexer" means I as son have indexer

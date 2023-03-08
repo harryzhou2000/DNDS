@@ -299,20 +299,19 @@ namespace DNDS
 
 namespace DNDS
 {
-    class ArrayDOFV : public ArrayLocal<VarVector>
+    class ArrayDOFV : public ArrayLocal<UniVector>
     {
     public:
-        typedef ArrayLocal<VarVector> base;
-        using ArrayLocal<VarVector>::ArrayLocal;
+        typedef ArrayLocal<UniVector> base;
+        using ArrayLocal<UniVector>::ArrayLocal;
         ArrayDOFV() {}
         ArrayDOFV(index distSize, const MPIInfo &mpi, index vecSize)
         {
-            base::dist = std::make_shared<Array<VarVector>>(
-                typename VarVector::Context([&](index i)
-                                            { return vecSize; },
-                                            distSize),
+            base::dist = std::make_shared<Array<UniVector>>(
+                typename UniVector::Context(
+                                            distSize, vecSize),
                 mpi);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p().setZero(); });
         }
 
@@ -320,30 +319,28 @@ namespace DNDS
         {
             assert(base::dist);
             MPIInfo mpi = base::dist->getMPI();
-            base::dist = std::make_shared<Array<VarVector>>(
-                typename VarVector::Context([&](index i)
-                                            { return vecSize; },
-                                            nsize),
+            base::dist = std::make_shared<Array<UniVector>>(
+                typename UniVector::Context(
+                                            nsize, vecSize),
                 mpi);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p().setZero(); });
         }
 
         void resize(index nsize, const MPIInfo &mpi, index vecSize)
         {
-            base::dist = std::make_shared<Array<VarVector>>(
-                typename VarVector::Context([&](index i)
-                                            { return vecSize; },
-                                            nsize),
+            base::dist = std::make_shared<Array<UniVector>>(
+                typename UniVector::Context(
+                                            nsize, vecSize),
                 mpi);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p().setZero(); });
         }
 
         void setConstant(real v)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p().setConstant(v); });
         }
 
@@ -351,41 +348,41 @@ namespace DNDS
         void setConstant(const Tin &in)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p() = in; });
         }
 
         void operator=(const ArrayDOFV &R)
         {
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p() = (*R.dist)[i].p(); });
         }
 
         void operator+=(const ArrayDOFV &R)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p() += (*R.dist)[i].p(); });
         }
 
         void addTo(const ArrayDOFV &R, real r)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p() += (*R.dist)[i].p() * r; });
         }
 
         void operator-=(const ArrayDOFV &R)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p() -= (*R.dist)[i].p(); });
         }
 
         void operator*=(real r)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p() *= r; });
         }
 
@@ -393,7 +390,7 @@ namespace DNDS
         void operator*=(const VR &R)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { e.p() *= R[i]; });
         }
 
@@ -405,7 +402,7 @@ namespace DNDS
         {
             assert(base::dist);
             real sqrSum{0}, sqrSumAll;
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { sqrSum += e.p().squaredNorm(); });
             MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
             // std::cout << "norm2is " << std::scientific << sqrSumAll << std::endl;
@@ -416,7 +413,7 @@ namespace DNDS
         {
             assert(base::dist);
             real sqrSum{0}, sqrSumAll;
-            forEachInArray(*base::dist, [&](VarVector &e, index i)
+            forEachInArray(*base::dist, [&](UniVector &e, index i)
                            { sqrSum += e.p().dot((*R.dist)[i].p()); });
             MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
             return sqrSumAll;

@@ -39,7 +39,8 @@ namespace DNDS
 
             index Length;
 
-            Context() : Length(indexMin){};
+            Context() : Length(indexMin){}
+            // Context(const Context &r); // * use default
             Context(index nLength) : Length(nLength) {}
         };
 
@@ -133,6 +134,129 @@ namespace DNDS
     std::string Batch<T, Bsize>::Context::Tname = Batch<T, Bsize>::Tname + " Context";
 }
 
+// A constant size of batch of Ts, DNDS component type
+namespace DNDS
+{
+    template <class T>
+    class UniBatch
+    {
+    protected:
+        T *data;
+        index Bsize;
+
+    public:
+        static std::string Tname;                                    // array-component-must-have
+        typedef std::function<void(T *, index, index)> fInitializer; //(T* data, index size, index place)
+        typedef T tElement;                                          // array-component-must-have
+
+        struct Context
+        {
+            static std::string Tname;    // array-component-must-have
+            bool needInitialize = false; // array-component-must-have
+            fInitializer fInit;          // array-component-must-have
+
+            index Length;
+            index Bsize;
+
+            Context() : Length(indexMin), Bsize(-1){}
+            // Context(const Context &r); // * use default
+            Context(index nLength, index nBsize) : Length(nLength), Bsize(nBsize) {}
+        };
+
+        struct Indexer
+        {
+            index Length;
+            index BsizeByte;
+            static std::string Tname;
+
+            Indexer() : Length(indexMin) {} // null constructor
+            Indexer(const Context &context) : Length(context.Length), BsizeByte(context.Bsize * sizeof(T)) {}
+
+            /// \brief returns start index and length in byte
+            constexpr inline std::tuple<index, index> operator[](index i) const
+            {
+                assert(i < Length);
+                assert(i >= 0);
+                return std::make_tuple<index, index>(index(BsizeByte * i), index(BsizeByte));
+            }
+
+            /// \brief returns start index in byte
+            constexpr inline index operator()(index i) const
+            {
+                assert(i <= Length);
+                assert(i >= 0);
+                return index(BsizeByte * i);
+            }
+
+            /// \brief returns the overall length in byte, allows past-the end input
+            constexpr inline int LengthByte() const { return Length * BsizeByte; }
+
+            // LGhostMapping is actually const here
+            void buildAsGhostAlltoall(const Indexer &indexer, const tMPI_intVec &pushingSizes, // pushingSizes in in bytes
+                                      OffsetAscendIndexMapping &LGhostMapping,                 // pulling side structure
+                                      const MPIInfo &mpi)
+            {
+                BsizeByte = indexer.BsizeByte;
+                for (auto i : pushingSizes)
+                {
+                    assert(BsizeByte == i);
+                }
+                assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
+                Length = LGhostMapping.ghostStart[LGhostMapping.ghostStart.size() - 1];
+                // already know that all pushing sizes of all ranks are Bsize
+            }
+        };
+
+        UniBatch()
+        {
+            data = nullptr;
+        }
+
+        UniBatch(uint8_t *dataPos, index size, const Context &context, index i)
+        {
+            ConstructOn(dataPos, size, context, i);
+        }
+
+        inline void ConstructOn(uint8_t *dataPos, index size, const Context &context, index i)
+        {
+            data = (T *)(dataPos);
+            // Bsize = size / sizeof(T);
+            Bsize = context.Bsize;
+            // std::cout << Bsize << " " << size << " " << context.Bsize << std::endl;
+        }
+
+        T &operator[](uint32_t i)
+        {
+            assert(i >= 0 && i < Bsize);
+            return data[i];
+        }
+
+        const T &operator[](uint32_t i) const
+        {
+            assert(i >= 0 && i < Bsize);
+            return data[i];
+        }
+
+        index size() const { return Bsize; }
+
+        friend std::ostream &operator<<(std::ostream &out, const UniBatch &rb)
+        {
+            for (uint32_t i = 0; i < rb.Bsize; i++)
+                out << rb.data[i] << outputDelim;
+            return out;
+        }
+    };
+
+    template <class T>
+    std::string UniBatch<T>::Tname = std::string(typeid(T).name()) + " UniBatch<>";
+
+    template <class T>
+    std::string UniBatch<T>::Indexer::Tname = UniBatch<T>::Tname + " Indexer";
+
+    template <class T>
+    std::string UniBatch<T>::Context::Tname = UniBatch<T>::Tname + " Context";
+}
+
 // A varied size of batch of Ts, DNDS component type
 namespace DNDS
 {
@@ -174,7 +298,8 @@ namespace DNDS
             index Length;
             tpRowstart pRowstart; // unit in bytes
 
-            Context() : Length(indexMin){};
+            Context() : Length(indexMin){}
+            // Context(const Context &r); // * use default
 
             // initializing using rowstart table unit in bytes
             // dummy int to not confuse with the moving constructor

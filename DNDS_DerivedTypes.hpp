@@ -60,6 +60,22 @@ namespace DNDS
         }
     };
 
+    class UniVector : public UniBatch<real>
+    {
+    public:
+        using UniBatch<real>::UniBatch;
+        Eigen::Map<Eigen::Vector<real, -1>> p()
+        {
+            return Eigen::Map<Eigen::Vector<real, -1>>(data, Bsize);
+        }
+
+        Eigen::Map<Eigen::Matrix<real, -1, -1>> m_by_ncol(index ncol)
+        {
+            // assert(Bsize % ncol == 0);
+            return Eigen::Map<Eigen::Matrix<real, -1, -1>>(data, Bsize/ncol, ncol);
+        }
+    };
+
     // mat size of var * vsize
     template <uint32_t vsize>
     class SemiVarMatrix : public VarBatch<real>
