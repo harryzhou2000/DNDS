@@ -282,6 +282,7 @@ namespace DNDS
 
         InsertCheck(u.dist->getMPI(), "EvaluateRHS After Flux");
 
+#ifndef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
         for (index iCell = 0; iCell < jacobianCellSourceDiag.size(); iCell++) // force zero source jacobian
             jacobianCellSourceDiag[iCell].setZero();
 
@@ -337,6 +338,7 @@ namespace DNDS
             rhs[iCell] += sourceV(Eigen::seq(0, cnvars - 1)) / fv->volumeLocal[iCell];
             jacobianCellSourceDiag[iCell] = sourceV(Eigen::seq(cnvars, 2 * cnvars - 1)) / fv->volumeLocal[iCell];
         }
+#endif
         InsertCheck(u.dist->getMPI(), "EvaluateRHS -1");
     }
 
@@ -688,9 +690,11 @@ namespace DNDS
             }
             jacobianCell[iCell] *= fpDivisor; //! all passive vars use same diag for flux part
 
+#ifndef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
             // jacobian diag
 
             jacobianCell[iCell] += alphaDiag * jacobianCellSourceDiag[iCell].asDiagonal();
+#endif
 
 
             //! assuming diagonal here!

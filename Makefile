@@ -1,6 +1,8 @@
-export OMPI_CXX=clang++
+-include Makefile.arc.in
+
+# export OMPI_CXX=clang++
 # export OMPI_CXX=g++
-export MPICH_CXX=clang++
+# export MPICH_CXX=clang++
 # export MPICH_CXX=g++
 
 first: what
@@ -8,6 +10,15 @@ first: what
 CPC=mpicxx.openmpi
 # CPC=mpicxx.mpich
 # CPC=/home/harry/tools/openmpi-4.1.4/BUILD_GCC/bin/mpicxx
+arch:
+ifeq (${NATIVE_ARCH},TH2B)
+	echo "Arch Type TH2B"
+endif
+
+ifeq (${NATIVE_ARCH},TH2B)
+CPC=mpicxx
+endif
+
 
 # MPIINC=-I "C:\Program Files (x86)\Microsoft SDKs\MPI\Include"
 # MPILIB=-L "C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" -lmsmpi
@@ -29,8 +40,10 @@ INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS}
 LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis -llapacke -lopenblas
 
 # for TH2B pp089
-# INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS} -I/PARA/pp089/BIGDATA-2/apps/include
-# LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -L/PARA/pp089/BIGDATA-2/apps/lib -L/PARA/pp089/BIGDATA-2/apps/lib64 -lmetis -llapacke -lblas
+ifeq (${NATIVE_ARCH},TH2B)
+INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS} -I/PARA/pp089/BIGDATA-2/apps/include
+LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -L/PARA/pp089/BIGDATA-2/apps/lib -L/PARA/pp089/BIGDATA-2/apps/lib64 -lmetis -llapacke -lblas
+endif
 
 CXX_COMPILE_FLAGS=${INCLUDE} -std=c++14 -Wall -Wno-comment -Wno-unused-variable -Wno-sign-compare -Wno-unused-but-set-variable -Wno-class-memaccess
 CXX_LINK_FLAGS=${LINK}
@@ -57,7 +70,7 @@ FLAGS=-g
 # FLAGS=-Og -g
 # FLAGS=-O3 
 FLAGS=-O3 -DNINSERT
-# FLAGS=-O3 -DNDEBUG  -DNINSERT
+FLAGS=-O3 -DNDEBUG  -DNINSERT
 
 
 # FLAGS_FAST=-g
@@ -99,7 +112,7 @@ test/testTensor.exe: test/testTensor.cpp SmallTensor.hpp
 	g++ $< -o $@ -std=c++14
 
 
-.PHONY: clean first
+.PHONY: clean first arch
 
 clean:
 	rm -f *.exe *.o *.d

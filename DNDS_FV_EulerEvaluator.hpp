@@ -7,6 +7,8 @@
 #include <iomanip>
 #include <functional>
 
+#define DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
+
 namespace DNDS
 {
     enum EulerModel

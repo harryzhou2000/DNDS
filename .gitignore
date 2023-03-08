@@ -22,3 +22,6 @@ pulldata.sh
 *.log
 *.tmp
 *.zip
+Makefile.arc.in
+running
+

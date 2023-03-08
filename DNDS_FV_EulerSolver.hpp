@@ -651,23 +651,23 @@ namespace DNDS
         {
             InsertCheck(mpi, "Implicit 1 nvars " + std::to_string(nVars));
 
-            ODE::ImplicitSDIRK4DualTimeStep<decltype(u)> ode(
-                u.dist->size(),
-                [&](decltype(u) &data)
-                {
-                    data.resize(u.dist->size(), u.dist->getMPI(), nVars);
-                    data.CreateGhostCopyComm(mesh->cell2faceLocal);
-                    data.InitPersistentPullClean();
-                });
-            // ODE::ImplicitBDFDualTimeStep<decltype(u)> ode(
+            // ODE::ImplicitSDIRK4DualTimeStep<decltype(u)> ode(
             //     u.dist->size(),
             //     [&](decltype(u) &data)
             //     {
             //         data.resize(u.dist->size(), u.dist->getMPI(), nVars);
             //         data.CreateGhostCopyComm(mesh->cell2faceLocal);
             //         data.InitPersistentPullClean();
-            //     },
-            //     3);
+            //     });
+            ODE::ImplicitBDFDualTimeStep<decltype(u)> ode(
+                u.dist->size(),
+                [&](decltype(u) &data)
+                {
+                    data.resize(u.dist->size(), u.dist->getMPI(), nVars);
+                    data.CreateGhostCopyComm(mesh->cell2faceLocal);
+                    data.InitPersistentPullClean();
+                },
+                2);
 
             Linear::GMRES_LeftPreconditioned<decltype(u)> gmres(
                 config.nGmresSpace,
@@ -722,8 +722,8 @@ namespace DNDS
             auto frhs = [&](ArrayDOFV &crhs, ArrayDOFV &cx, int iter, real ct)
             {
                 eval.FixUMaxFilter(cx);
-                cx.StartPersistentPullClean();
-                cx.WaitPersistentPullClean();
+                // cx.StartPersistentPullClean();
+                // cx.WaitPersistentPullClean();
 
                 // for (index iCell = 0; iCell < uOld.size(); iCell++)
                 //     uOld[iCell].m() = uRec[iCell].m();
@@ -874,8 +874,8 @@ namespace DNDS
                 }
                 tLim += MPI_Wtime() - tstartH;
 
-                uRec.StartPersistentPullClean(); //! this also need to update!
-                uRec.WaitPersistentPullClean();
+                // uRec.StartPersistentPullClean(); //! this also need to update!
+                // uRec.WaitPersistentPullClean();
 
                 // }
 
@@ -940,8 +940,8 @@ namespace DNDS
                     if (config.jacobianTypeCode == 0)
                     {
                         eval.UpdateLUSGSForward(alphaDiag, crhs, cx, cxInc, cxInc);
-                        cxInc.StartPersistentPullClean();
-                        cxInc.WaitPersistentPullClean();
+                        // cxInc.StartPersistentPullClean();
+                        // cxInc.WaitPersistentPullClean();
                         eval.UpdateLUSGSBackward(alphaDiag, crhs, cx, cxInc, cxInc);
                         cxInc.StartPersistentPullClean();
                         cxInc.WaitPersistentPullClean();

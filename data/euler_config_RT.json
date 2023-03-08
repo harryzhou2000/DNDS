@@ -1,8 +1,8 @@
 {
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 1,
-    "nTimeStepInternal": 400,
+    "nTimeStep": 3900,
+    "nTimeStepInternal": 40,
     "nSGSIterationInternal": 0,
     "gmresCode": 0,
     "nGmresSpace": 10,
@@ -14,13 +14,13 @@
     "consoleOutputMode": 0,
     "nDataOutC": 100,
     "nDataOut": 100,
-    "nDataOutCInternal": 1000,
+    "nDataOutCInternal": 100,
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
-    "CFL": 10,
-    "dtImplicit": 6.25e-5,
-    "rhsThresholdInternal": 1e-30,
+    "CFL": 100,
+    "dtImplicit": 0.5e-3,
+    "rhsThresholdInternal": 1e-3,
     "useLocalDt": true,
     "useLimiter": false,
     "nPartialLimiterStart": 100,
@@ -32,12 +32,13 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/UniformDM480.msh",
+    "meshFile": "data/mesh/UniformRT512_Tri.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform128.msh",
         "data/mesh/UniformDM240.msh",
         "data/mesh/UniformDM120.msh",
+        "data/mesh/UniformRT512_Tri.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
         "data/mesh/Uniform/UniformA6_Euler.msh",
         "data/mesh/NACA0012_WIDE_H3_Euler.msh",
@@ -48,8 +49,8 @@
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
         "data/mesh/NACA0012_WIDE_H3G_NS.msh"
     ],
-    "outPltName": "data/out/test_Euler_.UniformDM480_Nolim_perftest",
-    "outLogName": "data/out/test_Euler_.UniformDM480_Nolim_perftest",
+    "outPltName": "data/out/test_Euler_.UniformRT512_Tri_RR2_TW10_Nolim",
+    "outLogName": "data/out/test_Euler_.UniformRT512_Tri_RR2_TW10_Nolim",
     "err_dMax": 0.00,
     "res_base": 0,
     "vfvSetting": {
@@ -58,7 +59,7 @@
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
         "anistropicLengths": false,
-        "tangWeight": 0.00,
+        "tangWeight": 1,
         "wallWeight": 0.5,
         "farWeight": 1,
         "weightSchemeGeom": "None",
@@ -75,7 +76,7 @@
         "riemannSolverType": "HLLEP",
         "nTimeFilterPass": 0,
         "idealGasProperty": {
-            "gamma": 1.4,
+            "gamma": 1.666666,
             "Rgas": 289,
             "muGas": 1e-200
         },
@@ -89,23 +90,19 @@
         "ekCutDown": 0.5,
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
-            1.4,
+            2,
             0,
             0,
             0,
-            2.5
+            1
         ],
         "boxInitializerValue": [],
-        "planeInitializerValue": [
-            -1,
-            0.577350269189626,
+        "planeInitializerValue": [],
+        "specialBuiltinInitializer": 1,
+        "constMassForce": [
             0,
-            0.166666666666667,
-            8,
-            57.157676649772960,
-            -33,
-            0,
-            5.635e2
+            1,
+            0
         ],
         "comment_farSatic": [
             [
