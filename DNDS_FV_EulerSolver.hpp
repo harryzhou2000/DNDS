@@ -502,7 +502,7 @@ namespace DNDS
                         }
                         double tstartH = MPI_Wtime();
 
-                        vfv->ReconstructionWBAPLimitFacialV2(
+                        vfv->ReconstructionWBAPLimitFacialV3(
                             cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                             iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                             [&](const auto &UL, const auto &UR, const auto &n) -> auto{
@@ -755,7 +755,7 @@ namespace DNDS
                 {
                     // vfv->ReconstructionWBAPLimitFacial(
                     //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
-                    vfv->ReconstructionWBAPLimitFacialV2(
+                    vfv->ReconstructionWBAPLimitFacialV3(
                         cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                         iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                         [&](const auto &UL, const auto &UR, const auto &n) -> auto{
@@ -1062,7 +1062,13 @@ namespace DNDS
                               << "res \033[91m[" << resRel.transpose() << "]\033[39m   "
                               << "t,dTaumin,CFL \033[92m[" << tsimu << ", " << curDtMin << ", " << CFLNow << "]\033[39m   "
                               << std::setprecision(3) << std::fixed
-                              << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  ";
+                              << "Time [" << telapsed << "]   recTime [" 
+                              << trec << "]   rhsTime [" 
+                              << trhs << "]   commTime [" 
+                              << tcomm << "]  limTime [" 
+                              << tLim << "]  commTime [" 
+                              << tcomm << "]  NTTime [" 
+                              << PerformanceTimer::Instance().getTimer(PerformanceTimer::LimiterB) << "]  ";
                         if (config.consoleOutputMode == 1)
                         {
                             log() << std::setprecision(4) << std::setw(10) << std::scientific

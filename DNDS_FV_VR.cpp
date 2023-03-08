@@ -34,12 +34,12 @@ void DNDS::VRFiniteVolume2D::initIntScheme() //  2-d specific
             switch (eCell.getPspace())
             {
             case Elem::ParamSpace::TriSpace:
-                recAtr.intScheme = Elem::INT_SCHEME_TRI_4;
+                recAtr.intScheme = Elem::INT_SCHEME_TRI_7;
                 recAtr.NDOF = PolynomialNDOF(P_ORDER);
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 break;
             case Elem::ParamSpace::QuadSpace:
-                recAtr.intScheme = Elem::INT_SCHEME_QUAD_9;
+                recAtr.intScheme = Elem::INT_SCHEME_QUAD_16;
                 recAtr.NDOF = PolynomialNDOF(P_ORDER);
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 break;
@@ -65,11 +65,11 @@ void DNDS::VRFiniteVolume2D::initIntScheme() //  2-d specific
             switch (eFace.getPspace())
             {
             case Elem::ParamSpace::LineSpace:
-                recAtr.intScheme = Elem::INT_SCHEME_LINE_3;
+                recAtr.intScheme = Elem::INT_SCHEME_LINE_4;
                 recAtr.NDOF = PolynomialNDOF(P_ORDER);
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 if (atrr.iPhy == BoundaryType::Wall)
-                    recAtr.intScheme = Elem::INT_SCHEME_LINE_3;
+                    recAtr.intScheme = Elem::INT_SCHEME_LINE_4;
                 break;
             default:
                 assert(false);
@@ -308,7 +308,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                                    ip, getCellCenter(iCell), sScale,
                                    baseMoments[iCell],
                                    DiBj);
-                    Eigen::MatrixXd ZeroDs = DiBj({0}, Eigen::seq(1, Eigen::last));
+                    Eigen::MatrixXd ZeroDs = DiBj({0}, Eigen::seq(Eigen::fix<1>, Eigen::last));
                     incA = ZeroDs.transpose() * ZeroDs * (1.0 / FV->volumeLocal[iCell]);
                     incA *= Elem::DiNj2Jacobi(iDiNj, coords)({0, 1}, {0, 1}).determinant();
                 });
@@ -338,10 +338,14 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 // std::cout << LOrth << std::endl;
                 // assert(false);
 
-                cellDiBjCenterBatchElem.m(0)(Eigen::seq(1, Eigen::last), Eigen::seq(1, Eigen::last)) *= LOrth.transpose();
+                cellDiBjCenterBatchElem.m(0)(
+                    Eigen::seq(Eigen::fix<1>, Eigen::last),
+                    Eigen::seq(Eigen::fix<1>, Eigen::last)) *= LOrth.transpose();
                 for (int ig = 0; ig < eCell.getNInt(); ig++)
                 {
-                    cellDiBjGaussBatchElem.m(ig)(Eigen::seq(1, Eigen::last), Eigen::seq(1, Eigen::last)) *= LOrth.transpose();
+                    cellDiBjGaussBatchElem.m(ig)(
+                        Eigen::seq(Eigen::fix<1>, Eigen::last),
+                        Eigen::seq(Eigen::fix<1>, Eigen::last)) *= LOrth.transpose();
                 }
             }
         });

@@ -7,7 +7,13 @@
 #include <iomanip>
 #include <functional>
 
+// #define DNDS_FV_EULEREVALUATOR_SOURCE_TERM_ZERO
 #define DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
+#define DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
+
+#ifdef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM // term dependency
+#define DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
+#endif
 
 namespace DNDS
 {
@@ -51,25 +57,24 @@ namespace DNDS
     template <int nvars_Fixed, int mul>
     constexpr static inline int nvarsFixedMultipy()
     {
-        return nvars_Fixed>0?nvars_Fixed*mul:-1;
+        return nvars_Fixed > 0 ? nvars_Fixed * mul : -1;
     }
 
-    template<EulerModel model>
+    template <EulerModel model>
     class EulerEvaluator
     {
     public:
         static const int nVars_Fixed = getNVars_Fixed(model);
+
     private:
         typedef Eigen::Vector<real, nVars_Fixed> TU;
         typedef Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> TJacobianU;
         typedef Eigen::Matrix<real, 3, nVars_Fixed> TDiffU;
-        typedef Eigen::Matrix<real, nVars_Fixed, 3> TDIffUTransposed; 
+        typedef Eigen::Matrix<real, nVars_Fixed, 3> TDIffUTransposed;
 
         int nVars = 5;
 
         bool passiveDiscardSource = false;
-
-        
 
     public:
         void setPassiveDiscardSource(bool n) { passiveDiscardSource = n; }
@@ -90,9 +95,11 @@ namespace DNDS
         // todo: improve to contiguous
 
         std::vector<Eigen::Vector<real, nVars_Fixed>> jacobianCellSourceDiag;
-        std::vector<Eigen::Matrix<real, nvarsFixedMultipy<nVars_Fixed,2>(), nVars_Fixed>> jacobianFace;
+        std::vector<Eigen::Matrix<real, nvarsFixedMultipy<nVars_Fixed, 2>(), nVars_Fixed>> jacobianFace;
         std::vector<Eigen::Matrix<real, nVars_Fixed, nVars_Fixed>> jacobianCell;
         std::vector<Eigen::Matrix<real, nVars_Fixed, nVars_Fixed>> jacobianCellInv;
+        std::vector<real> jacobianCell_Scalar;
+        std::vector<real> jacobianCellInv_Scalar;
 
         // std::vector<Eigen::Vector<real, nVars_Fixed>> jacobianCellSourceDiag_Fixed;
         // std::vector<Eigen::Matrix<real, nVars_Fixed, nVars_Fixed>> jacobianFace_Fixed;
@@ -173,6 +180,8 @@ namespace DNDS
             jacobianCellInv.resize(lambdaCell.size(), typename decltype(jacobianCellInv)::value_type(nVars, nVars));
             using jacobianCellSourceDiagElemType = typename decltype(jacobianCellSourceDiag)::value_type;
             jacobianCellSourceDiag.resize(lambdaCell.size(), jacobianCellSourceDiagElemType::Zero(nVars)); // zeroed
+            jacobianCell_Scalar.resize(lambdaCell.size());
+            jacobianCellInv_Scalar.resize(lambdaCell.size());
 
             // jacobianFace_Fixed.resize(lambdaFace.size());
             // jacobianCell_Fixed.resize(lambdaCell.size());
@@ -181,11 +190,11 @@ namespace DNDS
             // for (auto &i : jacobianCellSourceDiag_Fixed)
             //     i.setZero();
 
-                // vfv->BuildRec(dRdUrec);
-                // vfv->BuildRec(dRdb);
+            // vfv->BuildRec(dRdUrec);
+            // vfv->BuildRec(dRdb);
 
-                //! wall dist code, to be imporved!!!
-                real maxD = 0.1;
+            //! wall dist code, to be imporved!!!
+            real maxD = 0.1;
             dWall.resize(mesh->cell2nodeLocal.size());
 
             MPIInfo mpi = mesh->mpi;
@@ -270,7 +279,6 @@ namespace DNDS
             std::cout << minResult << " MinWallDist \n";
         }
 
-        
         real muEff(const TU &U)
         {
             return 0. / 0.;
@@ -291,8 +299,6 @@ namespace DNDS
             UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
             UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
             Eigen::VectorXd UMeanXy = 0.5 * (ULxy + URxy);
-            TDiffU VisFlux;
-            VisFlux.resizeLike(DiffUxy);
 
             real pMean, asqrMean, Hmean;
             real gamma = settings.idealGasProperty.gamma;
@@ -309,8 +315,9 @@ namespace DNDS
                            (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
                            (T + settings.idealGasProperty.CSutherland);
 
+#ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
             real fnu1 = 0.;
-            if (model == NS_SA)
+            if constexpr (model == NS_SA)
             {
                 real cnu1 = 7.1;
                 real Chi = UMeanXy(5) * muRef / mufPhy;
@@ -322,6 +329,8 @@ namespace DNDS
             }
 
             real k = settings.idealGasProperty.CpGas * muf / settings.idealGasProperty.prGas;
+            TDiffU VisFlux;
+            VisFlux.resizeLike(DiffUxy);
             VisFlux.setZero();
             Gas::ViscousFlux_IdealGas(UMeanXy, DiffUxy, unitNorm, btype == BoundaryType::Wall_NoSlip,
                                       settings.idealGasProperty.gamma,
@@ -346,6 +355,7 @@ namespace DNDS
                 }
                 VisFlux({0, 1, 2}, {5}) = diffNu * (mufPhy + UMeanXy(5) * muRef * fn) / sigma / muRef;
             }
+#endif
 
             TU finc;
             finc.resizeLike(ULxy);
@@ -392,7 +402,9 @@ namespace DNDS
             }
 
             finc({1, 2, 3}) = normBase * finc({1, 2, 3});
+#ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
             finc -= VisFlux.transpose() * unitNorm;
+#endif
 
             if (finc.hasNaN() || (!finc.allFinite()))
             {
@@ -411,12 +423,17 @@ namespace DNDS
             return -finc;
         }
 
-
         TU source(
             const TU &UMeanXy,
             const TDiffU &DiffUxy,
             index iCell, index ig)
         {
+#ifdef DNDS_FV_EULEREVALUATOR_SOURCE_TERM_ZERO
+            TU ret;
+            ret.resizeLike(UMeanXy);
+            ret.setZero();
+            return ret;
+#endif
             if constexpr (model == NS)
             {
                 Eigen::VectorXd ret;
@@ -540,6 +557,12 @@ namespace DNDS
             const TDiffU &DiffUxy,
             index iCell, index ig)
         {
+#ifdef DNDS_FV_EULEREVALUATOR_SOURCE_TERM_ZERO
+            TU ret;
+            ret.resizeLike(UMeanXy);
+            ret.setZero();
+            return ret;
+#endif
             if constexpr (model == NS)
             {
             }
@@ -655,7 +678,6 @@ namespace DNDS
             return Ret;
         }
 
-
         auto fluxJacobian0_Right(
             TU &UR,
             const Elem::tPoint &uNorm,
@@ -697,7 +719,7 @@ namespace DNDS
 
             real un = rhoun / U(0);
 
-            if constexpr(model == NS_SA)
+            if constexpr (model == NS_SA)
             {
                 subFdU(5, 5) = un;
                 subFdU(5, 0) = -un * U(5) / U(0);
@@ -814,7 +836,7 @@ namespace DNDS
 
                     if (pPhysics(1) < 0.5)
                     {
-                        
+
                         real rho = 2;
                         real p = 1;
                         far({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
@@ -882,7 +904,6 @@ namespace DNDS
             return URxy;
         }
 
-
         inline TU CompressRecPart(
             const TU &umean,
             const TU &uRecInc)
@@ -924,7 +945,7 @@ namespace DNDS
             if (e <= 0 || ret(0) <= 0)
                 ret = umean;
             if constexpr (model == NS_SA)
-                if(ret(5) < 0)
+                if (ret(5) < 0)
                     ret = umean;
 
             return ret;
@@ -932,7 +953,7 @@ namespace DNDS
 
         inline TU CompressInc(
             const TU &u,
-            const TU&uInc,
+            const TU &uInc,
             const TU &rhs)
         {
             TU ret = uInc;

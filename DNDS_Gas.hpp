@@ -8,57 +8,64 @@ namespace DNDS
     namespace Gas
     {
         typedef Eigen::Vector3d tVec;
+        typedef Eigen::Vector2d tVec2;
 
         /**
          * @brief 3D only warning: ReV should be already initialized
          *
          */
-        template <typename TeV>
-        inline void EulerGasRightEigenVector(const tVec &velo, real Vsqr, real H, real a, TeV &ReV)
+        template <int dim = 3, class TVec, class TeV>
+        inline void EulerGasRightEigenVector(const TVec &velo, real Vsqr, real H, real a, TeV &ReV)
         {
             ReV.setZero();
-            ReV(0, 0) = ReV(0, 1) = ReV(2, 2) = ReV(3, 3) = ReV(0, 4) = 1;
+            ReV(0, {0, 1, dim + 1}).setConstant(1);
+            ReV(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>), Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>))
+                .diagonal()
+                .setConstant(1);
 
-            ReV({1, 2, 3}, 0) = ReV({1, 2, 3}, 1) = ReV({1, 2, 3}, 4) = velo;
+            ReV(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>), {0, 1, 4}).colwise() = velo;
             ReV(1, 0) -= a;
-            ReV(1, 4) += a;
+            ReV(1, dim + 1) += a;
 
             // Last Row
-            ReV(4, 0) = H - velo(0) * a;
-            ReV(4, 4) = H + velo(0) * a;
-            ReV(4, 1) = 0.5 * Vsqr;
-            ReV(4, 2) = velo(1);
-            ReV(4, 3) = velo(2);
+            ReV(dim + 1, 0) = H - velo(0) * a;
+            ReV(dim + 1, dim + 1) = H + velo(0) * a;
+            ReV(dim + 1, 1) = 0.5 * Vsqr;
+
+            ReV(dim + 1, Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) =
+                velo(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>));
         }
 
         /**
          * @brief 3D only warning: LeV should be already initialized
          *
          */
-        template <typename TeV>
-        inline void EulerGasLeftEigenVector(const tVec &velo, real Vsqr, real H, real a, real gamma, TeV &LeV)
+        template <int dim = 3, class TVec, class TeV>
+        inline void EulerGasLeftEigenVector(const TVec &velo, real Vsqr, real H, real a, real gamma, TeV &LeV)
         {
             LeV.setZero();
             real gammaBar = gamma - 1;
             LeV(0, 0) = H + a / gammaBar * (velo(0) - a);
             LeV(0, 1) = -velo(0) - a / gammaBar;
-            LeV(0, 2) = -velo(1), LeV(0, 3) = -velo(2);
-            LeV(0, 4) = 1;
+            LeV(0, Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) =
+                -velo(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>));
+            LeV(0, dim + 1) = 1;
 
             LeV(1, 0) = -2 * H + 4 / gammaBar * (a * a);
-            LeV(1, {1, 2, 3}) = velo.transpose() * 2;
-            LeV(1, 4) = -2;
+            LeV(1, Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) = velo.transpose() * 2;
+            LeV(1, dim + 1) = -2;
 
-            LeV(2, 0) = -2 * velo(1) * (a * a) / gammaBar;
-            LeV(2, 2) = 2 * (a * a) / gammaBar;
+            LeV(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>), 0) =
+                velo(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>)) * (-2 * (a * a) / gammaBar);
+            LeV(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>), Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>))
+                .diagonal()
+                .setConstant(2 * (a * a) / gammaBar);
 
-            LeV(3, 0) = -2 * velo(2) * (a * a) / gammaBar;
-            LeV(3, 3) = 2 * (a * a) / gammaBar;
-
-            LeV(4, 0) = H - a / gammaBar * (velo(0) + a);
-            LeV(4, 1) = -velo(0) + a / gammaBar;
-            LeV(4, 2) = -velo(1), LeV(4, 3) = -velo(2);
-            LeV(4, 4) = 1;
+            LeV(dim + 1, 0) = H - a / gammaBar * (velo(0) + a);
+            LeV(dim + 1, 1) = -velo(0) + a / gammaBar;
+            LeV(dim + 1, Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) =
+                -velo(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>));
+            LeV(dim + 1, dim + 1) = 1;
 
             LeV *= gammaBar / (2 * a * a);
         }
@@ -71,17 +78,17 @@ namespace DNDS
             H = (E + p) / rho;
         }
 
-        template <class TCons, class TPrim>
+        template <int dim = 3, class TCons, class TPrim>
         inline void IdealGasThermalConservative2Primitive(
             const TCons &U, TPrim &prim, real gamma)
         {
             prim = U / U(0);
-            real vSqr = (U({1, 2, 3}) / U(0)).squaredNorm();
+            real vSqr = (U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) / U(0)).squaredNorm();
             real rho = U(0);
-            real E = U(4);
+            real E = U(1 + dim);
             real p = (gamma - 1) * (E - rho * 0.5 * vSqr);
             prim(0) = rho;
-            prim(4) = p;
+            prim(1 + dim) = p;
             assert(rho > 0);
         }
 
@@ -90,7 +97,7 @@ namespace DNDS
             const TPrim &prim, TCons &U, real gamma)
         {
             U = prim * prim(0);
-            real vSqr = prim({1,2,3}).squaredNorm();
+            real vSqr = prim({1, 2, 3}).squaredNorm();
             real rho = prim(0);
             real p = prim(4);
             real E = p / (gamma - 1) + rho * 0.5 * vSqr;
@@ -569,7 +576,7 @@ namespace DNDS
             real p = (gamma - 1) * (U(4) - U(0) * 0.5 * vSqr);
             Eigen::Vector3d GradT = (gamma / ((gamma - 1) * Cp * U(0) * U(0))) *
                                     (U(0) * GradP - p * GradU({0, 1, 2}, 0));
-            if (adiabatic) //!is this fix reasonable?
+            if (adiabatic) //! is this fix reasonable?
                 GradT -= GradT.dot(norm) * norm;
 
             Flux({0, 1, 2}, 0).setZero();

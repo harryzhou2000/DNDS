@@ -1,12 +1,17 @@
 #include <iostream>
 #include "../../Eigen/Dense"
 
-
 // g++ -o testEigen.exe testEigen.cpp
 void testF(Eigen::Ref<Eigen::MatrixXd> a)
 {
     std::cout << "Ref Receive\n"
               << a << std::endl;
+}
+
+template <int a = 1, class T1, class T2>
+void testTempF(T1 m, T2 n)
+{
+    std::cout << a << std::endl;
 }
 
 int main()
@@ -37,6 +42,16 @@ int main()
     std::cout << A << std::endl;
     A.setZero();
     std::cout << A << std::endl;
+
+    testTempF(1, 2);
+
+    testTempF<2>(1., 2);
+
+    testTempF<3>(1, 3.);
+
+    
+    a.diagonal().setConstant(123);
+    std::cout << a << std::endl;
 
     return 0;
 }
