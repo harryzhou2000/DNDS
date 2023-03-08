@@ -17,7 +17,23 @@ namespace DNDS
         NS_SA = 1
     };
 
-    static inline int getNVars(EulerModel model)
+    constexpr static inline int getNVars_Fixed(const EulerModel model)
+    {
+        if (model == NS)
+            return 5;
+        else if (model == NS_SA)
+            return 6;
+        return -1;
+    }
+
+    // constexpr static inline bool ifFixedNvars(EulerModel model)
+    // {
+    //     return (
+    //         model == NS ||
+    //         model == NS_SA);
+    // } // use +/- is ok
+
+    constexpr static inline int getNVars(EulerModel model)
     {
         int nVars = -1;
         switch (model)
@@ -32,12 +48,28 @@ namespace DNDS
         return nVars;
     }
 
+    template <int nvars_Fixed, int mul>
+    constexpr static inline int nvarsFixedMultipy()
+    {
+        return nvars_Fixed>0?nvars_Fixed*mul:-1;
+    }
+
+    template<EulerModel model>
     class EulerEvaluator
     {
+    public:
+        static const int nVars_Fixed = getNVars_Fixed(model);
+    private:
+        typedef Eigen::Vector<real, nVars_Fixed> TU;
+        typedef Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> TJacobianU;
+        typedef Eigen::Matrix<real, 3, nVars_Fixed> TDiffU;
+        typedef Eigen::Matrix<real, nVars_Fixed, 3> TDIffUTransposed; 
+
         int nVars = 5;
-        EulerModel model = NS;
 
         bool passiveDiscardSource = false;
+
+        
 
     public:
         void setPassiveDiscardSource(bool n) { passiveDiscardSource = n; }
@@ -56,10 +88,16 @@ namespace DNDS
         std::vector<Eigen::Matrix<real, 10, 5>> dFdUFace;
 
         // todo: improve to contiguous
-        std::vector<Eigen::Vector<real, -1>> jacobianCellSourceDiag;
-        std::vector<Eigen::Matrix<real, -1, -1>> jacobianFace;
-        std::vector<Eigen::Matrix<real, -1, -1>> jacobianCell;
-        std::vector<Eigen::Matrix<real, -1, -1>> jacobianCellInv;
+
+        std::vector<Eigen::Vector<real, nVars_Fixed>> jacobianCellSourceDiag;
+        std::vector<Eigen::Matrix<real, nvarsFixedMultipy<nVars_Fixed,2>(), nVars_Fixed>> jacobianFace;
+        std::vector<Eigen::Matrix<real, nVars_Fixed, nVars_Fixed>> jacobianCell;
+        std::vector<Eigen::Matrix<real, nVars_Fixed, nVars_Fixed>> jacobianCellInv;
+
+        // std::vector<Eigen::Vector<real, nVars_Fixed>> jacobianCellSourceDiag_Fixed;
+        // std::vector<Eigen::Matrix<real, nVars_Fixed, nVars_Fixed>> jacobianFace_Fixed;
+        // std::vector<Eigen::Matrix<real, nVars_Fixed, nVars_Fixed>> jacobianCell_Fixed;
+        // std::vector<Eigen::Matrix<real, nVars_Fixed, nVars_Fixed>> jacobianCellInv_Fixed;
 
         std::vector<std::vector<real>> dWall;
 
@@ -118,9 +156,8 @@ namespace DNDS
 
         } settings;
 
-        EulerEvaluator(CompactFacedMeshSerialRW *Nmesh, ImplicitFiniteVolume2D *Nfv, VRFiniteVolume2D *Nvfv,
-                       EulerModel nmodel)
-            : model(nmodel), mesh(Nmesh), fv(Nfv), vfv(Nvfv), kAv(Nvfv->P_ORDER + 1)
+        EulerEvaluator(CompactFacedMeshSerialRW *Nmesh, ImplicitFiniteVolume2D *Nfv, VRFiniteVolume2D *Nvfv)
+            : mesh(Nmesh), fv(Nfv), vfv(Nvfv), kAv(Nvfv->P_ORDER + 1)
         {
             nVars = getNVars(model);
 
@@ -131,16 +168,24 @@ namespace DNDS
 
             dFdUFace.resize(lambdaFace.size());
 
-            jacobianFace.resize(lambdaFace.size(), decltype(jacobianFace)::value_type(nVars * 2, nVars));
-            jacobianCell.resize(lambdaCell.size(), decltype(jacobianCell)::value_type(nVars, nVars));
-            jacobianCellInv.resize(lambdaCell.size(), decltype(jacobianCellInv)::value_type(nVars, nVars));
-            jacobianCellSourceDiag.resize(lambdaCell.size(), decltype(jacobianCellSourceDiag)::value_type::Zero(nVars)); // zeroed
+            jacobianFace.resize(lambdaFace.size(), typename decltype(jacobianFace)::value_type(nVars * 2, nVars));
+            jacobianCell.resize(lambdaCell.size(), typename decltype(jacobianCell)::value_type(nVars, nVars));
+            jacobianCellInv.resize(lambdaCell.size(), typename decltype(jacobianCellInv)::value_type(nVars, nVars));
+            using jacobianCellSourceDiagElemType = typename decltype(jacobianCellSourceDiag)::value_type;
+            jacobianCellSourceDiag.resize(lambdaCell.size(), jacobianCellSourceDiagElemType::Zero(nVars)); // zeroed
 
-            // vfv->BuildRec(dRdUrec);
-            // vfv->BuildRec(dRdb);
+            // jacobianFace_Fixed.resize(lambdaFace.size());
+            // jacobianCell_Fixed.resize(lambdaCell.size());
+            // jacobianCellInv_Fixed.resize(lambdaCell.size());
+            // jacobianCellSourceDiag_Fixed.resize(lambdaCell.size()); // zeroed
+            // for (auto &i : jacobianCellSourceDiag_Fixed)
+            //     i.setZero();
 
-            //! wall dist code, to be imporved!!!
-            real maxD = 0.1;
+                // vfv->BuildRec(dRdUrec);
+                // vfv->BuildRec(dRdb);
+
+                //! wall dist code, to be imporved!!!
+                real maxD = 0.1;
             dWall.resize(mesh->cell2nodeLocal.size());
 
             MPIInfo mpi = mesh->mpi;
@@ -225,27 +270,28 @@ namespace DNDS
             std::cout << minResult << " MinWallDist \n";
         }
 
-        real muEff(const Eigen::VectorXd &U)
+        
+        real muEff(const TU &U)
         {
             return 0. / 0.;
         }
 
-        Eigen::VectorXd fluxFace(
-            const Eigen::VectorXd &ULxy,
-            const Eigen::VectorXd &URxy,
-            const Eigen::MatrixXd &DiffUxy,
+        TU fluxFace(
+            const TU &ULxy,
+            const TU &URxy,
+            const TDiffU &DiffUxy,
             const Elem::tPoint &unitNorm,
             const Elem::tJacobi &normBase,
             BoundaryType btype,
-            Setting::RiemannSolverType rsType,
+            typename Setting::RiemannSolverType rsType,
             index iFace, int ig)
         {
-            Eigen::VectorXd UR = URxy;
-            Eigen::VectorXd UL = ULxy;
+            TU UR = URxy;
+            TU UL = ULxy;
             UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
             UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
             Eigen::VectorXd UMeanXy = 0.5 * (ULxy + URxy);
-            Eigen::Matrix<real, 3, -1> VisFlux;
+            TDiffU VisFlux;
             VisFlux.resizeLike(DiffUxy);
 
             real pMean, asqrMean, Hmean;
@@ -283,7 +329,7 @@ namespace DNDS
                                       k,
                                       settings.idealGasProperty.CpGas,
                                       VisFlux);
-            if (model == NS_SA)
+            if constexpr (model == NS_SA)
             {
                 real sigma = 2. / 3.;
                 real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) + UR(1)) * 0.5;
@@ -301,7 +347,7 @@ namespace DNDS
                 VisFlux({0, 1, 2}, {5}) = diffNu * (mufPhy + UMeanXy(5) * muRef * fn) / sigma / muRef;
             }
 
-            Eigen::VectorXd finc;
+            TU finc;
             finc.resizeLike(ULxy);
 
             // std::cout << "HERE" << std::endl;
@@ -336,7 +382,7 @@ namespace DNDS
                 assert(false);
             // std::cout << "HERE2" << std::endl;
 
-            if (model == NS_SA)
+            if constexpr (model == NS_SA)
             {
                 // real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
                 real lambdaFaceC = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5; //! using velo instead of velo + a
@@ -365,12 +411,13 @@ namespace DNDS
             return -finc;
         }
 
-        Eigen::VectorXd source(
-            const Eigen::VectorXd &UMeanXy,
-            const Eigen::MatrixXd &DiffUxy,
+
+        TU source(
+            const TU &UMeanXy,
+            const TDiffU &DiffUxy,
             index iCell, index ig)
         {
-            if (model == NS)
+            if constexpr (model == NS)
             {
                 Eigen::VectorXd ret;
                 ret.resizeLike(UMeanXy);
@@ -378,7 +425,7 @@ namespace DNDS
                 ret({1, 2, 3}) = settings.constMassForce * UMeanXy(0);
                 return ret;
             }
-            else if (model == NS_SA)
+            else if constexpr (model == NS_SA)
             {
                 real d = std::min(dWall[iCell][ig], std::pow(veryLargeReal, 1. / 6.));
                 real cb1 = 0.1355;
@@ -452,7 +499,7 @@ namespace DNDS
                     D = -cw1 * sqr(nuh / d);
                 }
 
-                Eigen::VectorXd ret;
+                TU ret;
                 ret.resizeLike(UMeanXy);
                 ret.setZero();
                 ret({1, 2, 3}) = settings.constMassForce * UMeanXy(0);
@@ -488,15 +535,15 @@ namespace DNDS
         }
 
         // zeroth means needs not derivative
-        Eigen::VectorXd sourceJacobianDiag(
-            const Eigen::VectorXd &UMeanXy,
-            const Eigen::MatrixXd &DiffUxy,
+        TU sourceJacobianDiag(
+            const TU &UMeanXy,
+            const TDiffU &DiffUxy,
             index iCell, index ig)
         {
-            if (model == NS)
+            if constexpr (model == NS)
             {
             }
-            else if (model == NS_SA)
+            else if constexpr (model == NS_SA)
             {
                 real d = std::min(dWall[iCell][ig], std::pow(veryLargeReal, 1. / 6.));
                 real cb1 = 0.1355;
@@ -570,7 +617,7 @@ namespace DNDS
                     D = -cw1 * sqr(nuh / d);
                 }
 
-                Eigen::VectorXd ret;
+                TU ret;
                 ret.resizeLike(UMeanXy);
                 ret.setZero();
 
@@ -602,21 +649,27 @@ namespace DNDS
                 assert(false);
             }
 
-            return Eigen::VectorXd::Zero(UMeanXy.size());
+            TU Ret;
+            Ret.resizeLike(UMeanXy);
+            Ret.setZero();
+            return Ret;
         }
 
-        Eigen::MatrixXd fluxJacobian0_Right(
-            const Eigen::VectorXd &UR,
+
+        auto fluxJacobian0_Right(
+            TU &UR,
             const Elem::tPoint &uNorm,
             BoundaryType btype)
         {
-            const Eigen::VectorXd &U = UR;
+            const TU &U = UR;
             const Elem::tPoint &n = uNorm;
 
             real rhoun = n.dot(U({1, 2, 3}));
             real rhousqr = U({1, 2, 3}).squaredNorm();
             real gamma = settings.idealGasProperty.gamma;
-            Eigen::MatrixXd subFdU(nVars, nVars);
+            TJacobianU subFdU;
+            subFdU.resize(nVars, nVars);
+
             subFdU.setZero();
             subFdU(0, 1) = n(1 - 1);
             subFdU(0, 2) = n(2 - 1);
@@ -644,7 +697,7 @@ namespace DNDS
 
             real un = rhoun / U(0);
 
-            if (model == NS_SA)
+            if constexpr(model == NS_SA)
             {
                 subFdU(5, 5) = un;
                 subFdU(5, 0) = -un * U(5) / U(0);
@@ -655,11 +708,11 @@ namespace DNDS
             return subFdU;
         }
 
-        Eigen::VectorXd fluxJacobian0_Right_Times_du(
-            const Eigen::VectorXd &U,
+        TU fluxJacobian0_Right_Times_du(
+            const TU &U,
             const Elem::tPoint &n,
             BoundaryType btype,
-            const Eigen::VectorXd &dU)
+            const TU &dU)
         {
             real gamma = settings.idealGasProperty.gamma;
             Elem::tPoint velo = U({1, 2, 3}) / U(0);
@@ -668,7 +721,7 @@ namespace DNDS
             Elem::tPoint dVelo;
             real dp;
             Gas::IdealGasUIncrement(U, dU, velo, gamma, dVelo, dp);
-            Eigen::VectorXd dF(U.size());
+            TU dF(U.size());
             Gas::GasInviscidFluxFacialIncrement(U, dU,
                                                 n,
                                                 velo, dVelo,
@@ -681,8 +734,8 @@ namespace DNDS
             return dF;
         }
 
-        Eigen::VectorXd generateBoundaryValue(
-            const Eigen::VectorXd &ULxy,
+        TU generateBoundaryValue(
+            const TU &ULxy,
             const Elem::tPoint &uNorm,
             const Elem::tJacobi &normBase,
             const Elem::tPoint &pPhysics,
@@ -690,7 +743,7 @@ namespace DNDS
             BoundaryType btype)
         {
             assert(ULxy(0) > 0);
-            Eigen::VectorXd URxy;
+            TU URxy;
 
             if (btype == BoundaryType::Farfield ||
                 btype == BoundaryType::Special_DMRFar ||
@@ -698,7 +751,7 @@ namespace DNDS
             {
                 if (btype == BoundaryType::Farfield)
                 {
-                    const Eigen::VectorXd &far = settings.farFieldStaticValue;
+                    const TU &far = settings.farFieldStaticValue;
 
                     real un = ULxy({1, 2, 3}).dot(uNorm) / ULxy(0);
                     real vsqr = (ULxy({1, 2, 3}) / ULxy(0)).squaredNorm();
@@ -715,7 +768,7 @@ namespace DNDS
                     }
                     else if (un > 0) //  1 sonic outflow, 1 sonic inflow, other outflow (subsonic out)
                     {
-                        Eigen::VectorXd farPrimitive, ULxyPrimitive;
+                        TU farPrimitive, ULxyPrimitive;
                         Gas::IdealGasThermalConservative2Primitive(far, farPrimitive, gamma);
                         Gas::IdealGasThermalConservative2Primitive(ULxy, ULxyPrimitive, gamma);
                         ULxyPrimitive(4) = farPrimitive(4); // using far pressure
@@ -723,7 +776,7 @@ namespace DNDS
                     }
                     else if (un + a > 0) //  1 sonic outflow, 1 sonic inflow, other inflow (subsonic in)
                     {
-                        Eigen::VectorXd farPrimitive, ULxyPrimitive;
+                        TU farPrimitive, ULxyPrimitive;
                         Gas::IdealGasThermalConservative2Primitive(far, farPrimitive, gamma);
                         Gas::IdealGasThermalConservative2Primitive(ULxy, ULxyPrimitive, gamma);
                         // farPrimitive(0) = ULxyPrimitive(0); // using inner density
@@ -779,7 +832,7 @@ namespace DNDS
                     }
                     else if (un > 0) //  1 sonic outflow, 1 sonic inflow, other outflow (subsonic out)
                     {
-                        Eigen::VectorXd farPrimitive, ULxyPrimitive;
+                        TU farPrimitive, ULxyPrimitive;
                         Gas::IdealGasThermalConservative2Primitive(far, farPrimitive, gamma);
                         Gas::IdealGasThermalConservative2Primitive(ULxy, ULxyPrimitive, gamma);
                         ULxyPrimitive(4) = farPrimitive(4); // using far pressure
@@ -787,7 +840,7 @@ namespace DNDS
                     }
                     else if (un + a > 0) //  1 sonic outflow, 1 sonic inflow, other inflow (subsonic in)
                     {
-                        Eigen::VectorXd farPrimitive, ULxyPrimitive;
+                        TU farPrimitive, ULxyPrimitive;
                         Gas::IdealGasThermalConservative2Primitive(far, farPrimitive, gamma);
                         Gas::IdealGasThermalConservative2Primitive(ULxy, ULxyPrimitive, gamma);
                         // farPrimitive(0) = ULxyPrimitive(0); // using inner density
@@ -829,9 +882,10 @@ namespace DNDS
             return URxy;
         }
 
-        inline Eigen::Vector<real, -1> CompressRecPart(
-            const Eigen::Vector<real, -1> &umean,
-            const Eigen::Vector<real, -1> &uRecInc)
+
+        inline TU CompressRecPart(
+            const TU &umean,
+            const TU &uRecInc)
         {
 
             // if (umean(0) + uRecInc(0) < 0)
@@ -864,25 +918,25 @@ namespace DNDS
             // ret(4) = e + Ek;
             // // * Compress Method
 
-            Eigen::Vector<real, -1> ret = umean + uRecInc;
+            TU ret = umean + uRecInc;
             real eK = ret({1, 2, 3}).squaredNorm() * 0.5 / (verySmallReal + std::abs(ret(0)));
             real e = ret(4) - eK;
             if (e <= 0 || ret(0) <= 0)
                 ret = umean;
-            if (model == NS_SA && ret(5) < 0)
-                ret = umean;
+            if constexpr (model == NS_SA)
+                if(ret(5) < 0)
+                    ret = umean;
 
             return ret;
         }
 
-        inline Eigen::Vector<real, -1> CompressInc(
-            const Eigen::Vector<real, -1> &u,
-            const Eigen::Vector<real, -1> &uInc,
-            const Eigen::Vector<real, -1> &rhs)
+        inline TU CompressInc(
+            const TU &u,
+            const TU&uInc,
+            const TU &rhs)
         {
-
-            Eigen::Vector<real, -1> ret = uInc;
-            if (model == NS_SA)
+            TU ret = uInc;
+            if constexpr (model == NS_SA)
             {
                 if (u(5) + uInc(5) < 0)
                 {

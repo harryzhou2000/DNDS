@@ -1,6 +1,8 @@
 #include <iostream>
 #include "../../Eigen/Dense"
 
+
+// g++ -o testEigen.exe testEigen.cpp
 void testF(Eigen::Ref<Eigen::MatrixXd> a)
 {
     std::cout << "Ref Receive\n"
@@ -30,6 +32,11 @@ int main()
     auto v = Eigen::Vector<double, 10>::LinSpaced(0, 9);
     std::cout << "reshape col " << std::endl
               << v.reshaped<Eigen::ColMajor>(2, 5) << std::endl;
+
+    Eigen::Matrix<double, 3, 1> A(Eigen::Index(3), Eigen::Index(1));
+    std::cout << A << std::endl;
+    A.setZero();
+    std::cout << A << std::endl;
 
     return 0;
 }

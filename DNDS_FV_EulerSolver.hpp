@@ -12,10 +12,15 @@
 
 namespace DNDS
 {
+
+    template<EulerModel model>
     class EulerSolver
     {
-        EulerModel model;
         int nVars;
+    public:
+        int nVars_Fixed = EulerEvaluator<model>::nVars_Fixed;
+
+    private:
 
         MPIInfo mpi;
         std::shared_ptr<CompactFacedMeshSerialRW> mesh;
@@ -34,7 +39,7 @@ namespace DNDS
         ArrayLocal<Batch<real, 1>> ifUseLimiter;
 
     public:
-        EulerSolver(const MPIInfo &nmpi, EulerModel nmodel) : model(nmodel), nVars(getNVars(nmodel)), mpi(nmpi)
+        EulerSolver(const MPIInfo &nmpi) :  nVars(getNVars(model)), mpi(nmpi)
         {
             nOUTS = nVars + 4;
         }
@@ -72,7 +77,7 @@ namespace DNDS
 
             int nDropVisScale;
             real vDropVisScale;
-            EulerEvaluator::Setting eulerSetting;
+            typename EulerEvaluator<model>::Setting eulerSetting;
 
             int curvilinearOneStep = 500;
             int curvilinearRepeatInterval = 500;
@@ -178,11 +183,11 @@ namespace DNDS
                     [&]()
                     {
                         if (RSName == "Roe")
-                            config.eulerSetting.rsType = EulerEvaluator::Setting::RiemannSolverType::Roe;
+                            config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::Roe;
                         else if (RSName == "HLLC")
-                            config.eulerSetting.rsType = EulerEvaluator::Setting::RiemannSolverType::HLLC;
+                            config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::HLLC;
                         else if (RSName == "HLLEP")
-                            config.eulerSetting.rsType = EulerEvaluator::Setting::RiemannSolverType::HLLEP;
+                            config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::HLLEP;
                         else
                             assert(false);
                     });
@@ -360,12 +365,13 @@ namespace DNDS
             uPoisson.setConstant(0.0);
 
             //! serial mesh specific output method
-            outDist = std::make_shared<decltype(outDist)::element_type>(
-                decltype(outDist)::element_type::tContext([&](index)
-                                                          { return nOUTS; },
-                                                          mesh->cell2faceLocal.dist->size()),
+            using outDistInitContextType = typename decltype(outDist)::element_type::tContext;
+            outDist = std::make_shared<typename decltype(outDist)::element_type>(
+                outDistInitContextType([&](index)
+                                       { return nOUTS; },
+                                       mesh->cell2faceLocal.dist->size()),
                 mpi);
-            outSerial = std::make_shared<decltype(outDist)::element_type>(outDist.get());
+            outSerial = std::make_shared<typename decltype(outDist)::element_type>(outDist.get());
             outSerial->BorrowGGIndexing(*mesh->cell2node);
             outSerial->createMPITypes();
             outSerial->initPersistentPull();
@@ -440,7 +446,7 @@ namespace DNDS
                     data.resize(u.dist->size(), u.dist->getMPI(), nVars);
                     data.CreateGhostCopyComm(mesh->cell2faceLocal);
                 });
-            EulerEvaluator eval(mesh.get(), fv.get(), vfv.get(), model);
+            EulerEvaluator<model> eval(mesh.get(), fv.get(), vfv.get());
             std::ofstream logErr(config.outLogName + ".log");
             eval.settings = config.eulerSetting;
             // std::cout << uF0.dist->commStat.hasPersistentPullReqs << std::endl;
@@ -678,7 +684,7 @@ namespace DNDS
                     data.InitPersistentPullClean();
                 });
 
-            EulerEvaluator eval(mesh.get(), fv.get(), vfv.get(), model);
+            EulerEvaluator<model> eval(mesh.get(), fv.get(), vfv.get());
 
             std::ofstream logErr(config.outLogName + ".log");
             eval.settings = config.eulerSetting;
@@ -716,6 +722,7 @@ namespace DNDS
             real curDtImplicit = config.dtImplicit;
             int step;
 
+            InsertCheck(mpi, "Implicit 2 nvars " + std::to_string(nVars));
             /*******************************************************/
             /*                   DEFINE LAMBDAS                    */
             /*******************************************************/

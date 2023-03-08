@@ -11,10 +11,11 @@ namespace DNDS
     //     const Eigen::Vector<real, -1> &uRecInc)
 
     //! evaluates dt and facial spectral radius
-    void EulerEvaluator::EvaluateDt(std::vector<real> &dt,
-                                    ArrayDOFV &u,
-                                    real CFL, real &dtMinall, real MaxDt,
-                                    bool UseLocaldt)
+    template <EulerModel model>
+    void EulerEvaluator<model>::EvaluateDt(std::vector<real> &dt,
+                                           ArrayDOFV &u,
+                                           real CFL, real &dtMinall, real MaxDt,
+                                           bool UseLocaldt)
     {
         InsertCheck(u.dist->getMPI(), "EvaluateDt 1");
         for (auto &i : lambdaCell)
@@ -27,7 +28,7 @@ namespace DNDS
             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
 
             index iCellL = f2c[0];
-            Eigen::Vector<real, -1> uMean = u[iCellL];
+            TU uMean = u[iCellL];
             real pL, asqrL, HL, pR, asqrR, HR;
             Gas::tVec vL = u[iCellL]({1, 2, 3}) / u[iCellL](0);
             Gas::tVec vR = vL;
@@ -81,7 +82,7 @@ namespace DNDS
                        std::pow(T / settings.idealGasProperty.TRef, 1.5) *
                        (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
                        (T + settings.idealGasProperty.CSutherland);
-            if (model == NS_SA)
+            if constexpr (model == NS_SA)
             {
                 real cnu1 = 7.1;
                 real Chi = uMean(5) * muRef / muf;
@@ -156,19 +157,31 @@ namespace DNDS
         // if (uRec.dist->getMPI().rank == 0)
         // log() << "dt: " << dtMin << std::endl;
     }
+    template 
+    void EulerEvaluator<NS>::EvaluateDt(std::vector<real> &dt,
+                                           ArrayDOFV &u,
+                                           real CFL, real &dtMinall, real MaxDt,
+                                           bool UseLocaldt);
+    template 
+    void EulerEvaluator<NS_SA>::EvaluateDt(std::vector<real> &dt,
+                                           ArrayDOFV &u,
+                                           real CFL, real &dtMinall, real MaxDt,
+                                           bool UseLocaldt);
+
 
 #define IF_NOT_NOREC (1)
-    void EulerEvaluator::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
-                                     ArrayRecV &uRec, real t)
+    template <EulerModel model>
+    void EulerEvaluator<model>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
+                                            ArrayRecV &uRec, real t)
     {
         InsertCheck(u.dist->getMPI(), "EvaluateRHS 1");
         int cnvars = nVars;
-        Setting::RiemannSolverType rsType = settings.rsType;
+        typename Setting::RiemannSolverType rsType = settings.rsType;
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
         {
             rhs[iCell].setZero();
         }
-        Eigen::Vector<real, -1> fluxWallSumLocal;
+        TU fluxWallSumLocal;
         fluxWallSumLocal.setZero(cnvars);
         fluxWallSum.setZero(cnvars);
 
@@ -178,7 +191,7 @@ namespace DNDS
             auto &faceAtr = mesh->faceAtrLocal[iFace][0];
             auto f2c = mesh->face2cellLocal[iFace];
             Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
-            Eigen::Vector<real, -1> flux(cnvars);
+            TU flux(cnvars);
             flux.setZero();
             auto faceDiBjGaussBatchElemVR = (*vfv->faceDiBjGaussBatch)[iFace];
 
@@ -194,15 +207,15 @@ namespace DNDS
                     Elem::tPoint unitNorm = vfv->faceNorms[iFace][ig].normalized();
                     Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
 
-                    Eigen::Vector<real, -1> ULxy =
+                    TU ULxy =
                         faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
                         uRec[f2c[0]] * IF_NOT_NOREC;
                     // UL += u[f2c[0]]; //! do not forget the mean value
                     ULxy = CompressRecPart(u[f2c[0]], ULxy);
 
-                    Eigen::Vector<real, -1> URxy;
+                    TU URxy;
 
-                    Eigen::Matrix<real, 3, -1> GradULxy, GradURxy;
+                    TDiffU GradULxy, GradURxy;
                     GradULxy.resize(Eigen::NoChange, cnvars);
                     GradURxy.resize(Eigen::NoChange, cnvars);
                     GradULxy.setZero(), GradURxy.setZero();
@@ -251,10 +264,10 @@ namespace DNDS
                     //                      : 2 * vfv->faceCenters[iFace] - vfv->cellBaries[f2c[0]]))
                     //                    .norm();
                     // InsertCheck(u.dist->getMPI(), "RHS inner 1");
-                    Eigen::VectorXd UMeanXy = 0.5 * (ULxy + URxy);
-                    Eigen::Matrix<real, 3, -1> GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
-                                                             (1.0 / distGRP) *
-                                                                 (unitNorm * (URxy - ULxy).transpose());
+                    TU UMeanXy = 0.5 * (ULxy + URxy);
+                    TDiffU GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
+                                         (1.0 / distGRP) *
+                                             (unitNorm * (URxy - ULxy).transpose());
                     finc = fluxFace(
                         ULxy,
                         URxy,
@@ -293,21 +306,21 @@ namespace DNDS
             Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
             auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
 
-            Eigen::Vector<real, -1> sourceV(cnvars * 2); // now includes sourcejacobian diag
+            Eigen::Vector<real, nVars_Fixed> 0 ? nVars_Fixed * 2 : -1 > sourceV(cnvars * 2); // now includes sourcejacobian diag
             sourceV.setZero();
 
             eCell.Integration(
                 sourceV,
                 [&](decltype(sourceV) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
                 {
-                    Eigen::Matrix<real, 3, -1> GradU;
+                    TDIffU GradU;
                     GradU.resize(Eigen::NoChange, cnvars);
                     GradU.setZero();
                     GradU({0, 1}, Eigen::all) =
                         cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(1, Eigen::last)) *
                         uRec[iCell] * IF_NOT_NOREC; //! 2d specific
 
-                    Eigen::Vector<real, -1> ULxy =
+                    TU ULxy =
                         cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
                         uRec[iCell] * IF_NOT_NOREC;
 
@@ -342,331 +355,366 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "EvaluateRHS -1");
     }
 
-    void EulerEvaluator::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
-                                           int jacobianCode,
-                                           real t)
+    template 
+    void EulerEvaluator<NS>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
+                                            ArrayRecV &uRec, real t);
+    template 
+    void EulerEvaluator<NS_SA>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
+                                            ArrayRecV &uRec, real t);
+
+    template <EulerModel model>
+    void EulerEvaluator<model>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
+                                                  int jacobianCode,
+                                                  real t)
     {
-        assert(false);                                                      // TODO: to support model expanding
-        for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
-        {
-            if (iCell < mesh->cell2nodeLocal.dist->size())
-                jacobianCell[iCell] = Eigen::Matrix<real, 5, 5>::Identity() *
-                                      (fv->volumeLocal[iCell] / dTau[iCell] +
-                                       fv->volumeLocal[iCell] / dt);
-            else
-                jacobianCell[iCell].setConstant(UnInitReal);
-        }
-        for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
-        {
-            auto &faceRecAtr = vfv->faceRecAtrLocal[iFace][0];
-            auto &faceAtr = mesh->faceAtrLocal[iFace][0];
-            auto f2c = mesh->face2cellLocal[iFace];
+        // assert(false);                                                      // TODO: to support model expanding
+        // for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
+        // {
+        //     if (iCell < mesh->cell2nodeLocal.dist->size())
+        //         jacobianCell[iCell] = Eigen::Matrix<real, 5, 5>::Identity() *
+        //                               (fv->volumeLocal[iCell] / dTau[iCell] +
+        //                                fv->volumeLocal[iCell] / dt);
+        //     else
+        //         jacobianCell[iCell].setConstant(UnInitReal);
+        // }
+        // for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
+        // {
+        //     auto &faceRecAtr = vfv->faceRecAtrLocal[iFace][0];
+        //     auto &faceAtr = mesh->faceAtrLocal[iFace][0];
+        //     auto f2c = mesh->face2cellLocal[iFace];
 
-            Eigen::Matrix<real, 5, 1> UL, UR, ULxy, URxy;
-            ULxy = u[f2c[0]](Eigen::seq(0, 4));
+        //     TU UL, UR, ULxy, URxy;
+        //     ULxy = u[f2c[0]];
 
-            Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
-            Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
-            Elem::tPoint centerRL;
-            real volumeInverse;
+        //     Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
+        //     Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
+        //     Elem::tPoint centerRL;
+        //     real volumeInverse;
 
-            if (f2c[1] != FACE_2_VOL_EMPTY)
-            {
-                UR = URxy = u[f2c[1]](Eigen::seq(0, 4));
-                UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+        //     if (f2c[1] != FACE_2_VOL_EMPTY)
+        //     {
+        //         UR = URxy = u[f2c[1]];
+        //         UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
 
-                centerRL = vfv->getCellCenter(f2c[1]) - vfv->getCellCenter(f2c[0]);
-                volumeInverse = 0.5 / fv->volumeLocal[f2c[1]] + 0.5 / fv->volumeLocal[f2c[0]];
-            }
-            else if (true)
-            {
-                URxy = generateBoundaryValue(
-                    ULxy,
-                    unitNorm,
-                    normBase,
-                    vfv->faceCenters[iFace],
-                    t,
-                    BoundaryType(faceAtr.iPhy));
+        //         centerRL = vfv->getCellCenter(f2c[1]) - vfv->getCellCenter(f2c[0]);
+        //         volumeInverse = 0.5 / fv->volumeLocal[f2c[1]] + 0.5 / fv->volumeLocal[f2c[0]];
+        //     }
+        //     else if (true)
+        //     {
+        //         URxy = generateBoundaryValue(
+        //             ULxy,
+        //             unitNorm,
+        //             normBase,
+        //             vfv->faceCenters[iFace],
+        //             t,
+        //             BoundaryType(faceAtr.iPhy));
 
-                centerRL = (vfv->faceCenters[iFace] - vfv->getCellCenter(f2c[0])) * 2;
-                volumeInverse = 1.0 / fv->volumeLocal[f2c[0]];
-            }
-            UL = ULxy, UR = URxy;
-            UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
-            UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
+        //         centerRL = (vfv->faceCenters[iFace] - vfv->getCellCenter(f2c[0])) * 2;
+        //         volumeInverse = 1.0 / fv->volumeLocal[f2c[0]];
+        //     }
+        //     UL = ULxy, UR = URxy;
+        //     UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
+        //     UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
 
-            Eigen::Matrix<real, 5, 1> F;
-            Eigen::Matrix<real, 5, 5> dFdUL, dFdUR;
+        //     Eigen::Matrix<real, 5, 1> F;
+        //     Eigen::Matrix<real, 5, 5> dFdUL, dFdUR;
 
-            Gas::RoeFlux_IdealGas_HartenYee_AutoDiffGen(
-                UL, UR, settings.idealGasProperty.gamma, F, dFdUL, dFdUR,
-                [&]() {});
-            if (F.hasNaN() || dFdUL.hasNaN() || dFdUR.hasNaN())
-            {
-                std::cout << "F \n"
-                          << F << std::endl;
-                std::cout << "GL \n"
-                          << dFdUL << std::endl;
-                std::cout << "GR \n"
-                          << dFdUR << std::endl;
-                std::cout << "UL \n"
-                          << UL << std::endl;
-                std::cout << "UR \n"
-                          << UR << std::endl;
-                assert(false);
-            }
-            F({1, 2, 3}) = normBase * F({1, 2, 3});
-            dFdUL.transposeInPlace();
-            dFdUR.transposeInPlace(); // -> dF_idUj
-            dFdUL({1, 2, 3}, Eigen::all) = normBase * dFdUL({1, 2, 3}, Eigen::all);
-            dFdUR({1, 2, 3}, Eigen::all) = normBase * dFdUR({1, 2, 3}, Eigen::all);
-            dFdUL(Eigen::all, {1, 2, 3}) *= normBase.transpose();
-            dFdUR(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+        //     Gas::RoeFlux_IdealGas_HartenYee_AutoDiffGen(
+        //         UL, UR, settings.idealGasProperty.gamma, F, dFdUL, dFdUR,
+        //         [&]() {});
+        //     if (F.hasNaN() || dFdUL.hasNaN() || dFdUR.hasNaN())
+        //     {
+        //         std::cout << "F \n"
+        //                   << F << std::endl;
+        //         std::cout << "GL \n"
+        //                   << dFdUL << std::endl;
+        //         std::cout << "GR \n"
+        //                   << dFdUR << std::endl;
+        //         std::cout << "UL \n"
+        //                   << UL << std::endl;
+        //         std::cout << "UR \n"
+        //                   << UR << std::endl;
+        //         assert(false);
+        //     }
+        //     F({1, 2, 3}) = normBase * F({1, 2, 3});
+        //     dFdUL.transposeInPlace();
+        //     dFdUR.transposeInPlace(); // -> dF_idUj
+        //     dFdUL({1, 2, 3}, Eigen::all) = normBase * dFdUL({1, 2, 3}, Eigen::all);
+        //     dFdUR({1, 2, 3}, Eigen::all) = normBase * dFdUR({1, 2, 3}, Eigen::all);
+        //     dFdUL(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+        //     dFdUR(Eigen::all, {1, 2, 3}) *= normBase.transpose();
 
-            if (jacobianCode == 2)
-            {
-                //*** USES vis jacobian
-                // Elem::tPoint vGrad = unitNorm / (unitNorm.dot(centerRL));
-                // Elem::tPoint vGrad = centerRL / centerRL.squaredNorm();
-                Elem::tPoint vGrad = unitNorm * (fv->faceArea[iFace] * volumeInverse);
-                Eigen::Matrix<real, 5, 1> UC = (ULxy + URxy) * 0.5;
-                Eigen::Matrix<real, 3, 5> gradU = vGrad * (URxy - ULxy).transpose();
-                Eigen::Matrix<real, 5, 1> Fvis;
-                Eigen::Matrix<real, 5, 5> dFvisDu, dFvisDUL, dFvisDUR;
-                Eigen::Matrix<real, 3, 20> dFvisDGu;
+        //     if (jacobianCode == 2)
+        //     {
+        //         //*** USES vis jacobian
+        //         // Elem::tPoint vGrad = unitNorm / (unitNorm.dot(centerRL));
+        //         // Elem::tPoint vGrad = centerRL / centerRL.squaredNorm();
+        //         Elem::tPoint vGrad = unitNorm * (fv->faceArea[iFace] * volumeInverse);
+        //         TU UC = (ULxy + URxy) * 0.5;
+        //         TDiffU gradU = vGrad * (URxy - ULxy).transpose();
+        //         TU Fvis;
+        //         TJacobianU dFvisDu, dFvisDUL, dFvisDUR;
+        //         Eigen::Matrix<real, 3, nVars_Fixed>0?nVars_Fixed*4,-1> dFvisDGu;
 
-                real k = settings.idealGasProperty.CpGas * settings.idealGasProperty.muGas / settings.idealGasProperty.prGas;
-                Gas::ViscousFlux_IdealGas_N_AutoDiffGen(UC, gradU, unitNorm, false,
-                                                        settings.idealGasProperty.gamma, settings.idealGasProperty.muGas,
-                                                        k, settings.idealGasProperty.CpGas,
-                                                        Fvis, dFvisDu, dFvisDGu);
+        //         real k = settings.idealGasProperty.CpGas * settings.idealGasProperty.muGas / settings.idealGasProperty.prGas;
+        //         Gas::ViscousFlux_IdealGas_N_AutoDiffGen(UC, gradU, unitNorm, false,
+        //                                                 settings.idealGasProperty.gamma, settings.idealGasProperty.muGas,
+        //                                                 k, settings.idealGasProperty.CpGas,
+        //                                                 Fvis, dFvisDu, dFvisDGu);
 
-                Eigen::Matrix<real, 5, 5> dFvisDuDiff;
-                dFvisDuDiff({0, 1, 2, 3, 4}, {0}).setZero();
-                dFvisDuDiff({0, 1, 2, 3, 4}, {1, 2, 3, 4}) = (vGrad.transpose() * dFvisDGu).reshaped<Eigen::ColMajor>(5, 4);
+        //         Eigen::Matrix<real, 5, 5> dFvisDuDiff;
+        //         dFvisDuDiff({0, 1, 2, 3, 4}, {0}).setZero();
+        //         dFvisDuDiff({0, 1, 2, 3, 4}, {1, 2, 3, 4}) = (vGrad.transpose() * dFvisDGu).reshaped<Eigen::ColMajor>(5, 4);
 
-                dFvisDUL = (dFvisDu * 0.5 - dFvisDuDiff).transpose();
-                dFvisDUR = (dFvisDu * 0.5 + dFvisDuDiff).transpose();
-                // std::cout << "lamFaceVis " << lambdaFaceVis[iFace] << " dFvisDuDiff\n"
-                //           << dFvisDuDiff << std::endl;
-                // assert(false);
-                // //* A
-                // dFvisDUL(0, 0) = -0.5 * lambdaFaceVis[iFace];
-                // dFvisDUR(0, 0) = 0.5 * lambdaFaceVis[iFace];
-                //* B
-                dFvisDUL -= 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
-                dFvisDUR += 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
-                // //* C
-                // dFvisDUL *= 0.5;
-                // dFvisDUR *= 0.5;
-                // dFvisDUL -= 0.5 * 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
-                // dFvisDUR += 0.5 * 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
+        //         dFvisDUL = (dFvisDu * 0.5 - dFvisDuDiff).transpose();
+        //         dFvisDUR = (dFvisDu * 0.5 + dFvisDuDiff).transpose();
+        //         // std::cout << "lamFaceVis " << lambdaFaceVis[iFace] << " dFvisDuDiff\n"
+        //         //           << dFvisDuDiff << std::endl;
+        //         // assert(false);
+        //         // //* A
+        //         // dFvisDUL(0, 0) = -0.5 * lambdaFaceVis[iFace];
+        //         // dFvisDUR(0, 0) = 0.5 * lambdaFaceVis[iFace];
+        //         //* B
+        //         dFvisDUL -= 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
+        //         dFvisDUR += 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
+        //         // //* C
+        //         // dFvisDUL *= 0.5;
+        //         // dFvisDUR *= 0.5;
+        //         // dFvisDUL -= 0.5 * 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
+        //         // dFvisDUR += 0.5 * 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity();
 
-                dFdUFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) = dFdUL - dFvisDUL;
-                dFdUFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) = dFdUR - dFvisDUR;
+        //         dFdUFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) = dFdUL - dFvisDUL;
+        //         dFdUFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) = dFdUR - dFvisDUR;
 
-                jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) =
-                    fv->faceArea[iFace] *
-                    (-dFdUL + dFvisDUL) * alphaDiag; // right: use minus version
-                jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) =
-                    fv->faceArea[iFace] *
-                    (dFdUR - dFvisDUR) * alphaDiag; // left: uses plus version
-                //*** USES vis jacobian
-            }
-            else if (jacobianCode == 1)
-            {
-                jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) =
-                    fv->faceArea[iFace] *
-                    (-dFdUL - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // right: use minus version
-                jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) =
-                    fv->faceArea[iFace] *
-                    (dFdUR - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // left: uses plus version
-            }
+        //         jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) =
+        //             fv->faceArea[iFace] *
+        //             (-dFdUL + dFvisDUL) * alphaDiag; // right: use minus version
+        //         jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) =
+        //             fv->faceArea[iFace] *
+        //             (dFdUR - dFvisDUR) * alphaDiag; // left: uses plus version
+        //         //*** USES vis jacobian
+        //     }
+        //     else if (jacobianCode == 1)
+        //     {
+        //         jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}) =
+        //             fv->faceArea[iFace] *
+        //             (-dFdUL - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // right: use minus version
+        //         jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4}) =
+        //             fv->faceArea[iFace] *
+        //             (dFdUR - 0.5 * lambdaFaceVis[iFace] * Eigen::Matrix<real, 5, 5>::Identity()) * alphaDiag; // left: uses plus version
+        //     }
 
-            jacobianCell[f2c[0]] -= jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4});
-            if (f2c[1] != FACE_2_VOL_EMPTY)
-            {
-                jacobianCell[f2c[1]] -= jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
-            }
-            else if (faceAtr.iPhy == BoundaryType::Farfield ||
-                     faceAtr.iPhy == BoundaryType::Special_DMRFar||
-                     faceAtr.iPhy == BoundaryType::Special_RTFar)
-            {
-                // jacobianCell[f2c[0]];
-                // nothing
-            }
-            else if (faceAtr.iPhy == BoundaryType::Wall_Euler)
-            {
-                Eigen::Matrix<real, 5, 5> jacobianRL = -jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
-                jacobianRL(Eigen::all, {1, 2, 3}) *= normBase;
-                jacobianRL(Eigen::all, {1}) *= -1;
-                jacobianRL(Eigen::all, {1, 2, 3}) *= normBase.transpose();
-                jacobianCell[f2c[0]] -= jacobianRL;
-            }
-            else if (faceAtr.iPhy == BoundaryType::Wall_NoSlip)
-            {
-                Eigen::Matrix<real, 5, 5> jacobianRL = -jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
-                jacobianRL(Eigen::all, {1, 2, 3}) *= -1;
-                jacobianCell[f2c[0]] -= jacobianRL;
-            }
-            else if (faceAtr.iPhy == BoundaryType::Wall)
-            {
-                std::cout << "Wall is not a proper bc" << std::endl;
-                assert(false);
-            }
-            else
-            {
-                assert(false);
-            }
-        }
-        for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
-        {
-            if (iCell < mesh->cell2nodeLocal.dist->size())
-            {
-                jacobianCellInv[iCell] = jacobianCell[iCell].fullPivLu().inverse();
+        //     jacobianCell[f2c[0]] -= jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4});
+        //     if (f2c[1] != FACE_2_VOL_EMPTY)
+        //     {
+        //         jacobianCell[f2c[1]] -= jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+        //     }
+        //     else if (faceAtr.iPhy == BoundaryType::Farfield ||
+        //              faceAtr.iPhy == BoundaryType::Special_DMRFar ||
+        //              faceAtr.iPhy == BoundaryType::Special_RTFar)
+        //     {
+        //         // jacobianCell[f2c[0]];
+        //         // nothing
+        //     }
+        //     else if (faceAtr.iPhy == BoundaryType::Wall_Euler)
+        //     {
+        //         Eigen::Matrix<real, 5, 5> jacobianRL = -jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+        //         jacobianRL(Eigen::all, {1, 2, 3}) *= normBase;
+        //         jacobianRL(Eigen::all, {1}) *= -1;
+        //         jacobianRL(Eigen::all, {1, 2, 3}) *= normBase.transpose();
+        //         jacobianCell[f2c[0]] -= jacobianRL;
+        //     }
+        //     else if (faceAtr.iPhy == BoundaryType::Wall_NoSlip)
+        //     {
+        //         Eigen::Matrix<real, 5, 5> jacobianRL = -jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+        //         jacobianRL(Eigen::all, {1, 2, 3}) *= -1;
+        //         jacobianCell[f2c[0]] -= jacobianRL;
+        //     }
+        //     else if (faceAtr.iPhy == BoundaryType::Wall)
+        //     {
+        //         std::cout << "Wall is not a proper bc" << std::endl;
+        //         assert(false);
+        //     }
+        //     else
+        //     {
+        //         assert(false);
+        //     }
+        // }
+        // for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
+        // {
+        //     if (iCell < mesh->cell2nodeLocal.dist->size())
+        //     {
+        //         jacobianCellInv[iCell] = jacobianCell[iCell].fullPivLu().inverse();
 
-                if (jacobianCell[iCell].hasNaN() || jacobianCellInv[iCell].hasNaN() ||
-                    (!(jacobianCell[iCell].allFinite() && jacobianCellInv[iCell].allFinite())))
-                {
-                    std::cout << "JCInv\n"
-                              << jacobianCellInv[iCell] << std::endl;
-                    std::cout << "JC\n"
-                              << jacobianCell[iCell] << std::endl;
-                    assert(false);
-                }
-            }
-            else
-                jacobianCellInv[iCell].setConstant(UnInitReal);
-        }
+        //         if (jacobianCell[iCell].hasNaN() || jacobianCellInv[iCell].hasNaN() ||
+        //             (!(jacobianCell[iCell].allFinite() && jacobianCellInv[iCell].allFinite())))
+        //         {
+        //             std::cout << "JCInv\n"
+        //                       << jacobianCellInv[iCell] << std::endl;
+        //             std::cout << "JC\n"
+        //                       << jacobianCell[iCell] << std::endl;
+        //             assert(false);
+        //         }
+        //     }
+        //     else
+        //         jacobianCellInv[iCell].setConstant(UnInitReal);
+        // }
+    }
+    template 
+    void EulerEvaluator<NS>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
+                                                  int jacobianCode,
+                                                  real t);
+    template 
+    void EulerEvaluator<NS_SA>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
+                                                  int jacobianCode,
+                                                  real t);
+
+    template <EulerModel model>
+    void EulerEvaluator<model>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
+    {
+        // assert(false); // TODO: to support model expanding
+        // for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
+        // {
+        //     index iCell = iScan;
+        //     // iCell = (*vfv->SOR_iScan2iCell)[iCell];//TODO: add rb-sor
+
+        //     auto &c2f = mesh->cell2faceLocal[iCell];
+        //     Eigen::Vector<real, 5> uIncNewBuf;
+        //     uIncNewBuf.setZero(); // norhs
+
+        //     if (uInc[iCell].hasNaN())
+        //     {
+        //         std::cout << uInc[iCell] << std::endl;
+        //         assert(false);
+        //     }
+
+        //     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+        //     {
+        //         index iFace = c2f[ic2f];
+        //         auto &f2c = (*mesh->face2cellPair)[iFace];
+        //         index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+        //         index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+        //         if (iCellOther != FACE_2_VOL_EMPTY)
+        //         {
+        //             Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
+        //                                                           ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
+        //                                                           : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+        //             uIncNewBuf += jacobianOther * uInc[iCellOther](Eigen::seq(0, 4));
+        //         }
+        //     }
+        //     AuInc[iCell](Eigen::seq(0, 4)) = jacobianCell[iCell] * uInc[iCell](Eigen::seq(0, 4)) + uIncNewBuf;
+        // }
     }
 
-    void EulerEvaluator::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
-    {
-        assert(false); // TODO: to support model expanding
-        for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
-        {
-            index iCell = iScan;
-            // iCell = (*vfv->SOR_iScan2iCell)[iCell];//TODO: add rb-sor
-
-            auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, 5> uIncNewBuf;
-            uIncNewBuf.setZero(); // norhs
-
-            if (uInc[iCell].hasNaN())
-            {
-                std::cout << uInc[iCell] << std::endl;
-                assert(false);
-            }
-
-            for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
-            {
-                index iFace = c2f[ic2f];
-                auto &f2c = (*mesh->face2cellPair)[iFace];
-                index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                if (iCellOther != FACE_2_VOL_EMPTY)
-                {
-                    Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
-                                                                  ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
-                                                                  : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
-                    uIncNewBuf += jacobianOther * uInc[iCellOther](Eigen::seq(0, 4));
-                }
-            }
-            AuInc[iCell](Eigen::seq(0, 4)) = jacobianCell[iCell] * uInc[iCell](Eigen::seq(0, 4)) + uIncNewBuf;
-        }
-    }
+    template 
+    void EulerEvaluator<NS>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
+    template 
+    void EulerEvaluator<NS_SA>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
 
     /**
      * @brief waring! rhs here is with volume, different from UpdateLUSGSADForward
      **/
-    void EulerEvaluator::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
+    template <EulerModel model>
+    void EulerEvaluator<model>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
-        assert(false); // TODO: to support model expanding
-        index nCellDist = mesh->cell2nodeLocal.dist->size();
-        for (index iScan = 0; iScan < nCellDist; iScan++)
-        {
-            index iCell = iScan;
-            iCell = (*vfv->SOR_iScan2iCell)[iCell]; // TODO: add rb-sor
+        // assert(false); // TODO: to support model expanding
+        // index nCellDist = mesh->cell2nodeLocal.dist->size();
+        // for (index iScan = 0; iScan < nCellDist; iScan++)
+        // {
+        //     index iCell = iScan;
+        //     iCell = (*vfv->SOR_iScan2iCell)[iCell]; // TODO: add rb-sor
 
-            auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, 5> uIncNewBuf;
-            uIncNewBuf = rhs[iCell](Eigen::seq(0, 4));
+        //     auto &c2f = mesh->cell2faceLocal[iCell];
+        //     Eigen::Vector<real, 5> uIncNewBuf;
+        //     uIncNewBuf = rhs[iCell](Eigen::seq(0, 4));
 
-            for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
-            {
-                index iFace = c2f[ic2f];
-                auto &f2c = (*mesh->face2cellPair)[iFace];
-                index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                if (iCellOther != FACE_2_VOL_EMPTY)
-                {
-                    index iScanOther = iCellOther < nCellDist
-                                           ? (*vfv->SOR_iCell2iScan)[iCellOther]
-                                           : iScan + 1;
-                    if (iScanOther < iScan)
-                    {
-                        Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
-                                                                      ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
-                                                                      : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
-                        uIncNewBuf -= jacobianOther * uInc[iCellOther](Eigen::seq(0, 4));
-                    }
-                }
-            }
+        //     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+        //     {
+        //         index iFace = c2f[ic2f];
+        //         auto &f2c = (*mesh->face2cellPair)[iFace];
+        //         index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+        //         index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+        //         if (iCellOther != FACE_2_VOL_EMPTY)
+        //         {
+        //             index iScanOther = iCellOther < nCellDist
+        //                                    ? (*vfv->SOR_iCell2iScan)[iCellOther]
+        //                                    : iScan + 1;
+        //             if (iScanOther < iScan)
+        //             {
+        //                 Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
+        //                                                               ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
+        //                                                               : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+        //                 uIncNewBuf -= jacobianOther * uInc[iCellOther](Eigen::seq(0, 4));
+        //             }
+        //         }
+        //     }
 
-            uIncNew[iCell](Eigen::seq(0, 4)) = jacobianCellInv[iCell] * uIncNewBuf;
+        //     uIncNew[iCell](Eigen::seq(0, 4)) = jacobianCellInv[iCell] * uIncNewBuf;
 
-            // fix rho increment
-            // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
-            //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNew[iCell](Eigen::seq(0, 4)) = CompressRecPart(u[iCell](Eigen::seq(0, 4)), uIncNew[iCell](Eigen::seq(0, 4))) - u[iCell](Eigen::seq(0, 4));
-        }
+        //     // fix rho increment
+        //     // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
+        //     //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
+        //     uIncNew[iCell](Eigen::seq(0, 4)) = CompressRecPart(u[iCell](Eigen::seq(0, 4)), uIncNew[iCell](Eigen::seq(0, 4))) - u[iCell](Eigen::seq(0, 4));
+        // }
     }
 
-    void EulerEvaluator::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
+    template 
+    void EulerEvaluator<NS>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template 
+    void EulerEvaluator<NS_SA>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+
+    template <EulerModel model>
+    void EulerEvaluator<model>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
-        assert(false); // TODO: to support model expanding
-        index nCellDist = mesh->cell2nodeLocal.dist->size();
-        for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
-        {
-            index iCell = iScan;
-            iCell = (*vfv->SOR_iScan2iCell)[iCell]; // TODO: add rb-sor
+        // assert(false); // TODO: to support model expanding
+        // index nCellDist = mesh->cell2nodeLocal.dist->size();
+        // for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
+        // {
+        //     index iCell = iScan;
+        //     iCell = (*vfv->SOR_iScan2iCell)[iCell]; // TODO: add rb-sor
 
-            auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, 5> uIncNewBuf;
-            // uIncNewBuf = rhs[iCell];
-            uIncNewBuf.setZero(); // Back
+        //     auto &c2f = mesh->cell2faceLocal[iCell];
+        //     Eigen::Vector<real, 5> uIncNewBuf;
+        //     // uIncNewBuf = rhs[iCell];
+        //     uIncNewBuf.setZero(); // Back
 
-            for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
-            {
-                index iFace = c2f[ic2f];
-                auto &f2c = (*mesh->face2cellPair)[iFace];
-                index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
-                index iCellAtFace = f2c[0] == iCell ? 0 : 1;
-                if (iCellOther != FACE_2_VOL_EMPTY)
-                {
-                    index iScanOther = iCellOther < nCellDist
-                                           ? (*vfv->SOR_iCell2iScan)[iCellOther]
-                                           : iScan + 1;
-                    if (iScanOther > iScan) // Back
-                    {
-                        Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
-                                                                      ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
-                                                                      : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
-                        uIncNewBuf -= jacobianOther * uInc[iCellOther](Eigen::seq(0, 4));
-                    }
-                }
-            }
+        //     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
+        //     {
+        //         index iFace = c2f[ic2f];
+        //         auto &f2c = (*mesh->face2cellPair)[iFace];
+        //         index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
+        //         index iCellAtFace = f2c[0] == iCell ? 0 : 1;
+        //         if (iCellOther != FACE_2_VOL_EMPTY)
+        //         {
+        //             index iScanOther = iCellOther < nCellDist
+        //                                    ? (*vfv->SOR_iCell2iScan)[iCellOther]
+        //                                    : iScan + 1;
+        //             if (iScanOther > iScan) // Back
+        //             {
+        //                 Eigen::Matrix<real, 5, 5> jacobianOther = iCellAtFace
+        //                                                               ? jacobianFace[iFace]({0, 1, 2, 3, 4}, {0, 1, 2, 3, 4})
+        //                                                               : jacobianFace[iFace]({5, 6, 7, 8, 9}, {0, 1, 2, 3, 4});
+        //                 uIncNewBuf -= jacobianOther * uInc[iCellOther](Eigen::seq(0, 4));
+        //             }
+        //         }
+        //     }
 
-            uIncNew[iCell](Eigen::seq(0, 4)) += jacobianCellInv[iCell] * uIncNewBuf; // Back
+        //     uIncNew[iCell](Eigen::seq(0, 4)) += jacobianCellInv[iCell] * uIncNewBuf; // Back
 
-            uIncNew[iCell](Eigen::seq(0, 4)) = CompressRecPart(u[iCell](Eigen::seq(0, 4)), uIncNew[iCell](Eigen::seq(0, 4))) - u[iCell](Eigen::seq(0, 4));
-        }
+        //     uIncNew[iCell](Eigen::seq(0, 4)) = CompressRecPart(u[iCell](Eigen::seq(0, 4)), uIncNew[iCell](Eigen::seq(0, 4))) - u[iCell](Eigen::seq(0, 4));
+        // }
     }
 
-    void EulerEvaluator::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
-                                         ArrayDOFV &u, ArrayRecV &uRec,
-                                         int jacobianCode,
-                                         real t)
+    template
+    void EulerEvaluator<NS>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template
+    void EulerEvaluator<NS_SA>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+
+    template <EulerModel model>
+    void EulerEvaluator<model>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
+                                                ArrayDOFV &u, ArrayRecV &uRec,
+                                                int jacobianCode,
+                                                real t)
     {
         // TODO: for code0: flux jacobian with lambdaFace, and source jacobian with integration, only diagpart dealt with
         assert(jacobianCode == 0);
@@ -690,12 +738,9 @@ namespace DNDS
             }
             jacobianCell[iCell] *= fpDivisor; //! all passive vars use same diag for flux part
 
-#ifndef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
             // jacobian diag
 
             jacobianCell[iCell] += alphaDiag * jacobianCellSourceDiag[iCell].asDiagonal();
-#endif
-
 
             //! assuming diagonal here!
             jacobianCellInv[iCell] = jacobianCell[iCell].diagonal().array().inverse().matrix().asDiagonal();
@@ -705,8 +750,19 @@ namespace DNDS
             //           << jacobianCell[iCell] << std::endl;
         }
     }
+    template
+    void EulerEvaluator<NS>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
+                                                ArrayDOFV &u, ArrayRecV &uRec,
+                                                int jacobianCode,
+                                                real t);
+    template
+    void EulerEvaluator<NS_SA>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
+                                                ArrayDOFV &u, ArrayRecV &uRec,
+                                                int jacobianCode,
+                                                real t);
 
-    void EulerEvaluator::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
+        template <EulerModel model>
+        void EulerEvaluator<model>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
     {
         InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec 1");
         int cnvars = nVars;
@@ -716,7 +772,7 @@ namespace DNDS
             // iCell = (*vfv->SOR_iScan2iCell)[iCell];//TODO: add rb-sor
 
             auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, -1> uIncNewBuf(cnvars);
+            TU uIncNewBuf(cnvars);
             uIncNewBuf.setZero(); // norhs
 
             if (uInc[iCell].hasNaN())
@@ -736,7 +792,7 @@ namespace DNDS
 
                     if (true)
                     {
-                        Eigen::Vector<real, -1> fInc;
+                        TU fInc;
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
                                                     (iCellAtFace ? -1 : 1); // faces out
@@ -780,8 +836,14 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec -1");
     }
 
-    void EulerEvaluator::UpdateLUSGSForward(real alphaDiag,
-                                            ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
+    template 
+    void EulerEvaluator<NS>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
+    template 
+    void EulerEvaluator<NS_SA>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
+
+    template <EulerModel model>
+    void EulerEvaluator<model>::UpdateLUSGSForward(real alphaDiag,
+                                                   ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward 1");
         int cnvars = nVars;
@@ -792,7 +854,7 @@ namespace DNDS
             iCell = (*vfv->SOR_iScan2iCell)[iCell]; // TODO: add rb-sor
 
             auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, -1> uIncNewBuf(nVars);
+            TU uIncNewBuf(nVars);
             uIncNewBuf = rhs[iCell];
 
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
@@ -809,7 +871,7 @@ namespace DNDS
                                            : iScan + 1;
                     if (iScanOther < iScan)
                     {
-                        Eigen::Vector<real, -1> fInc;
+                        TU fInc;
 
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
@@ -855,8 +917,17 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
     }
 
-    void EulerEvaluator::UpdateLUSGSBackward(real alphaDiag,
-                                             ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
+    template 
+    void EulerEvaluator<NS>::UpdateLUSGSForward(real alphaDiag,
+                                                   ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template 
+    void EulerEvaluator<NS_SA>::UpdateLUSGSForward(real alphaDiag,
+                                                   ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+
+
+    template <EulerModel model>
+    void EulerEvaluator<model>::UpdateLUSGSBackward(real alphaDiag,
+                                                    ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward 1");
         int cnvars = nVars;
@@ -867,7 +938,7 @@ namespace DNDS
             iCell = (*vfv->SOR_iScan2iCell)[iCell];
 
             auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, -1> uIncNewBuf(cnvars);
+            TU uIncNewBuf(cnvars);
             uIncNewBuf.setZero(); // backward
 
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
@@ -884,7 +955,7 @@ namespace DNDS
                                            : iScan + 1;
                     if (iScanOther > iScan) // backward
                     {
-                        Eigen::Vector<real, -1> fInc;
+                        TU fInc;
 
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
@@ -916,8 +987,16 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward -1");
     }
 
-    void EulerEvaluator::UpdateSGS(real alphaDiag,
-                                   ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward)
+    template 
+    void EulerEvaluator<NS>::UpdateLUSGSBackward(real alphaDiag,
+                                                    ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template 
+    void EulerEvaluator<NS_SA>::UpdateLUSGSBackward(real alphaDiag,
+                                                    ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+
+    template <EulerModel model>
+    void EulerEvaluator<model>::UpdateSGS(real alphaDiag,
+                                          ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward)
     {
         int cnvars = nVars;
         for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
@@ -928,7 +1007,7 @@ namespace DNDS
             else
                 iCell = mesh->cell2nodeLocal.dist->size() - 1 - iScan;
             auto &c2f = mesh->cell2faceLocal[iCell];
-            Eigen::Vector<real, -1> uIncNewBuf;
+            TU uIncNewBuf;
             // uIncNewBuf.setZero(); // backward
             uIncNewBuf = rhs[iCell]; // full
 
@@ -943,7 +1022,7 @@ namespace DNDS
                     // if (true) // full
                     if ((ifForward && iCellOther < iCell) || ((!ifForward) && iCellOther > iCell))
                     {
-                        Eigen::Vector<real, -1> fInc;
+                        TU fInc;
 
                         {
                             Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
@@ -974,7 +1053,15 @@ namespace DNDS
         }
     }
 
-    void EulerEvaluator::FixUMaxFilter(ArrayDOFV &u)
+    template 
+    void EulerEvaluator<NS>::UpdateSGS(real alphaDiag,
+                                          ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
+    template 
+    void EulerEvaluator<NS_SA>::UpdateSGS(real alphaDiag,
+                                          ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
+
+    template <EulerModel model>
+    void EulerEvaluator<model>::FixUMaxFilter(ArrayDOFV &u)
     {
         // TODO: make spacial filter jacobian
         return; // ! nofix shortcut
@@ -1092,11 +1179,18 @@ namespace DNDS
         }
     }
 
-    void EulerEvaluator::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P)
+    template
+    void EulerEvaluator<NS>::FixUMaxFilter(ArrayDOFV &u);
+    template
+    void EulerEvaluator<NS_SA>::FixUMaxFilter(ArrayDOFV &u);
+
+    template <EulerModel model>
+    void EulerEvaluator<model>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P)
     {
+        res.resize(nVars);
         if (P < 3)
         {
-            Eigen::Vector<real, -1> resc;
+            TU resc;
             resc.resizeLike(rhs[0]);
             resc.setZero();
 
@@ -1115,7 +1209,7 @@ namespace DNDS
         }
         else
         {
-            Eigen::Vector<real, -1> resc;
+            TU resc;
             resc.resizeLike(rhs[0]);
             resc.setZero();
             for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
@@ -1123,4 +1217,10 @@ namespace DNDS
             MPI_Allreduce(resc.data(), res.data(), res.size(), DNDS_MPI_REAL, MPI_MAX, rhs.dist->getMPI().comm);
         }
     }
+
+    template
+    void EulerEvaluator<NS>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P);
+    template
+    void EulerEvaluator<NS_SA>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P);
+
 }

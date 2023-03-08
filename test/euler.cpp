@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
     mpi.setWorld();
 
     {
-        EulerSolver solver(mpi, NS);
+        EulerSolver<NS> solver(mpi);
         solver.ConfigureFromJson("data/euler_config.json");
         solver.ReadMeshAndInitialize();
         // solver.RunExplicitSSPRK4();
