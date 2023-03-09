@@ -69,6 +69,12 @@ namespace DNDS
             return Eigen::Map<Eigen::Vector<real, -1>>(data, Bsize);
         }
 
+        template<int fixedVsize>
+        Eigen::Map<Eigen::Vector<real, fixedVsize>> p_fixed()
+        {
+            return Eigen::Map<Eigen::Vector<real, fixedVsize>>(data, Bsize);
+        }
+
         Eigen::Map<Eigen::Matrix<real, -1, -1>> m_by_ncol(index ncol)
         {
             // assert(Bsize % ncol == 0);

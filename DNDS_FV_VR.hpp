@@ -1355,12 +1355,16 @@ namespace DNDS
          * \pre u need to StartPersistentPullClean()
          * \post u,uR need to WaitPersistentPullClean();
          */
-        template <class TU_DOF>
+        template <int dim=3, int nVars_Fixed = Eigen::Dynamic, class TU_DOF>
         // static const int vsize = 1; // intellisense helper: give example...
         void ReconstructionJacobiStep(TU_DOF &u,
                                       ArrayRecV &uRec,
                                       ArrayRecV &uRecNewBuf)
         {
+            static const auto Seq012 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim - 1>);
+            static const auto Seq123 = Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>);
+            static const auto Seq01234 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>);
+            static const int I4 = dim + 1;
 
             static int icount = 0;
 
@@ -1463,17 +1467,17 @@ namespace DNDS
                                     index nvars = u[iCell].size();
                                     // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
                                     auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
-                                    Eigen::Vector<real, -1> uBV(nvars);
-                                    Eigen::Vector<real, -1> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
+                                    Eigen::Vector<real, nVars_Fixed> uBV(nvars);
+                                    Eigen::Vector<real, nVars_Fixed> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
                                                                    uRec[iCell])
                                                                       .transpose();
                                     uBL += u[iCell].transpose();
                                     uBV.setZero();
                                     uBV = uBL;
                                     uBV(0) = uBL(0);
-                                    Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
-                                    uBV({1, 2, 3}) = uBL({1, 2, 3}) - normOut * (normOut.dot(uBV({1, 2, 3})));
-                                    uBV(4) = uBL(4);
+                                    Eigen::Vector<real,dim> normOut = faceNorms[iFace][ig](Seq012).stableNormalized();
+                                    uBV(Seq123) = uBL(Seq123) - normOut * (normOut.dot(uBV(Seq123)));
+                                    uBV(I4) = uBL(I4);
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell]).transpose();
                                     Eigen::MatrixXd rowDiffI = diffI.row(0).rightCols(uRec[iCell].rows());
@@ -1499,10 +1503,10 @@ namespace DNDS
                                     index nvars = u[iCell].size();
                                     // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
                                     auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
-                                    Eigen::Vector<real, -1> uBV(nvars);
-                                    Eigen::Vector<real, -1> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
-                                                                   uRec[iCell])
-                                                                      .transpose();
+                                    Eigen::Vector<real, nVars_Fixed> uBV(nvars);
+                                    Eigen::Vector<real, nVars_Fixed> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
+                                                                            uRec[iCell])
+                                                                               .transpose();
                                     // Eigen::Matrix<real, -1, 2> graduBL = (diffI.row({1,2}).rightCols(uRec[iCell].rows()) *
                                     //                                       uRec[iCell])
                                     //                                          .transpose();//!2D!!
@@ -1515,8 +1519,8 @@ namespace DNDS
                                     // auto uBLMomentum = uBL({1, 2, 3});
                                     // uBV({1, 2, 3}) = uBLMomentum - normOut * (normOut.dot(uBLMomentum));
                                     // uBV({1, 2, 3}).setZero();
-                                    uBV({1, 2, 3}) = -uBL({1, 2, 3});
-                                    uBV(4) = uBL(4);
+                                    uBV(Seq123) = -uBL(Seq123);
+                                    uBV(I4) = uBL(I4);
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell]).transpose();
                                     Eigen::MatrixXd rowDiffI = diffI.row(0).rightCols(uRec[iCell].rows());
@@ -1610,7 +1614,7 @@ namespace DNDS
          * @brief FM(uLeft,uRight,norm) gives vsize * vsize mat of Left Eigen Vectors
          *
          */
-        template <class TU_DOF, typename TFM, typename TFMI>
+        template <int dim = 3, class TU_DOF, typename TFM, typename TFMI>
         // static const int vsize = 1; // intellisense helper: give example...
         void ReconstructionWBAPLimitFacialV2(TU_DOF &u,
                                              ArrayRecV &uRec,
@@ -1621,6 +1625,7 @@ namespace DNDS
                                              TFM &&FM, TFMI &&FMI)
         {
             static int icount = 0;
+            static const int I4 = dim + 1;
 
             // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Start");
             //* Step 0: prepare the facial buf
@@ -1654,13 +1659,13 @@ namespace DNDS
                             //! Taking only rho and E
                             Eigen::MatrixXd uRecVal(nDiff, 2), uRecValL(nDiff, 2), uRecValR(nDiff, 2), uRecValJump(nDiff, 2);
                             uRecVal.setZero(), uRecValJump.setZero();
-                            uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[iCell].rows()) * uRec[iCell](Eigen::all, {0, 4});
-                            uRecValL(0, Eigen::all) += u[iCell]({0, 4}).transpose();
+                            uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[iCell].rows()) * uRec[iCell](Eigen::all, {0, I4});
+                            uRecValL(0, Eigen::all) += u[iCell]({0, I4}).transpose();
 
                             if (iCellOther != FACE_2_VOL_EMPTY)
                             {
-                                uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[iCellOther].rows()) * uRec[iCellOther](Eigen::all, {0, 4});
-                                uRecValR(0, Eigen::all) += u[iCellOther]({0, 4}).transpose();
+                                uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[iCellOther].rows()) * uRec[iCellOther](Eigen::all, {0, I4});
+                                uRecValR(0, Eigen::all) += u[iCellOther]({0, I4}).transpose();
                                 uRecVal = (uRecValL + uRecValR) * 0.5;
                                 uRecValJump = (uRecValL - uRecValR) * 0.5;
                             }
@@ -1899,7 +1904,7 @@ namespace DNDS
          * @brief FM(uLeft,uRight,norm) gives vsize * vsize mat of Left Eigen Vectors
          *
          */
-        template <class TU_DOF, typename TFM, typename TFMI>
+        template <int dim = 3, class TU_DOF, typename TFM, typename TFMI>
         // static const int vsize = 1; // intellisense helper: give example...
         void ReconstructionWBAPLimitFacialV3(TU_DOF &u,
                                              ArrayRecV &uRec,
@@ -1910,6 +1915,7 @@ namespace DNDS
                                              TFM &&FM, TFMI &&FMI)
         {
             static int icount = 0;
+            static const int I4 = dim + 1;
 
             // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Start");
             //* Step 0: prepare the facial buf
@@ -1943,13 +1949,13 @@ namespace DNDS
                             //! Taking only rho and E
                             Eigen::MatrixXd uRecVal(nDiff, 2), uRecValL(nDiff, 2), uRecValR(nDiff, 2), uRecValJump(nDiff, 2);
                             uRecVal.setZero(), uRecValJump.setZero();
-                            uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[iCell].rows()) * uRec[iCell](Eigen::all, {0, 4});
-                            uRecValL(0, Eigen::all) += u[iCell]({0, 4}).transpose();
+                            uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[iCell].rows()) * uRec[iCell](Eigen::all, {0, I4});
+                            uRecValL(0, Eigen::all) += u[iCell]({0, I4}).transpose();
 
                             if (iCellOther != FACE_2_VOL_EMPTY)
                             {
-                                uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[iCellOther].rows()) * uRec[iCellOther](Eigen::all, {0, 4});
-                                uRecValR(0, Eigen::all) += u[iCellOther]({0, 4}).transpose();
+                                uRecValR = faceDiBjGaussBatchElemVR.m(ig * 2 + 1).rightCols(uRec[iCellOther].rows()) * uRec[iCellOther](Eigen::all, {0, I4});
+                                uRecValR(0, Eigen::all) += u[iCellOther]({0, I4}).transpose();
                                 uRecVal = (uRecValL + uRecValR) * 0.5;
                                 uRecValJump = (uRecValL - uRecValR) * 0.5;
                             }

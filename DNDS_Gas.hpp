@@ -23,7 +23,7 @@ namespace DNDS
                 .diagonal()
                 .setConstant(1);
 
-            ReV(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>), {0, 1, 4}).colwise() = velo;
+            ReV(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>), {0, 1, dim + 1}).colwise() = velo;
             ReV(1, 0) -= a;
             ReV(1, dim + 1) += a;
 
@@ -156,7 +156,7 @@ namespace DNDS
             real asqr, p, H;
             IdealGasThermal(U(dim + 1), U(0), vsqr, gamma, p, asqr, H);
             assert(asqr >= 0);
-            EulerGasRightEigenVector(velo, vsqr, H, std::sqrt(asqr), ReV);
+            EulerGasRightEigenVector<dim>(velo, vsqr, H, std::sqrt(asqr), ReV);
             return ReV;
         }
 
@@ -171,7 +171,7 @@ namespace DNDS
             real asqr, p, H;
             IdealGasThermal(U(dim + 1), U(0), vsqr, gamma, p, asqr, H);
             assert(asqr >= 0);
-            EulerGasLeftEigenVector(velo, vsqr, H, std::sqrt(asqr), gamma, LeV);
+            EulerGasLeftEigenVector<dim>(velo, vsqr, H, std::sqrt(asqr), gamma, LeV);
             return LeV;
         }
 
@@ -240,7 +240,7 @@ namespace DNDS
                 UR(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) -
                 UL(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>));
             real incP = pR - pL;
-            Gas::tVec incVelo = veloR - veloL;
+            TVec incVelo = veloR - veloL;
 
             alpha(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) =
                 incU(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) -
@@ -395,7 +395,7 @@ namespace DNDS
             real sqrtRhoL = std::sqrt(UL(0));
             real sqrtRhoR = std::sqrt(UR(0));
 
-            tVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
+            TVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
             real vsqrRoe = veloRoe.squaredNorm();
             real HRoe = (sqrtRhoL * HL + sqrtRhoR * HR) / (sqrtRhoL + sqrtRhoR);
             real asqrRoe = (gamma - 1) * (HRoe - 0.5 * vsqrRoe);
@@ -429,12 +429,15 @@ namespace DNDS
             Eigen::Vector<real, dim + 2> alpha;
             Eigen::Matrix<real, dim + 2, dim + 2> ReVRoe;
             EulerGasRightEigenVector<dim>(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
+            // std::cout << UL << std::endl;
+            // std::cout << UR << std::endl;
+            // std::cout << ReVRoe << std::endl;
 
             Eigen::Vector<real, dim + 2> incU =
                 UR(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) -
                 UL(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>));
             real incP = pR - pL;
-            Gas::tVec incVelo = veloR - veloL;
+            TVec incVelo = veloR - veloL;
 
             alpha(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) =
                 incU(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) -
@@ -605,9 +608,9 @@ namespace DNDS
         template <int dim = 3, typename TU, typename TGradU, typename TFlux, typename TNorm>
         void ViscousFlux_IdealGas(const TU &U, const TGradU &GradU, TNorm norm, bool adiabatic, real gamma, real mu, real k, real Cp, TFlux &Flux)
         {
-            auto Seq01234 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>);
-            auto Seq012 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim - 1>);
-            auto Seq123 = Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>);
+            static const auto Seq01234 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>);
+            static const auto Seq012 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim - 1>);
+            static const auto Seq123 = Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>);
 
             Eigen::Vector<real, dim> velo = U(Seq123) / U(0);
             static const real lambda = -2. / 3.;

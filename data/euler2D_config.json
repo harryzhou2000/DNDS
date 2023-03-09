@@ -48,8 +48,8 @@
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
         "data/mesh/NACA0012_WIDE_H3G_NS.msh"
     ],
-    "outPltName": "data/out/test_Euler_.UniformDM480_Nolim_perftest",
-    "outLogName": "data/out/test_Euler_.UniformDM480_Nolim_perftest",
+    "outPltName": "data/out/test_Euler2D_.UniformDM480_Nolim_perftest",
+    "outLogName": "data/out/test_Euler2D_.UniformDM480_Nolim_perftest",
     "err_dMax": 0.00,
     "res_base": 0,
     "vfvSetting": {
@@ -92,7 +92,6 @@
             1.4,
             0,
             0,
-            0,
             2.5
         ],
         "boxInitializerValue": [],
@@ -104,14 +103,12 @@
             8,
             57.157676649772960,
             -33,
-            0,
             5.635e2
         ],
         "comment_farSatic": [
             [
                 "A",
                 1,
-                0,
                 0,
                 0,
                 2.5
@@ -121,7 +118,6 @@
                 1,
                 0.946572765295939,
                 0,
-                0,
                 2.948
             ],
             [
@@ -129,14 +125,12 @@
                 1,
                 3.54964786985977,
                 0,
-                0,
                 8.80000000000000
             ],
             [
                 "0.5M",
                 1,
                 0.591607978309962,
-                0,
                 0,
                 2.67500000000000
             ]

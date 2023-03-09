@@ -17,6 +17,7 @@ namespace DNDS
                                            real CFL, real &dtMinall, real MaxDt,
                                            bool UseLocaldt)
     {
+        DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         InsertCheck(u.dist->getMPI(), "EvaluateDt 1");
         for (auto &i : lambdaCell)
             i = 0.0;
@@ -25,27 +26,27 @@ namespace DNDS
         {
             auto f2c = mesh->face2cellLocal[iFace];
             auto faceDiBjCenterBatchElemVR = (*vfv->faceDiBjCenterBatch)[iFace];
-            Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized();
+            TVec unitNorm = vfv->faceNormCenter[iFace](Seq012).normalized();
 
             index iCellL = f2c[0];
             TU uMean = u[iCellL];
             real pL, asqrL, HL, pR, asqrR, HR;
-            Gas::tVec vL = u[iCellL]({1, 2, 3}) / u[iCellL](0);
-            Gas::tVec vR = vL;
-            Gas::IdealGasThermal(u[iCellL](4), u[iCellL](0), vL.squaredNorm(),
+            TVec vL = u[iCellL](Seq123) / u[iCellL](0);
+            TVec vR = vL;
+            Gas::IdealGasThermal(u[iCellL](I4), u[iCellL](0), vL.squaredNorm(),
                                  settings.idealGasProperty.gamma,
                                  pL, asqrL, HL);
             pR = pL, HR = HL, asqrR = asqrL;
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
                 uMean = (uMean + u[f2c[1]]) * 0.5;
-                vR = u[f2c[1]]({1, 2, 3}) / u[f2c[1]](0);
-                Gas::IdealGasThermal(u[f2c[1]](4), u[f2c[1]](0), vR.squaredNorm(),
+                vR = u[f2c[1]](Seq123) / u[f2c[1]](0);
+                Gas::IdealGasThermal(u[f2c[1]](I4), u[f2c[1]](0), vR.squaredNorm(),
                                      settings.idealGasProperty.gamma,
                                      pR, asqrR, HR);
             }
             assert(uMean(0) > 0);
-            Gas::tVec veloMean = (uMean({1, 2, 3}).array() / uMean(0)).matrix();
+            TVec veloMean = (uMean(Seq123).array() / uMean(0)).matrix();
             // real veloNMean = veloMean.dot(unitNorm); // original
             real veloNMean = 0.5 * (vL + vR).dot(unitNorm); // paper
 
@@ -62,7 +63,7 @@ namespace DNDS
             // uMean(4) = Ek + e;
 
             real pMean, asqrMean, HMean;
-            Gas::IdealGasThermal(uMean(4), uMean(0), veloMean.squaredNorm(),
+            Gas::IdealGasThermal(uMean(I4), uMean(0), veloMean.squaredNorm(),
                                  settings.idealGasProperty.gamma,
                                  pMean, asqrMean, HMean);
 
@@ -85,7 +86,7 @@ namespace DNDS
             if constexpr (model == NS_SA)
             {
                 real cnu1 = 7.1;
-                real Chi = uMean(5) * muRef / muf;
+                real Chi = uMean(I4 + 1) * muRef / muf;
                 if (Chi < 10)
                     Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
                 real Chi3 = std::pow(Chi, 3);
@@ -165,12 +166,17 @@ namespace DNDS
                                                     ArrayDOFV &u,
                                                     real CFL, real &dtMinall, real MaxDt,
                                                     bool UseLocaldt);
+    template void EulerEvaluator<NS_2D>::EvaluateDt(std::vector<real> &dt,
+                                                    ArrayDOFV &u,
+                                                    real CFL, real &dtMinall, real MaxDt,
+                                                    bool UseLocaldt);
 
 #define IF_NOT_NOREC (1)
     template <EulerModel model>
     void EulerEvaluator<model>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
                                             ArrayRecV &uRec, real t)
     {
+        DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         InsertCheck(u.dist->getMPI(), "EvaluateRHS 1");
         int cnvars = nVars;
         typename Setting::RiemannSolverType rsType = settings.rsType;
@@ -201,14 +207,14 @@ namespace DNDS
                 [&](decltype(flux) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
                 {
                     int nDiff = vfv->faceWeights->operator[](iFace).size();
-                    Elem::tPoint unitNorm = vfv->faceNorms[iFace][ig].normalized();
-                    Elem::tJacobi normBase = Elem::NormBuildLocalBaseV(unitNorm);
+                    TVec unitNorm = vfv->faceNorms[iFace][ig](Seq012).normalized();
+                    TMat normBase = Elem::NormBuildLocalBaseV(unitNorm);
                     PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterB);
                     TU ULxy =
                         faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
                         uRec[f2c[0]] * IF_NOT_NOREC;
                     // UL += u[f2c[0]]; //! do not forget the mean value
-                    ULxy = CompressRecPart(u[f2c[0]], ULxy);
+                    ULxy = CompressRecPart(u.get<nVars_Fixed>(f2c[0]), ULxy);
 
                     TU URxy;
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
@@ -217,9 +223,15 @@ namespace DNDS
                     GradURxy.resize(Eigen::NoChange, cnvars);
                     GradULxy.setZero(), GradURxy.setZero();
 
-                    GradULxy({0, 1}, Eigen::all) =
-                        faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
-                        uRec[f2c[0]] * IF_NOT_NOREC; // ! 2d here
+                    if constexpr (gdim == 2)
+                        GradULxy({0, 1}, Eigen::all) =
+                            faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
+                            uRec[f2c[0]] * IF_NOT_NOREC; // 2d here
+                    else
+                        GradULxy({0, 1, 2}, Eigen::all) =
+                            faceDiBjGaussBatchElemVR.m(ig * 2 + 0)({1, 2, 3}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
+                            uRec[f2c[0]] * IF_NOT_NOREC; // 3d here
+
 #endif
                     real minVol = fv->volumeLocal[f2c[0]];
                     // InsertCheck(u.dist->getMPI(), "RHS inner 2");
@@ -232,9 +244,14 @@ namespace DNDS
                         // UR += u[f2c[1]];
                         URxy = CompressRecPart(u[f2c[1]], URxy);
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
-                        GradURxy({0, 1}, Eigen::all) =
-                            faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
-                            uRec[f2c[1]] * IF_NOT_NOREC; // ! 2d here
+                        if constexpr (gdim == 2)
+                            GradURxy({0, 1}, Eigen::all) =
+                                faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
+                                uRec[f2c[1]] * IF_NOT_NOREC; // 2d here
+                        else
+                            GradURxy({0, 1, 2}, Eigen::all) =
+                                faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2, 3}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
+                                uRec[f2c[1]] * IF_NOT_NOREC; // 3d here
 #endif
 
                         minVol = std::min(minVol, fv->volumeLocal[f2c[1]]);
@@ -245,7 +262,7 @@ namespace DNDS
                             ULxy,
                             unitNorm,
                             normBase,
-                            vfv->faceCenters[iFace],
+                            vfv->faceCenters[iFace](Seq012),
                             t,
                             BoundaryType(faceAtr.iPhy));
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
@@ -273,6 +290,40 @@ namespace DNDS
 #else
                     TDiffU GradUMeanXy;
 #endif
+                    // if (u.dist->getMPI().rank == 0)
+                    // {
+                    //     if constexpr (model == NS)
+                    //     {
+                    //         finc = fluxFace(
+                    //             TU{1, 0, 0, 0, 2.5},
+                    //             TU{1, 1, 0, 0, 7.5},
+                    //             GradUMeanXy,
+                    //             unitNorm,
+                    //             normBase,
+                    //             BoundaryType(faceAtr.iPhy),
+                    //             rsType,
+                    //             iFace, ig);
+
+                    //         std::cout << "F::: \n " << GradUMeanXy << "\n  " << unitNorm << "\n   " << normBase << std::endl;
+                    //         std::cout << finc << std::endl;
+                    //     }
+                    //     else if constexpr (model == NS_2D)
+                    //     {
+                    //         finc = fluxFace(
+                    //             TU{1, 0, 0, 2.5},
+                    //             TU{1, 1, 0, 7.5},
+                    //             GradUMeanXy,
+                    //             unitNorm,
+                    //             normBase,
+                    //             BoundaryType(faceAtr.iPhy),
+                    //             rsType,
+                    //             iFace, ig);
+                    //         std::cout << "F::: \n " << GradUMeanXy << "\n  " << unitNorm << "\n   " << normBase << std::endl;
+                    //         std::cout << finc << std::endl;
+                    //     }
+                    // }
+
+                    // exit(-1);
 
                     finc = fluxFace(
                         ULxy,
@@ -323,9 +374,14 @@ namespace DNDS
                     GradU.resize(Eigen::NoChange, cnvars);
                     GradU.setZero();
                     PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterB);
-                    GradU({0, 1}, Eigen::all) =
-                        cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
-                        uRec[iCell] * IF_NOT_NOREC; //! 2d specific
+                    if constexpr (gdim == 2)
+                        GradU({0, 1}, Eigen::all) =
+                            cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
+                            uRec[iCell] * IF_NOT_NOREC; // 2d specific
+                    else
+                        GradU({0, 1, 2}, Eigen::all) =
+                            cellDiBjGaussBatchElemVR.m(ig)({1, 2, 3}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
+                            uRec[iCell] * IF_NOT_NOREC; // 3d specific
 
                     TU ULxy =
                         cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
@@ -389,6 +445,8 @@ namespace DNDS
     template void EulerEvaluator<NS>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
                                                   ArrayRecV &uRec, real t);
     template void EulerEvaluator<NS_SA>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
+                                                     ArrayRecV &uRec, real t);
+    template void EulerEvaluator<NS_2D>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
                                                      ArrayRecV &uRec, real t);
 
     template <EulerModel model>
@@ -595,6 +653,9 @@ namespace DNDS
     template void EulerEvaluator<NS_SA>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
                                                            int jacobianCode,
                                                            real t);
+    template void EulerEvaluator<NS_2D>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
+                                                           int jacobianCode,
+                                                           real t);
 
     template <EulerModel model>
     void EulerEvaluator<model>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
@@ -635,6 +696,7 @@ namespace DNDS
 
     template void EulerEvaluator<NS>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
     template void EulerEvaluator<NS_SA>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
+    template void EulerEvaluator<NS_2D>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
 
     /**
      * @brief waring! rhs here is with volume, different from UpdateLUSGSADForward
@@ -685,6 +747,7 @@ namespace DNDS
 
     template void EulerEvaluator<NS>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
     template void EulerEvaluator<NS_SA>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template void EulerEvaluator<NS_2D>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
     template <EulerModel model>
     void EulerEvaluator<model>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
@@ -730,6 +793,7 @@ namespace DNDS
 
     template void EulerEvaluator<NS>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
     template void EulerEvaluator<NS_SA>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template void EulerEvaluator<NS_2D>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
     template <EulerModel model>
     void EulerEvaluator<model>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
@@ -789,10 +853,15 @@ namespace DNDS
                                                          ArrayDOFV &u, ArrayRecV &uRec,
                                                          int jacobianCode,
                                                          real t);
+    template void EulerEvaluator<NS_2D>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
+                                                         ArrayDOFV &u, ArrayRecV &uRec,
+                                                         int jacobianCode,
+                                                         real t);
 
     template <EulerModel model>
     void EulerEvaluator<model>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
     {
+        DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec 1");
         int cnvars = nVars;
         for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
@@ -823,8 +892,8 @@ namespace DNDS
                     {
                         TU fInc;
                         {
-                            Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
-                                                    (iCellAtFace ? -1 : 1); // faces out
+                            TVec unitNorm = vfv->faceNormCenter[iFace](Seq012).normalized() *
+                                            (iCellAtFace ? -1 : 1); // faces out
 
                             // fInc = fluxJacobian0_Right(
                             //            u[iCellOther],
@@ -871,11 +940,13 @@ namespace DNDS
 
     template void EulerEvaluator<NS>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
     template void EulerEvaluator<NS_SA>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
+    template void EulerEvaluator<NS_2D>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
 
     template <EulerModel model>
     void EulerEvaluator<model>::UpdateLUSGSForward(real alphaDiag,
                                                    ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
+        DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward 1");
         int cnvars = nVars;
         index nCellDist = mesh->cell2nodeLocal.dist->size();
@@ -905,8 +976,8 @@ namespace DNDS
                         TU fInc;
 
                         {
-                            Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
-                                                    (iCellAtFace ? -1 : 1); // faces out
+                            TVec unitNorm = vfv->faceNormCenter[iFace](Seq012).normalized() *
+                                            (iCellAtFace ? -1 : 1); // faces out
 
                             // fInc = fluxJacobian0_Right(
                             //            u[iCellOther],
@@ -956,11 +1027,14 @@ namespace DNDS
                                                          ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
     template void EulerEvaluator<NS_SA>::UpdateLUSGSForward(real alphaDiag,
                                                             ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template void EulerEvaluator<NS_2D>::UpdateLUSGSForward(real alphaDiag,
+                                                            ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
     template <EulerModel model>
     void EulerEvaluator<model>::UpdateLUSGSBackward(real alphaDiag,
                                                     ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
     {
+        DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward 1");
         int cnvars = nVars;
         index nCellDist = mesh->cell2nodeLocal.dist->size();
@@ -990,8 +1064,8 @@ namespace DNDS
                         TU fInc;
 
                         {
-                            Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
-                                                    (iCellAtFace ? -1 : 1); // faces out
+                            TVec unitNorm = vfv->faceNormCenter[iFace](Seq012).normalized() *
+                                            (iCellAtFace ? -1 : 1); // faces out
 
                             // fInc = fluxJacobian0_Right(
                             //            u[iCellOther],
@@ -1027,11 +1101,14 @@ namespace DNDS
                                                           ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
     template void EulerEvaluator<NS_SA>::UpdateLUSGSBackward(real alphaDiag,
                                                              ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template void EulerEvaluator<NS_2D>::UpdateLUSGSBackward(real alphaDiag,
+                                                             ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
 
     template <EulerModel model>
     void EulerEvaluator<model>::UpdateSGS(real alphaDiag,
                                           ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward)
     {
+        DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         int cnvars = nVars;
         for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
         {
@@ -1059,8 +1136,8 @@ namespace DNDS
                         TU fInc;
 
                         {
-                            Elem::tPoint unitNorm = vfv->faceNormCenter[iFace].normalized() *
-                                                    (iCellAtFace ? -1 : 1); // faces out
+                            TVec unitNorm = vfv->faceNormCenter[iFace](Seq012).normalized() *
+                                            (iCellAtFace ? -1 : 1); // faces out
 
                             // fInc = fluxJacobian0_Right(
                             //            u[iCellOther],
@@ -1091,10 +1168,13 @@ namespace DNDS
                                                 ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
     template void EulerEvaluator<NS_SA>::UpdateSGS(real alphaDiag,
                                                    ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
+    template void EulerEvaluator<NS_2D>::UpdateSGS(real alphaDiag,
+                                                   ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
 
     template <EulerModel model>
     void EulerEvaluator<model>::FixUMaxFilter(ArrayDOFV &u)
     {
+        DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         // TODO: make spacial filter jacobian
         return; // ! nofix shortcut
         real scaleRhoCutoff = 0.0001;
@@ -1150,8 +1230,8 @@ namespace DNDS
                 u[iCell](0) = (rhoOld * rhoOld + rhoTSqr) / (2 * rhoT);
                 uScale = u[iCell](0) / rhoOld;
             }
-            u[iCell]({1, 2, 3}) *= uScale;
-            real e = u[iCell](4) - 0.5 * u[iCell]({1, 2, 3}).squaredNorm() / (u[iCell](0) + verySmallReal);
+            u[iCell](Seq123) *= uScale;
+            real e = u[iCell](I4) - 0.5 * u[iCell](Seq123).squaredNorm() / (u[iCell](0) + verySmallReal);
             eMax = std::max(e, eMax);
             eMeanU += e;
             eMeanL += 1;
@@ -1180,8 +1260,8 @@ namespace DNDS
                 index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
-                    real EkOther = 0.5 * u[iCellOther]({1, 2, 3}).squaredNorm() / (u[iCellOther](0) + verySmallReal);
-                    eMU += u[iCellOther](4) - EkOther;
+                    real EkOther = 0.5 * u[iCellOther](Seq123).squaredNorm() / (u[iCellOther](0) + verySmallReal);
+                    eMU += u[iCellOther](I4) - EkOther;
                     eML += 1;
                 }
             }
@@ -1189,23 +1269,23 @@ namespace DNDS
             eT = eTC; //! using global
             eTSqr = eT * eT;
 
-            real Ek = 0.5 * u[iCell]({1, 2, 3}).squaredNorm() / (u[iCell](0) + verySmallReal);
-            real e = u[iCell](4) - Ek;
+            real Ek = 0.5 * u[iCell](Seq123).squaredNorm() / (u[iCell](0) + verySmallReal);
+            real e = u[iCell](I4) - Ek;
             if (e <= 0)
                 e = eT * 0.5;
             else if (e <= eT)
                 e = (e * e + eTSqr) / (2 * eT);
             // eNew + Ek = e + Eknew
-            real EkNew = Ek - e + (u[iCell](4) - Ek);
+            real EkNew = Ek - e + (u[iCell](I4) - Ek);
             if (EkNew > 0)
             {
                 real uScale = sqrt(EkNew / Ek);
-                u[iCell]({1, 2, 3}) *= uScale;
+                u[iCell](Seq123) *= uScale;
             }
             else
             {
-                u[iCell]({1, 2, 3}) *= 0;
-                u[iCell](4) -= EkNew;
+                u[iCell](Seq123) *= 0;
+                u[iCell](I4) -= EkNew;
             }
             // u[iCell](4) =Ek + e;
         }
@@ -1213,6 +1293,7 @@ namespace DNDS
 
     template void EulerEvaluator<NS>::FixUMaxFilter(ArrayDOFV &u);
     template void EulerEvaluator<NS_SA>::FixUMaxFilter(ArrayDOFV &u);
+    template void EulerEvaluator<NS_2D>::FixUMaxFilter(ArrayDOFV &u);
 
     template <EulerModel model>
     void EulerEvaluator<model>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P)
@@ -1250,5 +1331,5 @@ namespace DNDS
 
     template void EulerEvaluator<NS>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P);
     template void EulerEvaluator<NS_SA>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P);
-
+    template void EulerEvaluator<NS_2D>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P);
 }

@@ -428,6 +428,12 @@ namespace DNDS
         {
             return base::operator[](i).p();
         }
+
+        template<int fixedVsize>
+        Eigen::Map<Eigen::Vector<real, fixedVsize>> get(index i)
+        {
+            return base::operator[](i).p_fixed<fixedVsize>();
+        }
     };
 }
 
