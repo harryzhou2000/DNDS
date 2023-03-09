@@ -299,19 +299,23 @@ namespace DNDS
 
 namespace DNDS
 {
-    class ArrayDOFV : public ArrayLocal<UniVector>
+    template<int vsize = Eigen::Dynamic>
+    class ArrayDOFV : public ArrayLocal<UniVector<vsize>>
     {
+        
     public:
-        typedef ArrayLocal<UniVector> base;
-        using ArrayLocal<UniVector>::ArrayLocal;
+        typedef ArrayLocal<UniVector<vsize>> base;
+        using TElem = UniVector<vsize>;
+        using TArray = Array<UniVector<vsize>>;
+        using ArrayLocal<UniVector<vsize>>::ArrayLocal;
         ArrayDOFV() {}
         ArrayDOFV(index distSize, const MPIInfo &mpi, index vecSize)
         {
-            base::dist = std::make_shared<Array<UniVector>>(
-                typename UniVector::Context(
-                                            distSize, vecSize),
+            base::dist = std::make_shared<TArray>(
+                typename TElem::Context(
+                    distSize, vsize == Eigen::Dynamic ? vecSize : vsize),
                 mpi);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p().setZero(); });
         }
 
@@ -319,28 +323,28 @@ namespace DNDS
         {
             assert(base::dist);
             MPIInfo mpi = base::dist->getMPI();
-            base::dist = std::make_shared<Array<UniVector>>(
-                typename UniVector::Context(
-                                            nsize, vecSize),
+            base::dist = std::make_shared<TArray>(
+                typename TElem::Context(
+                    nsize, vsize == Eigen::Dynamic ? vecSize : vsize),
                 mpi);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p().setZero(); });
         }
 
         void resize(index nsize, const MPIInfo &mpi, index vecSize)
         {
-            base::dist = std::make_shared<Array<UniVector>>(
-                typename UniVector::Context(
-                                            nsize, vecSize),
+            base::dist = std::make_shared<TArray>(
+                typename TElem::Context(
+                    nsize, vsize == Eigen::Dynamic ? vecSize : vsize),
                 mpi);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p().setZero(); });
         }
 
         void setConstant(real v)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p().setConstant(v); });
         }
 
@@ -348,41 +352,41 @@ namespace DNDS
         void setConstant(const Tin &in)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() = in; });
         }
 
-        void operator=(const ArrayDOFV &R)
+        void operator=(const ArrayDOFV<vsize> &R)
         {
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() = (*R.dist)[i].p(); });
         }
 
-        void operator+=(const ArrayDOFV &R)
+        void operator+=(const ArrayDOFV<vsize> &R)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() += (*R.dist)[i].p(); });
         }
 
-        void addTo(const ArrayDOFV &R, real r)
+        void addTo(const ArrayDOFV<vsize> &R, real r)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() += (*R.dist)[i].p() * r; });
         }
 
-        void operator-=(const ArrayDOFV &R)
+        void operator-=(const ArrayDOFV<vsize> &R)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() -= (*R.dist)[i].p(); });
         }
 
         void operator*=(real r)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() *= r; });
         }
 
@@ -390,7 +394,7 @@ namespace DNDS
         void operator*=(const VR &R)
         {
             assert(base::dist);
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() *= R[i]; });
         }
 
@@ -402,18 +406,18 @@ namespace DNDS
         {
             assert(base::dist);
             real sqrSum{0}, sqrSumAll;
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { sqrSum += e.p().squaredNorm(); });
             MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
             // std::cout << "norm2is " << std::scientific << sqrSumAll << std::endl;
             return std::sqrt(sqrSumAll);
         }
 
-        real dot(const ArrayDOFV &R)
+        real dot(const ArrayDOFV<vsize> &R)
         {
             assert(base::dist);
             real sqrSum{0}, sqrSumAll;
-            forEachInArray(*base::dist, [&](UniVector &e, index i)
+            forEachInArray(*base::dist, [&](TElem &e, index i)
                            { sqrSum += e.p().dot((*R.dist)[i].p()); });
             MPI_Allreduce(&sqrSum, &sqrSumAll, 1, DNDS_MPI_REAL, MPI_SUM, base::dist->getMPI().comm);
             return sqrSumAll;
@@ -424,7 +428,7 @@ namespace DNDS
         //     return base::operator[](i).p();
         // }
 
-        Eigen::Map<Eigen::Vector<real, -1>> operator[](index i)
+        Eigen::Map<Eigen::Vector<real, vsize>> operator[](index i)
         {
             return base::operator[](i).p();
         }
@@ -432,7 +436,7 @@ namespace DNDS
         template<int fixedVsize>
         Eigen::Map<Eigen::Vector<real, fixedVsize>> get(index i)
         {
-            return base::operator[](i).p_fixed<fixedVsize>();
+            return base::operator[](i).template p_fixed<fixedVsize>();
         }
     };
 }

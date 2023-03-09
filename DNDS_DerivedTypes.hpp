@@ -60,13 +60,14 @@ namespace DNDS
         }
     };
 
+    template<int vsize = Eigen::Dynamic>
     class UniVector : public UniBatch<real>
     {
     public:
         using UniBatch<real>::UniBatch;
-        Eigen::Map<Eigen::Vector<real, -1>> p()
+        Eigen::Map<Eigen::Vector<real, vsize>> p()
         {
-            return Eigen::Map<Eigen::Vector<real, -1>>(data, Bsize);
+            return Eigen::Map<Eigen::Vector<real, vsize>>(data, Bsize);
         }
 
         template<int fixedVsize>

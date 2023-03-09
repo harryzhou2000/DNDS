@@ -112,7 +112,8 @@ namespace DNDS
             u.InitPersistentPullClean();
         }
 
-        void BuildMean(ArrayDOFV &u, index nvars)
+        template <int nVars_Fixed>
+        void BuildMean(ArrayDOFV<nVars_Fixed> &u, index nvars)
         {
             index nCellDist = mesh->cell2nodeLocal.dist->size();
             u.resize(nCellDist, mpi, nvars);
@@ -970,8 +971,8 @@ namespace DNDS
             return;
         }
 
-        template <class TDIFFI, class TDIFFJ>
-        void FFaceFunctional(index iFace, index iGauss, TDIFFI &&DiffI, TDIFFJ &&DiffJ, const Eigen::VectorXd &Weights, Eigen::MatrixXd &Conj)
+        template <class TDIFFI, class TDIFFJ, class TConj>
+        void FFaceFunctional(index iFace, index iGauss, TDIFFI &&DiffI, TDIFFJ &&DiffJ, const Eigen::VectorXd &Weights, TConj &Conj)
         {
             assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
 #ifndef USE_NORM_FUNCTIONAL
@@ -983,11 +984,11 @@ namespace DNDS
             {
                 const real epsR = 1e-50;
                 real w2r, w3r, length;
-                if (std::fabs(Weights[1]) >= epsR || std::fabs(Weights[2]) >= epsR)
+                if (std::fabs(Weights(1)) >= epsR || std::fabs(Weights(2)) >= epsR)
                 {
-                    w2r = std::fabs(Weights[1]) >= std::fabs(Weights[2]) ? Weights[3] / (Weights[1] * Weights[1]) : Weights[5] / (Weights[2] * Weights[2]);
-                    w3r = std::fabs(Weights[1]) >= std::fabs(Weights[2]) ? Weights[6] / (Weights[1] * Weights[1] * Weights[1]) : Weights[9] / (Weights[2] * Weights[2] * Weights[2]);
-                    length = std::sqrt(Weights[1] * Weights[1] + Weights[2] * Weights[2]);
+                    w2r = std::fabs(Weights(1)) >= std::fabs(Weights(2)) ? Weights(3) / (Weights(1) * Weights(1)) : Weights(5) / (Weights(2) * Weights(2));
+                    w3r = std::fabs(Weights(1)) >= std::fabs(Weights(2)) ? Weights(6) / (Weights(1) * Weights(1) * Weights(1)) : Weights(9) / (Weights(2) * Weights(2) * Weights(2));
+                    length = std::sqrt(Weights(1) * Weights(1) + Weights(2) * Weights(2));
                 }
                 else
                 {
@@ -1104,10 +1105,10 @@ namespace DNDS
                 // std::abort();
                 const real epsR = 1e-50;
                 real w2r, length;
-                if (std::fabs(Weights[1]) >= epsR || std::fabs(Weights[2]) >= epsR)
+                if (std::fabs(Weights(1)) >= epsR || std::fabs(Weights(2)) >= epsR)
                 {
-                    w2r = std::fabs(Weights[1]) >= std::fabs(Weights[2]) ? Weights[3] / (Weights[1] * Weights[1]) : Weights[5] / (Weights[2] * Weights[2]);
-                    length = std::sqrt(Weights[1] * Weights[1] + Weights[2] * Weights[2]);
+                    w2r = std::fabs(Weights(1)) >= std::fabs(Weights(2)) ? Weights(3) / (Weights(1) * Weights(1)) : Weights(5) / (Weights(2) * Weights(2));
+                    length = std::sqrt(Weights(1) * Weights(1) + Weights(2) * Weights(2));
                 }
                 else
                 {
@@ -1355,7 +1356,7 @@ namespace DNDS
          * \pre u need to StartPersistentPullClean()
          * \post u,uR need to WaitPersistentPullClean();
          */
-        template <int dim=3, int nVars_Fixed = Eigen::Dynamic, class TU_DOF>
+        template <int dim = 3, int nVars_Fixed = Eigen::Dynamic, class TU_DOF>
         // static const int vsize = 1; // intellisense helper: give example...
         void ReconstructionJacobiStep(TU_DOF &u,
                                       ArrayRecV &uRec,
@@ -1469,13 +1470,13 @@ namespace DNDS
                                     auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
                                     Eigen::Vector<real, nVars_Fixed> uBV(nvars);
                                     Eigen::Vector<real, nVars_Fixed> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
-                                                                   uRec[iCell])
-                                                                      .transpose();
+                                                                            uRec[iCell])
+                                                                               .transpose();
                                     uBL += u[iCell].transpose();
                                     uBV.setZero();
                                     uBV = uBL;
                                     uBV(0) = uBL(0);
-                                    Eigen::Vector<real,dim> normOut = faceNorms[iFace][ig](Seq012).stableNormalized();
+                                    Eigen::Vector<real, dim> normOut = faceNorms[iFace][ig](Seq012).stableNormalized();
                                     uBV(Seq123) = uBL(Seq123) - normOut * (normOut.dot(uBV(Seq123)));
                                     uBV(I4) = uBL(I4);
 
@@ -1614,7 +1615,7 @@ namespace DNDS
          * @brief FM(uLeft,uRight,norm) gives vsize * vsize mat of Left Eigen Vectors
          *
          */
-        template <int dim = 3, class TU_DOF, typename TFM, typename TFMI>
+        template <int dim = 3, int nVars_Fixed = -1, class TU_DOF, typename TFM, typename TFMI>
         // static const int vsize = 1; // intellisense helper: give example...
         void ReconstructionWBAPLimitFacialV2(TU_DOF &u,
                                              ArrayRecV &uRec,
@@ -1727,6 +1728,8 @@ namespace DNDS
                     break;
 
                 default:
+                    LimStart = -200;
+                    LimEnd = -100;
                     assert(false);
                     break;
                 }
@@ -1904,7 +1907,7 @@ namespace DNDS
          * @brief FM(uLeft,uRight,norm) gives vsize * vsize mat of Left Eigen Vectors
          *
          */
-        template <int dim = 3, class TU_DOF, typename TFM, typename TFMI>
+        template <int dim = 3, int nVars_Fixed = -1, class TU_DOF, typename TFM, typename TFMI>
         // static const int vsize = 1; // intellisense helper: give example...
         void ReconstructionWBAPLimitFacialV3(TU_DOF &u,
                                              ArrayRecV &uRec,
@@ -1916,6 +1919,14 @@ namespace DNDS
         {
             static int icount = 0;
             static const int I4 = dim + 1;
+
+            //! 2D max vals here
+            static const int maxRecDOFBatch = 4;// 10
+            static const int maxRecDOF = 9; //19
+            static const int maxNDiff = 10; //20
+
+            
+            static const int maxNeighbour = 6;
 
             // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Start");
             //* Step 0: prepare the facial buf
@@ -1947,7 +1958,7 @@ namespace DNDS
                             int nDiff = faceWeights->operator[](iFace).size();
                             Elem::tPoint unitNorm = faceNorms[iFace][ig].normalized();
                             //! Taking only rho and E
-                            Eigen::MatrixXd uRecVal(nDiff, 2), uRecValL(nDiff, 2), uRecValR(nDiff, 2), uRecValJump(nDiff, 2);
+                            Eigen::Matrix<real, Eigen::Dynamic, 2, 0, maxNDiff> uRecVal(nDiff, 2), uRecValL(nDiff, 2), uRecValR(nDiff, 2), uRecValJump(nDiff, 2);
                             uRecVal.setZero(), uRecValJump.setZero();
                             uRecValL = faceDiBjGaussBatchElemVR.m(ig * 2 + 0).rightCols(uRec[iCell].rows()) * uRec[iCell](Eigen::all, {0, I4});
                             uRecValL(0, Eigen::all) += u[iCell]({0, I4}).transpose();
@@ -1960,7 +1971,7 @@ namespace DNDS
                                 uRecValJump = (uRecValL - uRecValR) * 0.5;
                             }
 
-                            Eigen::MatrixXd IJI, ISI;
+                            Eigen::Matrix2d IJI, ISI;
                             FFaceFunctional(iFace, ig, uRecVal, uRecVal, (*faceWeights)[iFace], ISI);
                             FFaceFunctional(iFace, ig, uRecValJump, uRecValJump, (*faceWeights)[iFace], IJI);
                             finc({0, 1}, 0) = IJI.diagonal();
@@ -2002,9 +2013,10 @@ namespace DNDS
                     continue;
                 index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1;
                 auto &c2f = mesh->cell2faceLocal[iCell];
-                std::vector<Eigen::MatrixXd> uFaces(c2f.size());
+                std::vector<Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOF>> uFaces(c2f.size());
                 for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                 {
+                    // * safty initialization
                     index iFace = c2f[ic2f];
                     auto &f2c = (*mesh->face2cellPair)[iFace];
                     index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
@@ -2014,7 +2026,8 @@ namespace DNDS
 
                     if (iCellOther != FACE_2_VOL_EMPTY)
                     {
-                        uFaces[ic2f] = uRecNewBuf[iCellOther] * 1e100;
+                        // uFaces[ic2f] = uRecNewBuf[iCellOther] * 1e100;
+                        uFaces[ic2f].resizeLike(uRecNewBuf[iCellOther]);
                     }
                 }
 
@@ -2038,16 +2051,19 @@ namespace DNDS
                         break;
 
                     default:
+                        LimStart = -200;
+                        LimEnd = -100;
                         assert(false);
                         break;
                     }
 
-                    std::vector<Eigen::ArrayXXd> uOthers;
-                    Eigen::ArrayXXd uC = uRecNewBuf[iCell](
+                    std::vector<Eigen::Array<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch>> uOthers;
+                    Eigen::Array<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uC = uRecNewBuf[iCell](
                         Eigen::seq(
                             LimStart,
                             LimEnd),
                         Eigen::all);
+                    uOthers.reserve(maxNeighbour);
                     uOthers.push_back(uC); // using uC centered
                     // InsertCheck(mpi, "HereAAC");
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
@@ -2094,16 +2110,16 @@ namespace DNDS
                                     : matrixSecondaryBatchElem.m(1);
                             // std::cout << "A"<<std::endl;
                             //! note that when false == bool(iCellAtFace), this cell is at left of the face
-                            Eigen::MatrixXd uOtherOther = uRecNewBuf[iCellOther](Eigen::seq(0, NRecDOFLim - 1), Eigen::all);
+                            Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOF> uOtherOther = uRecNewBuf[iCellOther](Eigen::seq(0, NRecDOFLim - 1), Eigen::all);
                             if (LimEnd < uOtherOther.rows() - 1)
                                 uOtherOther(Eigen::seq(LimEnd + 1, NRecDOFLim - 1), Eigen::all) =
                                     matrixSecondaryOther(Eigen::seq(LimEnd + 1, NRecDOFLim - 1), Eigen::seq(LimEnd + 1, NRecDOFLim - 1)) *
                                     uFaces[ic2f](Eigen::seq(LimEnd + 1, NRecDOFLim - 1), Eigen::all);
                             // std::cout << "B" << std::endl;
-                            Eigen::MatrixXd uOtherIn =
+                            Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uOtherIn =
                                 matrixSecondary(Eigen::seq(LimStart, LimEnd), Eigen::all) * uOtherOther;
 
-                            Eigen::MatrixXd uThisIn =
+                            Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uThisIn =
                                 uC.matrix();
 
                             // 2 char space :
@@ -2114,7 +2130,7 @@ namespace DNDS
                             uOtherIn = (M * uOtherIn.transpose()).transpose();
                             uThisIn = (M * uThisIn.transpose()).transpose();
 
-                            Eigen::ArrayXXd uLimOutArray;
+                            Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uLimOutArray;
 
                             real n = setting.WBAP_nStd;
                             if (setting.normWBAP)
@@ -2139,7 +2155,7 @@ namespace DNDS
                         {
                         }
                     }
-                    Eigen::ArrayXXd uLimOutArray;
+                    Eigen::Array<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uLimOutArray;
 
                     real n = setting.WBAP_nStd;
                     if (setting.normWBAP)
@@ -2153,21 +2169,21 @@ namespace DNDS
                     else
                         FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray, n);
 
-                    uRecNewBuf[iCell](
+                    uRecNewBuf1[iCell](
                         Eigen::seq(
                             LimStart,
                             LimEnd),
                         Eigen::all) = uLimOutArray.matrix();
                 }
             }
-            uRecNewBuf.StartPersistentPullClean();
-            uRecNewBuf.WaitPersistentPullClean();
+            uRecNewBuf1.StartPersistentPullClean();
+            uRecNewBuf1.WaitPersistentPullClean();
 
-            // for (index iCell = 0; iCell < uRec.size(); iCell++)
-            // {
-            //     uRecNewBuf[iCell] =
-            //         uRecNewBuf1[iCell];
-            // }
+            for (index iCell = 0; iCell < uRec.size(); iCell++)
+            {
+                uRecNewBuf[iCell] =
+                    uRecNewBuf1[iCell];
+            }
         }
 
         template <uint32_t vsize>

@@ -56,7 +56,7 @@ namespace DNDS
             thetaNorm += verySmallReal_pDiP;
             thetaNorm = thetaNorm.pow(-p / 2);
 
-real exn = iOther ? 1.0 : n1;
+            real exn = iOther ? 1.0 : n1;
             uDown += thetaNorm * exn;
             uUp += theta.rowwise() * thetaNorm.transpose() * exn;
         }
@@ -278,11 +278,9 @@ real exn = iOther ? 1.0 : n1;
             thetaNorm += verySmallReal_pDiP;
             thetaNorm = thetaNorm.pow(-p / 2);
 
-
             real exn = iOther ? 1.0 : n1;
             uDown += thetaNorm * exn;
             uUp += theta.rowwise() * thetaNorm.transpose() * exn;
-            
         }
         // std::cout << uUp << std::endl;
         // std::cout << uDown << std::endl;
@@ -297,43 +295,109 @@ real exn = iOther ? 1.0 : n1;
         }
     }
 
+    namespace _Limiters_Internal
+    {
+        inline real W12n1(real u1, real u2)
+        {
+            real n = 1.0;
+            real p = 4.0;
+
+            real theta1 = std::pow(u1 / (u2 + signP(u2) * 1e-12), p - 1.0);
+            real theta2 = std::pow(u1 / (u2 + signP(u2) * 1e-12), p);
+
+            return u1 * (n + theta1) / (n + theta2);
+        }
+
+        inline real W12center(real *u, const int J, real n)
+        {
+
+            real *theta = new real[J];
+            theta[0] = 1.0;
+            for (int ii = 0; ii < J; ++ii)
+            {
+                theta[ii] = (u[0] + signP(u[0]) * 1e-12) / (u[ii] + signP(u[ii]) * 1e-12);
+            }
+
+            real p = 4.0;
+            real sumLocal1 = n;
+            real sumLocal2 = n;
+            for (int ii = 0; ii < J; ++ii)
+            {
+                sumLocal1 += std::pow(theta[ii], (p - 1.0));
+                sumLocal2 += std::pow(theta[ii], p);
+            }
+
+            delete[] theta;
+            theta = NULL;
+
+            return u[0] * sumLocal1 / (sumLocal2 + 1e-12);
+        }
+    }
+
     /**
      * @brief input vector<Eigen::Array-like>
      */
     template <typename TinOthers, typename Tout>
     inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut, real n1 = 1.0)
     {
-        static const int p = 4;
-        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+        // static const int p = 4;
+        // static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
 
-        Eigen::ArrayXXd uUp; //* copy!
-        uUp.resizeLike(uOthers[0]);
-        uUp.setZero();
-        Eigen::ArrayXXd uDown = uUp; //* copy!
-        Eigen::ArrayXXd uMax = uDown + verySmallReal;
+        // Tout uUp; //* copy!
+        // uUp.resizeLike(uOthers[0]);
+        // uUp.setZero();
+        // Tout uDown = uUp; //* copy!
+        // Tout uMax = uDown + verySmallReal;
 
-        for (int iOther = 0; iOther < Nother; iOther++)
-            uMax = uMax.max(uOthers[iOther].abs());
-        uOut = uMax;
+        // for (int iOther = 0; iOther < Nother; iOther++)
+        //     uMax = uMax.max(uOthers[iOther].abs());
+        // uOut = uMax;
 
-        for (int iOther = 0; iOther < Nother; iOther++)
-        {
-            auto thetaInverse = uMax / (uOthers[iOther].sign() * (uOthers[iOther].abs() + verySmallReal_pDiP) +
-                                        verySmallReal_pDiP * (-2));
-            real exn = iOther ? 1.0 : n1;
-            uDown += thetaInverse.pow(p) * exn;
-            uUp += thetaInverse.pow(p - 1) * exn;
-        }
-        uOut *= uUp / (uDown + verySmallReal);
+        // for (int iOther = 0; iOther < Nother; iOther++)
+        // {
+        //     auto thetaInverse = uMax / (uOthers[iOther].sign() * (uOthers[iOther].abs() + verySmallReal_pDiP) +
+        //                                 verySmallReal_pDiP * (-2));
+        //     real exn = iOther ? 1.0 : n1;
+        //     uDown += thetaInverse.pow(p) * exn;
+        //     uUp += thetaInverse.pow(p - 1) * exn;
+        // }
+        // uOut *= uUp / (uDown + verySmallReal);
 
-        if (uOut.hasNaN())
-        {
-            std::cout << "Limiter FWBAP_L2_Multiway Failed" << std::endl;
-            std::cout << uMax.transpose() << std::endl;
-            std::cout << uUp.transpose() << std::endl;
-            std::cout << uDown.transpose() << std::endl;
-            abort();
-        }
+        // if (uOut.hasNaN())
+        // {
+        //     std::cout << "Limiter FWBAP_L2_Multiway Failed" << std::endl;
+        //     std::cout << uMax.transpose() << std::endl;
+        //     std::cout << uUp.transpose() << std::endl;
+        //     std::cout << uDown.transpose() << std::endl;
+        //     abort();
+        // }
+        uOut.resizeLike(uOthers[0]);
+        static const int maxNeighbour = 7;
+        assert(uOthers.size() <= maxNeighbour);
+        real theta[maxNeighbour];
+
+        for (int idof = 0; idof < uOthers[0].cols(); idof++)
+            for (int irec = 0; irec < uOthers[0].rows(); irec++)
+            {
+                real u0 = uOthers[0](irec, idof);
+                for (int ii = 0; ii < uOthers.size(); ++ii)
+                {
+                    real uother = uOthers[ii](irec, idof);
+                    theta[ii] = (u0 + signP(u0) * 1e-12) /
+                                (uother + signP(uother) * 1e-12);
+                }
+
+                static const real p = 4.0;
+                real sumLocal1 = n1;
+                real sumLocal2 = n1;
+                for (int ii = 0; ii < uOthers.size(); ++ii)
+                {
+                    sumLocal1 += std::pow(theta[ii], (p - 1.0));
+                    sumLocal2 += std::pow(theta[ii], p);
+                }
+
+                uOut(irec, idof) = u0 * sumLocal1 / (sumLocal2 + 1e-12);
+            }
     }
 
     /**
@@ -343,16 +407,22 @@ real exn = iOther ? 1.0 : n1;
     inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
     {
         static const int p = 4;
-        // static const real n = 10.0;
-        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
-        auto uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
-        auto u1p = (u1 / uMax).pow(p);
-        auto u2p = (u2 / uMax).pow(p);
-        // std::cout << u1 << std::endl;
+        // // static const real n = 10.0;
+        // static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+        // auto uMax = u1.abs().max(u2.abs()) + verySmallReal_pDiP;
+        // auto u1p = (u1 / uMax).pow(p);
+        // auto u2p = (u2 / uMax).pow(p);
+        // // std::cout << u1 << std::endl;
 
-        uOut = (u1p * u2 + n * u2p * u1) / ((u1p + n * u2p) + verySmallReal);
-        // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
-        // std::cout << u2 << std::endl;
+        // uOut = (u1p * u2 + n * u2p * u1) / ((u1p + n * u2p) + verySmallReal);
+        // // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
+        // // std::cout << u2 << std::endl;
+
+        auto frac = (u1 / (u2.abs() + 1e-12) * u2.sign());
+        auto theta1 = frac.pow(p - 1);
+        auto theta2 = frac.pow(p);
+
+        uOut = u1 * (n + theta1) / (n + theta2);
     }
 
     template <typename Tin1, typename Tin2, typename Tout>

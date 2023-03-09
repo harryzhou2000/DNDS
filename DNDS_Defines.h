@@ -127,6 +127,11 @@ namespace DNDS
         return a > 0 ? 1 : (a < 0 ? -1 : 0);
     }
 
+    inline constexpr real signP(real a)
+    {
+        return a >= 0 ? 1 : -1;
+    }
+
     template <typename T>
     inline constexpr T mod(T a, T b)
     {

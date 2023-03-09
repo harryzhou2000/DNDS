@@ -13,10 +13,11 @@
 namespace DNDS
 {
 
-    template<EulerModel model>
+    template <EulerModel model>
     class EulerSolver
     {
         int nVars;
+
     public:
         typedef EulerEvaluator<model> TEval;
         static const int nVars_Fixed = TEval::nVars_Fixed;
@@ -32,13 +33,12 @@ namespace DNDS
         typedef typename TEval::TMat TMat;
 
     private:
-
         MPIInfo mpi;
         std::shared_ptr<CompactFacedMeshSerialRW> mesh;
         std::shared_ptr<ImplicitFiniteVolume2D> fv;
         std::shared_ptr<VRFiniteVolume2D> vfv;
 
-        ArrayDOFV u, uPoisson, uInc, uIncRHS, uTemp;
+        ArrayDOFV<nVars_Fixed> u, uPoisson, uInc, uIncRHS, uTemp;
         ArrayRecV uRec, uRecNew, uRecNew1, uOld;
 
         int nOUTS = 9;
@@ -50,7 +50,7 @@ namespace DNDS
         ArrayLocal<Batch<real, 1>> ifUseLimiter;
 
     public:
-        EulerSolver(const MPIInfo &nmpi) :  nVars(getNVars(model)), mpi(nmpi)
+        EulerSolver(const MPIInfo &nmpi) : nVars(getNVars(model)), mpi(nmpi)
         {
             nOUTS = nVars + 4;
         }
@@ -368,7 +368,7 @@ namespace DNDS
                     {
                         index iFace = c2f[ic2f];
                         if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_NoSlip)
-                            u.get<nVars_Fixed>(I4 + 1) *= 0.6;
+                            u[iCell](I4 + 1) *= 0.6;
                     }
                 }
             }
@@ -433,7 +433,10 @@ namespace DNDS
                         p = 1.5 + pos(1);
                     }
                     real v = -0.025 * sqrt(gamma * p / rho) * std::cos(8 * pi * pos(0));
-                    u[iCell] = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
+                    if constexpr (dim == 3)
+                        u[iCell] = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
+                    else
+                        u[iCell] = Eigen::Vector<real, 4>{rho, 0, rho * v, 0.5 * rho * sqr(v) + p / (gamma - 1)};
                 }
                 break;
             case 0:
@@ -521,7 +524,7 @@ namespace DNDS
             /*******************************************************/
             /*                   DEFINE LAMBDAS                    */
             /*******************************************************/
-            auto frhs = [&](ArrayDOFV &crhs, ArrayDOFV &cx, int iter, real ct)
+            auto frhs = [&](ArrayDOFV<nVars_Fixed> &crhs, ArrayDOFV<nVars_Fixed> &cx, int iter, real ct)
             {
                 eval.FixUMaxFilter(cx);
                 // cx.StartPersistentPullClean();
@@ -550,11 +553,12 @@ namespace DNDS
                 {
                     // vfv->ReconstructionWBAPLimitFacial(
                     //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
-                    vfv->ReconstructionWBAPLimitFacialV3<dim>(
+                    vfv->ReconstructionWBAPLimitFacialV3<dim, nVars_Fixed>(
                         cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                         iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                         [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                            Eigen::Vector<real, I4+1> UC = (UL + UR)(Seq01234) * 0.5;
+                            PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
+                            Eigen::Vector<real, I4 + 1> UC = (UL + UR)(Seq01234)*0.5;
                             auto normBase = Elem::NormBuildLocalBaseV<dim>(n(Seq012));
                             UC(Seq123) = normBase.transpose() * UC(Seq123);
 
@@ -564,11 +568,13 @@ namespace DNDS
                             Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> ret(nVars, nVars);
                             ret.setIdentity();
                             ret(Seq01234, Seq01234) = M;
+                            PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
                             return ret;
                             // return Eigen::Matrix<real, 5, 5>::Identity();
                         },
                         [&](const auto &UL, const auto &UR, const auto &n) -> auto{
-                            Eigen::Vector<real, I4+1> UC = (UL + UR)(Seq01234) * 0.5;
+                            PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
+                            Eigen::Vector<real, I4 + 1> UC = (UL + UR)(Seq01234)*0.5;
                             auto normBase = Elem::NormBuildLocalBaseV<dim>(n(Seq012));
                             UC(Seq123) = normBase.transpose() * UC(Seq123);
 
@@ -590,6 +596,8 @@ namespace DNDS
                             Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> ret(nVars, nVars);
                             ret.setIdentity();
                             ret(Seq01234, Seq01234) = M;
+
+                            PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
                             return ret;
                             // return Eigen::Matrix<real, 5, 5>::Identity();
                         });
@@ -635,8 +643,8 @@ namespace DNDS
                     i /= alphaDiag;
             };
 
-            auto fsolve = [&](ArrayDOFV &cx, ArrayDOFV &crhs, std::vector<real> &dTau,
-                              real dt, real alphaDiag, ArrayDOFV &cxInc, int iter)
+            auto fsolve = [&](ArrayDOFV<nVars_Fixed> &cx, ArrayDOFV<nVars_Fixed> &crhs, std::vector<real> &dTau,
+                              real dt, real alphaDiag, ArrayDOFV<nVars_Fixed> &cxInc, int iter)
             {
                 cxInc.setConstant(0.0);
 
@@ -756,7 +764,7 @@ namespace DNDS
                 }
             };
 
-            auto fstop = [&](int iter, ArrayDOFV &cxinc, int iStep) -> bool
+            auto fstop = [&](int iter, ArrayDOFV<nVars_Fixed> &cxinc, int iStep) -> bool
             {
                 Eigen::Vector<real, -1> res(nVars);
                 eval.EvaluateResidual(res, cxinc);
@@ -779,12 +787,12 @@ namespace DNDS
                               << "res \033[91m[" << resRel.transpose() << "]\033[39m   "
                               << "t,dTaumin,CFL \033[92m[" << tsimu << ", " << curDtMin << ", " << CFLNow << "]\033[39m   "
                               << std::setprecision(3) << std::fixed
-                              << "Time [" << telapsed << "]   recTime [" 
-                              << trec << "]   rhsTime [" 
-                              << trhs << "]   commTime [" 
-                              << tcomm << "]  limTime [" 
-                              << tLim << "]  commTime [" 
-                              << tcomm << "]  NTTime [" 
+                              << "Time [" << telapsed << "]   recTime ["
+                              << trec << "]   rhsTime ["
+                              << trhs << "]   commTime ["
+                              << tcomm << "]  limTime ["
+                              << tLim << "]  limtimeA ["
+                              << PerformanceTimer::Instance().getTimer(PerformanceTimer::LimiterA) << "]  limtimeB ["
                               << PerformanceTimer::Instance().getTimer(PerformanceTimer::LimiterB) << "]  ";
                         if (config.consoleOutputMode == 1)
                         {
@@ -942,7 +950,7 @@ namespace DNDS
                 real T = p / recu(0) / config.eulerSetting.idealGasProperty.Rgas;
 
                 (*outDist)[iCell][0] = recu(0);
-                for(int i = 0; i < dim; i++)
+                for (int i = 0; i < dim; i++)
                     (*outDist)[iCell][i + 1] = velo(i);
                 (*outDist)[iCell][I4 + 0] = p;
                 (*outDist)[iCell][I4 + 1] = T;
@@ -955,7 +963,7 @@ namespace DNDS
 
                 for (int i = I4 + 1; i < nVars; i++)
                 {
-                    (*outDist)[iCell][4 + i] = recu(i) / recu(0); //4 is additional amount offset, not Index of last flow variable (I4)
+                    (*outDist)[iCell][4 + i] = recu(i) / recu(0); // 4 is additional amount offset, not Index of last flow variable (I4)
                 }
             }
             outSerial->startPersistentPull();

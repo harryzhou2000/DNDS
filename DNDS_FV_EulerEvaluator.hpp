@@ -1036,7 +1036,7 @@ namespace DNDS
         }
 
         void EvaluateDt(std::vector<real> &dt,
-                        ArrayDOFV &u,
+                        ArrayDOFV<nVars_Fixed> &u,
                         real CFL, real &dtMinall, real MaxDt = 1,
                         bool UseLocaldt = false);
         /**
@@ -1044,25 +1044,25 @@ namespace DNDS
          * \param rhs overwritten;
          *
          */
-        void EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
+        void EvaluateRHS(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u,
                          ArrayRecV &uRec, real t);
 
-        void LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u, int jacobianCode = 1,
+        void LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV<nVars_Fixed> &u, int jacobianCode = 1,
                                real t = 0);
 
-        void LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
+        void LUSGSADMatrixVec(ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc);
 
-        void UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+        void UpdateLUSGSADForward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
 
-        void UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+        void UpdateLUSGSADBackward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
 
         void LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
-                             ArrayDOFV &u, ArrayRecV &uRec,
+                             ArrayDOFV<nVars_Fixed> &u, ArrayRecV &uRec,
                              int jacobianCode,
                              real t);
 
         void LUSGSMatrixVec(real alphaDiag,
-                            ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
+                            ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc);
 
         /**
          * @brief to use LUSGS, use LUSGSForward(..., uInc, uInc); uInc.pull; LUSGSBackward(..., uInc, uInc);
@@ -1073,7 +1073,7 @@ namespace DNDS
          *
          */
         void UpdateLUSGSForward(real alphaDiag,
-                                ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+                                ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
 
         /**
          * @brief
@@ -1081,13 +1081,13 @@ namespace DNDS
          *
          */
         void UpdateLUSGSBackward(real alphaDiag,
-                                 ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+                                 ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
 
         void UpdateSGS(real alphaDiag,
-                       ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
+                       ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew, bool ifForward);
 
-        void FixUMaxFilter(ArrayDOFV &u);
+        void FixUMaxFilter(ArrayDOFV<nVars_Fixed> &u);
 
-        void EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P = 1);
+        void EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P = 1);
     };
 }

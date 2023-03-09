@@ -13,7 +13,7 @@ namespace DNDS
     //! evaluates dt and facial spectral radius
     template <EulerModel model>
     void EulerEvaluator<model>::EvaluateDt(std::vector<real> &dt,
-                                           ArrayDOFV &u,
+                                           ArrayDOFV<nVars_Fixed> &u,
                                            real CFL, real &dtMinall, real MaxDt,
                                            bool UseLocaldt)
     {
@@ -29,19 +29,21 @@ namespace DNDS
             TVec unitNorm = vfv->faceNormCenter[iFace](Seq012).normalized();
 
             index iCellL = f2c[0];
-            TU uMean = u[iCellL];
+            auto UL = u[iCellL];
+            TU uMean = UL;
             real pL, asqrL, HL, pR, asqrR, HR;
-            TVec vL = u[iCellL](Seq123) / u[iCellL](0);
+            TVec vL = UL(Seq123) / UL(0);
             TVec vR = vL;
-            Gas::IdealGasThermal(u[iCellL](I4), u[iCellL](0), vL.squaredNorm(),
+            Gas::IdealGasThermal(UL(I4), UL(0), vL.squaredNorm(),
                                  settings.idealGasProperty.gamma,
                                  pL, asqrL, HL);
             pR = pL, HR = HL, asqrR = asqrL;
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
-                uMean = (uMean + u[f2c[1]]) * 0.5;
-                vR = u[f2c[1]](Seq123) / u[f2c[1]](0);
-                Gas::IdealGasThermal(u[f2c[1]](I4), u[f2c[1]](0), vR.squaredNorm(),
+                auto UR = u[f2c[1]];
+                uMean = (uMean + UR) * 0.5;
+                vR = UR(Seq123) / UR(0);
+                Gas::IdealGasThermal(UR(I4), UR(0), vR.squaredNorm(),
                                      settings.idealGasProperty.gamma,
                                      pR, asqrR, HR);
             }
@@ -159,21 +161,21 @@ namespace DNDS
         // log() << "dt: " << dtMin << std::endl;
     }
     template void EulerEvaluator<NS>::EvaluateDt(std::vector<real> &dt,
-                                                 ArrayDOFV &u,
+                                                 ArrayDOFV<nVars_Fixed> &u,
                                                  real CFL, real &dtMinall, real MaxDt,
                                                  bool UseLocaldt);
     template void EulerEvaluator<NS_SA>::EvaluateDt(std::vector<real> &dt,
-                                                    ArrayDOFV &u,
+                                                    ArrayDOFV<nVars_Fixed> &u,
                                                     real CFL, real &dtMinall, real MaxDt,
                                                     bool UseLocaldt);
     template void EulerEvaluator<NS_2D>::EvaluateDt(std::vector<real> &dt,
-                                                    ArrayDOFV &u,
+                                                    ArrayDOFV<nVars_Fixed> &u,
                                                     real CFL, real &dtMinall, real MaxDt,
                                                     bool UseLocaldt);
 
 #define IF_NOT_NOREC (1)
     template <EulerModel model>
-    void EulerEvaluator<model>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
+    void EulerEvaluator<model>::EvaluateRHS(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u,
                                             ArrayRecV &uRec, real t)
     {
         DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
@@ -214,7 +216,7 @@ namespace DNDS
                         faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
                         uRec[f2c[0]] * IF_NOT_NOREC;
                     // UL += u[f2c[0]]; //! do not forget the mean value
-                    ULxy = CompressRecPart(u.get<nVars_Fixed>(f2c[0]), ULxy);
+                    ULxy = CompressRecPart(u[f2c[0]], ULxy);
 
                     TU URxy;
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
@@ -242,7 +244,7 @@ namespace DNDS
                             faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
                             uRec[f2c[1]] * IF_NOT_NOREC;
                         // UR += u[f2c[1]];
-                        URxy = CompressRecPart(u[f2c[1]], URxy);
+                        URxy = CompressRecPart(u.template get<nVars_Fixed>(f2c[1]), URxy);
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
                         if constexpr (gdim == 2)
                             GradURxy({0, 1}, Eigen::all) =
@@ -442,15 +444,15 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "EvaluateRHS -1");
     }
 
-    template void EulerEvaluator<NS>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
+    template void EulerEvaluator<NS>::EvaluateRHS(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u,
                                                   ArrayRecV &uRec, real t);
-    template void EulerEvaluator<NS_SA>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
+    template void EulerEvaluator<NS_SA>::EvaluateRHS(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u,
                                                      ArrayRecV &uRec, real t);
-    template void EulerEvaluator<NS_2D>::EvaluateRHS(ArrayDOFV &rhs, ArrayDOFV &u,
+    template void EulerEvaluator<NS_2D>::EvaluateRHS(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u,
                                                      ArrayRecV &uRec, real t);
 
     template <EulerModel model>
-    void EulerEvaluator<model>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
+    void EulerEvaluator<model>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV<nVars_Fixed> &u,
                                                   int jacobianCode,
                                                   real t)
     {
@@ -647,18 +649,18 @@ namespace DNDS
         //         jacobianCellInv[iCell].setConstant(UnInitReal);
         // }
     }
-    template void EulerEvaluator<NS>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
+    template void EulerEvaluator<NS>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV<nVars_Fixed> &u,
                                                         int jacobianCode,
                                                         real t);
-    template void EulerEvaluator<NS_SA>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
+    template void EulerEvaluator<NS_SA>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV<nVars_Fixed> &u,
                                                            int jacobianCode,
                                                            real t);
-    template void EulerEvaluator<NS_2D>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV &u,
+    template void EulerEvaluator<NS_2D>::LUSGSADMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag, ArrayDOFV<nVars_Fixed> &u,
                                                            int jacobianCode,
                                                            real t);
 
     template <EulerModel model>
-    void EulerEvaluator<model>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
+    void EulerEvaluator<model>::LUSGSADMatrixVec(ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc)
     {
         // assert(false); // TODO: to support model expanding
         // for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
@@ -694,15 +696,15 @@ namespace DNDS
         // }
     }
 
-    template void EulerEvaluator<NS>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
-    template void EulerEvaluator<NS_SA>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
-    template void EulerEvaluator<NS_2D>::LUSGSADMatrixVec(ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
+    template void EulerEvaluator<NS>::LUSGSADMatrixVec(ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc);
+    template void EulerEvaluator<NS_SA>::LUSGSADMatrixVec(ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc);
+    template void EulerEvaluator<NS_2D>::LUSGSADMatrixVec(ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc);
 
     /**
      * @brief waring! rhs here is with volume, different from UpdateLUSGSADForward
      **/
     template <EulerModel model>
-    void EulerEvaluator<model>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
+    void EulerEvaluator<model>::UpdateLUSGSADForward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew)
     {
         // assert(false); // TODO: to support model expanding
         // index nCellDist = mesh->cell2nodeLocal.dist->size();
@@ -745,12 +747,12 @@ namespace DNDS
         // }
     }
 
-    template void EulerEvaluator<NS>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
-    template void EulerEvaluator<NS_SA>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
-    template void EulerEvaluator<NS_2D>::UpdateLUSGSADForward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template void EulerEvaluator<NS>::UpdateLUSGSADForward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
+    template void EulerEvaluator<NS_SA>::UpdateLUSGSADForward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
+    template void EulerEvaluator<NS_2D>::UpdateLUSGSADForward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
 
     template <EulerModel model>
-    void EulerEvaluator<model>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
+    void EulerEvaluator<model>::UpdateLUSGSADBackward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew)
     {
         // assert(false); // TODO: to support model expanding
         // index nCellDist = mesh->cell2nodeLocal.dist->size();
@@ -791,13 +793,13 @@ namespace DNDS
         // }
     }
 
-    template void EulerEvaluator<NS>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
-    template void EulerEvaluator<NS_SA>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
-    template void EulerEvaluator<NS_2D>::UpdateLUSGSADBackward(ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+    template void EulerEvaluator<NS>::UpdateLUSGSADBackward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
+    template void EulerEvaluator<NS_SA>::UpdateLUSGSADBackward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
+    template void EulerEvaluator<NS_2D>::UpdateLUSGSADBackward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
 
     template <EulerModel model>
     void EulerEvaluator<model>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
-                                                ArrayDOFV &u, ArrayRecV &uRec,
+                                                ArrayDOFV<nVars_Fixed> &u, ArrayRecV &uRec,
                                                 int jacobianCode,
                                                 real t)
     {
@@ -846,20 +848,20 @@ namespace DNDS
         }
     }
     template void EulerEvaluator<NS>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
-                                                      ArrayDOFV &u, ArrayRecV &uRec,
+                                                      ArrayDOFV<nVars_Fixed> &u, ArrayRecV &uRec,
                                                       int jacobianCode,
                                                       real t);
     template void EulerEvaluator<NS_SA>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
-                                                         ArrayDOFV &u, ArrayRecV &uRec,
+                                                         ArrayDOFV<nVars_Fixed> &u, ArrayRecV &uRec,
                                                          int jacobianCode,
                                                          real t);
     template void EulerEvaluator<NS_2D>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
-                                                         ArrayDOFV &u, ArrayRecV &uRec,
+                                                         ArrayDOFV<nVars_Fixed> &u, ArrayRecV &uRec,
                                                          int jacobianCode,
                                                          real t);
 
     template <EulerModel model>
-    void EulerEvaluator<model>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc)
+    void EulerEvaluator<model>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc)
     {
         DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec 1");
@@ -872,10 +874,11 @@ namespace DNDS
             auto &c2f = mesh->cell2faceLocal[iCell];
             TU uIncNewBuf(cnvars);
             uIncNewBuf.setZero(); // norhs
+            auto uINCi = uInc[iCell];
 
-            if (uInc[iCell].hasNaN())
+            if (uINCi.hasNaN())
             {
-                std::cout << uInc[iCell] << std::endl;
+                std::cout << uINCi << std::endl;
                 assert(false);
             }
 
@@ -890,6 +893,8 @@ namespace DNDS
 
                     if (true)
                     {
+                        auto uINCj = uInc[iCellOther];
+                        auto uj = u[iCellOther];
                         TU fInc;
                         {
                             TVec unitNorm = vfv->faceNormCenter[iFace](Seq012).normalized() *
@@ -901,13 +906,13 @@ namespace DNDS
                             //            BoundaryType::Inner) *
                             //        uInc[iCellOther]; //! always inner here
                             fInc = fluxJacobian0_Right_Times_du(
-                                u[iCellOther],
+                                uj,
                                 unitNorm,
-                                BoundaryType::Inner, uInc[iCellOther]); //! always inner here
+                                BoundaryType::Inner, uINCj); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
-                                      (fInc - lambdaFace[iFace] * uInc[iCellOther]);
+                                      (fInc - lambdaFace[iFace] * uINCj);
                         if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
                         {
                             std::cout
@@ -920,15 +925,16 @@ namespace DNDS
             }
             // uIncNewBuf /= fpDivisor;
             // uIncNew[iCell] = uIncNewBuf;
+            auto AuIncI = AuInc[iCell];
 #ifndef DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
-            AuInc[iCell] = jacobianCell[iCell] * uInc[iCell] - uIncNewBuf;
+            AuIncI = jacobianCell[iCell] * uInc[iCell] - uIncNewBuf;
 #else
-            AuInc[iCell] = jacobianCell_Scalar[iCell] * uInc[iCell] - uIncNewBuf;
+            AuIncI = jacobianCell_Scalar[iCell] * uInc[iCell] - uIncNewBuf;
 #endif
-            if (AuInc[iCell].hasNaN())
+            if (AuIncI.hasNaN())
             {
-                std::cout << AuInc[iCell].transpose() << std::endl
-                          << uInc[iCell].transpose() << std::endl
+                std::cout << AuIncI.transpose() << std::endl
+                          << uINCi.transpose() << std::endl
                           << u[iCell].transpose() << std::endl
                           << jacobianCell[iCell] << std::endl
                           << iCell << std::endl;
@@ -938,13 +944,13 @@ namespace DNDS
         InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec -1");
     }
 
-    template void EulerEvaluator<NS>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
-    template void EulerEvaluator<NS_SA>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
-    template void EulerEvaluator<NS_2D>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &AuInc);
+    template void EulerEvaluator<NS>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc);
+    template void EulerEvaluator<NS_SA>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc);
+    template void EulerEvaluator<NS_2D>::LUSGSMatrixVec(real alphaDiag, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc);
 
     template <EulerModel model>
     void EulerEvaluator<model>::UpdateLUSGSForward(real alphaDiag,
-                                                   ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
+                                                   ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew)
     {
         DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward 1");
@@ -957,7 +963,8 @@ namespace DNDS
 
             auto &c2f = mesh->cell2faceLocal[iCell];
             TU uIncNewBuf(nVars);
-            uIncNewBuf = rhs[iCell];
+            auto RHSI = rhs[iCell];
+            uIncNewBuf = RHSI;
 
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
@@ -974,6 +981,7 @@ namespace DNDS
                     if (iScanOther < iScan)
                     {
                         TU fInc;
+                        auto uINCj = uInc[iCellOther];
 
                         {
                             TVec unitNorm = vfv->faceNormCenter[iFace](Seq012).normalized() *
@@ -987,29 +995,30 @@ namespace DNDS
                             fInc = fluxJacobian0_Right_Times_du(
                                 u[iCellOther],
                                 unitNorm,
-                                BoundaryType::Inner, uInc[iCellOther]); //! always inner here
+                                BoundaryType::Inner, uINCj); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
-                                      (fInc - lambdaFace[iFace] * uInc[iCellOther]);
+                                      (fInc - lambdaFace[iFace] * uINCj);
                         if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
                         {
-                            std::cout << rhs[iCell].transpose() << std::endl
+                            std::cout << RHSI.transpose() << std::endl
                                       << fInc.transpose() << std::endl
-                                      << uInc[iCellOther].transpose() << std::endl;
+                                      << uINCj.transpose() << std::endl;
                             assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
                         }
                     }
                 }
             }
+            auto uIncNewI = uIncNew[iCell];
 #ifndef DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
-            uIncNew[iCell] = jacobianCellInv[iCell] * uIncNewBuf;
+            uIncNewI = jacobianCellInv[iCell] * uIncNewBuf;
 #else
-            uIncNew[iCell] = jacobianCellInv_Scalar[iCell] * uIncNewBuf;
+            uIncNewI = jacobianCellInv_Scalar[iCell] * uIncNewBuf;
 #endif
-            if (uIncNew[iCell].hasNaN())
+            if (uIncNewI.hasNaN())
             {
-                std::cout << uIncNew[iCell].transpose() << std::endl
+                std::cout << uIncNewI.transpose() << std::endl
                           << jacobianCellInv[iCell] << std::endl
                           << iCell << std::endl;
                 assert(!uIncNew[iCell].hasNaN());
@@ -1018,21 +1027,21 @@ namespace DNDS
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNew[iCell] = CompressInc(u[iCell], uIncNew[iCell], rhs[iCell]);
+            uIncNewI = CompressInc(u[iCell], uIncNewI, RHSI);
         }
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
     }
 
     template void EulerEvaluator<NS>::UpdateLUSGSForward(real alphaDiag,
-                                                         ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+                                                         ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
     template void EulerEvaluator<NS_SA>::UpdateLUSGSForward(real alphaDiag,
-                                                            ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+                                                            ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
     template void EulerEvaluator<NS_2D>::UpdateLUSGSForward(real alphaDiag,
-                                                            ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+                                                            ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
 
     template <EulerModel model>
     void EulerEvaluator<model>::UpdateLUSGSBackward(real alphaDiag,
-                                                    ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew)
+                                                    ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew)
     {
         DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward 1");
@@ -1046,6 +1055,7 @@ namespace DNDS
             auto &c2f = mesh->cell2faceLocal[iCell];
             TU uIncNewBuf(cnvars);
             uIncNewBuf.setZero(); // backward
+            auto RHSI = rhs[iCell];
 
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
@@ -1083,30 +1093,31 @@ namespace DNDS
                     }
                 }
             }
+            auto uIncNewI = uIncNew[iCell];
 #ifndef DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
-            uIncNew[iCell] += jacobianCellInv[iCell] * uIncNewBuf; // backward
+            uIncNewI += jacobianCellInv[iCell] * uIncNewBuf; // backward
 #else
-            uIncNew[iCell] += jacobianCellInv_Scalar[iCell] * uIncNewBuf; // backward
+            uIncNewI += jacobianCellInv_Scalar[iCell] * uIncNewBuf; // backward
 #endif
 
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNew[iCell] = CompressInc(u[iCell], uIncNew[iCell], rhs[iCell]);
+            uIncNewI = CompressInc(u[iCell], uIncNewI, RHSI);
         }
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward -1");
     }
 
     template void EulerEvaluator<NS>::UpdateLUSGSBackward(real alphaDiag,
-                                                          ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+                                                          ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
     template void EulerEvaluator<NS_SA>::UpdateLUSGSBackward(real alphaDiag,
-                                                             ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+                                                             ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
     template void EulerEvaluator<NS_2D>::UpdateLUSGSBackward(real alphaDiag,
-                                                             ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew);
+                                                             ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew);
 
     template <EulerModel model>
     void EulerEvaluator<model>::UpdateSGS(real alphaDiag,
-                                          ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward)
+                                          ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew, bool ifForward)
     {
         DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         int cnvars = nVars;
@@ -1165,14 +1176,14 @@ namespace DNDS
     }
 
     template void EulerEvaluator<NS>::UpdateSGS(real alphaDiag,
-                                                ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
+                                                ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew, bool ifForward);
     template void EulerEvaluator<NS_SA>::UpdateSGS(real alphaDiag,
-                                                   ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
+                                                   ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew, bool ifForward);
     template void EulerEvaluator<NS_2D>::UpdateSGS(real alphaDiag,
-                                                   ArrayDOFV &rhs, ArrayDOFV &u, ArrayDOFV &uInc, ArrayDOFV &uIncNew, bool ifForward);
+                                                   ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew, bool ifForward);
 
     template <EulerModel model>
-    void EulerEvaluator<model>::FixUMaxFilter(ArrayDOFV &u)
+    void EulerEvaluator<model>::FixUMaxFilter(ArrayDOFV<nVars_Fixed> &u)
     {
         DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
         // TODO: make spacial filter jacobian
@@ -1291,12 +1302,12 @@ namespace DNDS
         }
     }
 
-    template void EulerEvaluator<NS>::FixUMaxFilter(ArrayDOFV &u);
-    template void EulerEvaluator<NS_SA>::FixUMaxFilter(ArrayDOFV &u);
-    template void EulerEvaluator<NS_2D>::FixUMaxFilter(ArrayDOFV &u);
+    template void EulerEvaluator<NS>::FixUMaxFilter(ArrayDOFV<nVars_Fixed> &u);
+    template void EulerEvaluator<NS_SA>::FixUMaxFilter(ArrayDOFV<nVars_Fixed> &u);
+    template void EulerEvaluator<NS_2D>::FixUMaxFilter(ArrayDOFV<nVars_Fixed> &u);
 
     template <EulerModel model>
-    void EulerEvaluator<model>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P)
+    void EulerEvaluator<model>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P)
     {
         res.resize(nVars);
         if (P < 3)
@@ -1329,7 +1340,7 @@ namespace DNDS
         }
     }
 
-    template void EulerEvaluator<NS>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P);
-    template void EulerEvaluator<NS_SA>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P);
-    template void EulerEvaluator<NS_2D>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV &rhs, index P);
+    template void EulerEvaluator<NS>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P);
+    template void EulerEvaluator<NS_SA>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P);
+    template void EulerEvaluator<NS_2D>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P);
 }
