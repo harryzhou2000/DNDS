@@ -18,7 +18,7 @@ namespace DNDS
     {
         int nVars;
     public:
-        int nVars_Fixed = EulerEvaluator<model>::nVars_Fixed;
+        static const int nVars_Fixed = EulerEvaluator<model>::nVars_Fixed;
 
     private:
 
@@ -778,9 +778,9 @@ namespace DNDS
                             auto M = Gas::IdealGas_EulerGasLeftEigenVector(UC, eval.settings.idealGasProperty.gamma);
                             M(Eigen::all, {1, 2, 3}) *= normBase.transpose();
 
-                            Eigen::MatrixXd ret(nVars, nVars);
+                            Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> ret(nVars, nVars);
                             ret.setIdentity();
-                            ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                            ret(Eigen::seq(Eigen::fix<0>, Eigen::fix<4>), Eigen::seq(Eigen::fix<0>, Eigen::fix<4>)) = M;
                             return ret;
                             // return Eigen::Matrix<real, 5, 5>::Identity();
                         },
@@ -804,14 +804,14 @@ namespace DNDS
                             auto M = Gas::IdealGas_EulerGasRightEigenVector(UC, eval.settings.idealGasProperty.gamma);
                             M({1, 2, 3}, Eigen::all) = normBase * M({1, 2, 3}, Eigen::all);
 
-                            Eigen::MatrixXd ret(nVars, nVars);
+                            Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> ret(nVars, nVars);
                             ret.setIdentity();
-                            ret(Eigen::seq(0, 4), Eigen::seq(0, 4)) = M;
+                            ret(Eigen::seq(Eigen::fix<0>, Eigen::fix<4>), Eigen::seq(Eigen::fix<0>, Eigen::fix<4>)) = M;
                             return ret;
                             // return Eigen::Matrix<real, 5, 5>::Identity();
                         });
-                    uRecNew.StartPersistentPullClean();
-                    uRecNew.WaitPersistentPullClean();
+                    // uRecNew.StartPersistentPullClean();
+                    // uRecNew.WaitPersistentPullClean();
 
                     // //* embedded limiting or increment limiting
                     // for (int i = 0; i < uRec.size(); i++)

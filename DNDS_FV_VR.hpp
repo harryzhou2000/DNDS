@@ -1441,7 +1441,7 @@ namespace DNDS
                             //     });
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Farfield ||
-                                 faceAttribute.iPhy == BoundaryType::Special_DMRFar||
+                                 faceAttribute.iPhy == BoundaryType::Special_DMRFar ||
                                  faceAttribute.iPhy == BoundaryType::Special_RTFar)
                         {
                             if (!setting.SOR_Instead)
@@ -2004,10 +2004,12 @@ namespace DNDS
                     index iCellOther = f2c[0] == iCell ? f2c[1] : f2c[0];
                     index iCellAtFace = f2c[0] == iCell ? 0 : 1;
 
-                    auto matrixSecondaryBatchElem = (*matrixSecondaryBatch)[iFace];
+                    // auto matrixSecondaryBatchElem = (*matrixSecondaryBatch)[iFace];
 
                     if (iCellOther != FACE_2_VOL_EMPTY)
+                    {
                         uFaces[ic2f] = uRecNewBuf[iCellOther] * 1e100;
+                    }
                 }
 
                 int cPOrder = P_ORDER;
@@ -2041,7 +2043,7 @@ namespace DNDS
                             LimEnd),
                         Eigen::all);
                     uOthers.push_back(uC); // using uC centered
-
+                    // InsertCheck(mpi, "HereAAC");
                     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
                     {
                         index iFace = c2f[ic2f];
@@ -2120,14 +2122,6 @@ namespace DNDS
                             else
                                 FWBAP_L2_Biway(uThisIn.array(), uOtherIn.array(), uLimOutArray, 1);
 
-                            if (uLimOutArray.hasNaN())
-                            {
-                                std::cout << uThisIn.array().transpose() << std::endl;
-                                std::cout << uOtherIn.array().transpose() << std::endl;
-                                std::cout << uLimOutArray.transpose() << std::endl;
-                                assert(false);
-                            }
-
                             // to phys space
                             auto MI = FMI(uL, uR, unitNorm);
                             uLimOutArray = (MI * uLimOutArray.matrix().transpose()).transpose().array();
@@ -2153,30 +2147,21 @@ namespace DNDS
                     else
                         FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray, n);
 
-                    if (uLimOutArray.hasNaN())
-                    {
-                        // std::cout << uRec[iCell].array().transpose() << std::endl;
-                        for (auto e : uOthers)
-                            std::cout << "E: \n"
-                                      << e.transpose() << std::endl;
-                        std::cout << uLimOutArray.transpose() << std::endl;
-                        assert(false);
-                    }
-                    uRecNewBuf1[iCell](
+                    uRecNewBuf[iCell](
                         Eigen::seq(
                             LimStart,
                             LimEnd),
                         Eigen::all) = uLimOutArray.matrix();
                 }
             }
-            uRecNewBuf1.StartPersistentPullClean();
-            uRecNewBuf1.WaitPersistentPullClean();
+            uRecNewBuf.StartPersistentPullClean();
+            uRecNewBuf.WaitPersistentPullClean();
 
-            for (index iCell = 0; iCell < uRec.size(); iCell++)
-            {
-                uRecNewBuf[iCell] =
-                    uRecNewBuf1[iCell];
-            }
+            // for (index iCell = 0; iCell < uRec.size(); iCell++)
+            // {
+            //     uRecNewBuf[iCell] =
+            //         uRecNewBuf1[iCell];
+            // }
         }
 
         template <uint32_t vsize>

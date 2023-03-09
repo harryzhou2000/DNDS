@@ -92,17 +92,17 @@ namespace DNDS
             assert(rho > 0);
         }
 
-        template <class TCons, class TPrim>
+        template <int dim = 3, class TCons, class TPrim>
         inline void IdealGasThermalPrimitive2Conservative(
             const TPrim &prim, TCons &U, real gamma)
         {
             U = prim * prim(0);
-            real vSqr = prim({1, 2, 3}).squaredNorm();
+            real vSqr = prim(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).squaredNorm();
             real rho = prim(0);
-            real p = prim(4);
+            real p = prim(dim + 1);
             real E = p / (gamma - 1) + rho * 0.5 * vSqr;
             U(0) = rho;
-            U(4) = E;
+            U(dim + 1) = E;
             assert(rho > 0);
         }
 
@@ -110,85 +110,95 @@ namespace DNDS
          * @brief calculates Inviscid Flux for x direction
          *
          */
-        template <typename TU, typename TF>
-        inline void GasInviscidFlux(const TU &U, const tVec &velo, real p, TF &F)
+        template <int dim = 3, typename TU, typename TF, class TVec>
+        inline void GasInviscidFlux(const TU &U, const TVec &velo, real p, TF &F)
         {
-            F = U(Eigen::seq(0, 4)) * velo(0);
+            F = U(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) * velo(0);
             F(1) += p;
-            F(4) += velo(0) * p;
+            F(dim + 1) += velo(0) * p;
         }
 
-        template <typename TU>
-        inline void IdealGasUIncrement(const TU &U, const TU &dU, const tVec &velo, real gamma, tVec &dVelo, real &dp)
+        template <int dim = 3, typename TU, class TVec>
+        inline void IdealGasUIncrement(const TU &U, const TU &dU, const TVec &velo, real gamma, TVec &dVelo, real &dp)
         {
-            dVelo = (dU({1, 2, 3}) - U({1, 2, 3}) * dU(0)) / U(0);
-            dp = (gamma - 1) * (dU(4) - 0.5 * (dU({1, 2, 3}).dot(velo) + U({1, 2, 3}).dot(dVelo)));
+            dVelo = (dU(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) -
+                     U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) * dU(0)) /
+                    U(0);
+            dp = (gamma - 1) * (dU(dim + 1) -
+                                0.5 * (dU(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).dot(velo) +
+                                       U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).dot(dVelo)));
         } // For Lax-Flux jacobian
 
-        template <typename TU, typename TF>
+        template <int dim = 3, typename TU, typename TF, class TVec>
         inline void GasInviscidFluxFacialIncrement(const TU &U, const TU &dU,
-                                                   const tVec &unitNorm,
-                                                   const tVec &velo, const tVec &dVelo,
+                                                   const TVec &unitNorm,
+                                                   const TVec &velo, const TVec &dVelo,
                                                    real dp, real p,
                                                    TF &F)
         {
             real vn = velo.dot(unitNorm);
             real dvn = dVelo.dot(unitNorm);
-            F(0) = dU({1, 2, 3}).dot(unitNorm);
-            F({1, 2, 3}) = dU({1, 2, 3}) * vn + U({1, 2, 3}) * dvn + unitNorm * dp;
-            F(4) = (dU(4) + dp) * vn + (U(4) + p) * dvn;
+            F(0) = dU(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).dot(unitNorm);
+            F(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) =
+                dU(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) * vn +
+                U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) * dvn + unitNorm * dp;
+            F(dim + 1) = (dU(dim + 1) + dp) * vn + (U(dim + 1) + p) * dvn;
         }
 
-        template <typename TU>
+        template <int dim = 3, typename TU>
         inline auto IdealGas_EulerGasRightEigenVector(const TU &U, real gamma)
         {
             assert(U(0) > 0);
-            Eigen::Matrix<real, 5, 5> ReV;
-            tVec velo = (U({1, 2, 3}).array() / U(0)).matrix();
+            Eigen::Matrix<real, dim + 2, dim + 2> ReV;
+            Eigen::Vector<real, dim> velo =
+                (U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / U(0)).matrix();
             real vsqr = velo.squaredNorm();
             real asqr, p, H;
-            IdealGasThermal(U(4), U(0), vsqr, gamma, p, asqr, H);
+            IdealGasThermal(U(dim + 1), U(0), vsqr, gamma, p, asqr, H);
             assert(asqr >= 0);
             EulerGasRightEigenVector(velo, vsqr, H, std::sqrt(asqr), ReV);
             return ReV;
         }
 
-        template <typename TU>
+        template <int dim = 3, typename TU>
         inline auto IdealGas_EulerGasLeftEigenVector(const TU &U, real gamma)
         {
             assert(U(0) > 0);
-            Eigen::Matrix<real, 5, 5> LeV;
-            tVec velo = (U({1, 2, 3}).array() / U(0)).matrix();
+            Eigen::Matrix<real, dim + 2, dim + 2> LeV;
+            Eigen::Vector<real, dim> velo =
+                (U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / U(0)).matrix();
             real vsqr = velo.squaredNorm();
             real asqr, p, H;
-            IdealGasThermal(U(4), U(0), vsqr, gamma, p, asqr, H);
+            IdealGasThermal(U(dim + 1), U(0), vsqr, gamma, p, asqr, H);
             assert(asqr >= 0);
             EulerGasLeftEigenVector(velo, vsqr, H, std::sqrt(asqr), gamma, LeV);
             return LeV;
         }
 
-        template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
+        template <int dim = 3, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void HLLEPFlux_IdealGas(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
                                 const TFdumpInfo &dumpInfo)
         {
             static real scaleHartenYee = 0.05;
+            using TVec = Eigen::Vector<real, dim>;
 
             if (!(UL(0) > 0 && UR(0) > 0))
             {
                 dumpInfo();
             }
             assert(UL(0) > 0 && UR(0) > 0);
-            tVec veloL = (UL({1, 2, 3}).array() / UL(0)).matrix();
-            tVec veloR = (UR({1, 2, 3}).array() / UR(0)).matrix();
+            TVec veloL = (UL(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UL(0)).matrix();
+            TVec veloR = (UR(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UR(0)).matrix();
+
             real asqrL, asqrR, pL, pR, HL, HR;
             real vsqrL = veloL.squaredNorm();
             real vsqrR = veloR.squaredNorm();
-            IdealGasThermal(UL(4), UL(0), vsqrL, gamma, pL, asqrL, HL);
-            IdealGasThermal(UR(4), UR(0), vsqrR, gamma, pR, asqrR, HR);
+            IdealGasThermal(UL(dim + 1), UL(0), vsqrL, gamma, pL, asqrL, HL);
+            IdealGasThermal(UR(dim + 1), UR(0), vsqrR, gamma, pR, asqrR, HR);
             real sqrtRhoL = std::sqrt(UL(0));
             real sqrtRhoR = std::sqrt(UR(0));
 
-            tVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
+            TVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
             real vsqrRoe = veloRoe.squaredNorm();
             real HRoe = (sqrtRhoL * HL + sqrtRhoR * HR) / (sqrtRhoL + sqrtRhoR);
             real asqrRoe = (gamma - 1) * (HRoe - 0.5 * vsqrRoe);
@@ -204,7 +214,10 @@ namespace DNDS
             real lam0 = veloRoe(0) - aRoe;
             real lam123 = veloRoe(0);
             real lam4 = veloRoe(0) + aRoe;
-            Eigen::Vector<real, 5> lam = {lam0, lam123, lam123, lam123, lam4};
+            Eigen::Vector<real, dim + 2> lam;
+            lam(0) = lam0;
+            lam(dim + 1) = lam4;
+            lam(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).setConstant(lam123);
             lam = lam.array().abs();
 
             //*HY
@@ -215,26 +228,31 @@ namespace DNDS
             // if (std::abs(lam4) < thresholdHartenYee)
             //     lam(4) = (lam4 * lam4 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
             //*HY
-            Eigen::Vector<real, 5> alpha;
-            Eigen::Matrix<real, 5, 5> ReVRoe;
-            EulerGasRightEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
+            Eigen::Vector<real, dim + 2> alpha;
+            Eigen::Matrix<real, dim + 2, dim + 2> ReVRoe;
+            EulerGasRightEigenVector<dim>(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
             // Eigen::Matrix<real, 5, 5> LeVRoe;
             // EulerGasLeftEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, gamma, LeVRoe);
             // alpha = LeVRoe * (UR - UL);
             // std::cout << alpha.transpose() << "\n";
 
-            Eigen::Vector<real, 5> incU = UR(Eigen::seq(0, 4)) - UL(Eigen::seq(0, 4));
+            Eigen::Vector<real, dim + 2> incU =
+                UR(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) -
+                UL(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>));
             real incP = pR - pL;
             Gas::tVec incVelo = veloR - veloL;
 
-            alpha(2) = incU(2) - veloRoe(1) * incU(0);
-            alpha(3) = incU(3) - veloRoe(2) * incU(0);
-            real incU4b = incU(4) - alpha(2) * veloRoe(1) - alpha(3) * veloRoe(2);
+            alpha(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) =
+                incU(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) -
+                veloRoe(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>)) * incU(0);
+            real incU4b = incU(dim + 1) -
+                          alpha(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>))
+                              .dot(veloRoe(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>)));
             alpha(1) = (gamma - 1) / asqrRoe *
                        (incU(0) * (HRoe - veloRoe(0) * veloRoe(0)) +
                         veloRoe(0) * incU(1) - incU4b);
-            alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
-            alpha(4) = incU(0) - (alpha(0) + alpha(1));
+            // alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
+            // alpha(dim + 1) = incU(0) - (alpha(0) + alpha(1)); // * HLLEP doesn't need this
             // std::cout << alpha.transpose() << std::endl;
             // std::cout << std::endl;
 
@@ -244,40 +262,47 @@ namespace DNDS
 
             real dfix = aRoe / (aRoe + UU);
 
-            Eigen::Vector<real, 5> FL, FR;
-            GasInviscidFlux(UL, veloL, pL, FL);
-            GasInviscidFlux(UR, veloR, pR, FR);
+            Eigen::Vector<real, dim + 2> FL, FR;
+            GasInviscidFlux<dim>(UL, veloL, pL, FL);
+            GasInviscidFlux<dim>(UR, veloR, pR, FR);
             real SP = std::max(SR, 0.0);
             real SM = std::min(SL, 0.0);
             real div = SP - SM;
             div += sign(div) * verySmallReal;
 
             // F = (SP * FL - SM * FR) / div + (SP * SM / div) * (UR - UL - dfix * ReVRoe(Eigen::all, {1, 2, 3}) * alpha({1, 2, 3}));
-            F(Eigen::seq(0, 4)) = (SP * FL - SM * FR) / div + (SP * SM / div) * (UR(Eigen::seq(0, 4)) - UL(Eigen::seq(0, 4)) - dfix * ReVRoe(Eigen::all, {1}) * alpha({1}));
+            F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) =
+                (SP * FL - SM * FR) / div +
+                (SP * SM / div) *
+                    (UR(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) -
+                     UL(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) -
+                     dfix * ReVRoe(Eigen::all, {1}) * alpha({1}));
         }
 
-        template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
+        template <int dim = 3, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void HLLCFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
                                          const TFdumpInfo &dumpInfo)
         {
             static real scaleHartenYee = 0.05;
+            using TVec = Eigen::Vector<real, dim>;
 
             if (!(UL(0) > 0 && UR(0) > 0))
             {
                 dumpInfo();
             }
             assert(UL(0) > 0 && UR(0) > 0);
-            tVec veloL = (UL({1, 2, 3}).array() / UL(0)).matrix();
-            tVec veloR = (UR({1, 2, 3}).array() / UR(0)).matrix();
+            TVec veloL = (UL(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UL(0)).matrix();
+            TVec veloR = (UR(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UR(0)).matrix();
+
             real asqrL, asqrR, pL, pR, HL, HR;
             real vsqrL = veloL.squaredNorm();
             real vsqrR = veloR.squaredNorm();
-            IdealGasThermal(UL(4), UL(0), vsqrL, gamma, pL, asqrL, HL);
-            IdealGasThermal(UR(4), UR(0), vsqrR, gamma, pR, asqrR, HR);
+            IdealGasThermal(UL(dim + 1), UL(0), vsqrL, gamma, pL, asqrL, HL);
+            IdealGasThermal(UR(dim + 1), UR(0), vsqrR, gamma, pR, asqrR, HR);
             real sqrtRhoL = std::sqrt(UL(0));
             real sqrtRhoR = std::sqrt(UR(0));
 
-            tVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
+            TVec veloRoe = (sqrtRhoL * veloL + sqrtRhoR * veloR) / (sqrtRhoL + sqrtRhoR);
 
             // real lam0 = veloRoe(0) - aRoe;
             // real lam123 = veloRoe(0);
@@ -300,62 +325,73 @@ namespace DNDS
             // SL += sign(SL) * std::exp(-std::abs(SL) / dLambda) * dLambda;
             // SR += sign(SR) * std::exp(-std::abs(SR) / dLambda) * dLambda;
 
-            Eigen::Vector<real, 5> FL, FR;
-            GasInviscidFlux(UL, veloL, pL, FL);
-            GasInviscidFlux(UR, veloR, pR, FR);
+            Eigen::Vector<real, dim + 2> FL, FR;
+            GasInviscidFlux<dim>(UL, veloL, pL, FL);
+            GasInviscidFlux<dim>(UR, veloR, pR, FR);
 
             if (0 <= SL)
             {
-                F(Eigen::seq(0, 4)) = FL;
+                F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = FL;
                 return;
             }
             if (SR <= 0)
             {
-                F(Eigen::seq(0, 4)) = FR;
+                F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = FR;
                 return;
             }
             real SS = 0;
             real div = (UL(0) * (SL - veloL(0)) - UR(0) * (SR - veloR(0)));
             if (std::abs(div) > verySmallReal)
                 SS = (pR - pL + UL(1) * (SL - veloL(0)) - UR(1) * (SR - veloR(0))) / div;
-            Eigen::Vector<real, 5> DS{0, 1, 0, 0, SS};
+            Eigen::Vector<real, dim + 2> DS;
+            DS.setZero();
+            DS(1) = 1;
+            DS(dim + 1) = SS;
             // SS += sign(SS) * std::exp(-std::abs(SS) / dLambda) * dLambda;
             if (SS >= 0)
             {
                 real div = SL - SS;
                 if (std::abs(div) < verySmallReal)
-                    F(Eigen::seq(0, 4)) = FL;
+                    F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = FL;
                 else
-                    F(Eigen::seq(0, 4)) = ((UL(Eigen::seq(0, 4)) * SL - FL) * SS + DS * ((pL + UL(0) * (SL - veloL(0)) * (SS - veloL(0))) * SL)) / div;
+                    F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) =
+                        ((UL(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) * SL - FL) * SS +
+                         DS * ((pL + UL(0) * (SL - veloL(0)) * (SS - veloL(0))) * SL)) /
+                        div;
             }
             else
             {
                 real div = SR - SS;
                 if (std::abs(div) < verySmallReal)
-                    F(Eigen::seq(0, 4)) = FR;
+                    F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = FR;
                 else
-                    F(Eigen::seq(0, 4)) = ((UR(Eigen::seq(0, 4)) * SR - FR) * SS + DS * ((pR + UR(0) * (SR - veloR(0)) * (SS - veloR(0))) * SR)) / div;
+                    F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) =
+                        ((UR(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) * SR - FR) * SS +
+                         DS * ((pR + UR(0) * (SR - veloR(0)) * (SS - veloR(0))) * SR)) /
+                        div;
             }
         }
 
-        template <typename TUL, typename TUR, typename TF, typename TFdumpInfo>
+        template <int dim = 3, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
                                         const TFdumpInfo &dumpInfo)
         {
             static real scaleHartenYee = 0.05;
+            using TVec = Eigen::Vector<real, dim>;
 
             if (!(UL(0) > 0 && UR(0) > 0))
             {
                 dumpInfo();
             }
             assert(UL(0) > 0 && UR(0) > 0);
-            tVec veloL = (UL({1, 2, 3}).array() / UL(0)).matrix();
-            tVec veloR = (UR({1, 2, 3}).array() / UR(0)).matrix();
+            TVec veloL = (UL(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UL(0)).matrix();
+            TVec veloR = (UR(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UR(0)).matrix();
+
             real asqrL, asqrR, pL, pR, HL, HR;
             real vsqrL = veloL.squaredNorm();
             real vsqrR = veloR.squaredNorm();
-            IdealGasThermal(UL(4), UL(0), vsqrL, gamma, pL, asqrL, HL);
-            IdealGasThermal(UR(4), UR(0), vsqrR, gamma, pR, asqrR, HR);
+            IdealGasThermal(UL(dim + 1), UL(0), vsqrL, gamma, pL, asqrL, HL);
+            IdealGasThermal(UR(dim + 1), UR(0), vsqrR, gamma, pR, asqrR, HR);
             real sqrtRhoL = std::sqrt(UL(0));
             real sqrtRhoR = std::sqrt(UR(0));
 
@@ -375,7 +411,10 @@ namespace DNDS
             real lam0 = veloRoe(0) - aRoe;
             real lam123 = veloRoe(0);
             real lam4 = veloRoe(0) + aRoe;
-            Eigen::Vector<real, 5> lam = {lam0, lam123, lam123, lam123, lam4};
+            Eigen::Vector<real, dim + 2> lam;
+            lam(0) = lam0;
+            lam(dim + 1) = lam4;
+            lam(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).setConstant(lam123);
             lam = lam.array().abs();
 
             //*HY
@@ -384,25 +423,30 @@ namespace DNDS
             if (std::abs(lam0) < thresholdHartenYee)
                 lam(0) = (lam0 * lam0 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
             if (std::abs(lam4) < thresholdHartenYee)
-                lam(4) = (lam4 * lam4 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+                lam(dim + 1) = (lam4 * lam4 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
             //*HY
 
-            Eigen::Matrix<real, 5, 5> ReVRoe;
-            EulerGasRightEigenVector(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
+            Eigen::Vector<real, dim + 2> alpha;
+            Eigen::Matrix<real, dim + 2, dim + 2> ReVRoe;
+            EulerGasRightEigenVector<dim>(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
 
-            Eigen::Vector<real, 5> incU = UR(Eigen::seq(0, 4)) - UL(Eigen::seq(0, 4));
+            Eigen::Vector<real, dim + 2> incU =
+                UR(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) -
+                UL(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>));
             real incP = pR - pL;
             Gas::tVec incVelo = veloR - veloL;
-            Eigen::Vector<real, 5> alpha;
 
-            alpha(2) = incU(2) - veloRoe(1) * incU(0);
-            alpha(3) = incU(3) - veloRoe(2) * incU(0);
-            real incU4b = incU(4) - alpha(2) * veloRoe(1) - alpha(3) * veloRoe(2);
+            alpha(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) =
+                incU(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) -
+                veloRoe(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>)) * incU(0);
+            real incU4b = incU(dim + 1) -
+                          alpha(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>))
+                              .dot(veloRoe(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>)));
             alpha(1) = (gamma - 1) / asqrRoe *
                        (incU(0) * (HRoe - veloRoe(0) * veloRoe(0)) +
                         veloRoe(0) * incU(1) - incU4b);
             alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
-            alpha(4) = incU(0) - (alpha(0) + alpha(1));
+            alpha(dim + 1) = incU(0) - (alpha(0) + alpha(1)); // * HLLEP doesn't need this
 
             // * Roe-Pike
             // alpha(0) = 0.5 / aRoe * (incP - rhoRoe * aRoe * incVelo(0));
@@ -411,12 +455,12 @@ namespace DNDS
             // alpha(3) = rhoRoe * incVelo(2);
             // alpha(4) = 0.5 / aRoe * (incP + rhoRoe * aRoe * incVelo(0));
 
-            Eigen::Vector<real, 5>
+            Eigen::Vector<real, dim + 2>
                 incF = ReVRoe * (lam.array() * alpha.array()).matrix();
-            Eigen::Vector<real, 5> FL, FR;
-            GasInviscidFlux(UL, veloL, pL, FL);
-            GasInviscidFlux(UR, veloR, pR, FR);
-            F(Eigen::seq(0, 4)) = (FL + FR) * 0.5 - 0.5 * incF;
+            Eigen::Vector<real, dim + 2> FL, FR;
+            GasInviscidFlux<dim>(UL, veloL, pL, FL);
+            GasInviscidFlux<dim>(UR, veloR, pR, FR);
+            F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = (FL + FR) * 0.5 - 0.5 * incF;
         }
 
         template <typename TUL, typename TUR, typename TF, typename TdFdU, typename TFdumpInfo>
@@ -558,33 +602,36 @@ namespace DNDS
          * GradU is grad of conservatives
          *
          */
-        template <typename TU, typename TGradU, typename TFlux, typename TNorm>
+        template <int dim = 3, typename TU, typename TGradU, typename TFlux, typename TNorm>
         void ViscousFlux_IdealGas(const TU &U, const TGradU &GradU, TNorm norm, bool adiabatic, real gamma, real mu, real k, real Cp, TFlux &Flux)
         {
-            Eigen::MatrixXd A;
-            Eigen::Vector3d velo = U({1, 2, 3}) / U(0);
+            auto Seq01234 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>);
+            auto Seq012 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim - 1>);
+            auto Seq123 = Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>);
+
+            Eigen::Vector<real, dim> velo = U(Seq123) / U(0);
             static const real lambda = -2. / 3.;
-            Eigen::Matrix3d strainRate = (1.0 / (U(0) * U(0))) *
-                                         (U(0) * GradU({0, 1, 2}, {1, 2, 3}) -
-                                          GradU({0, 1, 2}, 0) * Eigen::RowVector3d(U({1, 2, 3}))); // dU_j/dx_i
-            Eigen::Vector3d GradP = (gamma - 1) *
-                                    (GradU({0, 1, 2}, 4) -
-                                     0.5 *
-                                         (GradU({0, 1, 2}, {1, 2, 3}) * velo +
-                                          strainRate * Eigen::Vector3d(U({1, 2, 3}))));
+            Eigen::Matrix<real, dim, dim> strainRate = (1.0 / sqr(U(0))) *
+                                                       (U(0) * GradU(Seq012, Seq123) -
+                                                        GradU(Seq012, 0) * Eigen::RowVector<real, dim>(U(Seq123))); // dU_j/dx_i
+            Eigen::Vector<real, dim> GradP = (gamma - 1) *
+                                             (GradU(Seq012, dim + 1) -
+                                              0.5 *
+                                                  (GradU(Seq012, Seq123) * velo +
+                                                   strainRate * Eigen::Vector<real, dim>(U(Seq123))));
             real vSqr = velo.squaredNorm();
-            real p = (gamma - 1) * (U(4) - U(0) * 0.5 * vSqr);
-            Eigen::Vector3d GradT = (gamma / ((gamma - 1) * Cp * U(0) * U(0))) *
-                                    (U(0) * GradP - p * GradU({0, 1, 2}, 0));
+            real p = (gamma - 1) * (U(dim + 1) - U(0) * 0.5 * vSqr);
+            Eigen::Vector<real, dim> GradT = (gamma / ((gamma - 1) * Cp * U(0) * U(0))) *
+                                             (U(0) * GradP - p * GradU(Seq012, 0));
             if (adiabatic) //! is this fix reasonable?
                 GradT -= GradT.dot(norm) * norm;
 
-            Flux({0, 1, 2}, 0).setZero();
-            Flux({0, 1, 2}, {1, 2, 3}) =
+            Flux(Seq012, 0).setZero();
+            Flux(Seq012, Seq123) =
                 (strainRate + strainRate.transpose()) * mu +
-                Eigen::Matrix3d::Identity() * (lambda * mu * strainRate.trace());
+                Eigen::Matrix<real, dim, dim>::Identity() * (lambda * mu * strainRate.trace());
             // std::cout << "FUCK A.A" << std::endl;
-            Flux({0, 1, 2}, 4) = Flux({0, 1, 2}, {1, 2, 3}) * velo + k * GradT;
+            Flux(Seq012, dim + 1) = Flux(Seq012, Seq123) * velo + k * GradT;
             // std::cout << "FUCK A.B" << std::endl;
         }
     }
