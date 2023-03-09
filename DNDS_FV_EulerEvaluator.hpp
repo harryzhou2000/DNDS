@@ -8,11 +8,11 @@
 #include <functional>
 
 // #define DNDS_FV_EULEREVALUATOR_SOURCE_TERM_ZERO
-// #define DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
-// #define DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
+#define DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
+#define DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
 
 #ifdef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM // term dependency
-// #define DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
+#define DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
 #endif
 
 namespace DNDS
@@ -330,7 +330,7 @@ namespace DNDS
                                  gamma, pMean, asqrMean, Hmean);
 
             // ! refvalue:
-#ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
+
             real muRef = settings.idealGasProperty.muGas;
 
             real T = pMean / ((gamma - 1) / gamma * settings.idealGasProperty.CpGas * UMeanXy(0));
@@ -339,7 +339,7 @@ namespace DNDS
                            std::pow(T / settings.idealGasProperty.TRef, 1.5) *
                            (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
                            (T + settings.idealGasProperty.CSutherland);
-
+#ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
             real fnu1 = 0.;
             if constexpr (model == NS_SA)
             {
