@@ -340,6 +340,7 @@ namespace DNDS
     template <typename TinOthers, typename Tout>
     inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut, real n1 = 1.0)
     {
+        // PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
         // static const int p = 4;
         // static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
 
@@ -375,6 +376,7 @@ namespace DNDS
         static const int maxNeighbour = 7;
         assert(uOthers.size() <= maxNeighbour);
         real theta[maxNeighbour];
+        
 
         for (int idof = 0; idof < uOthers[0].cols(); idof++)
             for (int irec = 0; irec < uOthers[0].rows(); irec++)
@@ -398,6 +400,8 @@ namespace DNDS
 
                 uOut(irec, idof) = u0 * sumLocal1 / (sumLocal2 + 1e-12);
             }
+
+        // PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
     }
 
     /**
@@ -406,6 +410,7 @@ namespace DNDS
     template <typename Tin1, typename Tin2, typename Tout>
     inline void FWBAP_L2_Biway(const Tin1 &u1, const Tin2 &u2, Tout &uOut, real n)
     {
+        // PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
         static const int p = 4;
         // // static const real n = 10.0;
         // static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
@@ -418,11 +423,25 @@ namespace DNDS
         // // uOut *= (u1.sign() + u2.sign()).abs() * 0.5; //! cutting below zero!!!
         // // std::cout << u2 << std::endl;
 
-        auto frac = (u1 / (u2.abs() + 1e-12) * u2.sign());
-        auto theta1 = frac.pow(p - 1);
-        auto theta2 = frac.pow(p);
+        ///////////
+        // auto frac = (u1 / (u2.abs() + 1e-12) * u2.sign());
+        // auto theta1 = frac.pow(p - 1);
+        // auto theta2 = frac.pow(p);
 
-        uOut = u1 * (n + theta1) / (n + theta2);
+        // uOut = u1 * (n + theta1) / (n + theta2);
+        ///////////
+        uOut.resizeLike(u1);
+        for (int idof = 0; idof < u1.cols(); idof++)
+            for (int irec = 0; irec < u1.rows(); irec++)
+            {
+                real u1c = u1(irec, idof);
+                real u2c = u2(irec, idof);
+                real frac = u1c / (u2c + signP(u2c) * 1e-14);
+                real theta1 = std::pow(frac, p - 1);
+                real theta2 = std::pow(frac, p);
+                uOut(irec, idof) = u1c * (n + theta1) / (n + theta2);
+            }
+        // PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
     }
 
     template <typename Tin1, typename Tin2, typename Tout>
