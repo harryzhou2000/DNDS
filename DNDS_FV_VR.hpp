@@ -1932,6 +1932,7 @@ namespace DNDS
             //* Step 0: prepare the facial buf
             for (index iScan = 0; iScan < uRec.dist->size(); iScan++)
             {
+                // continue;//!no go;
                 index iCell = iScan;
                 index NRecDOF = cellRecAtrLocal[iCell][0].NDOF - 1; // ! not good ! TODO
                 auto &c2f = mesh->cell2faceLocal[iCell];
@@ -2130,7 +2131,7 @@ namespace DNDS
                             uOtherIn = (M * uOtherIn.transpose()).transpose();
                             uThisIn = (M * uThisIn.transpose()).transpose();
 
-                            Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uLimOutArray;
+                            Eigen::Array<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uLimOutArray;
 
                             real n = setting.WBAP_nStd;
                             if (setting.normWBAP)
