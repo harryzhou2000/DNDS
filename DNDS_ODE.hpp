@@ -1,6 +1,7 @@
 #pragma once
 #include "DNDS_Defines.h"
 #include "DNDS_MPI.hpp"
+#include "Eigen/Dense"
 
 namespace DNDS
 {
