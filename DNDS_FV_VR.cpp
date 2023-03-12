@@ -34,12 +34,12 @@ void DNDS::VRFiniteVolume2D::initIntScheme() //  2-d specific
             switch (eCell.getPspace())
             {
             case Elem::ParamSpace::TriSpace:
-                recAtr.intScheme = Elem::INT_SCHEME_TRI_7;
+                recAtr.intScheme = Elem::INT_SCHEME_TRI_4;
                 recAtr.NDOF = PolynomialNDOF(P_ORDER);
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 break;
             case Elem::ParamSpace::QuadSpace:
-                recAtr.intScheme = Elem::INT_SCHEME_QUAD_16;
+                recAtr.intScheme = Elem::INT_SCHEME_QUAD_9;
                 recAtr.NDOF = PolynomialNDOF(P_ORDER);
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 break;
@@ -65,11 +65,11 @@ void DNDS::VRFiniteVolume2D::initIntScheme() //  2-d specific
             switch (eFace.getPspace())
             {
             case Elem::ParamSpace::LineSpace:
-                recAtr.intScheme = Elem::INT_SCHEME_LINE_4;
+                recAtr.intScheme = Elem::INT_SCHEME_LINE_3;
                 recAtr.NDOF = PolynomialNDOF(P_ORDER);
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 if (atrr.iPhy == BoundaryType::Wall)
-                    recAtr.intScheme = Elem::INT_SCHEME_LINE_4;
+                    recAtr.intScheme = Elem::INT_SCHEME_LINE_3;
                 break;
             default:
                 assert(false);

@@ -8,11 +8,11 @@
 #include <functional>
 
 // #define DNDS_FV_EULEREVALUATOR_SOURCE_TERM_ZERO
-#define DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
-#define DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
+// #define DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
+// #define DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
 
 #ifdef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM // term dependency
-#define DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
+// #define DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
 #endif
 
 namespace DNDS
@@ -613,7 +613,7 @@ namespace DNDS
 
                 real pMean, asqrMean, Hmean;
                 real gamma = settings.idealGasProperty.gamma;
-                Gas::IdealGasThermal(UMeanXy(I4 + 1), UMeanXy(0), (UMeanXy(Seq123) / UMeanXy(0)).squaredNorm(),
+                Gas::IdealGasThermal(UMeanXy(I4), UMeanXy(0), (UMeanXy(Seq123) / UMeanXy(0)).squaredNorm(),
                                      gamma, pMean, asqrMean, Hmean);
                 // ! refvalue:
                 real muRef = settings.idealGasProperty.muGas;
@@ -688,6 +688,9 @@ namespace DNDS
                     std::cout << d << std::endl;
                     std::cout << fnu2 << std::endl;
                     std::cout << mufPhy << std::endl;
+                    std::cout << UMeanXy.transpose() << std::endl;
+                    std::cout << pMean << std::endl;
+
                     assert(false);
                 }
                 // if (passiveDiscardSource)

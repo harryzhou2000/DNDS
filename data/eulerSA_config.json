@@ -14,7 +14,7 @@
     "consoleOutputMode": 1,
     "nDataOutC": 1,
     "nDataOut": 1,
-    "nDataOutCInternal": 100,
+    "nDataOutCInternal": 10,
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
@@ -22,7 +22,7 @@
     "dtImplicit": 0.5e100,
     "rhsThresholdInternal": 1e-100,
     "useLocalDt": true,
-    "useLimiter": true,
+    "useLimiter": false,
     "nPartialLimiterStart": 100,
     "nPartialLimiterStartLocal": 5000,
     "nLimiterTurnOn": 0,
@@ -31,7 +31,7 @@
     "nCFLRampStart": 100000000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
-    "meshRotZ": -15,
+    "meshRotZ": -4,
     "meshFile": "data/mesh/NACA0012_WIDE_H3_NS.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
@@ -72,13 +72,13 @@
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
         "WBAP_SmoothIndicatorScale": 1e-100,
-        "normWBAP": true,
+        "normWBAP": false,
         "orthogonalizeBase": false
     },
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
-        "riemannSolverType": "HLLEP",
+        "riemannSolverType": "Roe",
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,

@@ -421,23 +421,24 @@ namespace DNDS
             {
             case 1: // for RT problem
                 assert(model == NS || model == NS_2D);
-                for (index iCell = 0; iCell < u.dist->size(); iCell++)
-                {
-                    Elem::tPoint &pos = vfv->cellBaries[iCell];
-                    real gamma = config.eulerSetting.idealGasProperty.gamma;
-                    real rho = 2;
-                    real p = 1 + 2 * pos(1);
-                    if (pos(1) >= 0.5)
+                if constexpr (model == NS || model == NS_2D)
+                    for (index iCell = 0; iCell < u.dist->size(); iCell++)
                     {
-                        rho = 1;
-                        p = 1.5 + pos(1);
+                        Elem::tPoint &pos = vfv->cellBaries[iCell];
+                        real gamma = config.eulerSetting.idealGasProperty.gamma;
+                        real rho = 2;
+                        real p = 1 + 2 * pos(1);
+                        if (pos(1) >= 0.5)
+                        {
+                            rho = 1;
+                            p = 1.5 + pos(1);
+                        }
+                        real v = -0.025 * sqrt(gamma * p / rho) * std::cos(8 * pi * pos(0));
+                        if constexpr (dim == 3)
+                            u[iCell] = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
+                        else
+                            u[iCell] = Eigen::Vector<real, 4>{rho, 0, rho * v, 0.5 * rho * sqr(v) + p / (gamma - 1)};
                     }
-                    real v = -0.025 * sqrt(gamma * p / rho) * std::cos(8 * pi * pos(0));
-                    if constexpr (dim == 3)
-                        u[iCell] = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
-                    else
-                        u[iCell] = Eigen::Vector<real, 4>{rho, 0, rho * v, 0.5 * rho * sqr(v) + p / (gamma - 1)};
-                }
                 break;
             case 0:
                 break;
