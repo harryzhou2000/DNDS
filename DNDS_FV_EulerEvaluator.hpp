@@ -76,9 +76,9 @@ namespace DNDS
         static const int dim = getDim_Fixed(model);
         static const auto I4 = dim + 1;
 
-#define DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS \
-    static const auto Seq012 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim - 1>);\
-    static const auto Seq123 = Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>);\
+#define DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS                            \
+    static const auto Seq012 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim - 1>); \
+    static const auto Seq123 = Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>);     \
     static const auto Seq01234 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>);
 
         typedef Eigen::Vector<real, dim> TVec;
@@ -89,11 +89,9 @@ namespace DNDS
         typedef Eigen::Matrix<real, nVars_Fixed, dim> TDIffUTransposed;
 
     public:
-        static const int gdim = 2;//* geometry dim
+        static const int gdim = 2; //* geometry dim
 
     private:
-        
-
         int nVars = 5;
 
         bool passiveDiscardSource = false;
@@ -673,7 +671,7 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
-                ret(I4 + 1) = std::abs(UMeanXy(0) * (-D) / muRef / UMeanXy(I4 + 1)) * 2;
+                ret(I4 + 1) = -std::min(UMeanXy(0) * (P*1 - D * 2) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
 
                 if (ret.hasNaN())
                 {
@@ -690,6 +688,7 @@ namespace DNDS
                     std::cout << mufPhy << std::endl;
                     std::cout << UMeanXy.transpose() << std::endl;
                     std::cout << pMean << std::endl;
+                    std::cout << ret.transpose() << std::endl;
 
                     assert(false);
                 }
@@ -768,7 +767,7 @@ namespace DNDS
 
         /**
          * @brief inviscid flux approx jacobian (flux term not reconstructed / no riemann)
-         * 
+         *
          */
         TU fluxJacobian0_Right_Times_du(
             const TU &U,
@@ -859,10 +858,10 @@ namespace DNDS
                     assert(dim > 1);
                     URxy = settings.farFieldStaticValue;
                     real uShock = 10;
-                    if constexpr(dim == 3) //* manual static dispatch
+                    if constexpr (dim == 3) //* manual static dispatch
                     {
                         if (((pPhysics(0) - uShock / std::sin(pi / 3) * t - 1. / 6.) -
-                            pPhysics(1) / std::tan(pi / 3)) > 0)
+                             pPhysics(1) / std::tan(pi / 3)) > 0)
                             URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{1.4, 0, 0, 0, 2.5};
                         else
                             URxy({0, 1, 2, 3, 4}) = Eigen::Vector<real, 5>{8, 57.157676649772960, -33, 0, 5.635e2};
