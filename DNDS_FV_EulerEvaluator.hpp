@@ -1024,6 +1024,7 @@ namespace DNDS
                 if (u(I4 + 1) + uInc(I4 + 1) < 0)
                 {
                     // std::cout << "Fixing SA inc " << std::endl;
+
                     assert(u(I4 + 1) >= 0); //! might be bad using gmeres, add this to gmres inc!
                     real declineV = uInc(I4 + 1) / (u(I4 + 1) + verySmallReal);
                     real newu5 = u(I4 + 1) * std::exp(declineV);

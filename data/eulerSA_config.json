@@ -1,10 +1,10 @@
 {
-    "recOrder": 2,
+    "recOrder": 3,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
     "nTimeStepInternal": 5000000,
     "nSGSIterationInternal": 0,
-    "gmresCode": 0,
+    "gmresCode": 1,
     "nGmresSpace": 10,
     "nGmresIter": 2,
     "jacobianTypeCode": 0,
@@ -12,9 +12,9 @@
     "nConsoleCheck": 1,
     "nConsoleCheckInternal": 10,
     "consoleOutputMode": 1,
-    "nDataOutC": 1,
-    "nDataOut": 1,
-    "nDataOutCInternal": 10,
+    "nDataOutC": 10,
+    "nDataOut": 10,
+    "nDataOutCInternal": 100,
     "nDataOutInternal": 1000000000,
     "tDataOut": 1e100,
     "tEnd": 100e100,
@@ -32,7 +32,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": -4,
-    "meshFile": "data/mesh/NACA0012_WIDE_H3_NS.msh",
+    "meshFile": "data/mesh/NACA0012_WIDE_H4.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -54,8 +54,8 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H3_NS",
+    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H4",
+    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H4",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -78,7 +78,7 @@
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
-        "riemannSolverType": "Roe",
+        "riemannSolverType": "HLLEP",
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
