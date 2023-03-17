@@ -754,6 +754,8 @@ namespace DNDS
                             }
                             return false;
                         });
+                    for (index iCell = 0; iCell < cxInc.size(); iCell++)
+                        cxInc[iCell] = eval.CompressInc(cx[iCell], cxInc[iCell], crhs[iCell]); // manually add fixing for gmres results
                 }
                 // !freeze something
                 if (getNVars(model) > I4 + 1 && iter <= config.nFreezePassiveInner)
