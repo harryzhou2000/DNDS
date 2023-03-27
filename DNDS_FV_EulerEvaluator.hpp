@@ -671,7 +671,7 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
-                ret(I4 + 1) = -std::min(UMeanXy(0) * (P*1 - D * 2) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
+                ret(I4 + 1) = -std::min(UMeanXy(0) * (P*0 - D * 2) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
 
                 if (ret.hasNaN())
                 {
