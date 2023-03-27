@@ -179,9 +179,30 @@ namespace DNDS
         };
 
         template <class TDATA>
-        class ImplicitEulerDualTimeStep
+        class ImplicitDualTimeStep
         {
         public:
+            using Frhs = std::function<void(TDATA &, TDATA &, int, real)>;
+            using Fdt = std::function<void(std::vector<real> &, real)>;
+            using Fsolve = std::function<void(TDATA &, TDATA &, std::vector<real> &, real, real, TDATA &, int)>;
+            using Fstop = std::function<bool(int, TDATA &, int)>;
+
+            virtual void Step(TDATA &x, TDATA &xinc, const Frhs &frhs, const Fdt &fdt, const Fsolve &fsolve,
+                              int maxIter, const Fstop &fstop, real dt) = 0;
+            virtual ~ImplicitDualTimeStep(){}
+
+            virtual TDATA& getLatestRHS() = 0;
+        };
+
+        template <class TDATA>
+        class ImplicitEulerDualTimeStep : public ImplicitDualTimeStep<TDATA>
+        {
+        public:
+            using Frhs = typename ImplicitDualTimeStep<TDATA>::Frhs;
+            using Fdt = typename ImplicitDualTimeStep<TDATA>::Fdt;
+            using Fsolve = typename ImplicitDualTimeStep<TDATA>::Fsolve;
+            using Fstop = typename ImplicitDualTimeStep<TDATA>::Fstop;
+
             std::vector<real> dTau;
             std::vector<TDATA> rhsbuf;
             TDATA rhs;
@@ -213,9 +234,8 @@ namespace DNDS
              * fsolve(TDATA &x, TDATA &rhs, std::vector<real>& dTau, real dt, real alphaDiag, TDATA &xinc)
              * bool fstop(int iter, TDATA &xinc, int iInternal)
              */
-            template <class Frhs, class Fdt, class Fsolve, class Fstop>
-            void Step(TDATA &x, TDATA &xinc, Frhs &&frhs, Fdt &&fdt, Fsolve &&fsolve,
-                      int maxIter, Fstop &&fstop, real dt)
+            virtual void Step(TDATA &x, TDATA &xinc, const Frhs &frhs, const Fdt &fdt, const Fsolve &fsolve,
+                              int maxIter, const Fstop &fstop, real dt) override
             {
                 xLast = x;
                 for (int iter = 1; iter <= maxIter; iter++)
@@ -236,10 +256,18 @@ namespace DNDS
                         break;
                 }
             }
+
+            virtual ~ImplicitEulerDualTimeStep() {}
+
+            virtual TDATA &getLatestRHS() override
+            {
+                return rhsbuf[0];
+            }
+
         };
 
         template <class TDATA>
-        class ImplicitSDIRK4DualTimeStep
+        class ImplicitSDIRK4DualTimeStep : public ImplicitDualTimeStep<TDATA>
         {
 
             static const Eigen::Matrix<real, 3, 3> butcherA;
@@ -247,6 +275,11 @@ namespace DNDS
             static const Eigen::RowVector<real, 3> butcherB;
 
         public:
+            using Frhs = typename ImplicitDualTimeStep<TDATA>::Frhs;
+            using Fdt = typename ImplicitDualTimeStep<TDATA>::Fdt;
+            using Fsolve = typename ImplicitDualTimeStep<TDATA>::Fsolve;
+            using Fstop = typename ImplicitDualTimeStep<TDATA>::Fstop;
+
             std::vector<real> dTau;
             std::vector<TDATA> rhsbuf;
             TDATA rhs;
@@ -278,9 +311,8 @@ namespace DNDS
              * fsolve(TDATA &x, TDATA &rhs, std::vector<real>& dTau, real dt, real alphaDiag, TDATA &xinc)
              * bool fstop(int iter, TDATA &xinc, int iInternal)
              */
-            template <class Frhs, class Fdt, class Fsolve, class Fstop>
-            void Step(TDATA &x, TDATA &xinc, Frhs &&frhs, Fdt &&fdt, Fsolve &&fsolve,
-                      int maxIter, Fstop &&fstop, real dt)
+            virtual void Step(TDATA &x, TDATA &xinc, const Frhs &frhs, const Fdt &fdt, const Fsolve &fsolve,
+                              int maxIter, const Fstop &fstop, real dt) override
             {
                 xLast = x;
                 for (int iB = 0; iB < 3; iB++)
@@ -330,6 +362,13 @@ namespace DNDS
                 for (int jB = 0; jB < 3; jB++)
                     x.addTo(rhsbuf[jB], butcherB(jB) * dt);
             }
+
+            virtual TDATA &getLatestRHS() override
+            {
+                return rhsbuf[0];
+            }
+
+            virtual ~ImplicitSDIRK4DualTimeStep() {}
         };
 
 #define _zeta 0.128886400515
@@ -351,12 +390,17 @@ namespace DNDS
 #undef _zeta
 
         template <class TDATA>
-        class ImplicitBDFDualTimeStep
+        class ImplicitBDFDualTimeStep : public ImplicitDualTimeStep<TDATA>
         {
 
             static const Eigen::Matrix<real, 4, 5> BDFCoefs;
 
         public:
+            using Frhs = typename ImplicitDualTimeStep<TDATA>::Frhs;
+            using Fdt = typename ImplicitDualTimeStep<TDATA>::Fdt;
+            using Fsolve = typename ImplicitDualTimeStep<TDATA>::Fsolve;
+            using Fstop = typename ImplicitDualTimeStep<TDATA>::Fstop;
+
             std::vector<real> dTau;
             std::vector<TDATA> xPrevs;
             Eigen::VectorXd dtPrevs;
@@ -396,9 +440,8 @@ namespace DNDS
              * fsolve(TDATA &x, TDATA &rhs, std::vector<real>& dTau, real dt, real alphaDiag, TDATA &xinc)
              * bool fstop(int iter, TDATA &xinc, int iInternal)
              */
-            template <class Frhs, class Fdt, class Fsolve, class Fstop>
-            void Step(TDATA &x, TDATA &xinc, Frhs &&frhs, Fdt &&fdt, Fsolve &&fsolve,
-                      int maxIter, Fstop &&fstop, real dt)
+            virtual void Step(TDATA &x, TDATA &xinc, const Frhs &frhs, const Fdt &fdt, const Fsolve &fsolve,
+                              int maxIter, const Fstop &fstop, real dt) override
             {
                 index kCurrent = cnPrev + 1;
                 index prevSiz = kBDF - 1;
@@ -439,13 +482,19 @@ namespace DNDS
                 if (iter > maxIter)
                     fstop(iter, xinc, 1);
 
-                
                 prevStart = mod(prevStart - 1, prevSiz);
                 // std::cout << dtPrevs.size() << " " << prevStart << std::endl;
                 xPrevs[prevStart] = xLast;
                 dtPrevs[prevStart] = dt;
                 cnPrev = std::min(cnPrev + 1, prevSiz);
             }
+
+            virtual TDATA &getLatestRHS() override
+            {
+                return rhsbuf[0];
+            }
+
+            virtual ~ImplicitBDFDualTimeStep() {}
         };
 
         template <class TDATA>
