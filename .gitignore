@@ -24,4 +24,5 @@ pulldata.sh
 *.zip
 Makefile.arc.in
 running
+build
 

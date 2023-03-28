@@ -58,6 +58,11 @@ LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis -llapacke -lopenblas
 
 # for TH2B pp089
 ifeq (${NATIVE_ARCH},TH2B)
+<<<<<<< HEAD
+=======
+# INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS} -I/PARA/pp089/BIGDATA-2/apps/include
+# LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -L/PARA/pp089/BIGDATA-2/apps/lib -L/PARA/pp089/BIGDATA-2/apps/lib64 -lmetis -llapacke -lblas
+>>>>>>> d8479c1e1d9e268e3c798740f133512f2ec6736f
 INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS} -I${METIS_INCLUDE_PATH}
 LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS}  -L${METIS_LIBRARY_PATH} -lmetis  # -llapacke -lblas
 endif

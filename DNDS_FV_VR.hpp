@@ -173,6 +173,8 @@ namespace DNDS
             real farWeight = 0.0;
 
             real tangWeight = 5e-3;
+            real tangWeightModMin = 1;
+            
             // center type
             std::string baseCenterTypeName = "Bary";
             enum BaseCenterType
@@ -321,6 +323,11 @@ namespace DNDS
 
             // i++;
             DiBj(0, Eigen::all) -= baseMoment.transpose();
+
+            // if (coords.cols() == 4 && DiBj.rows() > 1)
+            //     std::cout << "DiBj\n"
+            //               << DiBj << std::endl;
+
             return;
 #endif
             auto coordsC = coords.colwise() - cPhysics;
@@ -354,7 +361,9 @@ namespace DNDS
             scaleL1 = nSizes(1) * 0.5;
             // std::cout << scaleM << "\t" << scaleL0 << "\t" << scaleL1 << "\t" << std::endl;
             // abort();
+
             real scaleUni = std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
+            scaleUni = std::sqrt(sqr(scaleL0) + sqr(scaleL1));
             if (!setting.anistropicLengths)
             {
                 pJacobi.col(0) = pJacobi.col(0) * scaleUni;
@@ -965,15 +974,32 @@ namespace DNDS
             // here DiBj's direvatives are dBdxi-s, where xi is defined by xi = invPJacobi * (x - xc)
             if (!options.disableLocalCoord2GlobalDiffs)
                 Elem::Convert2dDiffsLinMap(DiBj, invPJacobi.transpose());
-            // std::cout << DiBj(0, Eigen::all) << std::endl;
+
+            // if (coordsC.cols() == 4 && DiBj.rows() > 1)
+            //     std::cout << "Inertia: \n"
+            //               << (*cellIntertia)[iCell] << "\n InvPJacobi \n"
+            //               << invPJacobi << "\n nCoords \n"
+            //               << invPJacobi * coordsC.topRows(2) << "\n pPhyC\n"
+            //               << pPhysicsC << "\n"
+            //               << pParamL << "\n DiBj\n"
+            //               << DiBj << std::endl;
             DiBj(0, Eigen::all) -= baseMoment.transpose();
 
             return;
         }
 
         template <class TDIFFI, class TDIFFJ, class TConj>
-        void FFaceFunctional(index iFace, index iGauss, TDIFFI &&DiffI, TDIFFJ &&DiffJ, const Eigen::VectorXd &Weights, TConj &Conj)
+        void FFaceFunctional(index iFace, index iGauss, TDIFFI &&DiffI, TDIFFJ &&DiffJ, const Eigen::VectorXd &Weights, TConj &Conj) //! 2D specific
         {
+            auto &f2c = (*mesh->face2cellPair)[iFace];
+            index icellL = f2c[0];
+            index icellR = f2c[1] == FACE_2_VOL_EMPTY ? f2c[0] : f2c[1];
+            real cellARL = (*cellIntertia)[icellL](Eigen::all, 0).norm() / (*cellIntertia)[icellL](Eigen::all, 1).norm();
+            real cellARR = (*cellIntertia)[icellR](Eigen::all, 0).norm() / (*cellIntertia)[icellL](Eigen::all, 1).norm();
+            assert(cellARL >= (1 - 1e-10) && cellARR >= (1 - 1e-10));
+            real cellARMax = std::max(cellARL, cellARR);
+            real tangModifier = (1- 1./cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
+
             assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
 #ifndef USE_NORM_FUNCTIONAL
             Conj = DiffI.transpose() * Weights.asDiagonal() * Weights.asDiagonal() * DiffJ;
@@ -999,7 +1025,7 @@ namespace DNDS
                                                     : faceNormCenter[iFace]({0, 1}).stableNormalized() * length;
 
                 Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
-                fTang *= setting.tangWeight;
+                fTang *= setting.tangWeight * tangModifier;
                 real n0 = fNorm(0), n1 = fNorm(1);
                 real t0 = fTang(0), t1 = fTang(1);
                 // w2r *= 0.1;
@@ -1921,11 +1947,10 @@ namespace DNDS
             static const int I4 = dim + 1;
 
             //! 2D max vals here
-            static const int maxRecDOFBatch = 4;// 10
-            static const int maxRecDOF = 9; //19
-            static const int maxNDiff = 10; //20
+            static const int maxRecDOFBatch = 4; // 10
+            static const int maxRecDOF = 9;      // 19
+            static const int maxNDiff = 10;      // 20
 
-            
             static const int maxNeighbour = 6;
 
             // InsertCheck(mpi, "ReconstructionWBAPLimitFacial Start");

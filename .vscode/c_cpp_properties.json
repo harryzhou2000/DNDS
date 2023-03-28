@@ -31,6 +31,8 @@
         {
             "name": "gpu704",
             "includePath": [
+                "/usr/include",
+                "/usr/include/c++/11",
                 "/usr/lib/x86_64-linux-gnu/openmpi/include",
                 "/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi",
                 "${default}"

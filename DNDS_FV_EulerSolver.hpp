@@ -114,6 +114,10 @@ namespace DNDS
 
             int nFreezePassiveInner = 0;
 
+            bool steadyQuit = false;
+
+            int odeCode = 0;
+
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -172,6 +176,8 @@ namespace DNDS
                 vfvParser.AddBool("SOR_RedBlack", &config.vfvSetting.SOR_RedBlack);
                 vfvParser.AddDNDS_Real("JacobiRelax", &config.vfvSetting.JacobiRelax);
                 vfvParser.AddDNDS_Real("tangWeight", &config.vfvSetting.tangWeight);
+                vfvParser.AddDNDS_Real(
+                    "tangWeightModMin", &config.vfvSetting.tangWeightModMin, []() {}, JSON::ParamParser::FLAG_NULL);
                 vfvParser.AddBool("anistropicLengths", &config.vfvSetting.anistropicLengths);
                 vfvParser.AddDNDS_Real("scaleMLargerPortion", &config.vfvSetting.scaleMLargerPortion);
                 vfvParser.AddDNDS_Real("farWeight", &config.vfvSetting.farWeight);
@@ -180,6 +186,39 @@ namespace DNDS
                 vfvParser.AddDNDS_Real("WBAP_SmoothIndicatorScale", &config.vfvSetting.WBAP_SmoothIndicatorScale);
                 vfvParser.AddBool("orthogonalizeBase", &config.vfvSetting.orthogonalizeBase);
                 vfvParser.AddBool("normWBAP", &config.vfvSetting.normWBAP);
+            }
+            std::string centerOpt, weightOpt;
+            {
+                vfvParser.Addstd_String(
+                    "baseCenterType", &centerOpt,
+                    [&]()
+                    {
+                        config.vfvSetting.baseCenterTypeName = centerOpt;
+                        if (centerOpt == "Param")
+                            config.vfvSetting.baseCenterType = VRFiniteVolume2D::Setting::BaseCenterType::Paramcenter;
+                        else if (centerOpt == "Bary")
+                            config.vfvSetting.baseCenterType = VRFiniteVolume2D::Setting::BaseCenterType::Barycenter;
+                        else
+                            assert(false);
+                        if (mpi.rank == 0)
+                            log() << "JSON: vfvSetting.baseCenterType = " << config.vfvSetting.baseCenterTypeName << std::endl;
+                    });
+                vfvParser.Addstd_String(
+                    "weightSchemeGeom", &weightOpt,
+                    [&]()
+                    {
+                        config.vfvSetting.weightSchemeGeomName = weightOpt;
+                        if (weightOpt == "None")
+                            config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::None;
+                        else if (weightOpt == "D")
+                            config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::D;
+                        else if (weightOpt == "S")
+                            config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::S;
+                        else
+                            assert(false);
+                        if (mpi.rank == 0)
+                            log() << "JSON: vfvSetting.weightSchemeGeom = " << config.vfvSetting.weightSchemeGeomName << std::endl;
+                    });
             }
 
             root.AddInt("nDropVisScale", &config.nDropVisScale);
@@ -299,43 +338,16 @@ namespace DNDS
             root.AddInt("curvilinearRepeatNum", &config.curvilinearRepeatNum);
             root.AddDNDS_Real("curvilinearRange", &config.curvilinearRange);
 
+            root.AddBool(
+                "ifSteadyQuit", &config.steadyQuit, []() {}, JSON::ParamParser::FLAG_NULL);
+
+            root.AddInt(
+                "odeCode", &config.odeCode, []() {}, JSON::ParamParser::FLAG_NULL);
+
             root.Parse(doc.GetObject(), 0);
 
             if (mpi.rank == 0)
                 log() << "JSON: Parse Done ===" << std::endl;
-
-            if (doc["vfvSetting"].IsObject())
-            {
-                if (doc["vfvSetting"]["baseCenterType"].IsString())
-                {
-                    std::string centerOpt = doc["vfvSetting"]["baseCenterType"].GetString();
-                    config.vfvSetting.baseCenterTypeName = centerOpt;
-                    if (centerOpt == "Param")
-                        config.vfvSetting.baseCenterType = VRFiniteVolume2D::Setting::BaseCenterType::Paramcenter;
-                    else if (centerOpt == "Bary")
-                        config.vfvSetting.baseCenterType = VRFiniteVolume2D::Setting::BaseCenterType::Barycenter;
-                    else
-                        assert(false);
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.baseCenterType = " << config.vfvSetting.baseCenterTypeName << std::endl;
-                }
-
-                if (doc["vfvSetting"]["weightSchemeGeom"].IsString())
-                {
-                    std::string centerOpt = doc["vfvSetting"]["weightSchemeGeom"].GetString();
-                    config.vfvSetting.weightSchemeGeomName = centerOpt;
-                    if (centerOpt == "None")
-                        config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::None;
-                    else if (centerOpt == "D")
-                        config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::D;
-                    else if (centerOpt == "S")
-                        config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::S;
-                    else
-                        assert(false);
-                    if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.weightSchemeGeom = " << config.vfvSetting.weightSchemeGeomName << std::endl;
-                }
-            }
         }
 
         void ReadMeshAndInitialize()
@@ -421,23 +433,24 @@ namespace DNDS
             {
             case 1: // for RT problem
                 assert(model == NS || model == NS_2D);
-                for (index iCell = 0; iCell < u.dist->size(); iCell++)
-                {
-                    Elem::tPoint &pos = vfv->cellBaries[iCell];
-                    real gamma = config.eulerSetting.idealGasProperty.gamma;
-                    real rho = 2;
-                    real p = 1 + 2 * pos(1);
-                    if (pos(1) >= 0.5)
+                if constexpr (model == NS || model == NS_2D)
+                    for (index iCell = 0; iCell < u.dist->size(); iCell++)
                     {
-                        rho = 1;
-                        p = 1.5 + pos(1);
+                        Elem::tPoint &pos = vfv->cellBaries[iCell];
+                        real gamma = config.eulerSetting.idealGasProperty.gamma;
+                        real rho = 2;
+                        real p = 1 + 2 * pos(1);
+                        if (pos(1) >= 0.5)
+                        {
+                            rho = 1;
+                            p = 1.5 + pos(1);
+                        }
+                        real v = -0.025 * sqrt(gamma * p / rho) * std::cos(8 * pi * pos(0));
+                        if constexpr (dim == 3)
+                            u[iCell] = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
+                        else
+                            u[iCell] = Eigen::Vector<real, 4>{rho, 0, rho * v, 0.5 * rho * sqr(v) + p / (gamma - 1)};
                     }
-                    real v = -0.025 * sqrt(gamma * p / rho) * std::cos(8 * pi * pos(0));
-                    if constexpr (dim == 3)
-                        u[iCell] = Eigen::Vector<real, 5>{rho, 0, rho * v, 0, 0.5 * rho * sqr(v) + p / (gamma - 1)};
-                    else
-                        u[iCell] = Eigen::Vector<real, 4>{rho, 0, rho * v, 0.5 * rho * sqr(v) + p / (gamma - 1)};
-                }
                 break;
             case 0:
                 break;
@@ -463,15 +476,43 @@ namespace DNDS
             //         data.CreateGhostCopyComm(mesh->cell2faceLocal);
             //         data.InitPersistentPullClean();
             //     });
-            ODE::ImplicitBDFDualTimeStep<decltype(u)> ode(
-                u.dist->size(),
-                [&](decltype(u) &data)
-                {
-                    data.resize(u.dist->size(), u.dist->getMPI(), nVars);
-                    data.CreateGhostCopyComm(mesh->cell2faceLocal);
-                    data.InitPersistentPullClean();
-                },
-                2);
+            std::shared_ptr<ODE::ImplicitDualTimeStep<decltype(u)>> ode;
+
+            if (config.steadyQuit)
+            {
+                if (mpi.rank == 0)
+                    log() << "Using steady!" << std::endl;
+                config.odeCode = 1; // To bdf;
+                config.nTimeStep = 1;
+            }
+            switch (config.odeCode)
+            {
+            case 0: // sdirk4
+                if (mpi.rank == 0)
+                    log() << "=== ODE: SDIRK4 " << std::endl;
+                ode = std::make_shared<ODE::ImplicitSDIRK4DualTimeStep<decltype(u)>>(
+                    u.dist->size(),
+                    [&](decltype(u) &data)
+                    {
+                        data.resize(u.dist->size(), u.dist->getMPI(), nVars);
+                        data.CreateGhostCopyComm(mesh->cell2faceLocal);
+                        data.InitPersistentPullClean();
+                    });
+                break;
+            case 1: // BDF2
+                if (mpi.rank == 0)
+                    log() << "=== ODE: BDF2 " << std::endl;
+                ode = std::make_shared<ODE::ImplicitBDFDualTimeStep<decltype(u)>>(
+                    u.dist->size(),
+                    [&](decltype(u) &data)
+                    {
+                        data.resize(u.dist->size(), u.dist->getMPI(), nVars);
+                        data.CreateGhostCopyComm(mesh->cell2faceLocal);
+                        data.InitPersistentPullClean();
+                    },
+                    2);
+                break;
+            }
 
             Linear::GMRES_LeftPreconditioned<decltype(u)> gmres(
                 config.nGmresSpace,
@@ -753,6 +794,8 @@ namespace DNDS
                             }
                             return false;
                         });
+                    for (index iCell = 0; iCell < cxInc.size(); iCell++)
+                        cxInc[iCell] = eval.CompressInc(cx[iCell], cxInc[iCell], crhs[iCell]); // manually add fixing for gmres results
                 }
                 // !freeze something
                 if (getNVars(model) > I4 + 1 && iter <= config.nFreezePassiveInner)
@@ -828,7 +871,6 @@ namespace DNDS
                     real logCFL = std::log(config.CFL) + (std::log(config.CFLRampEnd / config.CFL) * inter);
                     CFLNow = std::exp(logCFL);
                 }
-
                 // return resRel.maxCoeff() < config.rhsThresholdInternal;
                 return ifStop;
             };
@@ -843,7 +885,7 @@ namespace DNDS
                 if (ifOutT)
                     tsimu = nextTout;
                 Eigen::Vector<real, -1> res(nVars);
-                eval.EvaluateResidual(res, ode.rhsbuf[0]);
+                eval.EvaluateResidual(res, ode->getLatestRHS());
                 if (stepCount == 0 && resBaseC.norm() == 0)
                     resBaseC = res;
 
@@ -910,7 +952,7 @@ namespace DNDS
                     curDtImplicit = (nextTout - tsimu);
                 }
                 CFLNow = config.CFL;
-                ode.Step(
+                ode->Step(
                     u, uInc,
                     frhs,
                     fdtau,
@@ -958,7 +1000,7 @@ namespace DNDS
                 // (*outDist)[iCell][7] = (bool)(ifUseLimiter[iCell] & 0x0000000FU);
                 (*outDist)[iCell][I4 + 3] = ifUseLimiter[iCell][0] / config.vfvSetting.WBAP_SmoothIndicatorScale;
                 // std::cout << iCell << ode.rhsbuf[0][iCell] << std::endl;
-                (*outDist)[iCell][I4 + 4] = ode.rhsbuf[0][iCell](0);
+                (*outDist)[iCell][I4 + 4] = ode->getLatestRHS()[iCell][0];
                 // (*outDist)[iCell][8] = (*vfv->SOR_iCell2iScan)[iCell];//!using SOR rb seq instead
 
                 for (int i = I4 + 1; i < nVars; i++)
