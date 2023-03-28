@@ -176,6 +176,8 @@ namespace DNDS
                 vfvParser.AddBool("SOR_RedBlack", &config.vfvSetting.SOR_RedBlack);
                 vfvParser.AddDNDS_Real("JacobiRelax", &config.vfvSetting.JacobiRelax);
                 vfvParser.AddDNDS_Real("tangWeight", &config.vfvSetting.tangWeight);
+                vfvParser.AddDNDS_Real(
+                    "tangWeightModMin", &config.vfvSetting.tangWeightModMin, []() {}, JSON::ParamParser::FLAG_NULL);
                 vfvParser.AddBool("anistropicLengths", &config.vfvSetting.anistropicLengths);
                 vfvParser.AddDNDS_Real("scaleMLargerPortion", &config.vfvSetting.scaleMLargerPortion);
                 vfvParser.AddDNDS_Real("farWeight", &config.vfvSetting.farWeight);
@@ -478,7 +480,7 @@ namespace DNDS
 
             if (config.steadyQuit)
             {
-                if( mpi.rank == 0)
+                if (mpi.rank == 0)
                     log() << "Using steady!" << std::endl;
                 config.odeCode = 1; // To bdf;
                 config.nTimeStep = 1;

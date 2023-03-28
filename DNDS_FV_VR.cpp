@@ -745,10 +745,10 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             case Setting::WeightSchemeGeom::None:
                 break;
             case Setting::WeightSchemeGeom::D:
-                GW = 1. / std::sqrt(D);
+                GW = 1. / D;
                 break;
             case Setting::WeightSchemeGeom::S:
-                GW = 1. / std::sqrt(S);
+                GW = 1. / S;
                 break;
             default:
                 assert(false);
