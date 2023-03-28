@@ -22,7 +22,7 @@
     "dtImplicit": 6.25e-5,
     "rhsThresholdInternal": 1e-30,
     "useLocalDt": true,
-    "useLimiter": true,
+    "useLimiter": false,
     "nPartialLimiterStart": 100,
     "nPartialLimiterStartLocal": 500,
     "nLimiterTurnOn": 0,
@@ -32,7 +32,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/UniformDM120.msh",
+    "meshFile": "data/mesh/UniformRT512_Tri.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform128.msh",

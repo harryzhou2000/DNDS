@@ -341,28 +341,26 @@ namespace DNDS
     inline void FWBAP_L2_Multiway(const TinOthers &uOthers, int Nother, Tout &uOut, real n1 = 1.0)
     {
         // PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
-        // static const int p = 4;
-        // static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
+        static const int p = 4;
+        static const real verySmallReal_pDiP = std::pow(verySmallReal, 1.0 / p);
 
-        // Tout uUp; //* copy!
-        // uUp.resizeLike(uOthers[0]);
-        // uUp.setZero();
-        // Tout uDown = uUp; //* copy!
+        Tout uUp; //* copy!
+        uUp.resizeLike(uOthers[0]);
+        uUp.setZero();
+        Tout uDown = uUp; //* copy!
         // Tout uMax = uDown + verySmallReal;
 
         // for (int iOther = 0; iOther < Nother; iOther++)
         //     uMax = uMax.max(uOthers[iOther].abs());
         // uOut = uMax;
 
-        // for (int iOther = 0; iOther < Nother; iOther++)
-        // {
-        //     auto thetaInverse = uMax / (uOthers[iOther].sign() * (uOthers[iOther].abs() + verySmallReal_pDiP) +
-        //                                 verySmallReal_pDiP * (-2));
-        //     real exn = iOther ? 1.0 : n1;
-        //     uDown += thetaInverse.pow(p) * exn;
-        //     uUp += thetaInverse.pow(p - 1) * exn;
-        // }
-        // uOut *= uUp / (uDown + verySmallReal);
+        for (int iOther = 1; iOther < Nother; iOther++)
+        {
+            Tout thetaInverse = uOthers[0] / (uOthers[iOther].abs() + verySmallReal_pDiP) * uOthers[iOther].sign();
+            uDown += thetaInverse.square() * thetaInverse.square();
+            uUp += thetaInverse.cube();
+        }
+        uOut = uOthers[0] * (uUp + n1)  / (uDown + n1);
 
         // if (uOut.hasNaN())
         // {
@@ -372,34 +370,36 @@ namespace DNDS
         //     std::cout << uDown.transpose() << std::endl;
         //     abort();
         // }
-        uOut.resizeLike(uOthers[0]);
-        static const int maxNeighbour = 7;
-        assert(uOthers.size() <= maxNeighbour);
-        real theta[maxNeighbour];
+
+        /************************/
+        // uOut.resizeLike(uOthers[0]);
+        // static const int maxNeighbour = 7;
+        // assert(uOthers.size() <= maxNeighbour);
+        // real theta[maxNeighbour];
         
 
-        for (int idof = 0; idof < uOthers[0].cols(); idof++)
-            for (int irec = 0; irec < uOthers[0].rows(); irec++)
-            {
-                real u0 = uOthers[0](irec, idof);
-                for (int ii = 0; ii < uOthers.size(); ++ii)
-                {
-                    real uother = uOthers[ii](irec, idof);
-                    theta[ii] = (u0 + signP(u0) * 1e-12) /
-                                (uother + signP(uother) * 1e-12);
-                }
+        // for (int idof = 0; idof < uOthers[0].cols(); idof++)
+        //     for (int irec = 0; irec < uOthers[0].rows(); irec++)
+        //     {
+        //         real u0 = uOthers[0](irec, idof);
+        //         for (int ii = 0; ii < uOthers.size(); ++ii)
+        //         {
+        //             real uother = uOthers[ii](irec, idof);
+        //             theta[ii] = (u0 + signP(u0) * 1e-12) /
+        //                         (uother + signP(uother) * 1e-12);
+        //         }
 
-                static const real p = 4.0;
-                real sumLocal1 = n1;
-                real sumLocal2 = n1;
-                for (int ii = 0; ii < uOthers.size(); ++ii)
-                {
-                    sumLocal1 += std::pow(theta[ii], (p - 1.0));
-                    sumLocal2 += std::pow(theta[ii], p);
-                }
+        //         static const real p = 4.0;
+        //         real sumLocal1 = n1;
+        //         real sumLocal2 = n1;
+        //         for (int ii = 0; ii < uOthers.size(); ++ii)
+        //         {
+        //             sumLocal1 += std::pow(theta[ii], (p - 1.0));
+        //             sumLocal2 += std::pow(theta[ii], p);
+        //         }
 
-                uOut(irec, idof) = u0 * sumLocal1 / (sumLocal2 + 1e-12);
-            }
+        //         uOut(irec, idof) = u0 * sumLocal1 / (sumLocal2 + 1e-12);
+        //     }
 
         // PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
     }
@@ -424,23 +424,26 @@ namespace DNDS
         // // std::cout << u2 << std::endl;
 
         ///////////
-        // auto frac = (u1 / (u2.abs() + 1e-12) * u2.sign());
+        Tout frac = (u1 / (u2.abs() + 1e-12) * u2.sign());
         // auto theta1 = frac.pow(p - 1);
         // auto theta2 = frac.pow(p);
 
-        // uOut = u1 * (n + theta1) / (n + theta2);
+        auto theta1 = frac.cube();
+        auto theta2 = frac.square() * frac.square();
+
+        uOut = u1 * (n + theta1) / (n + theta2);
         ///////////
-        uOut.resizeLike(u1);
-        for (int idof = 0; idof < u1.cols(); idof++)
-            for (int irec = 0; irec < u1.rows(); irec++)
-            {
-                real u1c = u1(irec, idof);
-                real u2c = u2(irec, idof);
-                real frac = u1c / (u2c + signP(u2c) * 1e-14);
-                real theta1 = std::pow(frac, p - 1);
-                real theta2 = std::pow(frac, p);
-                uOut(irec, idof) = u1c * (n + theta1) / (n + theta2);
-            }
+        // uOut.resizeLike(u1);
+        // for (int idof = 0; idof < u1.cols(); idof++)
+        //     for (int irec = 0; irec < u1.rows(); irec++)
+        //     {
+        //         real u1c = u1(irec, idof);
+        //         real u2c = u2(irec, idof);
+        //         real frac = u1c / (u2c + signP(u2c) * 1e-14);
+        //         real theta1 = std::pow(frac, p - 1);
+        //         real theta2 = std::pow(frac, p);
+        //         uOut(irec, idof) = u1c * (n + theta1) / (n + theta2);
+        //     }
         // PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
     }
 

@@ -878,7 +878,7 @@ namespace DNDS
                 options[METIS_OPTION_CTYPE] = METIS_CTYPE_RM;
                 options[METIS_OPTION_IPTYPE] = METIS_IPTYPE_GROW;
                 options[METIS_OPTION_RTYPE] = METIS_RTYPE_FM;
-                options[METIS_OPTION_NO2HOP] = 0;
+                //options[METIS_OPTION_NO2HOP] = 0; // only available in metis 5.1.0
                 options[METIS_OPTION_NCUTS] = 1;
                 options[METIS_OPTION_NITER] = 10;
                 options[METIS_OPTION_UFACTOR] = 30;
@@ -893,7 +893,7 @@ namespace DNDS
                 partition.resize(cell2cellSiz.size());
                 std::vector<idx_t> iGlobal; // iGlobal[iCell_Serial] = iCell_Global
                 iGlobal.reserve(cell2cellSiz.size());
-
+		std::cout << "size of idx_t,real_t: " << sizeof(idx_t) << " " << sizeof(real_t) << std::endl;
                 if (nparts > 1)
                 {
                     int ret = METIS_PartGraphKway(&ncell, &ncons, cell2cellStarts.data(), cell2cell.data(), NULL, NULL, NULL, &nparts, NULL, NULL, options, &objval, partition.data());
