@@ -1,4 +1,6 @@
 #include "DNDS_MPI.hpp"
+#include <ctime>
+#include <cstdio>
 
 #ifdef NDEBUG
 #define NDEBUG_DISABLED
@@ -77,13 +79,34 @@ namespace DNDS
     }
 }
 
-
 namespace DNDS
 {
     MPIBufferHandler &MPIBufferHandler::Instance()
     {
         static MPIBufferHandler instance;
         return instance;
+    }
+}
+
+namespace DNDS
+{
+    std::string getTimeStamp(const MPIInfo& mpi)
+    {
+        int64_t result = std::time(nullptr);
+        char buf[512];
+        int64_t pid = 0;
+#if defined(linux) || defined(_UNIX) || defined(__linux__)
+        pid = Debug::getpid();
+#endif
+#if defined(_WIN32) || defined(__WINDOWS_)
+        pid = Debug::GetCurrentProcessId();
+#endif
+        MPI_Bcast(&result, 1, MPI_INT64_T, 0, mpi.comm);
+        MPI_Bcast(&pid, 1, MPI_INT64_T, 0, mpi.comm);
+
+        std::sprintf(buf, "%lld_%lld", result, pid);
+
+        return std::string(buf);
     }
 }
 

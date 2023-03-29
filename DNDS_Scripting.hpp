@@ -4,8 +4,10 @@
 #include "DNDS_MPI.hpp"
 #include "Eigen/Dense"
 #include "rapidjson/filereadstream.h"
+#include "rapidjson/ostreamwrapper.h"
 // #include "rapidjson/istreamwrapper.h"
 #include "rapidjson/document.h"
+#include "rapidjson/writer.h"
 #include <cstdio>
 
 namespace DNDS

@@ -1,6 +1,6 @@
 #pragma once
 #include "DNDS_Macros.h"
-#include "Experimentals.h"
+#include "DNDS_Experimentals.h"
 // #define NDEBUG
 #include <assert.h>
 #include <stdint.h>
@@ -10,6 +10,21 @@
 #include <iostream>
 #include <cmath>
 #include <iomanip>
+#include <string>
+
+static const std::string DNDS_Defines_state =
+    std::string("DNDS_Defines ") + DNDS_Macros_State + DNDS_Experimentals_State
+#ifdef NDEBUG
+    + " NDEBUG "
+#else
+    + " (no NDEBUG) "
+#endif
+#ifdef NINSERT
+    + " NINSERT "
+#else
+    + " (no NINSERT) "
+#endif
+    ;
 
 static_assert(sizeof(uint8_t) == 1, "bad uint8_t");
 
@@ -39,6 +54,11 @@ namespace DNDS
     const real pi = std::acos(-1);
 
 } // namespace DNDS
+
+namespace DNDS
+{
+
+}
 
 namespace DNDS
 {
@@ -142,6 +162,20 @@ namespace DNDS
         return val;
     }
 }
+
+/*
+
+
+
+
+
+
+
+
+
+*/
+
+
 
 /*
 

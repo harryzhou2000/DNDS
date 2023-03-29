@@ -33,7 +33,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 50,
     "meshRotZ": -15,
-    "meshFile": "data/mesh/NACA0012_WIDE_H4_M.msh",
+    "meshFile": "data/mesh/NACA0012_WIDE_H4.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -55,8 +55,8 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H4_M",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H4_M",
+    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H4_test_orig",
+    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H4_test_orig",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -66,7 +66,8 @@
         "JacobiRelax": 1,
         "anistropicLengths": false,
         "tangWeight": 1,
-        "tangWeightModMin": 0.1,
+        "tangWeightModMin": 0.01,
+        "useLocalCoord": false,
         "wallWeight": 0.5,
         "farWeight": 1,
         "weightSchemeGeom": "None",
@@ -84,7 +85,7 @@
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
-            "Rgas": 0.0654,
+            "Rgas": 0.116221972344982,
             "muGas": 3.4722e-07
         },
         "comment_euler": "the artificial vis params are unused;",
@@ -101,8 +102,8 @@
             1,
             0,
             0,
-            45.1429,
-            1
+            79.8650,
+            2
         ],
         "boxInitializerValue": [
         ],
@@ -188,6 +189,14 @@
                 0,
                 45.1429,
                 1
+            ],
+            [
+                "0.15M with Rg = 0.116221972344982",
+                1,
+                1,
+                0,
+                0,
+                79.8650
             ]
         ]
     },

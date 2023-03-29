@@ -55,6 +55,9 @@ namespace DNDS
             nOUTS = nVars + 4;
         }
 
+        std::shared_ptr<rapidjson::Document> config_doc;
+        std::string output_stamp = "";
+
         struct Configuration
         {
             int recOrder = 2;
@@ -122,8 +125,8 @@ namespace DNDS
 
         void ConfigureFromJson(const std::string &jsonName)
         {
-            rapidjson::Document doc;
-            JSON::ReadFile(jsonName, doc);
+            config_doc = std::make_shared<rapidjson::Document>();
+            JSON::ReadFile(jsonName, *config_doc);
             JSON::ParamParser root(mpi);
 
             root.AddInt("nInternalRecStep", &config.nInternalRecStep);
@@ -178,6 +181,8 @@ namespace DNDS
                 vfvParser.AddDNDS_Real("tangWeight", &config.vfvSetting.tangWeight);
                 vfvParser.AddDNDS_Real(
                     "tangWeightModMin", &config.vfvSetting.tangWeightModMin, []() {}, JSON::ParamParser::FLAG_NULL);
+                vfvParser.AddBool(
+                    "useLocalCoord", &config.vfvSetting.useLocalCoord, []() {}, JSON::ParamParser::FLAG_NULL);
                 vfvParser.AddBool("anistropicLengths", &config.vfvSetting.anistropicLengths);
                 vfvParser.AddDNDS_Real("scaleMLargerPortion", &config.vfvSetting.scaleMLargerPortion);
                 vfvParser.AddDNDS_Real("farWeight", &config.vfvSetting.farWeight);
@@ -344,7 +349,7 @@ namespace DNDS
             root.AddInt(
                 "odeCode", &config.odeCode, []() {}, JSON::ParamParser::FLAG_NULL);
 
-            root.Parse(doc.GetObject(), 0);
+            root.Parse(config_doc->GetObject(), 0);
 
             if (mpi.rank == 0)
                 log() << "JSON: Parse Done ===" << std::endl;
@@ -352,6 +357,9 @@ namespace DNDS
 
         void ReadMeshAndInitialize()
         {
+            output_stamp = getTimeStamp(mpi);
+            if (mpi.rank == 0)
+                log() << "=== Got Time Stamp: [" << output_stamp << "] ===" << std::endl;
             // Debug::MPIDebugHold(mpi);
             CompactFacedMeshSerialRWBuild(mpi, config.mName, "data/out/debugmeshSO.plt", mesh, config.meshRotZ);
             fv = std::make_shared<ImplicitFiniteVolume2D>(mesh.get());
@@ -525,7 +533,22 @@ namespace DNDS
 
             EulerEvaluator<model> eval(mesh.get(), fv.get(), vfv.get());
 
-            std::ofstream logErr(config.outLogName + ".log");
+            /************* Files **************/
+            if (mpi.rank == 0)
+            {
+                std::ofstream logConfig(config.outLogName + "_" + output_stamp + ".config.json");
+                rapidjson::OStreamWrapper logConfigWrapper(logConfig);
+                rapidjson::Writer<rapidjson::OStreamWrapper> writer(logConfigWrapper);
+                rapidjson::Value ctd_info;
+                ctd_info.SetString(DNDS_Defines_state.c_str(), DNDS_Defines_state.length());
+                config_doc->GetObject().AddMember("___Compile_Time_Defines", ctd_info, config_doc->GetAllocator());
+                config_doc->Accept(writer);
+                logConfig.close();
+            }
+
+            std::ofstream logErr(config.outLogName + "_" + output_stamp + ".log");
+            /************* Files **************/
+
             eval.settings = config.eulerSetting;
             // std::cout << uF0.dist->commStat.hasPersistentPullReqs << std::endl;
             // exit(0);
@@ -856,13 +879,13 @@ namespace DNDS
                 if (iter % config.nDataOutInternal == 0)
                 {
                     eval.FixUMaxFilter(u);
-                    PrintData(config.outPltName + "_" + std::to_string(step) + "_" + std::to_string(iter) + ".plt", ode);
+                    PrintData(config.outPltName + "_" + output_stamp + "_" + std::to_string(step) + "_" + std::to_string(iter) + ".plt", ode);
                     nextStepOut += config.nDataOut;
                 }
                 if (iter % config.nDataOutCInternal == 0)
                 {
                     eval.FixUMaxFilter(u);
-                    PrintData(config.outPltName + "_" + "C" + ".plt", ode);
+                    PrintData(config.outPltName + "_" + output_stamp + "_" + "C" + ".plt", ode);
                     nextStepOutC += config.nDataOutC;
                 }
                 if (iter >= config.nCFLRampStart && iter <= config.nCFLRampLength + config.nCFLRampStart)
@@ -914,19 +937,19 @@ namespace DNDS
                 if (step == nextStepOut)
                 {
                     eval.FixUMaxFilter(u);
-                    PrintData(config.outPltName + "_" + std::to_string(step) + ".plt", ode);
+                    PrintData(config.outPltName + "_" + output_stamp + "_" + std::to_string(step) + ".plt", ode);
                     nextStepOut += config.nDataOut;
                 }
                 if (step == nextStepOutC)
                 {
                     eval.FixUMaxFilter(u);
-                    PrintData(config.outPltName + "_" + "C" + ".plt", ode);
+                    PrintData(config.outPltName + "_" + output_stamp + "_" + "C" + ".plt", ode);
                     nextStepOutC += config.nDataOutC;
                 }
                 if (ifOutT)
                 {
                     eval.FixUMaxFilter(u);
-                    PrintData(config.outPltName + "_" + "t_" + std::to_string(nextTout) + ".plt", ode);
+                    PrintData(config.outPltName + "_" + output_stamp + "_" + "t_" + std::to_string(nextTout) + ".plt", ode);
                     nextTout += config.tDataOut;
                     if (nextTout > config.tEnd)
                         nextTout = config.tEnd;

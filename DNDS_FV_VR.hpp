@@ -174,7 +174,7 @@ namespace DNDS
 
             real tangWeight = 5e-3;
             real tangWeightModMin = 1;
-            
+
             // center type
             std::string baseCenterTypeName = "Bary";
             enum BaseCenterType
@@ -191,6 +191,8 @@ namespace DNDS
             real JacobiRelax = 1.0;
 
             int curvilinearOrder = 1;
+
+            bool useLocalCoord = false;
             bool anistropicLengths = false;
 
             enum WeightSchemeGeom
@@ -302,34 +304,36 @@ namespace DNDS
             // std::cout << pPhysicsCScaled << std::endl;
             // std::cout << simpleScale << std::endl;
             pPhysicsCScaled(2) = 0.; // for 2d volumes
-#ifndef USE_LOCAL_COORD
-            for (int idiff = 0; idiff < DiBj.rows(); idiff++)
-                for (int ibase = 0; ibase < DiBj.cols(); ibase++)
-                {
-                    int px = Elem::diffOperatorOrderList2D[ibase][0];
-                    int py = Elem::diffOperatorOrderList2D[ibase][1];
-                    int pz = Elem::diffOperatorOrderList2D[ibase][2];
-                    int ndx = Elem::diffOperatorOrderList2D[idiff][0];
-                    int ndy = Elem::diffOperatorOrderList2D[idiff][1];
-                    int ndz = Elem::diffOperatorOrderList2D[idiff][2];
-                    DiBj(idiff, ibase) = FPolynomial3D(px, py, pz, ndx, ndy, ndz,
-                                                       pPhysicsCScaled(0), pPhysicsCScaled(1), pPhysicsCScaled(2)) /
-                                         (std::pow(simpleScale(0), ndx) * std::pow(simpleScale(1), ndy) * std::pow(1, ndz));
-                }
-            // std::cout << "XXXXXXX\n"
-            //           << cPhysics << std::endl
-            //           << pPhysicsC << std::endl;
-            // std::cout << DiBj << std::endl;
+            if (!setting.useLocalCoord)
+            {
+                for (int idiff = 0; idiff < DiBj.rows(); idiff++)
+                    for (int ibase = 0; ibase < DiBj.cols(); ibase++)
+                    {
+                        int px = Elem::diffOperatorOrderList2D[ibase][0];
+                        int py = Elem::diffOperatorOrderList2D[ibase][1];
+                        int pz = Elem::diffOperatorOrderList2D[ibase][2];
+                        int ndx = Elem::diffOperatorOrderList2D[idiff][0];
+                        int ndy = Elem::diffOperatorOrderList2D[idiff][1];
+                        int ndz = Elem::diffOperatorOrderList2D[idiff][2];
+                        DiBj(idiff, ibase) = FPolynomial3D(px, py, pz, ndx, ndy, ndz,
+                                                           pPhysicsCScaled(0), pPhysicsCScaled(1), pPhysicsCScaled(2)) /
+                                             (std::pow(simpleScale(0), ndx) * std::pow(simpleScale(1), ndy) * std::pow(1, ndz));
+                    }
+                // std::cout << "XXXXXXX\n"
+                //           << cPhysics << std::endl
+                //           << pPhysicsC << std::endl;
+                // std::cout << DiBj << std::endl;
 
-            // i++;
-            DiBj(0, Eigen::all) -= baseMoment.transpose();
+                // i++;
+                DiBj(0, Eigen::all) -= baseMoment.transpose();
 
-            // if (coords.cols() == 4 && DiBj.rows() > 1)
-            //     std::cout << "DiBj\n"
-            //               << DiBj << std::endl;
+                // if (coords.cols() == 4 && DiBj.rows() > 1)
+                //     std::cout << "DiBj\n"
+                //               << DiBj << std::endl;
 
-            return;
-#endif
+                return;
+            }
+
             auto coordsC = coords.colwise() - cPhysics;
             // ** minmax scaling
             auto P2CDist = coordsC.colwise().norm();
@@ -998,7 +1002,8 @@ namespace DNDS
             real cellARR = (*cellIntertia)[icellR](Eigen::all, 0).norm() / (*cellIntertia)[icellL](Eigen::all, 1).norm();
             assert(cellARL >= (1 - 1e-10) && cellARR >= (1 - 1e-10));
             real cellARMax = std::max(cellARL, cellARR);
-            real tangModifier = (1- 1./cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
+            // real tangModifier = (1- 1./cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
+            real tangModifier = (1. / cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
 
             assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
 #ifndef USE_NORM_FUNCTIONAL
