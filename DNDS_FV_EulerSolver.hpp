@@ -219,6 +219,8 @@ namespace DNDS
                             config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::D;
                         else if (weightOpt == "S")
                             config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::S;
+                        else if (weightOpt == "SDHQM")
+                            config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::SDHQM;
                         else
                             assert(false);
                         if (mpi.rank == 0)

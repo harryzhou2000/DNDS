@@ -343,14 +343,16 @@ namespace DNDS
             {
                 real cnu1 = 7.1;
                 real Chi = UMeanXy(I4 + 1) * muRef / mufPhy;
-                if (Chi < 10)
-                    Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
+                // if (Chi < 10) 
+                //     Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
+                //! modified >>
                 real Chi3 = std::pow(Chi, 3);
                 fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
                 muf *= (1 + Chi * fnu1);
             }
 
-            real k = settings.idealGasProperty.CpGas * muf / settings.idealGasProperty.prGas;
+            real k = settings.idealGasProperty.CpGas *
+                     (mufPhy / settings.idealGasProperty.prGas + (muf - mufPhy) / 0.9);
             TDiffU VisFlux;
             VisFlux.resizeLike(DiffUxy);
             VisFlux.setZero();
@@ -499,8 +501,9 @@ namespace DNDS
                                std::pow(T / settings.idealGasProperty.TRef, 1.5) *
                                (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
                                (T + settings.idealGasProperty.CSutherland);
+                assert(mufPhy > 0);
 
-                real Chi = std::abs(UMeanXy(I4 + 1) * muRef / mufPhy);
+                real Chi = std::max(UMeanXy(I4 + 1) * muRef / mufPhy, verySmallReal);
                 real fnu1 = std::pow(Chi, 3) / (std::pow(Chi, 3) + std::pow(cnu1, 3));
                 real fnu2 = 1 - Chi / (1 + Chi * fnu1);
 
@@ -516,10 +519,11 @@ namespace DNDS
                 real Sbar = nuh / (sqr(kappa) * sqr(d)) * fnu2;
 
                 real Sh;
-                if (Sbar < -cnu2 * S)
-                    Sh = S + S * (sqr(cnu2) * S + cnu3 * Sbar) / ((cnu3 - 2 * cnu2) * S - Sbar);
-                else
-                    Sh = S + Sbar;
+                // if (Sbar < -cnu2 * S)
+                //     Sh = S + S * (sqr(cnu2) * S + cnu3 * Sbar) / ((cnu3 - 2 * cnu2) * S - Sbar);
+                // else
+                //     Sh = S + Sbar;
+                Sh = S + Sbar; //! modified >>
 
                 real r = std::min(nuh / (Sh * sqr(kappa * d) + verySmallReal), rlim);
                 real g = r + cw2 * (std::pow(r, 6) - r);
@@ -547,8 +551,10 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
+                // ret(I4 + 1) = UMeanXy(0) * (P - D + diffNu.squaredNorm() * cb2 / sigma) / muRef -
+                //               (UMeanXy(I4 + 1) * fn * muRef + mufPhy) / (UMeanXy(0) * sigma) * diffRho.dot(diffNu) / muRef;
                 ret(I4 + 1) = UMeanXy(0) * (P - D + diffNu.squaredNorm() * cb2 / sigma) / muRef -
-                              (UMeanXy(I4 + 1) * fn * muRef + mufPhy) / (UMeanXy(0) * sigma) * diffRho.dot(diffNu) / muRef;
+                              (UMeanXy(I4 + 1) * fnu1 * muRef + mufPhy) / (UMeanXy(0) * sigma) * diffRho.dot(diffNu) / muRef; //! modified >>
 
                 if (ret.hasNaN())
                 {
@@ -671,7 +677,7 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
-                ret(I4 + 1) = -std::min(UMeanXy(0) * (P*0 - D * 2) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
+                ret(I4 + 1) = -std::min(UMeanXy(0) * (P * 0 - D * 1) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
 
                 if (ret.hasNaN())
                 {

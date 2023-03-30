@@ -547,8 +547,8 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             DNDS::ElemAttributes *cellAtrR{nullptr};
             mesh->LoadCoords(mesh->cell2nodeLocal[f2c[0]], cellCoordsL);
             sScaleL = CoordMinMaxScale(cellCoordsL);
-            cellRecAtrL = &cellRecAtrLocal[f2c[0]][0];
-            cellAtrL = &mesh->cellAtrLocal[f2c[0]][0];
+            cellRecAtrR = cellRecAtrL = &cellRecAtrLocal[f2c[0]][0];
+            cellAtrR = cellAtrL = &mesh->cellAtrLocal[f2c[0]][0];
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
                 mesh->LoadCoords(mesh->cell2nodeLocal[f2c[1]], cellCoordsR);
@@ -692,11 +692,12 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             }
             // exit(0);
 
-            // *Do weights!!
+            // *** Do weights!!
             // if (f2c[1] == FACE_2_VOL_EMPTY)
             //     std::cout << faceAtr.iPhy << std::endl;
             (*faceWeights)[iFace].resize(faceRecAtr.NDIFF);
             Elem::tPoint delta;
+            int NDOFmax = std::max(cellRecAtrL->NDOF, cellRecAtrR->NDOF);
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
                 delta = cellBaries[f2c[1]] - cellBaries[f2c[0]];
@@ -750,6 +751,9 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             case Setting::WeightSchemeGeom::S:
                 GW = 1. / S;
                 break;
+            case Setting::WeightSchemeGeom::SDHQM:
+                GW = std::pow(S / D, 0.5);
+                break;
             default:
                 assert(false);
             }
@@ -761,6 +765,45 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                                                 std::pow(delta[0], ndx) *
                                                 std::pow(delta[1], ndy) *
                                                 real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
+                // static const real dirWeight2_HQM[5] = {
+                //     0.4643,
+                //     0.1559,
+                //     0. / 0.,
+                //     0. / 0.,
+                //     0. / 0.};
+                // static const real dirWeight3_HQM[5] = {
+                //     0.5295,
+                //     0.2117,
+                //     0.2117,
+                //     0. / 0.,
+                //     0. / 0.};
+                // assert(ndx + ndy < 5);
+                // switch (NDOFmax)
+                // {
+                // case 3:
+                //     (*faceWeights)[iFace][idiff] *= GW *
+                //                                     std::pow(delta[0], ndx) *
+                //                                     std::pow(delta[1], ndy) *
+                //                                     real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
+                //     break;
+
+                // case 6:
+                //     (*faceWeights)[iFace][idiff] *= GW *
+                //                                     std::pow(delta[0], ndx) *
+                //                                     std::pow(delta[1], ndy) *
+                //                                     real(Elem::diffNCombs2D[idiff]) * dirWeight2_HQM[ndx + ndy - 1];
+                //     break;
+
+                // case 10:
+                //     (*faceWeights)[iFace][idiff] *= GW *
+                //                                     std::pow(delta[0], ndx) *
+                //                                     std::pow(delta[1], ndy) *
+                //                                     real(Elem::diffNCombs2D[idiff]) * dirWeight3_HQM[ndx + ndy - 1];
+                //     break;
+                // default:
+                //     assert(false);
+                //     break;
+                // }
             }
         });
 

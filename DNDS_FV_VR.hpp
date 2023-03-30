@@ -199,7 +199,8 @@ namespace DNDS
             {
                 None = 0,
                 S = 2,
-                D = 1
+                D = 1,
+                SDHQM = 3,
             } weightSchemeGeom = WeightSchemeGeom::None;
             std::string weightSchemeGeomName;
 

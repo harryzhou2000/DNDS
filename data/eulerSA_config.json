@@ -32,8 +32,8 @@
     "nCFLRampStart": 10000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 50,
-    "meshRotZ": -15,
-    "meshFile": "data/mesh/NACA0012_WIDE_H4.msh",
+    "meshRotZ": -0,
+    "meshFile": "data/mesh/NACA0012_WIDE_H4_M.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -55,8 +55,8 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H4_test_orig",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H4_test_orig",
+    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H4_M_test_orig",
+    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H4_M_test_orig",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -66,7 +66,7 @@
         "JacobiRelax": 1,
         "anistropicLengths": false,
         "tangWeight": 1,
-        "tangWeightModMin": 0.01,
+        "tangWeightModMin": 0,
         "useLocalCoord": false,
         "wallWeight": 0.5,
         "farWeight": 1,
@@ -99,11 +99,11 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            1,
-            0,
+            0.965925826289068,
+            0.258819045102521,
             0,
             79.8650,
-            2
+            3
         ],
         "boxInitializerValue": [
         ],
