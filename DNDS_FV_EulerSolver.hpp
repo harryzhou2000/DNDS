@@ -214,7 +214,7 @@ namespace DNDS
                     {
                         config.vfvSetting.weightSchemeGeomName = weightOpt;
                         if (weightOpt == "None")
-                            config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::None;
+                            config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::NoneGeom;
                         else if (weightOpt == "D")
                             config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::D;
                         else if (weightOpt == "S")
@@ -225,6 +225,20 @@ namespace DNDS
                             assert(false);
                         if (mpi.rank == 0)
                             log() << "JSON: vfvSetting.weightSchemeGeom = " << config.vfvSetting.weightSchemeGeomName << std::endl;
+                    });
+                vfvParser.Addstd_String(
+                    "weightSchemeDir", &weightOpt,
+                    [&]()
+                    {
+                        config.vfvSetting.weightSchemeDirName = weightOpt;
+                        if (weightOpt == "None")
+                            config.vfvSetting.weightSchemeDir = VRFiniteVolume2D::Setting::WeightSchemeDir::NoneDir;
+                        else if (weightOpt == "OPTHQM")
+                            config.vfvSetting.weightSchemeDir = VRFiniteVolume2D::Setting::WeightSchemeDir::OPTHQM;
+                        else
+                            assert(false);
+                        if (mpi.rank == 0)
+                            log() << "JSON: vfvSetting.weightSchemeDir = " << config.vfvSetting.weightSchemeDirName << std::endl;
                     });
             }
 

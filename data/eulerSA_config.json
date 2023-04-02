@@ -3,7 +3,7 @@
     "recOrder": 3,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
-    "nTimeStepInternal": 50000,
+    "nTimeStepInternal": 100000,
     "nSGSIterationInternal": 0,
     "gmresCode": 0,
     "nGmresSpace": 10,
@@ -32,7 +32,7 @@
     "nCFLRampStart": 10000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 50,
-    "meshRotZ": -0,
+    "meshRotZ": -15,
     "meshFile": "data/mesh/NACA0012_WIDE_H4_M.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
@@ -55,8 +55,8 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H4_M_test_orig",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H4_M_test_orig",
+    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H4_M",
+    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H4_M",
     "err_dMax": 0.01,
     "res_base": 0,
     "vfvSetting": {
@@ -66,11 +66,22 @@
         "JacobiRelax": 1,
         "anistropicLengths": false,
         "tangWeight": 1,
-        "tangWeightModMin": 0,
-        "useLocalCoord": false,
+        "tangWeightModMin": 0.001,
+        "useLocalCoord": true,
         "wallWeight": 0.5,
         "farWeight": 1,
         "weightSchemeGeom": "None",
+        "comment_weightSchemeGeom": [
+            "None",
+            "S",
+            "D",
+            "SDHQM"
+        ],
+        "weightSchemeDir": "None",
+        "comment_weightSchemeDir": [
+            "None",
+            "optHQM"
+        ],
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
@@ -99,15 +110,14 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            0.965925826289068,
-            0.258819045102521,
+            1,
             0,
-            79.8650,
-            3
+            0,
+            79.865,
+            1
         ],
-        "boxInitializerValue": [
-        ],
-        "comment_boxInitializerValue":[
+        "boxInitializerValue": [],
+        "comment_boxInitializerValue": [
             "0.2M -15AOA",
             -1e100,
             1e100,
@@ -120,7 +130,8 @@
             -0.2588,
             0,
             45.1429,
-            1],
+            1
+        ],
         "planeInitializerValue": [],
         "comment_farSatic": [
             [
@@ -164,7 +175,7 @@
                 2.528
             ],
             [
-                "0.2M alpha=00",
+                "0.2M alpha=00 with Rg = 0.0654",
                 1,
                 1,
                 0,

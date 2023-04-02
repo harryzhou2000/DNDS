@@ -39,7 +39,7 @@ void DNDS::VRFiniteVolume2D::initIntScheme() //  2-d specific
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 break;
             case Elem::ParamSpace::QuadSpace:
-                recAtr.intScheme = Elem::INT_SCHEME_QUAD_4;
+                recAtr.intScheme = Elem::INT_SCHEME_QUAD_9;
                 recAtr.NDOF = PolynomialNDOF(P_ORDER);
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 break;
@@ -743,7 +743,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             real GW = 1;
             switch (setting.weightSchemeGeom)
             {
-            case Setting::WeightSchemeGeom::None:
+            case Setting::WeightSchemeGeom::NoneGeom:
                 break;
             case Setting::WeightSchemeGeom::D:
                 GW = 1. / D;
@@ -761,49 +761,65 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             {
                 int ndx = Elem::diffOperatorOrderList2D[idiff][0];
                 int ndy = Elem::diffOperatorOrderList2D[idiff][1];
-                (*faceWeights)[iFace][idiff] *= GW *
-                                                std::pow(delta[0], ndx) *
-                                                std::pow(delta[1], ndy) *
-                                                real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
-                // static const real dirWeight2_HQM[5] = {
-                //     0.4643,
-                //     0.1559,
-                //     0. / 0.,
-                //     0. / 0.,
-                //     0. / 0.};
-                // static const real dirWeight3_HQM[5] = {
-                //     0.5295,
-                //     0.2117,
-                //     0.2117,
-                //     0. / 0.,
-                //     0. / 0.};
-                // assert(ndx + ndy < 5);
-                // switch (NDOFmax)
-                // {
-                // case 3:
-                //     (*faceWeights)[iFace][idiff] *= GW *
-                //                                     std::pow(delta[0], ndx) *
-                //                                     std::pow(delta[1], ndy) *
-                //                                     real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
-                //     break;
+                static const real dirWeight2_HQM[5] = {
+                    0.4643,
+                    0.1559,
+                    0. / 0.,
+                    0. / 0.,
+                    0. / 0.};
+                static const real dirWeight3_HQM[5] = {
+                    0.5295,
+                    0.2117,
+                    0.2117,
+                    0. / 0.,
+                    0. / 0.};
+                assert(ndx + ndy < 5);
+                switch (setting.weightSchemeDir)
+                {
+                case Setting::WeightSchemeDir::NoneDir:
+                    /******** simple factorial weight ********/
+                    (*faceWeights)[iFace][idiff] *= GW *
+                                                    std::pow(delta[0], ndx) *
+                                                    std::pow(delta[1], ndy) *
+                                                    real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
+                    break;
 
-                // case 6:
-                //     (*faceWeights)[iFace][idiff] *= GW *
-                //                                     std::pow(delta[0], ndx) *
-                //                                     std::pow(delta[1], ndy) *
-                //                                     real(Elem::diffNCombs2D[idiff]) * dirWeight2_HQM[ndx + ndy - 1];
-                //     break;
+                case Setting::WeightSchemeDir::OPTHQM:
+                    /******** HQM opt dir weight ********/
+                    {
+                        switch (NDOFmax)
+                        {
+                        case 3:
+                            (*faceWeights)[iFace][idiff] *= GW *
+                                                            std::pow(delta[0], ndx) *
+                                                            std::pow(delta[1], ndy) *
+                                                            real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
+                            break;
 
-                // case 10:
-                //     (*faceWeights)[iFace][idiff] *= GW *
-                //                                     std::pow(delta[0], ndx) *
-                //                                     std::pow(delta[1], ndy) *
-                //                                     real(Elem::diffNCombs2D[idiff]) * dirWeight3_HQM[ndx + ndy - 1];
-                //     break;
-                // default:
-                //     assert(false);
-                //     break;
-                // }
+                        case 6:
+                            (*faceWeights)[iFace][idiff] *= GW *
+                                                            std::pow(delta[0], ndx) *
+                                                            std::pow(delta[1], ndy) *
+                                                            real(Elem::diffNCombs2D[idiff]) * dirWeight2_HQM[ndx + ndy - 1];
+                            break;
+
+                        case 10:
+                            (*faceWeights)[iFace][idiff] *= GW *
+                                                            std::pow(delta[0], ndx) *
+                                                            std::pow(delta[1], ndy) *
+                                                            real(Elem::diffNCombs2D[idiff]) * dirWeight3_HQM[ndx + ndy - 1];
+                            break;
+                        default:
+                            assert(false);
+                            break;
+                        }
+                    }
+                    break;
+
+                default:
+                    assert(false);
+                    break;
+                }
             }
         });
 

@@ -197,12 +197,19 @@ namespace DNDS
 
             enum WeightSchemeGeom
             {
-                None = 0,
+                NoneGeom = 0,
                 S = 2,
                 D = 1,
                 SDHQM = 3,
-            } weightSchemeGeom = WeightSchemeGeom::None;
+            } weightSchemeGeom = WeightSchemeGeom::NoneGeom;
             std::string weightSchemeGeomName;
+
+            enum WeightSchemeDir
+            {
+                NoneDir = 0,
+                OPTHQM = 1,
+            } weightSchemeDir = WeightSchemeDir::NoneDir;
+            std::string weightSchemeDirName;
 
             real WBAP_SmoothIndicatorScale = 1e-10;
             real WBAP_nStd = 10.0;

@@ -24,7 +24,10 @@ namespace DNDS
 #endif
             char readBuffer[65536];
             FileReadStream is(fp, readBuffer, sizeof(readBuffer));
-            d.ParseStream(is);
+            d.ParseStream<
+                kParseCommentsFlag &
+                kParseNanAndInfFlag &
+                kParseFullPrecisionFlag>(is);
             fclose(fp);
         }
 
@@ -45,12 +48,12 @@ namespace DNDS
             // rapidjson::Document *doc = nullptr;
             // rapidjson::Value::Object obj;
             // std::vector<std::string> prefix;
-            public:
+        public:
             static const uint32_t FLAG_MANDATORY = 0x00000001U;
             static const uint32_t FLAG_NULL = 0U;
             static const uint32_t FLAG_DEFAULT = FLAG_MANDATORY;
-            private:
 
+        private:
             typedef std::tuple<ItemType, void *, std::string, tFPost, uint32_t> listComponent;
             std::vector<listComponent> list;
 
