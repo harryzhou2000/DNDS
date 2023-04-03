@@ -372,11 +372,13 @@ namespace DNDS
             }
         }
 
-        template <int dim = 3, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
+        // eigScheme: 0 = Roe_HY, 1 = cLLF_M
+        template <int dim = 3, int eigScheme = 0, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
                                         const TFdumpInfo &dumpInfo)
         {
             static real scaleHartenYee = 0.05;
+            static real scaleLD = 0.2;
             using TVec = Eigen::Vector<real, dim>;
 
             if (!(UL(0) > 0 && UR(0) > 0))
@@ -408,24 +410,51 @@ namespace DNDS
             assert(asqrRoe > 0);
             real aRoe = std::sqrt(asqrRoe);
 
-            real lam0 = veloRoe(0) - aRoe;
-            real lam123 = veloRoe(0);
-            real lam4 = veloRoe(0) + aRoe;
+            real lam0 = std::abs(veloRoe(0) - aRoe);
+            real lam123 = std::abs(veloRoe(0));
+            real lam4 = std::abs(veloRoe(0) + aRoe);
+            
+            
+
+            if constexpr (eigScheme == 0)
+            {
+                //*HY
+                real thresholdHartenYee = std::max(scaleHartenYee * (std::sqrt(vsqrRoe) + aRoe), dLambda);
+                real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
+                if (lam0 < thresholdHartenYee)
+                    lam0 = (sqr(lam0) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+                if (lam4 < thresholdHartenYee)
+                    lam4 = (sqr(lam4) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+                //*HY
+            }
+            else if constexpr (eigScheme == 1)
+            {
+                //*LD, cLLF_M
+                /**
+                 * Nico Fleischmann, Stefan Adami, Xiangyu Y. Hu, Nikolaus A. Adams,
+                 * A low dissipation method to cure the grid-aligned shock instability,
+                 * Journal of Computational Physics,
+                 * Volume 401,
+                 * 2020
+                 */
+                real aL = std::min(std::sqrt(asqrL), std::abs(veloL(0)) / scaleLD);
+                real aR = std::min(std::sqrt(asqrR), std::abs(veloR(0)) / scaleLD);
+                lam0 = std::max(std::abs(veloL(0) - aL), std::abs(veloR(0) - aR));
+                lam123 = std::max(std::abs(veloL(0)), std::abs(veloR(0)));
+                lam4 = std::max(std::abs(veloL(0) + aL), std::abs(veloR(0) + aR));
+                //*LD, cLLF_M
+                assert(false);
+            }
+            else
+            {
+                assert(false);
+            }
             Eigen::Vector<real, dim + 2> lam;
             lam(0) = lam0;
             lam(dim + 1) = lam4;
             lam(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).setConstant(lam123);
-            lam = lam.array().abs();
 
-            //*HY
-            real thresholdHartenYee = std::max(scaleHartenYee * (std::sqrt(vsqrRoe) + aRoe), dLambda);
-            real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
-            if (std::abs(lam0) < thresholdHartenYee)
-                lam(0) = (lam0 * lam0 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
-            if (std::abs(lam4) < thresholdHartenYee)
-                lam(dim + 1) = (lam4 * lam4 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
-            //*HY
-
+            
             Eigen::Vector<real, dim + 2> alpha;
             Eigen::Matrix<real, dim + 2, dim + 2> ReVRoe;
             EulerGasRightEigenVector<dim>(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);
@@ -448,7 +477,7 @@ namespace DNDS
             alpha(1) = (gamma - 1) / asqrRoe *
                        (incU(0) * (HRoe - veloRoe(0) * veloRoe(0)) +
                         veloRoe(0) * incU(1) - incU4b);
-            alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
+            alpha(0) = (incU(0) * (veloRoe(0) + aRoe) - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
             alpha(dim + 1) = incU(0) - (alpha(0) + alpha(1)); // * HLLEP doesn't need this
 
             // * Roe-Pike

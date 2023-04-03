@@ -1307,7 +1307,7 @@ namespace DNDS
     template void EulerEvaluator<NS_2D>::FixUMaxFilter(ArrayDOFV<nVars_Fixed> &u);
 
     template <EulerModel model>
-    void EulerEvaluator<model>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P)
+    void EulerEvaluator<model>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P, bool volWise)
     {
         res.resize(nVars);
         if (P < 3)
@@ -1323,7 +1323,10 @@ namespace DNDS
                     std::cout << rhs[iCell] << std::endl;
                     assert(false);
                 }
-                resc += rhs[iCell].array().abs().pow(P).matrix();
+                if (volWise)
+                    resc += rhs[iCell].array().abs().pow(P).matrix() * fv->volumeLocal[iCell];
+                else
+                    resc += rhs[iCell].array().abs().pow(P).matrix();
             }
             MPI_Allreduce(resc.data(), res.data(), res.size(), DNDS_MPI_REAL, MPI_SUM, rhs.dist->getMPI().comm);
             res = res.array().pow(1.0 / P).matrix();
@@ -1340,7 +1343,7 @@ namespace DNDS
         }
     }
 
-    template void EulerEvaluator<NS>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P);
-    template void EulerEvaluator<NS_SA>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P);
-    template void EulerEvaluator<NS_2D>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P);
+    template void EulerEvaluator<NS>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P, bool volWise);
+    template void EulerEvaluator<NS_SA>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P, bool volWise);
+    template void EulerEvaluator<NS_2D>::EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P, bool volWise);
 }

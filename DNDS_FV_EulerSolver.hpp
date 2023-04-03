@@ -83,9 +83,11 @@ namespace DNDS
             std::string mName = "data/mesh/NACA0012_WIDE_H3.msh";
             std::string outPltName = "data/out/debugData_";
             std::string outLogName = "data/out/debugData_";
+            bool uniqueStamps = true;
             real err_dMax = 0.1;
 
             real res_base = 0;
+            bool useVolWiseResidual = false;
 
             VRFiniteVolume2D::Setting vfvSetting;
 
@@ -150,8 +152,13 @@ namespace DNDS
             root.Addstd_String("meshFile", &config.mName);
             root.Addstd_String("outLogName", &config.outLogName);
             root.Addstd_String("outPltName", &config.outPltName);
+            root.AddBool(
+                "uniqueStamps", &config.uniqueStamps, []() {}, JSON::ParamParser::FLAG_NULL);
             root.AddDNDS_Real("err_dMax", &config.err_dMax);
             root.AddDNDS_Real("res_base", &config.res_base);
+            root.AddBool(
+                "useVolWiseResidual", &config.useVolWiseResidual, []() {}, JSON::ParamParser::FLAG_NULL);
+
             root.AddBool("useLocalDt", &config.useLocalDt);
 
             root.AddBool("useLimiter", &config.useLimiter);
@@ -374,6 +381,8 @@ namespace DNDS
         void ReadMeshAndInitialize()
         {
             output_stamp = getTimeStamp(mpi);
+            if (!config.uniqueStamps)
+                output_stamp = "";
             if (mpi.rank == 0)
                 log() << "=== Got Time Stamp: [" << output_stamp << "] ===" << std::endl;
             // Debug::MPIDebugHold(mpi);
@@ -555,9 +564,11 @@ namespace DNDS
                 std::ofstream logConfig(config.outLogName + "_" + output_stamp + ".config.json");
                 rapidjson::OStreamWrapper logConfigWrapper(logConfig);
                 rapidjson::Writer<rapidjson::OStreamWrapper> writer(logConfigWrapper);
-                rapidjson::Value ctd_info;
+                rapidjson::Value ctd_info, partnum;
                 ctd_info.SetString(DNDS_Defines_state.c_str(), DNDS_Defines_state.length());
+                partnum.SetInt(mpi.size);
                 config_doc->GetObject().AddMember("___Compile_Time_Defines", ctd_info, config_doc->GetAllocator());
+                config_doc->GetObject().AddMember("___Runtime_PartitionNumber", partnum, config_doc->GetAllocator());
                 config_doc->Accept(writer);
                 logConfig.close();
             }
@@ -752,8 +763,8 @@ namespace DNDS
                     if (config.jacobianTypeCode == 0)
                     {
                         eval.UpdateLUSGSForward(alphaDiag, crhs, cx, cxInc, cxInc);
-                        // cxInc.StartPersistentPullClean();
-                        // cxInc.WaitPersistentPullClean();
+                        cxInc.StartPersistentPullClean();
+                        cxInc.WaitPersistentPullClean();
                         eval.UpdateLUSGSBackward(alphaDiag, crhs, cx, cxInc, cxInc);
                         cxInc.StartPersistentPullClean();
                         cxInc.WaitPersistentPullClean();
@@ -849,7 +860,7 @@ namespace DNDS
             auto fstop = [&](int iter, ArrayDOFV<nVars_Fixed> &cxinc, int iStep) -> bool
             {
                 Eigen::Vector<real, -1> res(nVars);
-                eval.EvaluateResidual(res, cxinc);
+                eval.EvaluateResidual(res, cxinc, 1, config.useVolWiseResidual);
                 // if (iter == 1 && iStep == 1) // * using 1st rk step for reference
                 if (iter == 1)
                     resBaseCInternal = res;
@@ -884,7 +895,7 @@ namespace DNDS
                         log() << std::endl;
                         log().setf(fmt);
                         logErr << step << "\t" << iter << "\t" << std::setprecision(9) << std::scientific
-                               << res.transpose() << " "
+                               << res.transpose() << "\t"
                                << tsimu << "\t" << curDtMin << "\t" << eval.fluxWallSum.transpose() << std::endl;
                     }
                     tstart = MPI_Wtime();
@@ -924,7 +935,7 @@ namespace DNDS
                 if (ifOutT)
                     tsimu = nextTout;
                 Eigen::Vector<real, -1> res(nVars);
-                eval.EvaluateResidual(res, ode->getLatestRHS());
+                eval.EvaluateResidual(res, ode->getLatestRHS(), 1, config.useVolWiseResidual);
                 if (stepCount == 0 && resBaseC.norm() == 0)
                     resBaseC = res;
 
@@ -942,9 +953,9 @@ namespace DNDS
                               << std::setprecision(3) << std::fixed
                               << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
                         log().setf(fmt);
-                        logErr << step << "\t" << std::setprecision(9) << std::scientific
-                               << res.transpose() << " "
-                               << tsimu << " " << curDtMin << std::endl;
+                        logErr << step << "\t" << -1 << "\t" << std::setprecision(9) << std::scientific
+                               << res.transpose() << "\t"
+                               << tsimu << "\t" << curDtMin << "\t" << eval.fluxWallSum.transpose() << std::endl;
                     }
                     tstart = MPI_Wtime();
                     trec = tcomm = trhs = tLim = 0.;

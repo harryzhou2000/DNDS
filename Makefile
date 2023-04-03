@@ -120,8 +120,11 @@ test/testTensor.exe: test/testTensor.cpp SmallTensor.hpp
 	g++ $< -o $@ -std=c++14
 
 
-.PHONY: clean first arch
+.PHONY: clean first arch cleardata
 
 clean:
 	rm -f *.exe *.o *.d
 	rm -f test/*.exe
+
+cleardata:
+	rm -v data/out/*

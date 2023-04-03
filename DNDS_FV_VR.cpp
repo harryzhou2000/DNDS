@@ -757,6 +757,9 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             default:
                 assert(false);
             }
+#ifndef USE_NORM_FUNCTIONAL
+            delta[0] = delta[1] = delta({0, 1}).norm();
+#endif
             for (int idiff = 0; idiff < faceRecAtr.NDIFF; idiff++)
             {
                 int ndx = Elem::diffOperatorOrderList2D[idiff][0];

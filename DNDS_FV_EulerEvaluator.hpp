@@ -671,7 +671,7 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
-                ret(I4 + 1) = -std::min(UMeanXy(0) * (P * 0 - D * 2) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
+                ret(I4 + 1) = -std::min(UMeanXy(0) * (P * 0 - D * 1) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
 
                 if (ret.hasNaN())
                 {
@@ -1091,6 +1091,6 @@ namespace DNDS
 
         void FixUMaxFilter(ArrayDOFV<nVars_Fixed> &u);
 
-        void EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P = 1);
+        void EvaluateResidual(Eigen::Vector<real, -1> &res, ArrayDOFV<nVars_Fixed> &rhs, index P = 1, bool volWise = false);
     };
 }

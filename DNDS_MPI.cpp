@@ -90,9 +90,10 @@ namespace DNDS
 
 namespace DNDS
 {
-    std::string getTimeStamp(const MPIInfo& mpi)
+    std::string getTimeStamp(const MPIInfo &mpi)
     {
-        int64_t result = std::time(nullptr);
+        int64_t result = static_cast<int64_t>(std::time(nullptr));
+        char bufTime[512];
         char buf[512];
         int64_t pid = 0;
 #if defined(linux) || defined(_UNIX) || defined(__linux__)
@@ -104,7 +105,12 @@ namespace DNDS
         MPI_Bcast(&result, 1, MPI_INT64_T, 0, mpi.comm);
         MPI_Bcast(&pid, 1, MPI_INT64_T, 0, mpi.comm);
 
-        std::sprintf(buf, "%lld_%lld", result, pid);
+        time_t time_result = static_cast<time_t>(result);
+
+        std::strftime(bufTime, 512, "%F_%T", std::localtime(&time_result));
+        
+        long pidc = static_cast<long>(pid);
+        std::sprintf(buf, "%s_%ld", bufTime, pidc);
 
         return std::string(buf);
     }
