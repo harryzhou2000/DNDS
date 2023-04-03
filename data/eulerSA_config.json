@@ -60,7 +60,7 @@
     "uniqueStamps": true,
     "err_dMax": 0.01,
     "res_base": 0,
-    "useVolWiseResidual": true,
+    "useVolWiseResidual": false,
     "vfvSetting": {
         "SOR_Instead": true,
         "SOR_InverseScanning": false,
@@ -68,7 +68,7 @@
         "JacobiRelax": 1,
         "anistropicLengths": false,
         "tangWeight": 1,
-        "tangWeightModMin": 1,
+        "tangWeightModMin": 0.001,
         "useLocalCoord": true,
         "wallWeight": 0.5,
         "farWeight": 1,
@@ -217,5 +217,6 @@
     "curvilinearRestartNstep": 100,
     "curvilinearRepeatInterval": 100,
     "curvilinearRepeatNum": 1,
-    "curvilinearRange": 0.4
+    "curvilinearRange": 0.4,
+    "manual_comments": "using Roe"
 }

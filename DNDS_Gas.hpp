@@ -372,7 +372,7 @@ namespace DNDS
             }
         }
 
-        // eigScheme: 0 = Roe_HY, 1 = cLLF_M
+        // eigScheme: 0 = Roe_HY, 1 = cLLF_M, 2 = lax_0
         template <int dim = 3, int eigScheme = 0, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
                                         const TFdumpInfo &dumpInfo)
@@ -413,8 +413,6 @@ namespace DNDS
             real lam0 = std::abs(veloRoe(0) - aRoe);
             real lam123 = std::abs(veloRoe(0));
             real lam4 = std::abs(veloRoe(0) + aRoe);
-            
-            
 
             if constexpr (eigScheme == 0)
             {
@@ -443,7 +441,11 @@ namespace DNDS
                 lam123 = std::max(std::abs(veloL(0)), std::abs(veloR(0)));
                 lam4 = std::max(std::abs(veloL(0) + aL), std::abs(veloR(0) + aR));
                 //*LD, cLLF_M
-                assert(false);
+            }
+            else if constexpr (eigScheme == 2)
+            {
+                // *vanilla Lax
+                lam0 = lam123 = lam4 = std::max({lam0, lam123, lam4});
             }
             else
             {
@@ -454,7 +456,6 @@ namespace DNDS
             lam(dim + 1) = lam4;
             lam(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).setConstant(lam123);
 
-            
             Eigen::Vector<real, dim + 2> alpha;
             Eigen::Matrix<real, dim + 2, dim + 2> ReVRoe;
             EulerGasRightEigenVector<dim>(veloRoe, vsqrRoe, HRoe, aRoe, ReVRoe);

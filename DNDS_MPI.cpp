@@ -107,8 +107,8 @@ namespace DNDS
 
         time_t time_result = static_cast<time_t>(result);
 
-        std::strftime(bufTime, 512, "%F_%T", std::localtime(&time_result));
-        
+        std::strftime(bufTime, 512, "%F_%H-%M-%S", std::localtime(&time_result));
+
         long pidc = static_cast<long>(pid);
         std::sprintf(buf, "%s_%ld", bufTime, pidc);
 

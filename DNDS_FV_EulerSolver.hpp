@@ -894,9 +894,18 @@ namespace DNDS
                         }
                         log() << std::endl;
                         log().setf(fmt);
-                        logErr << step << "\t" << iter << "\t" << std::setprecision(9) << std::scientific
-                               << res.transpose() << "\t"
-                               << tsimu << "\t" << curDtMin << "\t" << eval.fluxWallSum.transpose() << std::endl;
+                        std::string delimC = " ";
+                        logErr
+                            << std::left
+                            << step << delimC
+                            << std::left
+                            << iter << delimC
+                            << std::left
+                            << std::setprecision(9) << std::scientific
+                            << res.transpose() << delimC
+                            << tsimu << delimC
+                            << curDtMin << delimC
+                            << eval.fluxWallSum.transpose() << std::endl;
                     }
                     tstart = MPI_Wtime();
                     trec = tcomm = trhs = tLim = 0.;
@@ -953,9 +962,18 @@ namespace DNDS
                               << std::setprecision(3) << std::fixed
                               << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
                         log().setf(fmt);
-                        logErr << step << "\t" << -1 << "\t" << std::setprecision(9) << std::scientific
-                               << res.transpose() << "\t"
-                               << tsimu << "\t" << curDtMin << "\t" << eval.fluxWallSum.transpose() << std::endl;
+                        std::string delimC = " ";
+                        logErr
+                            << std::left
+                            << step << delimC
+                            << std::left
+                            << -1 << delimC
+                            << std::left
+                            << std::setprecision(9) << std::scientific
+                            << res.transpose() << delimC
+                            << tsimu << delimC
+                            << curDtMin << delimC
+                            << eval.fluxWallSum.transpose() << std::endl;
                     }
                     tstart = MPI_Wtime();
                     trec = tcomm = trhs = tLim = 0.;
