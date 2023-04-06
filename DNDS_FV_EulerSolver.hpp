@@ -240,13 +240,14 @@ namespace DNDS
                         config.vfvSetting.weightSchemeDirName = weightOpt;
                         if (weightOpt == "None")
                             config.vfvSetting.weightSchemeDir = VRFiniteVolume2D::Setting::WeightSchemeDir::NoneDir;
-                        else if (weightOpt == "OPTHQM")
+                        else if (weightOpt == "optHQM")
                             config.vfvSetting.weightSchemeDir = VRFiniteVolume2D::Setting::WeightSchemeDir::OPTHQM;
                         else
                             assert(false);
                         if (mpi.rank == 0)
                             log() << "JSON: vfvSetting.weightSchemeDir = " << config.vfvSetting.weightSchemeDirName << std::endl;
-                    });
+                    },
+                    JSON::ParamParser::FLAG_NULL);
             }
 
             root.AddInt("nDropVisScale", &config.nDropVisScale);
@@ -485,6 +486,53 @@ namespace DNDS
                             u[iCell] = Eigen::Vector<real, 4>{rho, 0, rho * v, 0.5 * rho * sqr(v) + p / (gamma - 1)};
                     }
                 break;
+            case 2: // for IV10 problem
+                assert(model == NS || model == NS_2D);
+                for (index iCell = 0; iCell < u.dist->size(); iCell++)
+                {
+                    Elem::tPoint &pos = vfv->cellBaries[iCell];
+                    real chi = 5;
+                    real gamma = config.eulerSetting.idealGasProperty.gamma;
+                    auto &cellAttribute = mesh->cellAtrLocal[iCell][0];
+                    auto &cellRecAttribute = vfv->cellRecAtrLocal[iCell][0];
+                    auto c2n = mesh->cell2nodeLocal[iCell];
+                    Elem::ElementManager eCell(cellAttribute.type, cellRecAttribute.intScheme);
+                    TU um;
+                    um.setZero();
+                    Eigen::MatrixXd coords;
+                    mesh->LoadCoords(c2n, coords);
+                    eCell.Integration(
+                        um,
+                        [&](TU &inc, int ig, Elem::tPoint &pparam, Elem::tDiFj &DiNj)
+                        {
+                            // std::cout << coords<< std::endl << std::endl;
+                            // std::cout << DiNj << std::endl;
+                            Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
+                            real rm = 8;
+                            real r = std::sqrt(sqr(pPhysics(0) - 5) + sqr(pPhysics(1) - 5));
+                            real dT = -(gamma - 1) / (8 * gamma * sqr(pi)) * sqr(chi) * std::exp(1 - sqr(r)) * (1 - 1. / std::exp(std::max(sqr(rm) - sqr(r), 0.0)));
+                            real dux = chi / 2 / pi * std::exp((1 - sqr(r)) / 2) * -(pPhysics(1) - 5) * (1 - 1. / std::exp(std::max(sqr(rm) - sqr(r), 0.0)));
+                            real duy = chi / 2 / pi * std::exp((1 - sqr(r)) / 2) * +(pPhysics(0) - 5) * (1 - 1. / std::exp(std::max(sqr(rm) - sqr(r), 0.0)));
+                            real T = dT + 1;
+                            real ux = dux + 1;
+                            real uy = duy + 1;
+                            real S = 1;
+                            real rho = std::pow(T / S, 1 / (gamma - 1));
+                            real p = T * rho;
+
+                            real E = 0.5 * (sqr(ux) + sqr(uy)) * rho + p / (gamma - 1);
+
+                            // std::cout << T << " " << rho << std::endl;
+                            inc.setZero();
+                            inc(0) = rho;
+                            inc(1) = rho * ux;
+                            inc(2) = rho * uy;
+                            inc(dim + 1) = E;
+
+                            inc *= vfv->cellGaussJacobiDets[iCell][ig]; // don't forget this
+                        });
+                    u[iCell] = um / fv->volumeLocal[iCell]; // mean value
+                }
             case 0:
                 break;
             default:
@@ -756,6 +804,10 @@ namespace DNDS
                                              config.jacobianTypeCode,
                                              tsimu);
                 }
+                for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+                {
+                    crhs[iCell] = eval.CompressInc(cx[iCell], crhs[iCell] * dTau[iCell], crhs[iCell]) / dTau[iCell];
+                }
 
                 if (config.gmresCode == 0 || config.gmresCode == 2)
                 {
@@ -998,6 +1050,72 @@ namespace DNDS
                     nextTout += config.tDataOut;
                     if (nextTout > config.tEnd)
                         nextTout = config.tEnd;
+                }
+                if (config.eulerSetting.specialBuiltinInitializer == 2 && (step % config.nConsoleCheck == 0)) // IV problem special: reduction on solution
+                {
+                    real xymin = 5 + tsimu - 2;
+                    real xymax = 5 + tsimu + 2;
+                    real xyc = 5 + tsimu;
+                    real sumErrRho = 0.0;
+                    real sumErrRhoSum = 0.0 / 0.0;
+                    real sumVol = 0.0;
+                    real sumVolSum = 0.0 / 0.0;
+                    for (index iCell = 0; iCell < u.dist->size(); iCell++)
+                    {
+                        Elem::tPoint &pos = vfv->cellBaries[iCell];
+                        real chi = 5;
+                        real gamma = config.eulerSetting.idealGasProperty.gamma;
+                        auto &cellAttribute = mesh->cellAtrLocal[iCell][0];
+                        auto &cellRecAttribute = vfv->cellRecAtrLocal[iCell][0];
+                        auto c2n = mesh->cell2nodeLocal[iCell];
+                        Elem::ElementManager eCell(cellAttribute.type, cellRecAttribute.intScheme);
+                        TU um;
+                        um.setZero();
+                        Eigen::MatrixXd coords;
+                        mesh->LoadCoords(c2n, coords);
+                        eCell.Integration(
+                            um,
+                            [&](TU &inc, int ig, Elem::tPoint &pparam, Elem::tDiFj &DiNj)
+                            {
+                                // std::cout << coords<< std::endl << std::endl;
+                                // std::cout << DiNj << std::endl;
+                                Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
+                                real r = std::sqrt(sqr(pPhysics(0) - xyc) + sqr(pPhysics(1) - xyc));
+                                real dT = -(gamma - 1) / (8 * gamma * sqr(pi)) * sqr(chi) * std::exp(1 - sqr(r));
+                                real dux = chi / 2 / pi * std::exp((1 - sqr(r)) / 2) * -(pPhysics(1) - xyc);
+                                real duy = chi / 2 / pi * std::exp((1 - sqr(r)) / 2) * +(pPhysics(0) - xyc);
+                                real T = dT + 1;
+                                real ux = dux + 1;
+                                real uy = duy + 1;
+                                real S = 1;
+                                real rho = std::pow(T / S, 1 / (gamma - 1));
+                                real p = T * rho;
+
+                                real E = 0.5 * (sqr(ux) + sqr(uy)) * rho + p / (gamma - 1);
+
+                                // std::cout << T << " " << rho << std::endl;
+                                inc.setZero();
+                                inc(0) = rho;
+                                inc(1) = rho * ux;
+                                inc(2) = rho * uy;
+                                inc(dim + 1) = E;
+
+                                inc *= vfv->cellGaussJacobiDets[iCell][ig]; // don't forget this
+                            });
+                        if (vfv->cellBaries[iCell](0) > xymin && vfv->cellBaries[iCell](0) < xymax && vfv->cellBaries[iCell](1) > xymin && vfv->cellBaries[iCell](1) < xymax)
+                        {
+                            um /= fv->volumeLocal[iCell]; // mean value
+                            real errRhoMean = u[iCell](0) - um(0);
+                            sumErrRho += std::abs(errRhoMean) * fv->volumeLocal[iCell];
+                            sumVol += fv->volumeLocal[iCell];
+                        }
+                    }
+                    MPI_Allreduce(&sumErrRho, &sumErrRhoSum, 1, DNDS_MPI_REAL, MPI_SUM, mpi.comm);
+                    MPI_Allreduce(&sumVol, &sumVolSum, 1, DNDS_MPI_REAL, MPI_SUM, mpi.comm);
+                    if (mpi.rank == 0)
+                    {
+                        log() << "=== Mean Error IV: [" << std::scientific << std::setprecision(5) << sumErrRhoSum << ", " << sumErrRhoSum / sumVolSum << "]" << std::endl;
+                    }
                 }
 
                 stepCount++;

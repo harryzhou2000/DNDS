@@ -115,6 +115,7 @@ namespace DNDS
                     volR = fv->volumeLocal[f2c[1]];
 
             lambdaFace[iFace] = lambdaConvection + lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
+            lambdaFaceC[iFace] = std::abs(veloNMean) + lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR); // passive part
             lambdaFaceVis[iFace] = lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
 
             deltaLambdaFace[iFace] = std::abs((vR - vL).dot(unitNorm)) + std::sqrt(std::abs(asqrR - asqrL)) * 0.7071;
@@ -908,11 +909,11 @@ namespace DNDS
                             fInc = fluxJacobian0_Right_Times_du(
                                 uj,
                                 unitNorm,
-                                BoundaryType::Inner, uINCj); //! always inner here
+                                BoundaryType::Inner, uINCj, lambdaFace[iFace], lambdaFaceC[iFace]); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
-                                      (fInc - lambdaFace[iFace] * uINCj);
+                                      (fInc);
                         if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
                         {
                             std::cout
@@ -995,11 +996,11 @@ namespace DNDS
                             fInc = fluxJacobian0_Right_Times_du(
                                 u[iCellOther],
                                 unitNorm,
-                                BoundaryType::Inner, uINCj); //! always inner here
+                                BoundaryType::Inner, uINCj, lambdaFace[iFace], lambdaFaceC[iFace]); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
-                                      (fInc - lambdaFace[iFace] * uINCj);
+                                      (fInc);
                         if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
                         {
                             std::cout << RHSI.transpose() << std::endl
@@ -1085,11 +1086,11 @@ namespace DNDS
                             fInc = fluxJacobian0_Right_Times_du(
                                 u[iCellOther],
                                 unitNorm,
-                                BoundaryType::Inner, uInc[iCellOther]); //! always inner here
+                                BoundaryType::Inner, uInc[iCellOther], lambdaFace[iFace], lambdaFaceC[iFace]); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
-                                      (fInc - lambdaFace[iFace] * uInc[iCellOther]);
+                                      (fInc);
                     }
                 }
             }
@@ -1158,11 +1159,11 @@ namespace DNDS
                             fInc = fluxJacobian0_Right_Times_du(
                                 u[iCellOther],
                                 unitNorm,
-                                BoundaryType::Inner, uInc[iCellOther]); //! always inner here
+                                BoundaryType::Inner, uInc[iCellOther], lambdaFace[iFace], lambdaFaceC[iFace]); //! always inner here
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
-                                      (fInc - lambdaFace[iFace] * uInc[iCellOther]);
+                                      (fInc);
                     }
                 }
             }

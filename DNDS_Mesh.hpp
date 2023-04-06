@@ -29,6 +29,7 @@ namespace DNDS
 
         Special_DMRFar = -2,
         Special_RTFar = -3,
+        Special_IVFar = -4,
 
     };
 }
@@ -810,6 +811,8 @@ namespace DNDS
                     e.iPhy = index(BoundaryType::Special_DMRFar);
                 else if (gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name == "bc-RTFar")
                     e.iPhy = index(BoundaryType::Special_RTFar);
+                else if (gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name == "bc-IVFar")
+                    e.iPhy = index(BoundaryType::Special_IVFar);
                 else if (gmshReader.faceElems[iff].phyGrp == -1)
                     e.iPhy = index(BoundaryType::Inner);
                 else

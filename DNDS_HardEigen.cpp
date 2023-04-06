@@ -37,7 +37,12 @@ namespace DNDS
         Eigen::Matrix3d Eigen3x3RealSymEigenDecomposition(const Eigen::Matrix3d &A)
         {
             Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver;
-            solver.compute(A);
+            solver.computeDirect(A);
+            // if (!(solver.eigenvalues()(1) <= solver.eigenvalues()(2)))
+            // {
+            //     std::cout << solver.eigenvalues() << std::endl;
+            //     assert(false);
+            // }
             return (solver.eigenvectors() * solver.eigenvalues().array().abs().sqrt().matrix().asDiagonal())(Eigen::all, {2, 1, 0});
         }
 

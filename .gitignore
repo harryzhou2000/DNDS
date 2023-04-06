@@ -25,4 +25,8 @@ pulldata.sh
 Makefile.arc.in
 running
 build
+*.png
+*.jpg
+*.bmp
+*.gif
 

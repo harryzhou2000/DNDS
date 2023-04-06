@@ -6,7 +6,7 @@
     "nTimeStepInternal": 100000,
     "nSGSIterationInternal": 0,
     "gmresCode": 0,
-    "nGmresSpace": 10,
+    "nGmresSpace": 5,
     "nGmresIter": 1,
     "jacobianTypeCode": 0,
     "nFreezePassiveInner": 0,
@@ -33,7 +33,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 50,
     "meshRotZ": -15,
-    "meshFile": "data/mesh/NACA0012_WIDE_H4_M.msh",
+    "meshFile": "data/mesh/NACA0012_H1.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -55,8 +55,8 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H4_M",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H4_M",
+    "outPltName": "data/out/test_Euler_.NACA0012_H1",
+    "outLogName": "data/out/test_Euler_.NACA0012_H1",
     "uniqueStamps": true,
     "err_dMax": 0.01,
     "res_base": 0,
@@ -197,8 +197,8 @@
             [
                 "0.2M alpha=15",
                 1,
-                0.9659,
-                0.2588,
+                0.965925826289068,
+                0.258819045102521,
                 0,
                 45.1429,
                 1
@@ -218,5 +218,5 @@
     "curvilinearRepeatInterval": 100,
     "curvilinearRepeatNum": 1,
     "curvilinearRange": 0.4,
-    "manual_comments": "using Roe"
+    "manual_comments": "using Roe, ReconstructionWBAPLimitFacialV3, using_tm_V1"
 }

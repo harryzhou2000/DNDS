@@ -1006,10 +1006,26 @@ namespace DNDS
             auto &f2c = (*mesh->face2cellPair)[iFace];
             index icellL = f2c[0];
             index icellR = f2c[1] == FACE_2_VOL_EMPTY ? f2c[0] : f2c[1];
-            real cellARL = (*cellIntertia)[icellL](Eigen::all, 0).norm() / (*cellIntertia)[icellL](Eigen::all, 1).norm();
-            real cellARR = (*cellIntertia)[icellR](Eigen::all, 0).norm() / (*cellIntertia)[icellL](Eigen::all, 1).norm();
-            assert(cellARL >= (1 - 1e-10) && cellARR >= (1 - 1e-10));
+            real cellARL = (*cellIntertia)[icellL](Eigen::all, 0).stableNorm() / (*cellIntertia)[icellL](Eigen::all, 1).stableNorm();
+            real cellARR = (*cellIntertia)[icellR](Eigen::all, 0).stableNorm() / (*cellIntertia)[icellL](Eigen::all, 1).stableNorm();
+            if (cellARL < 1)
+                cellARL = 1;
+            if (cellARR < 1)
+                cellARR = 1;
+
+            if (!(cellARL >= (1 - 1e-10) && cellARR >= (1 - 1e-10)))
+            {
+                std::cout << cellARL << " " << cellARR << "\n";
+                std::cout << (*cellIntertia)[icellL] << "\n";
+                std::cout << (*cellIntertia)[icellR] << "\n";
+                std::cout << std::endl;
+                assert(false);
+            }
             real cellARMax = std::max(cellARL, cellARR);
+            real faceSigL = std::pow(FV->volumeLocal[icellL], 1. / 2.) / FV->faceArea[iFace]; // 2D
+            real faceSigR = std::pow(FV->volumeLocal[icellR], 1. / 2.) / FV->faceArea[iFace]; // 2D
+            cellARMax = std::max({1., faceSigL, faceSigR}); //* using_tm_V1
+
             // real tangModifier = (1- 1./cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
             real tangModifier = (1. / cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
 
@@ -1486,7 +1502,8 @@ namespace DNDS
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Farfield ||
                                  faceAttribute.iPhy == BoundaryType::Special_DMRFar ||
-                                 faceAttribute.iPhy == BoundaryType::Special_RTFar)
+                                 faceAttribute.iPhy == BoundaryType::Special_RTFar||
+                                 faceAttribute.iPhy == BoundaryType::Special_IVFar)
                         {
                             if (!setting.SOR_Instead)
                                 uRecNewBuf[iCell] +=

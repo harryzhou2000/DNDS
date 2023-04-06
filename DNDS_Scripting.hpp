@@ -24,6 +24,7 @@ namespace DNDS
 #endif
             char readBuffer[65536];
             FileReadStream is(fp, readBuffer, sizeof(readBuffer));
+            // std::cout <<"rere" << std::endl;
             d.ParseStream<
                 kParseCommentsFlag &
                 kParseNanAndInfFlag &

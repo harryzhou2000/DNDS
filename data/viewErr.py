@@ -1,46 +1,112 @@
-# %%
+#
 import numpy as np
 import matplotlib.pyplot as plt
+import argparse
+import os
+import re
+import os.path
 
 
+parser = argparse.ArgumentParser(
+    description="view residual history for a steady computation")
 
-fname = "out/test_Euler_.NACA0012_WIDE_H4_M_2023-04-03_276352.log"
+parser.add_argument('-n', '--name', default="", type=str)
+parser.add_argument('-i', '--index', default=0, type=int)
+parser.add_argument('-p', '--prefix', default="data/out/", type=str)
+parser.add_argument('-s', '--see', default=2, type=int)
+parser.add_argument('-o', '--output', default="cur.png", type=str)
+parser.add_argument('-t', '--title', default="", type=str)
+parser.add_argument('--normalize', action='store_true', default=False)
+parser.add_argument('--nlogy', action='store_true', default=False)
+parser.add_argument('--ylim', default="", type=str)
 
-for rep in range(10):
+args = parser.parse_args()
+print(args)
 
-    fin = open(fname, "r")
-    lines = fin.readlines()
-    fin.close()
+mode = ""
+if len(str(args.name)):
+    mode = "name"
+else:
+    mode = "index"
 
-    headline = lines[0]
-    nData = headline.split().__len__()
-    nLines = lines.__len__()
+names = os.listdir(args.prefix)
+names = filter(lambda x: re.match(r".*\.log", x), names)
 
-    dataIn = np.zeros([nLines, nData])
+fileDirs = {}
 
-    for iLine in range(nLines):
-        dataIn[iLine, :] = np.array(
-            list(map(lambda x: float(x), lines[iLine].split())))
+for name in names:
+    namefull = os.path.join(args.prefix, name)
+    stat = os.stat(namefull)
+    fileDirs[namefull] = stat.st_ctime  # sort with mtime or ctime
 
-    dataInInner = dataIn[dataIn[:, 1] > 0, :]
+fileDirsSorted = sorted(
+    fileDirs.items(), key=lambda x: x[1], reverse=True)  # latest first
 
-    isee = 2 # res_rho
+if mode == "name":
+    for pair in fileDirsSorted:
+        fname = pair[0]
+        print(fname)
+        if(re.match(args.name, fname)):
+            break
+    else:
+        raise RuntimeError("No such file as: " + args.name)
 
-    fig = plt.figure(1, figsize=np.array([4, 3]) * 2, facecolor = 'white')
-    ax = plt.axes()
+elif mode == "index":
+    assert(args.index < fileDirsSorted.__len__())
+    fname = fileDirsSorted[args.index][0]
+else:
+    raise ValueError("no such mode")
+
+isee = args.see
+
+foutpic = os.path.join(args.prefix, args.output)
+print("Plotting error number %d at file [%s] to [%s]" % (isee, fname, foutpic))
+
+
+fin = open(fname, "r")
+lines = fin.readlines()
+fin.close()
+
+headline = lines[0]
+nData = headline.split().__len__()
+nLines = lines.__len__()
+
+dataIn = np.zeros([nLines, nData])
+
+for iLine in range(nLines):
+    dataIn[iLine, :] = np.array(
+        list(map(lambda x: float(x), lines[iLine].split())))
+
+dataInInner = dataIn[dataIn[:, 1] > 0, :]
+
+
+fig = plt.figure(1, figsize=np.array([4, 3]) * 2, facecolor='white')
+
+fig.set_frameon(True)
+ax = plt.axes()
+
+ax.grid('both')
+ax.set_xlabel('n_iterin')
+if args.nlogy:
+    ax.set_yscale('linear')
+else:
     ax.set_yscale('log')
-    ax.grid('both')
-    ax.set_xlabel('n_iterin')
-    plt.plot(dataInInner[:,1], dataInInner[:,isee])
-    plt.draw()
-    fig.set_frameon(True)
-    fig.savefig('cur.png')
+if len(args.title):
+    ax.set_title(args.title)
+else:
+    ax.set_title("V_%d file [%s]" % (isee, fname))
+if len(args.ylim):
+    lims = eval(args.ylim)
+    ax.set_ylim(lims[0], lims[1])
+
+dataPlotY = dataInInner[:, isee]
+if args.normalize:
+    dataPlotY /= np.max(dataInInner[:, isee])
+plt.plot(dataInInner[:, 1], dataPlotY)
+plt.plot(dataInInner[-1, 1],dataPlotY[-1], "o")
+
+plt.draw()
+fig.savefig(foutpic)
 
 
-
-
-# %%
-
-
-
-
+#

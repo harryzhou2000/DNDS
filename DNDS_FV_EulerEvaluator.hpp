@@ -108,6 +108,7 @@ namespace DNDS
 
         std::vector<real> lambdaCell;
         std::vector<real> lambdaFace;
+        std::vector<real> lambdaFaceC;
         std::vector<real> lambdaFaceVis;
         std::vector<real> deltaLambdaFace;
         std::vector<Eigen::Matrix<real, 10, 5>> dFdUFace;
@@ -146,7 +147,7 @@ namespace DNDS
                 real gamma = 1.4;
                 real Rgas = 1;
                 real muGas = 1;
-                real prGas = 0.7;
+                real prGas = 0.72;
                 real CpGas = Rgas * gamma / (gamma - 1);
                 real TRef = 273.15;
                 real CSutherland = 110.4;
@@ -190,6 +191,7 @@ namespace DNDS
 
             lambdaCell.resize(mesh->cell2nodeLocal.size()); // but only dist part are used, ghost part to not judge for it in facial iter
             lambdaFace.resize(mesh->face2nodeLocal.size());
+            lambdaFaceC.resize(mesh->face2nodeLocal.size());
             lambdaFaceVis.resize(lambdaFace.size());
             deltaLambdaFace.resize(lambdaFace.size());
 
@@ -417,10 +419,10 @@ namespace DNDS
 
             if constexpr (model == NS_SA)
             {
-                // real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
-                real lambdaFaceC = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5; //! using velo instead of velo + a
+                // real lambdaFaceCC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
+                real lambdaFaceCC = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5; //! using velo instead of velo + a
                 finc(I4 + 1) = ((UL(1) / UL(0) * UL(I4 + 1) + UR(1) / UR(0) * UR(I4 + 1)) -
-                                (UR(I4 + 1) - UL(I4 + 1)) * lambdaFaceC) *
+                                (UR(I4 + 1) - UL(I4 + 1)) * lambdaFaceCC) *
                                0.5;
             }
 
@@ -671,7 +673,7 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
-                ret(I4 + 1) = -std::min(UMeanXy(0) * (P * 0 - D * 1) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
+                ret(I4 + 1) = -std::min(UMeanXy(0) * (P * 1 - D * 2) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
 
                 if (ret.hasNaN())
                 {
@@ -773,7 +775,7 @@ namespace DNDS
             const TU &U,
             const TVec &n,
             BoundaryType btype,
-            const TU &dU)
+            const TU &dU, real lambdaMain, real lambdaC)
         {
             DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
             real gamma = settings.idealGasProperty.gamma;
@@ -790,9 +792,11 @@ namespace DNDS
                 velo, dVelo,
                 dp, p,
                 dF);
-            if (model == NS_SA)
+            dF(Seq01234) -= lambdaMain * dU(Seq01234);
+            if constexpr (model == NS_SA)
             {
                 dF(I4 + 1) = dU(I4 + 1) * n.dot(velo) + U(I4 + 1) * n.dot(dVelo);
+                dF(I4 + 1) -= dU(I4 + 1) * lambdaMain;
             }
             return dF;
         }
@@ -811,7 +815,8 @@ namespace DNDS
 
             if (btype == BoundaryType::Farfield ||
                 btype == BoundaryType::Special_DMRFar ||
-                btype == BoundaryType::Special_RTFar)
+                btype == BoundaryType::Special_RTFar ||
+                btype == BoundaryType::Special_IVFar)
             {
                 if (btype == BoundaryType::Farfield)
                 {
@@ -936,6 +941,32 @@ namespace DNDS
                     }
                     // URxy = settings.farFieldStaticValue; //!override
                 }
+                else if (btype == BoundaryType::Special_IVFar)
+                {
+                    real chi = 5;
+                    real gamma = settings.idealGasProperty.gamma;
+                    real xc = 5 + t;
+                    real yc = 5 + t;
+                    real r = std::sqrt(sqr(pPhysics(0) - xc) + sqr(pPhysics(1) - yc));
+                    real dT = -(gamma - 1) / (8 * gamma * sqr(pi)) * sqr(chi) * std::exp(1 - sqr(r));
+                    real dux = chi / 2 / pi * std::exp((1 - sqr(r)) / 2) * -(pPhysics(1) - xc);
+                    real duy = chi / 2 / pi * std::exp((1 - sqr(r)) / 2) * +(pPhysics(0) - yc);
+                    real T = dT + 1;
+                    real ux = dux + 1;
+                    real uy = duy + 1;
+                    real S = 1;
+                    real rho = std::pow(T / S, 1 / (gamma - 1));
+                    real p = T * rho;
+
+                    real E = 0.5 * (sqr(ux) + sqr(uy)) * rho + p / (gamma - 1);
+
+                    // std::cout << T << " " << rho << std::endl;
+                    URxy.setZero();
+                    URxy(0) = rho;
+                    URxy(1) = rho * ux;
+                    URxy(2) = rho * uy;
+                    URxy(dim + 1) = E;
+                }
                 else
                     assert(false);
             }
@@ -1019,14 +1050,34 @@ namespace DNDS
         {
             DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
             TU ret = uInc;
+
+            /** A intuitive fix **/ //! need positive perserving technique!
+            // assert(u(0) > 0);
+            // if (u(0) + ret(0) <= 0)
+            // {
+            //     real declineV = ret(0) / (u(0) + verySmallReal);
+            //     real newrho = u(0) * std::exp(declineV);
+            //     ret(0) = newrho - u(0);
+            // }
+            // real rhoEinternal = u(I4) - 0.5 * u(Seq123).squaredNorm() / u(0);
+            // real ek = 0.5 * (u(Seq123) + ret(Seq123)).squaredNorm() / (u(0) + ret(0));
+            // real rhoEinternalNew = u(I4) + ret(I4) - ek;
+            // if (rhoEinternalNew <= 0)
+            // {
+            //     real declineV = (rhoEinternalNew - rhoEinternal) / (rhoEinternal + verySmallReal);
+            //     real newrhoEinteralNew = std::exp(declineV) * rhoEinternal;
+            //     ret(I4) = newrhoEinteralNew + ek;
+            // }
+            /** A intuitive fix **/
+
             if constexpr (model == NS_SA)
             {
-                if (u(I4 + 1) + uInc(I4 + 1) < 0)
+                if (u(I4 + 1) + ret(I4 + 1) < 0)
                 {
                     // std::cout << "Fixing SA inc " << std::endl;
 
                     assert(u(I4 + 1) >= 0); //! might be bad using gmeres, add this to gmres inc!
-                    real declineV = uInc(I4 + 1) / (u(I4 + 1) + verySmallReal);
+                    real declineV = ret(I4 + 1) / (u(I4 + 1) + verySmallReal);
                     real newu5 = u(I4 + 1) * std::exp(declineV);
                     // ! refvalue:
                     real muRef = settings.idealGasProperty.muGas;

@@ -34,7 +34,7 @@ void DNDS::VRFiniteVolume2D::initIntScheme() //  2-d specific
             switch (eCell.getPspace())
             {
             case Elem::ParamSpace::TriSpace:
-                recAtr.intScheme = Elem::INT_SCHEME_TRI_4;
+                recAtr.intScheme = Elem::INT_SCHEME_TRI_7;
                 recAtr.NDOF = PolynomialNDOF(P_ORDER);
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 break;
@@ -713,7 +713,8 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             }
             else if (faceAtr.iPhy == BoundaryType::Farfield ||
                      faceAtr.iPhy == BoundaryType::Special_DMRFar ||
-                     faceAtr.iPhy == BoundaryType::Special_RTFar)
+                     faceAtr.iPhy == BoundaryType::Special_RTFar||
+                     faceAtr.iPhy == BoundaryType::Special_IVFar)
             {
                 (*faceWeights)[iFace].setConstant(0.0);
                 (*faceWeights)[iFace][0] = setting.farWeight;
@@ -1019,7 +1020,8 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 }
                 else if (faceAttribute.iPhy == BoundaryType::Farfield ||
                          faceAttribute.iPhy == BoundaryType::Special_DMRFar ||
-                         faceAttribute.iPhy == BoundaryType::Special_RTFar)
+                         faceAttribute.iPhy == BoundaryType::Special_RTFar||
+                         faceAttribute.iPhy == BoundaryType::Special_IVFar)
                 {
                     Eigen::MatrixXd B;
                     B.resizeLike(matrixBatchElem.m(ic2f + 1));
