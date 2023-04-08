@@ -3,11 +3,15 @@
 #include "DNDS_Defines.h"
 #include "DNDS_MPI.hpp"
 #include "Eigen/Dense"
+DISABLE_WARNING_PUSH
+DISABLE_WARNING(-Wdeprecated-declarations) 
+//! rapidjson uses deprecated iterator in STL, still usable in c++17; could port to c++17 easily (?)
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/ostreamwrapper.h"
 // #include "rapidjson/istreamwrapper.h"
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
+DISABLE_WARNING_POP
 #include <cstdio>
 
 namespace DNDS

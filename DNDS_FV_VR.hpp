@@ -1024,7 +1024,7 @@ namespace DNDS
             real cellARMax = std::max(cellARL, cellARR);
             real faceSigL = std::pow(FV->volumeLocal[icellL], 1. / 2.) / FV->faceArea[iFace]; // 2D
             real faceSigR = std::pow(FV->volumeLocal[icellR], 1. / 2.) / FV->faceArea[iFace]; // 2D
-            cellARMax = std::max({1., faceSigL, faceSigR}); //* using_tm_V1
+            cellARMax = std::max({1., faceSigL, faceSigR});                                   //* using_tm_V1
 
             // real tangModifier = (1- 1./cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
             real tangModifier = (1. / cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
@@ -1502,7 +1502,7 @@ namespace DNDS
                         }
                         else if (faceAttribute.iPhy == BoundaryType::Farfield ||
                                  faceAttribute.iPhy == BoundaryType::Special_DMRFar ||
-                                 faceAttribute.iPhy == BoundaryType::Special_RTFar||
+                                 faceAttribute.iPhy == BoundaryType::Special_RTFar ||
                                  faceAttribute.iPhy == BoundaryType::Special_IVFar)
                         {
                             if (!setting.SOR_Instead)
@@ -1590,12 +1590,19 @@ namespace DNDS
                             else
                                 uRec[iCell] +=
                                     relax * matrixBatchElem.m(0) * BCCorrection;
+                            // std::cout << iCell << " " << BCCorrection << std::endl;
+                            // assert(false);
                         }
                         else
                         {
                             assert(false);
                         }
                     }
+
+                    // std::cout << iCell << std::endl
+                    //           << uRec[iCell] << std::endl;
+                    // if (iCell == 100)
+                    //     assert(false);
                 }
                 // exit(0);
                 if (icount == 1)

@@ -267,6 +267,10 @@ namespace DNDS
                             config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::HLLC;
                         else if (RSName == "HLLEP")
                             config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::HLLEP;
+                        else if (RSName == "Roe_M1")
+                            config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::Roe_M1;
+                        else if (RSName == "Roe_M2")
+                            config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::Roe_M2;
                         else
                             assert(false);
                     });

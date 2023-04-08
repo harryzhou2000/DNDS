@@ -140,7 +140,9 @@ namespace DNDS
             {
                 Roe = 1,
                 HLLC = 2,
-                HLLEP = 3
+                HLLEP = 3,
+                Roe_M1 = 11,
+                Roe_M2 = 12,
             } rsType = Roe;
             struct IdealGasProperty
             {
@@ -413,6 +415,24 @@ namespace DNDS
                         std::cout << "UL" << UL.transpose() << '\n';
                         std::cout << "UR" << UR.transpose() << std::endl;
                     });
+            else if (rsType == Setting::RiemannSolverType::Roe_M1)
+                Gas::RoeFlux_IdealGas_HartenYee<dim, 1>(
+                    UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                    [&]()
+                    {
+                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                        std::cout << "UL" << UL.transpose() << '\n';
+                        std::cout << "UR" << UR.transpose() << std::endl;
+                    });
+            else if (rsType == Setting::RiemannSolverType::Roe_M2)
+                Gas::RoeFlux_IdealGas_HartenYee<dim, 2>(
+                    UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                    [&]()
+                    {
+                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                        std::cout << "UL" << UL.transpose() << '\n';
+                        std::cout << "UR" << UR.transpose() << std::endl;
+                    });
             else
                 assert(false);
             // std::cout << "HERE2" << std::endl;
@@ -673,7 +693,8 @@ namespace DNDS
 
                 if (passiveDiscardSource)
                     P = D = 0;
-                ret(I4 + 1) = -std::min(UMeanXy(0) * (P * 1 - D * 2) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
+                ret(I4 + 1) = -std::min(UMeanXy(0) * (P * 0 - D * 2) / muRef / (UMeanXy(I4 + 1) + verySmallReal), -verySmallReal);
+                // std::cout << ret(I4+1) << std::endl;
 
                 if (ret.hasNaN())
                 {

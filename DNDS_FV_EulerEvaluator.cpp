@@ -1029,6 +1029,12 @@ namespace DNDS
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
             uIncNewI = CompressInc(u[iCell], uIncNewI, RHSI);
+
+            // std::cout << "JCI\n";
+            // std::cout << jacobianCellInv[iCell] << std::endl;
+
+            // if (iCell == 0)
+            //     assert(false);
         }
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
     }

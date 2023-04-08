@@ -3,7 +3,7 @@
     "recOrder": 3,
     "nInternalRecStep": 1,
     "nTimeStep": 100000,
-    "nTimeStepInternal": 100000,
+    "nTimeStepInternal": 50000,
     "nSGSIterationInternal": 0,
     "gmresCode": 0,
     "nGmresSpace": 5,
@@ -32,8 +32,8 @@
     "nCFLRampStart": 10000000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 50,
-    "meshRotZ": -15,
-    "meshFile": "data/mesh/NACA0012_H1.msh",
+    "meshRotZ": 0,
+    "meshFile": "data/mesh/NACA0012_H2.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -55,12 +55,12 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_H1",
-    "outLogName": "data/out/test_Euler_.NACA0012_H1",
-    "uniqueStamps": true,
+    "outPltName": "data/out/test_Euler_.NACA0012_H2",
+    "outLogName": "data/out/test_Euler_.NACA0012_H2",
+    "uniqueStamps": false,
     "err_dMax": 0.01,
-    "res_base": 0,
-    "useVolWiseResidual": false,
+    "res_base": 1,
+    "useVolWiseResidual": true,
     "vfvSetting": {
         "SOR_Instead": true,
         "SOR_InverseScanning": false,
@@ -68,18 +68,18 @@
         "JacobiRelax": 1,
         "anistropicLengths": false,
         "tangWeight": 1,
-        "tangWeightModMin": 0.001,
-        "useLocalCoord": true,
+        "tangWeightModMin": 1,
+        "useLocalCoord": false,
         "wallWeight": 0.5,
         "farWeight": 1,
-        "weightSchemeGeom": "None",
+        "weightSchemeGeom": "SDHQM",
         "comment_weightSchemeGeom": [
             "None",
             "S",
             "D",
             "SDHQM"
         ],
-        "weightSchemeDir": "None",
+        "weightSchemeDir": "optHQM",
         "comment_weightSchemeDir": [
             "None",
             "optHQM"
@@ -94,7 +94,7 @@
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
-        "riemannSolverType": "Roe",
+        "riemannSolverType": "Roe_M2",
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
@@ -112,11 +112,11 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            1,
-            0,
+            0.965925826289068,
+            0.258819045102521,
             0,
             79.865,
-            1
+            2
         ],
         "boxInitializerValue": [],
         "comment_boxInitializerValue": [

@@ -403,6 +403,10 @@ namespace DNDS
             real asqrRoe = (gamma - 1) * (HRoe - 0.5 * vsqrRoe);
             real rhoRoe = sqrtRhoL * sqrtRhoR;
 
+            Eigen::Vector<real, dim + 2> FL, FR;
+            GasInviscidFlux<dim>(UL, veloL, pL, FL);
+            GasInviscidFlux<dim>(UR, veloR, pR, FR);
+
             if (!(asqrRoe > 0))
             {
                 dumpInfo();
@@ -445,7 +449,12 @@ namespace DNDS
             else if constexpr (eigScheme == 2)
             {
                 // *vanilla Lax
-                lam0 = lam123 = lam4 = std::max({lam0, lam123, lam4});
+                // lam0 = lam123 = lam4 = std::max({lam0, lam123, lam4});
+                lam0 = lam123 = lam4 = std::max(std::abs(veloL(0)) + std::sqrt(asqrL), std::abs(veloR(0)) + std::sqrt(asqrR));
+                F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) =
+                    (FL + FR) * 0.5 -
+                    0.5 * lam0 * (UR(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) - UL(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)));
+                return; 
             }
             else
             {
@@ -490,9 +499,7 @@ namespace DNDS
 
             Eigen::Vector<real, dim + 2>
                 incF = ReVRoe * (lam.array() * alpha.array()).matrix();
-            Eigen::Vector<real, dim + 2> FL, FR;
-            GasInviscidFlux<dim>(UL, veloL, pL, FL);
-            GasInviscidFlux<dim>(UR, veloR, pR, FR);
+
             F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = (FL + FR) * 0.5 - 0.5 * incF;
         }
 

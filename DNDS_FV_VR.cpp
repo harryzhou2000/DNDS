@@ -713,7 +713,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             }
             else if (faceAtr.iPhy == BoundaryType::Farfield ||
                      faceAtr.iPhy == BoundaryType::Special_DMRFar ||
-                     faceAtr.iPhy == BoundaryType::Special_RTFar||
+                     faceAtr.iPhy == BoundaryType::Special_RTFar ||
                      faceAtr.iPhy == BoundaryType::Special_IVFar)
             {
                 (*faceWeights)[iFace].setConstant(0.0);
@@ -753,7 +753,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 GW = 1. / S;
                 break;
             case Setting::WeightSchemeGeom::SDHQM:
-                GW = std::pow(S / D, 0.5);
+                GW = std::pow(S / D, 0.5 / 2);
                 break;
             default:
                 assert(false);
@@ -765,16 +765,18 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             {
                 int ndx = Elem::diffOperatorOrderList2D[idiff][0];
                 int ndy = Elem::diffOperatorOrderList2D[idiff][1];
-                static const real dirWeight2_HQM[5] = {
+                static const real dirWeight2_HQM[6] = {
+                    1,
                     0.4643,
                     0.1559,
                     0. / 0.,
                     0. / 0.,
                     0. / 0.};
-                static const real dirWeight3_HQM[5] = {
+                static const real dirWeight3_HQM[6] = {
+                    1,
                     0.5295,
-                    0.2117,
-                    0.2117,
+                    0.2117 * std::sqrt(1.),
+                    0.2117 * std::sqrt(1.),
                     0. / 0.,
                     0. / 0.};
                 assert(ndx + ndy < 5);
@@ -789,7 +791,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                     break;
 
                 case Setting::WeightSchemeDir::OPTHQM:
-                    /******** HQM opt dir weight ********/
+                    /******** HQM opt dir weight ********/ //! optHQM has not comb number!
                     {
                         switch (NDOFmax)
                         {
@@ -797,21 +799,21 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                             (*faceWeights)[iFace][idiff] *= GW *
                                                             std::pow(delta[0], ndx) *
                                                             std::pow(delta[1], ndy) *
-                                                            real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
+                                                            real(1) / real(Elem::factorials[ndx + ndy]);
                             break;
 
                         case 6:
                             (*faceWeights)[iFace][idiff] *= GW *
                                                             std::pow(delta[0], ndx) *
                                                             std::pow(delta[1], ndy) *
-                                                            real(Elem::diffNCombs2D[idiff]) * dirWeight2_HQM[ndx + ndy - 1];
+                                                            real(1) * dirWeight2_HQM[ndx + ndy];
                             break;
 
                         case 10:
                             (*faceWeights)[iFace][idiff] *= GW *
                                                             std::pow(delta[0], ndx) *
                                                             std::pow(delta[1], ndy) *
-                                                            real(Elem::diffNCombs2D[idiff]) * dirWeight3_HQM[ndx + ndy - 1];
+                                                            real(1) * dirWeight3_HQM[ndx + ndy];
                             break;
                         default:
                             assert(false);
@@ -961,6 +963,10 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
 
                         incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                         incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
+
+                        // std::cout << "w\n"
+                        //           << (*faceWeights)[iFace].transpose() << std::endl;
+                        // std::cout << "DBVI \n" << diffsI.transpose() << std::endl;
                     });
             }
 
@@ -1020,7 +1026,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 }
                 else if (faceAttribute.iPhy == BoundaryType::Farfield ||
                          faceAttribute.iPhy == BoundaryType::Special_DMRFar ||
-                         faceAttribute.iPhy == BoundaryType::Special_RTFar||
+                         faceAttribute.iPhy == BoundaryType::Special_RTFar ||
                          faceAttribute.iPhy == BoundaryType::Special_IVFar)
                 {
                     Eigen::MatrixXd B;
@@ -1068,5 +1074,12 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 }
             }
             vectorBatchElem.m(0) = vectorBatchElem.m(0) * Ainv.transpose(); // must be outside the loop as it operates all rows at once
+            // std::cout << cellBaries[iCell].transpose() << std::endl;
+            // std::cout << "A\n"
+            //           << A << std::endl;
+            // std::cout << "Ai\n"
+            //           << matrixBatchElem.m(0) << std::endl;
+            // if (iCell == 1)
+            //     assert(false);
         });
 }
