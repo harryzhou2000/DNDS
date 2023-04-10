@@ -4,7 +4,7 @@
 #include "DNDS_MPI.hpp"
 #include "Eigen/Dense"
 DISABLE_WARNING_PUSH
-DISABLE_WARNING(-Wdeprecated-declarations) 
+DISABLE_WARNING_DEPRECATED_DECLARATIONS
 //! rapidjson uses deprecated iterator in STL, still usable in c++17; could port to c++17 easily (?)
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/ostreamwrapper.h"
@@ -29,10 +29,15 @@ namespace DNDS
             char readBuffer[65536];
             FileReadStream is(fp, readBuffer, sizeof(readBuffer));
             // std::cout <<"rere" << std::endl;
+            // std::cout << "kParseCommentsFlag" << kParseCommentsFlag << std::endl;
+
             d.ParseStream<
-                kParseCommentsFlag &
-                kParseNanAndInfFlag &
-                kParseFullPrecisionFlag>(is);
+                kParseCommentsFlag |
+                kParseNanAndInfFlag |
+                kParseFullPrecisionFlag |
+                kParseTrailingCommasFlag>(is);
+            auto t = d.GetType();
+            // std::cout << "T=" << t << std::endl;
             fclose(fp);
         }
 

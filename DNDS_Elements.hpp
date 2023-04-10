@@ -1386,6 +1386,30 @@ namespace DNDS
                 // }
             }
         };
+
+        class SummationNoOp
+        {
+        public:
+            void operator+=(const SummationNoOp &R)
+            {
+                return;
+            }
+
+            SummationNoOp operator*(const SummationNoOp &R) const
+            {
+                return SummationNoOp();
+            }
+
+            friend SummationNoOp operator*(real L, const SummationNoOp &R)
+            {
+                return SummationNoOp();
+            }
+
+            friend SummationNoOp operator*(const SummationNoOp &L, real R)
+            {
+                return SummationNoOp();
+            }
+        };
     }
 }
 

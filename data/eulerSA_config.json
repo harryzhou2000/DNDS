@@ -1,28 +1,28 @@
 {
-    "ifSteadyQuit": true,
-    "recOrder": 3,
-    "nInternalRecStep": 1,
-    "nTimeStep": 100000,
-    "nTimeStepInternal": 50000,
-    "nSGSIterationInternal": 0,
-    "gmresCode": 0,
-    "nGmresSpace": 5,
-    "nGmresIter": 1,
-    "jacobianTypeCode": 0,
-    "nFreezePassiveInner": 0,
-    "nConsoleCheck": 1,
-    "nConsoleCheckInternal": 10,
-    "consoleOutputMode": 1,
-    "nDataOutC": 10,
-    "nDataOut": 10,
-    "nDataOutCInternal": 100,
-    "nDataOutInternal": 1000000000,
-    "tDataOut": 1e100,
-    "tEnd": 100e100,
-    "CFL": 50,
-    "dtImplicit": 0.5e100,
-    "rhsThresholdInternal": 1e-15,
-    "useLocalDt": true,
+    "ifSteadyQuit": true, // quit computation normally instead of time marching unsteady
+    "recOrder": 3, // (VR) reconstruction polynomial degree
+    "nInternalRecStep": 1, // linear recstruction steps per nonlinear iteration
+    "nTimeStep": 100000, // unsteaty TSs
+    "nTimeStepInternal": 50000, // internal TSs
+    "nSGSIterationInternal": 0, // LUSGS linear steps
+    "gmresCode": 0, //0 for LUSGS, 1 for gmres
+    "nGmresSpace": 5, // k, num of Krylov space
+    "nGmresIter": 1, // GMRES linear steps
+    "jacobianTypeCode": 0, // 0 is OK now //! deprecated for now
+    "nFreezePassiveInner": 0, // freeze SA variables, in Euler_SA
+    "nConsoleCheck": 1, // unsteaty log frequency
+    "nConsoleCheckInternal": 10, // internal log frequency
+    "consoleOutputMode": 1, // 1 to output wall face flux
+    "nDataOutC": 10, // c datafile output freq
+    "nDataOut": 10, // numbered datafile output freq
+    "nDataOutCInternal": 100, // c datafile output freq for internal
+    "nDataOutInternal": 1000000000, // numbered datafile output freq for internal
+    "tDataOut": 1e100, // datafile output freq, in simutime //!deprecated for now
+    "tEnd": 100e100, // datafile output freq, in simutime //!deprecated for now
+    "CFL": 50, // CFL for interal tau (pusuedo ts)
+    "dtImplicit": 0.5e100, // ts for unsteady
+    "rhsThresholdInternal": 1e-15, // internal exit condition
+    "useLocalDt": true, // disable for not using local dtau
     "useLimiter": false,
     "nPartialLimiterStart": 100,
     "nPartialLimiterStartLocal": 5000,
