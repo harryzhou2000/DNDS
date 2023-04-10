@@ -149,7 +149,7 @@ namespace DNDS
         std::vector<Eigen::VectorXd> baseMoments; // full dofs, like baseMoment[i].v()(0) == 1
         std::vector<Elem::tPoint> cellCenters;
         std::vector<Elem::tPoint> cellBaries;
-        std::shared_ptr<std::vector<Elem::tJacobi>> cellIntertia;
+        std::shared_ptr<std::vector<Elem::tJacobi>> cellInertia;
         std::vector<std::vector<real>> cellGaussJacobiDets;
         std::vector<Elem::tPoint> faceCenters;
         std::vector<std::vector<Elem::tPoint>> faceNorms;
@@ -193,7 +193,7 @@ namespace DNDS
             int curvilinearOrder = 1;
 
             bool useLocalCoord = false;
-            bool anistropicLengths = false;
+            bool anisotropicLengths = false;
 
             enum WeightSchemeGeom
             {
@@ -356,7 +356,7 @@ namespace DNDS
             real scaleM = std::pow(scaleMLarge, setting.scaleMLargerPortion) *
                           std::pow(scaleMSmall, 1 - setting.scaleMLargerPortion);
 
-            Eigen::Matrix2d pJacobi = (*cellIntertia)[iCell]({0, 1}, {0, 1}) * 1;
+            Eigen::Matrix2d pJacobi = (*cellInertia)[iCell]({0, 1}, {0, 1}) * 1;
             real scaleL0 = pJacobi.col(0).norm();
             real scaleL1 = pJacobi.col(1).norm();
             Eigen::Matrix2d invPJacobi;
@@ -376,7 +376,7 @@ namespace DNDS
 
             real scaleUni = std::pow(scaleL0, 1) * std::pow(scaleL1, 0);
             scaleUni = std::sqrt(sqr(scaleL0) + sqr(scaleL1));
-            if (!setting.anistropicLengths)
+            if (!setting.anisotropicLengths)
             {
                 pJacobi.col(0) = pJacobi.col(0) * scaleUni;
                 pJacobi.col(1) = pJacobi.col(1) * scaleUni;
@@ -989,7 +989,7 @@ namespace DNDS
 
             // if (coordsC.cols() == 4 && DiBj.rows() > 1)
             //     std::cout << "Inertia: \n"
-            //               << (*cellIntertia)[iCell] << "\n InvPJacobi \n"
+            //               << (*cellInertia)[iCell] << "\n InvPJacobi \n"
             //               << invPJacobi << "\n nCoords \n"
             //               << invPJacobi * coordsC.topRows(2) << "\n pPhyC\n"
             //               << pPhysicsC << "\n"
@@ -1006,8 +1006,8 @@ namespace DNDS
             auto &f2c = (*mesh->face2cellPair)[iFace];
             index icellL = f2c[0];
             index icellR = f2c[1] == FACE_2_VOL_EMPTY ? f2c[0] : f2c[1];
-            real cellARL = (*cellIntertia)[icellL](Eigen::all, 0).stableNorm() / (*cellIntertia)[icellL](Eigen::all, 1).stableNorm();
-            real cellARR = (*cellIntertia)[icellR](Eigen::all, 0).stableNorm() / (*cellIntertia)[icellL](Eigen::all, 1).stableNorm();
+            real cellARL = (*cellInertia)[icellL](Eigen::all, 0).stableNorm() / (*cellInertia)[icellL](Eigen::all, 1).stableNorm();
+            real cellARR = (*cellInertia)[icellR](Eigen::all, 0).stableNorm() / (*cellInertia)[icellL](Eigen::all, 1).stableNorm();
             if (cellARL < 1)
                 cellARL = 1;
             if (cellARR < 1)
@@ -1016,8 +1016,8 @@ namespace DNDS
             if (!(cellARL >= (1 - 1e-10) && cellARR >= (1 - 1e-10)))
             {
                 std::cout << cellARL << " " << cellARR << "\n";
-                std::cout << (*cellIntertia)[icellL] << "\n";
-                std::cout << (*cellIntertia)[icellR] << "\n";
+                std::cout << (*cellInertia)[icellL] << "\n";
+                std::cout << (*cellInertia)[icellR] << "\n";
                 std::cout << std::endl;
                 assert(false);
             }
@@ -1577,7 +1577,7 @@ namespace DNDS
                                     // uBV({1, 2, 3}) = uBLMomentum - normOut * (normOut.dot(uBLMomentum));
                                     // uBV({1, 2, 3}).setZero();
                                     uBV(Seq123) = -uBL(Seq123);
-                                    uBV(I4) = uBL(I4);
+                                    uBV(I4) = uBL(I4) = 0; //! SA!
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell]).transpose();
                                     Eigen::MatrixXd rowDiffI = diffI.row(0).rightCols(uRec[iCell].rows());
@@ -1604,6 +1604,11 @@ namespace DNDS
                     // if (iCell == 100)
                     //     assert(false);
                 }
+                // if (iCell == 10756)
+                // {
+                //     std::cout << "Rec at cell" << iCell << std::endl;
+                //     std::cout << matrixBatchElem.m(0) << std::endl;
+                // }
                 // exit(0);
                 if (icount == 1)
                 {

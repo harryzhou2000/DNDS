@@ -190,7 +190,7 @@ namespace DNDS
                     "tangWeightModMin", &config.vfvSetting.tangWeightModMin, []() {}, JSON::ParamParser::FLAG_NULL);
                 vfvParser.AddBool(
                     "useLocalCoord", &config.vfvSetting.useLocalCoord, []() {}, JSON::ParamParser::FLAG_NULL);
-                vfvParser.AddBool("anistropicLengths", &config.vfvSetting.anistropicLengths);
+                vfvParser.AddBool("anisotropicLengths", &config.vfvSetting.anisotropicLengths);
                 vfvParser.AddDNDS_Real("scaleMLargerPortion", &config.vfvSetting.scaleMLargerPortion);
                 vfvParser.AddDNDS_Real("farWeight", &config.vfvSetting.farWeight);
                 vfvParser.AddDNDS_Real("wallWeight", &config.vfvSetting.wallWeight);
@@ -271,6 +271,12 @@ namespace DNDS
                             config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::Roe_M1;
                         else if (RSName == "Roe_M2")
                             config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::Roe_M2;
+                        else if (RSName == "Roe_M3")
+                            config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::Roe_M3;
+                        else if (RSName == "Roe_M4")
+                            config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::Roe_M4;
+                        else if (RSName == "Roe_M5")
+                            config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::Roe_M5;
                         else
                             assert(false);
                     });
@@ -418,7 +424,7 @@ namespace DNDS
                     {
                         index iFace = c2f[ic2f];
                         if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_NoSlip)
-                            u[iCell](I4 + 1) *= 0.6;
+                            u[iCell](I4 + 1) *= 1.0; // ! not fixing first layer!
                     }
                 }
             }
@@ -836,12 +842,17 @@ namespace DNDS
                     }
                     else
                     {
+                        assert(false);
                         eval.UpdateLUSGSADForward(crhs, cx, cxInc, cxInc);
                         cxInc.StartPersistentPullClean();
                         cxInc.WaitPersistentPullClean();
                         eval.UpdateLUSGSADBackward(crhs, cx, cxInc, cxInc);
                         cxInc.StartPersistentPullClean();
                         cxInc.WaitPersistentPullClean();
+                    }
+                    for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+                    {
+                        cxInc[iCell] = eval.CompressInc(cx[iCell], cxInc[iCell], crhs[iCell]);
                     }
                 }
 
@@ -934,7 +945,8 @@ namespace DNDS
                         log() << std::setprecision(3) << std::scientific
                               << "\t Internal === Step [" << iStep << ", " << iter << "]   "
                               << "res \033[91m[" << resRel.transpose() << "]\033[39m   "
-                              << "t,dTaumin,CFL \033[92m[" << tsimu << ", " << curDtMin << ", " << CFLNow << "]\033[39m   "
+                              << "t,dTaumin,CFL,nFix \033[92m["
+                              << tsimu << ", " << curDtMin << ", " << CFLNow << ", " << eval.nFaceReducedOrder << "]\033[39m   "
                               << std::setprecision(3) << std::fixed
                               << "Time [" << telapsed << "]   recTime ["
                               << trec << "]   rhsTime ["
@@ -961,6 +973,7 @@ namespace DNDS
                             << res.transpose() << delimC
                             << tsimu << delimC
                             << curDtMin << delimC
+                            << real(eval.nFaceReducedOrder) << delimC
                             << eval.fluxWallSum.transpose() << std::endl;
                     }
                     tstart = MPI_Wtime();

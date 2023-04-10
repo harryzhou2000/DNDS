@@ -61,7 +61,7 @@
         "SOR_InverseScanning": false,
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
-        "anistropicLengths": false,
+        "anisotropicLengths": false,
         "tangWeight": 1,
         "tangWeightModMin": 1,
         "useLocalCoord": true,

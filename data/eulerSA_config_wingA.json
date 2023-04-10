@@ -63,7 +63,7 @@
         "SOR_InverseScanning": false,
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
-        "anistropicLengths": true,
+        "anisotropicLengths": true,
         "tangWeight": 1,
         "wallWeight": 0.5,
         "farWeight": 1,

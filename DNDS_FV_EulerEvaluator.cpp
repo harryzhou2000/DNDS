@@ -109,14 +109,27 @@ namespace DNDS
             real area = fv->faceArea[iFace];
             real areaSqr = area * area;
             real volR = fv->volumeLocal[iCellL];
-            lambdaCell[iCellL] += lamFace + 2 * lamVis * areaSqr / fv->volumeLocal[iCellL];
+            // lambdaCell[iCellL] += lamFace + 2 * lamVis * areaSqr / fv->volumeLocal[iCellL];
             if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
-                lambdaCell[f2c[1]] += lamFace + 2 * lamVis * areaSqr / fv->volumeLocal[f2c[1]],
-                    volR = fv->volumeLocal[f2c[1]];
+                                            // lambdaCell[f2c[1]] += lamFace + 2 * lamVis * areaSqr / fv->volumeLocal[f2c[1]],
+                volR = fv->volumeLocal[f2c[1]];
 
             lambdaFace[iFace] = lambdaConvection + lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
             lambdaFaceC[iFace] = std::abs(veloNMean) + lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR); // passive part
             lambdaFaceVis[iFace] = lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
+
+            // if (iFace == 16404)
+            // {
+            //     std::cout << "Lambdas" << std::setprecision(10) << iFace << std::endl;
+            //     std::cout << lambdaConvection << std::endl;
+            //     std::cout << lambdaFaceVis[iFace] << std::endl;
+            //     std::cout << veloNMean << " " << aMean << std::endl;
+            //     std::cout << gamma << " "  << pMean <<" " << uMean(0) << std::endl;
+            // }
+
+            lambdaCell[iCellL] += lambdaFace[iFace] * fv->faceArea[iFace];
+            if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
+                lambdaCell[f2c[1]] += lambdaFace[iFace] * fv->faceArea[iFace];
 
             deltaLambdaFace[iFace] = std::abs((vR - vL).dot(unitNorm)) + std::sqrt(std::abs(asqrR - asqrL)) * 0.7071;
         }
@@ -190,6 +203,7 @@ namespace DNDS
         TU fluxWallSumLocal;
         fluxWallSumLocal.setZero(cnvars);
         fluxWallSum.setZero(cnvars);
+        nFaceReducedOrder = 0;
 
         for (index iFace = 0; iFace < mesh->face2nodeLocal.size(); iFace++)
         {
@@ -197,27 +211,67 @@ namespace DNDS
             auto &faceAtr = mesh->faceAtrLocal[iFace][0];
             auto f2c = mesh->face2cellLocal[iFace];
             Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
-            TU flux(cnvars);
-            flux.setZero();
+            Eigen::Matrix<real, nVars_Fixed, 3, Eigen::ColMajor> fluxEs(cnvars, 3);
+            fluxEs.setZero();
             auto faceDiBjGaussBatchElemVR = (*vfv->faceDiBjGaussBatch)[iFace];
 
             auto f2n = mesh->face2nodeLocal[iFace];
             Eigen::MatrixXd coords;
             mesh->LoadCoords(f2n, coords);
 
+            Elem::SummationNoOp noOp;
+            bool faceOrderReducedL = false;
+            bool faceOrderReducedR = false;
+            // eFace.Integration(
+            //     noOp,
+            //     [&](decltype(noOp) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+            //     {
+            //         if (!faceOrderReduced)
+            //         {
+            //             TU ULxy =
+            //                 faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
+            //                 uRec[f2c[0]] * IF_NOT_NOREC;
+            //             ULxy = CompressRecPart(u[f2c[0]], ULxy, faceOrderReduced);
+            //             if (f2c[1] != FACE_2_VOL_EMPTY)
+            //             {
+            //                 TU URxy =
+            //                     faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
+            //                     uRec[f2c[1]] * IF_NOT_NOREC;
+            //                 URxy = CompressRecPart(u[f2c[1]], URxy, faceOrderReduced);
+            //             }
+            //         }
+            //     });
+
             eFace.Integration(
-                flux,
-                [&](decltype(flux) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+                fluxEs,
+                [&](decltype(fluxEs) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
                 {
                     int nDiff = vfv->faceWeights->operator[](iFace).size();
                     TVec unitNorm = vfv->faceNorms[iFace][ig](Seq012).normalized();
                     TMat normBase = Elem::NormBuildLocalBaseV(unitNorm);
                     PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterB);
-                    TU ULxy =
-                        faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
-                        uRec[f2c[0]] * IF_NOT_NOREC;
+                    // TU ULxy =
+                    //     faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
+                    //     uRec[f2c[0]] * IF_NOT_NOREC;
                     // UL += u[f2c[0]]; //! do not forget the mean value
-                    ULxy = CompressRecPart(u[f2c[0]], ULxy);
+                    // bool compressed = false;
+                    // ULxy = CompressRecPart(u[f2c[0]], ULxy, compressed);
+                    TU ULxy = u[f2c[0]];
+                    bool pointOrderReducedL = false;
+                    bool pointOrderReducedR = false;
+                    if (!faceOrderReducedL)
+                    {
+                        // ULxy +=
+                        //     faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
+                        //     uRec[f2c[0]] * IF_NOT_NOREC;
+                        ULxy = CompressRecPart(ULxy,
+                                               faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
+                                                   uRec[f2c[0]] * IF_NOT_NOREC,
+                                               pointOrderReducedL);
+                    }
+
+                    TU ULMeanXy = u[f2c[0]];
+                    TU URMeanXy;
 
                     TU URxy;
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
@@ -225,6 +279,13 @@ namespace DNDS
                     GradULxy.resize(Eigen::NoChange, cnvars);
                     GradURxy.resize(Eigen::NoChange, cnvars);
                     GradULxy.setZero(), GradURxy.setZero();
+                    // if (iFace == 16404)
+                    // {
+                    //     std::cout << "face DIBJ: " << std::endl;
+                    //     std::cout << faceDiBjGaussBatchElemVR.m(ig * 2 + 0) << std::endl;
+                    //     std::cout << "urec\n";
+                    //     std::cout << uRec[f2c[0]] << std::endl;
+                    // }
 
                     if constexpr (gdim == 2)
                         GradULxy({0, 1}, Eigen::all) =
@@ -241,11 +302,24 @@ namespace DNDS
 
                     if (f2c[1] != FACE_2_VOL_EMPTY)
                     {
-                        URxy =
-                            faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
-                            uRec[f2c[1]] * IF_NOT_NOREC;
-                        // UR += u[f2c[1]];
-                        URxy = CompressRecPart(u.template get<nVars_Fixed>(f2c[1]), URxy);
+                        // URxy =
+                        //     faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
+                        //     uRec[f2c[1]] * IF_NOT_NOREC;
+                        // // UR += u[f2c[1]];
+                        // URxy = CompressRecPart(u[f2c[1]], URxy, compressed);
+                        URxy = u[f2c[1]];
+                        if (!faceOrderReducedR)
+                        {
+                            // URxy +=
+                            //     faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
+                            //     uRec[f2c[1]] * IF_NOT_NOREC;
+                            URxy = CompressRecPart(URxy,
+                                                   faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
+                                                       uRec[f2c[1]] * IF_NOT_NOREC,
+                                                   pointOrderReducedR);
+                        }
+
+                        URMeanXy = u[f2c[1]];
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
                         if constexpr (gdim == 2)
                             GradURxy({0, 1}, Eigen::all) =
@@ -255,6 +329,7 @@ namespace DNDS
                             GradURxy({0, 1, 2}, Eigen::all) =
                                 faceDiBjGaussBatchElemVR.m(ig * 2 + 1)({1, 2, 3}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
                                 uRec[f2c[1]] * IF_NOT_NOREC; // 3d here
+
 #endif
 
                         minVol = std::min(minVol, fv->volumeLocal[f2c[1]]);
@@ -267,10 +342,17 @@ namespace DNDS
                             normBase,
                             vfv->faceCenters[iFace](Seq012),
                             t,
-                            BoundaryType(faceAtr.iPhy));
+                            BoundaryType(faceAtr.iPhy), false);
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
                         GradURxy = GradULxy;
 #endif
+                        URMeanXy = generateBoundaryValue(
+                            ULMeanXy,
+                            unitNorm,
+                            normBase,
+                            vfv->faceCenters[iFace](Seq012),
+                            t,
+                            BoundaryType(faceAtr.iPhy), false);
                     }
                     PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterB);
                     // UR = URxy;
@@ -278,7 +360,10 @@ namespace DNDS
                     // UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
                     // UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
 
-                    real distGRP = minVol / fv->faceArea[iFace] * 2;
+                    real distGRP = minVol / fv->faceArea[iFace] * 2 +
+                                   (faceAtr.iPhy == BoundaryType::Wall_Euler || faceAtr.iPhy == BoundaryType::Wall_NoSlip
+                                        ? 0.0 // veryLargeReal
+                                        : 0.0);
                     // real distGRP = (vfv->cellBaries[f2c[0]] -
                     //                 (f2c[1] != FACE_2_VOL_EMPTY
                     //                      ? vfv->cellBaries[f2c[1]]
@@ -290,6 +375,7 @@ namespace DNDS
                     TDiffU GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
                                          (1.0 / distGRP) *
                                              (unitNorm * (URxy - ULxy).transpose());
+
 #else
                     TDiffU GradUMeanXy;
 #endif
@@ -328,26 +414,61 @@ namespace DNDS
 
                     // exit(-1);
 
-                    finc = fluxFace(
+                    TU FLFix, FRFix;
+                    FLFix.setZero(), FRFix.setZero();
+
+                    TU fincC = fluxFace(
                         ULxy,
                         URxy,
+                        ULMeanXy,
+                        URMeanXy,
                         GradUMeanXy,
                         unitNorm,
                         normBase,
+                        FLFix, FRFix,
                         BoundaryType(faceAtr.iPhy),
                         rsType,
                         iFace, ig);
 
+                    // if (iFace == 16404)
+                    // {
+                    //     std::cout << "RHS face " << iFace << std::endl << std::setprecision(10);
+                    //     std::cout << fincC.transpose() << std::endl;
+                    //     std::cout << ULxy.transpose() << std::endl;
+                    //     std::cout << URxy.transpose() << std::endl;
+                    //     std::cout << u[f2c[0]].transpose() << std::endl;
+                    //     std::cout << u[f2c[1]].transpose() << std::endl;
+                    //     std::cout << GradULxy << std::endl;
+                    //     std::cout << GradULxy << std::endl;
+                    //     std::cout << GradUMeanXy << std::endl;
+                    //     std::cout << f2c[0] << " " << f2c[1] << " " << distGRP << std::endl;
+                    //     std::cout << lambdaFace[iFace] << std::endl;
+                    //     exit(-1);
+                    // }
+
+                    finc(Eigen::all, 0) = fincC;
+                    finc(Eigen::all, 1) = FLFix;
+                    finc(Eigen::all, 2) = FRFix;
+
                     finc *= vfv->faceNorms[iFace][ig].norm(); // don't forget this
+
+                    if (pointOrderReducedL)
+                        nFaceReducedOrder++, faceOrderReducedL = false;
+                    if (pointOrderReducedR)
+                        nFaceReducedOrder++, faceOrderReducedR = false;
                 });
 
-            rhs[f2c[0]] += flux / fv->volumeLocal[f2c[0]];
+            rhs[f2c[0]] += fluxEs(Eigen::all, 0) / fv->volumeLocal[f2c[0]];
             if (f2c[1] != FACE_2_VOL_EMPTY)
-                rhs[f2c[1]] -= flux / fv->volumeLocal[f2c[1]];
+                rhs[f2c[1]] -= fluxEs(Eigen::all, 0) / fv->volumeLocal[f2c[1]];
+
+            rhs[f2c[0]] -= fluxEs(Eigen::all, 1) / fv->volumeLocal[f2c[0]];
+            if (f2c[1] != FACE_2_VOL_EMPTY)
+                rhs[f2c[1]] += fluxEs(Eigen::all, 2) / fv->volumeLocal[f2c[1]];
 
             if (faceAtr.iPhy == BoundaryType::Wall_NoSlip || faceAtr.iPhy == BoundaryType::Wall_Euler)
             {
-                fluxWallSumLocal -= flux;
+                fluxWallSumLocal -= fluxEs(Eigen::all, 0);
             }
         }
         // quick aux: reduce the wall flux sum
@@ -369,6 +490,21 @@ namespace DNDS
             Eigen::Vector<real, nvarsFixedMultipy<nVars_Fixed, 2>()> sourceV(cnvars * 2); // now includes sourcejacobian diag
             sourceV.setZero();
 
+            Elem::SummationNoOp noOp;
+            bool cellOrderReduced = false;
+            // eCell.Integration(
+            //     noOp,
+            //     [&](decltype(noOp) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+            //     {
+            //         if (!cellOrderReduced)
+            //         {
+            //             TU ULxy =
+            //                 cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+            //                 uRec[iCell] * IF_NOT_NOREC;
+            //             ULxy = CompressRecPart(u[iCell], ULxy, cellOrderReduced);
+            //         }
+            //     });
+
             eCell.Integration(
                 sourceV,
                 [&](decltype(sourceV) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
@@ -386,12 +522,21 @@ namespace DNDS
                             cellDiBjGaussBatchElemVR.m(ig)({1, 2, 3}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
                             uRec[iCell] * IF_NOT_NOREC; // 3d specific
 
-                    TU ULxy =
-                        cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
-                        uRec[iCell] * IF_NOT_NOREC;
+                    bool pointOrderReduced;
+                    TU ULxy = u[iCell];
+                    if (!cellOrderReduced)
+                    {
+                        // ULxy += cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+                        //         uRec[iCell] * IF_NOT_NOREC;
+                        ULxy = CompressRecPart(ULxy,
+                                               cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+                                                   uRec[iCell] * IF_NOT_NOREC,
+                                               pointOrderReduced);
+                    }
                     PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterB);
 
-                    ULxy = CompressRecPart(u[iCell], ULxy); //! do not forget the mean value
+                    // bool compressed = false;
+                    // ULxy = CompressRecPart(u[iCell], ULxy, compressed); //! do not forget the mean value
 
                     finc.resizeLike(sourceV);
                     if constexpr (nVars_Fixed > 0)
@@ -440,6 +585,10 @@ namespace DNDS
                 rhs[iCell] += sourceV(Eigen::seq(0, cnvars - 1)) / fv->volumeLocal[iCell];
                 jacobianCellSourceDiag[iCell] = sourceV(Eigen::seq(cnvars, 2 * cnvars - 1)) / fv->volumeLocal[iCell];
             }
+            // if (iCell == 18195)
+            // {
+            //     std::cout << rhs[iCell].transpose() << std::endl;
+            // }
         }
 #endif
         InsertCheck(u.dist->getMPI(), "EvaluateRHS -1");
@@ -830,6 +979,7 @@ namespace DNDS
 #else
             jacobianCell_Scalar[iCell] = fpDivisor;
 #endif
+            // std::cout << fpDivisor << std::endl;
 
             // jacobian diag
 
@@ -846,7 +996,9 @@ namespace DNDS
 
             // std::cout << "jacobian Diag\n"
             //           << jacobianCell[iCell] << std::endl;
+            // std::cout << dTau[iCell] << "\n";
         }
+        // exit(-1);
     }
     template void EulerEvaluator<NS>::LUSGSMatrixInit(std::vector<real> &dTau, real dt, real alphaDiag,
                                                       ArrayDOFV<nVars_Fixed> &u, ArrayRecV &uRec,
@@ -965,6 +1117,7 @@ namespace DNDS
             auto &c2f = mesh->cell2faceLocal[iCell];
             TU uIncNewBuf(nVars);
             auto RHSI = rhs[iCell];
+            // std::cout << rhs[iCell](0) << std::endl;
             uIncNewBuf = RHSI;
 
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
@@ -993,14 +1146,32 @@ namespace DNDS
                             //            unitNorm,
                             //            BoundaryType::Inner) *
                             //        uInc[iCellOther]; //! always inner here
+
+                            // uINCj << 0.01997442663, -0.1624173545, -0.1349337526, 0, 2.22936795, -0.03193140561;
                             fInc = fluxJacobian0_Right_Times_du(
                                 u[iCellOther],
                                 unitNorm,
                                 BoundaryType::Inner, uINCj, lambdaFace[iFace], lambdaFaceC[iFace]); //! always inner here
+                            // std::cout << uINCj.transpose() << " " << fInc.transpose() << std::endl;
+                            // if (uInc[iCellOther](0) > 1e-5 && iCellOther == 10756)
+                            // {
+
+                            //     std::cout << iCellOther << " " << alphaDiag << std::endl;
+                            //     std::cout << std::setprecision(10);
+                            //     std::cout << u[iCellOther].transpose() << std::endl;
+                            //     std::cout << uInc[iCellOther].transpose() << std::endl;
+                            //     std::cout << (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
+                            //                      (fInc).transpose()
+                            //               << std::endl;
+                            //     std::cout << vfv->cellBaries[iCell].transpose() << std::endl;
+                            //     exit(1);
+                            // }
                         }
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
                                       (fInc);
+                        // std::cout << "Forward " << iCell << "-" << iCellOther << " " << (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] * (fInc(0));
+                        // std::cout << std::endl;
                         if (uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite()))
                         {
                             std::cout << RHSI.transpose() << std::endl
@@ -1017,6 +1188,15 @@ namespace DNDS
 #else
             uIncNewI = jacobianCellInv_Scalar[iCell] * uIncNewBuf;
 #endif
+            // std::cout << "Forward " << iCell << "-- " << uIncNewI(0) << std::endl;
+            // if (iCell == 10756)
+            // {
+            //     std::cout << std::setprecision(10);
+            //     std::cout << uIncNewI.transpose() << std::endl;
+            //     std::cout << jacobianCellInv[iCell] << std::endl;
+            //     std::cout << uIncNewBuf.transpose() << std::endl;
+            //     std::cout << RHSI.z() << std::endl;
+            // }
             if (uIncNewI.hasNaN())
             {
                 std::cout << uIncNewI.transpose() << std::endl
@@ -1028,15 +1208,18 @@ namespace DNDS
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNewI = CompressInc(u[iCell], uIncNewI, RHSI);
+            // uIncNewI = CompressInc(u[iCell], uIncNewI, RHSI); //! disabled for trusting the following Backward fix
 
             // std::cout << "JCI\n";
             // std::cout << jacobianCellInv[iCell] << std::endl;
 
             // if (iCell == 0)
             //     assert(false);
+            // uIncNewI(0) = 0;
+            // u[iCell](0) = 1 + iCell * 1e-8;
         }
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
+        // exit(-1);
     }
 
     template void EulerEvaluator<NS>::UpdateLUSGSForward(real alphaDiag,
@@ -1097,6 +1280,8 @@ namespace DNDS
 
                         uIncNewBuf -= (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] *
                                       (fInc);
+                        // std::cout << "BackWard " << iCell << "-" << iCellOther << " " << (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] * (fInc(0));
+                        // std::cout << std::endl;
                     }
                 }
             }
@@ -1106,11 +1291,12 @@ namespace DNDS
 #else
             uIncNewI += jacobianCellInv_Scalar[iCell] * uIncNewBuf; // backward
 #endif
+            // std::cout << "BackWard " << iCell << "-- " << uIncNewI(0) << std::endl;
 
             // fix rho increment
             // if (u[iCell](0) + uIncNew[iCell](0) < u[iCell](0) * 1e-5)
             //     uIncNew[iCell](0) = -u[iCell](0) * (1 - 1e-5);
-            uIncNewI = CompressInc(u[iCell], uIncNewI, RHSI);
+            // uIncNewI = CompressInc(u[iCell], uIncNewI, RHSI);
         }
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSBackward -1");
     }

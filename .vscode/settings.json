@@ -1,7 +1,22 @@
 {
     "cSpell.words": [
         "Alltoall",
-        "DNDS"
+        "asqr",
+        "Coef",
+        "dfix",
+        "DNDS",
+        "dsqr",
+        "HLLC",
+        "HLLEP",
+        "NDOF",
+        "nvars",
+        "orthogonalize",
+        "rapidjson",
+        "rhsbuf",
+        "rowsize",
+        "SSPRK",
+        "velo",
+        "WBAP"
     ],
     "files.associations": {
         "*.cu": "cpp",

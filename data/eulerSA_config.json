@@ -10,13 +10,13 @@
     "nGmresIter": 1, // GMRES linear steps
     "jacobianTypeCode": 0, // 0 is OK now //! deprecated for now
     "nFreezePassiveInner": 0, // freeze SA variables, in Euler_SA
-    "nConsoleCheck": 1, // unsteaty log frequency
+    "nConsoleCheck": 2, // unsteaty log frequency
     "nConsoleCheckInternal": 10, // internal log frequency
     "consoleOutputMode": 1, // 1 to output wall face flux
     "nDataOutC": 10, // c datafile output freq
     "nDataOut": 10, // numbered datafile output freq
     "nDataOutCInternal": 100, // c datafile output freq for internal
-    "nDataOutInternal": 1000000000, // numbered datafile output freq for internal
+    "nDataOutInternal": 100, // numbered datafile output freq for internal
     "tDataOut": 1e100, // datafile output freq, in simutime //!deprecated for now
     "tEnd": 100e100, // datafile output freq, in simutime //!deprecated for now
     "CFL": 50, // CFL for interal tau (pusuedo ts)
@@ -66,13 +66,13 @@
         "SOR_InverseScanning": false,
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
-        "anistropicLengths": false,
+        "anisotropicLengths": false,
         "tangWeight": 1,
         "tangWeightModMin": 1,
         "useLocalCoord": false,
-        "wallWeight": 0.5,
+        "wallWeight": 1,
         "farWeight": 1,
-        "weightSchemeGeom": "SDHQM",
+        "weightSchemeGeom": "None",
         "comment_weightSchemeGeom": [
             "None",
             "S",
@@ -94,7 +94,7 @@
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
-        "riemannSolverType": "Roe_M2",
+        "riemannSolverType": "Roe_M4",
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
@@ -116,7 +116,7 @@
             0.258819045102521,
             0,
             79.865,
-            2
+            1.3
         ],
         "boxInitializerValue": [],
         "comment_boxInitializerValue": [

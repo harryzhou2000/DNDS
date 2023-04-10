@@ -133,6 +133,7 @@ namespace DNDS
         // ArrayVDOF<25> dRdb;
 
         Eigen::Vector<real, -1> fluxWallSum;
+        index nFaceReducedOrder = 0;
 
         struct Setting
         {
@@ -143,6 +144,9 @@ namespace DNDS
                 HLLEP = 3,
                 Roe_M1 = 11,
                 Roe_M2 = 12,
+                Roe_M3 = 13,
+                Roe_M4 = 14,
+                Roe_M5 = 15,
             } rsType = Roe;
             struct IdealGasProperty
             {
@@ -222,7 +226,7 @@ namespace DNDS
             dWall.resize(mesh->cell2nodeLocal.size());
 
             MPIInfo mpi = mesh->mpi;
-            const int NSampleLine = 11;
+            const int NSampleLine = 2;
 
             index nBCPoint = 0;
             for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
@@ -235,8 +239,7 @@ namespace DNDS
             Array<VecStaticBatch<6>> BCPointDist(VecStaticBatch<6>::Context(nBCPoint), mpi);
             index iFill = 0;
             for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
-                if (
-                    mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_NoSlip)
+                if (mesh->faceAtrLocal[iFace][0].iPhy == BoundaryType::Wall_NoSlip)
                 {
                     Elem::ElementManager eFace(mesh->faceAtrLocal[iFace][0].type, vfv->faceRecAtrLocal[iFace][0].intScheme);
                     Eigen::MatrixXd coords;
@@ -251,6 +254,8 @@ namespace DNDS
                         Elem::tPoint pPhyG = coords * DiNj.transpose();
                         BCPointDist[iFill].p()({0, 1, 2}) = pPhyG;
                         BCPointDist[iFill].p()({3, 4, 5}) = vfv->faceNormCenter[iFace].normalized(); //! ig is not gauss index!
+                        if (NSampleLine == 2)
+                            BCPointDist[iFill].p()(3) = ig;
                         iFill++;
                     }
                 }
@@ -274,6 +279,8 @@ namespace DNDS
 
                 Elem::ElementManager eCell(cellAttribute.type, cellRecAttribute.intScheme);
                 dWall[iCell].resize(eCell.getNInt(), std::pow(veryLargeReal, 1. / 6.));
+                real distSum = 0;
+                real distSumDiv = 0;
                 for (int ig = 0; ig < eCell.getNInt(); ig++)
                 {
                     Elem::tPoint p;
@@ -298,6 +305,52 @@ namespace DNDS
                     //     dWall[iCell][ig] = std::min(pC(1), distMin); // ! debugging!
 
                     minResult = std::min(minResult, dWall[iCell][ig]);
+                    distSum += dWall[iCell][ig];
+                    distSumDiv += 1;
+                }
+                for (int ig = 0; ig < eCell.getNInt(); ig++)
+                {
+                    dWall[iCell][ig] = distSum / distSumDiv;
+                }
+                if (NSampleLine == 2) // using O1 grid geom
+                {
+
+                    Elem::tPoint pB = vfv->getCellCenter(iCell);
+                    index imin = -1;
+                    real distMin = std::pow(veryLargeReal, 1. / 6.);
+                    for (index isearch = 0; isearch < BCPointFull.size(); isearch++)
+                    {
+                        if (BCPointFull[isearch].p()(3) == 0)
+                        {
+                            Elem::tPoint p1 = BCPointFull[isearch].p()({0, 1, 2});
+                            Elem::tPoint p2 = BCPointFull[isearch + 1].p()({0, 1, 2});
+                            Elem::tPoint p1B = pB - p1;
+                            Elem::tPoint p2B = pB - p2;
+                            Elem::tPoint p12 = p2 - p1;
+                            real L2 = p12.norm();
+                            real LB = p1B.dot(p12) / p12.norm();
+                            real cdist;
+
+                            if (LB >= 0 && LB <= L2)
+                            {
+                                cdist = (p1B - LB * p12 / p12.norm()).norm();
+                            }
+                            else
+                            {
+                                cdist = std::min((p1 - pB).norm(), (p2 - pB).norm());
+                            }
+                            if (cdist < distMin)
+                            {
+                                imin = isearch;
+                                distMin = cdist;
+                            }
+                        }
+                    }
+                    minResult = std::min(minResult, distMin);
+                    for (int ig = 0; ig < eCell.getNInt(); ig++)
+                    {
+                        dWall[iCell][ig] = distMin;
+                    }
                 }
             }
             std::cout << minResult << " MinWallDist \n";
@@ -311,9 +364,13 @@ namespace DNDS
         TU fluxFace(
             const TU &ULxy,
             const TU &URxy,
+            const TU &ULMeanXy,
+            const TU &URMeanXy,
             const TDiffU &DiffUxy,
             const TVec &unitNorm,
             const TMat &normBase,
+            TU &FLfix,
+            TU &FRfix,
             BoundaryType btype,
             typename Setting::RiemannSolverType rsType,
             index iFace, int ig)
@@ -324,6 +381,8 @@ namespace DNDS
             TU UL = ULxy;
             UR(Seq123) = normBase(Seq012, Seq012).transpose() * UR(Seq123);
             UL(Seq123) = normBase(Seq012, Seq012).transpose() * UL(Seq123);
+            if (btype == BoundaryType::Wall_Euler || btype == BoundaryType::Wall_NoSlip)
+                UR(Seq123) = -UL(Seq123);
             TU UMeanXy = 0.5 * (ULxy + URxy);
 
             real pMean, asqrMean, Hmean;
@@ -347,14 +406,15 @@ namespace DNDS
             {
                 real cnu1 = 7.1;
                 real Chi = UMeanXy(I4 + 1) * muRef / mufPhy;
-                if (Chi < 10)
-                    Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
+                // if (Chi < 10) //*negative fix
+                //     Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
                 real Chi3 = std::pow(Chi, 3);
                 fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
                 muf *= (1 + Chi * fnu1);
             }
 
-            real k = settings.idealGasProperty.CpGas * muf / settings.idealGasProperty.prGas;
+            real k = settings.idealGasProperty.CpGas * (muf - mufPhy) / 0.9 +
+                     settings.idealGasProperty.CpGas * mufPhy / settings.idealGasProperty.prGas;
             TDiffU VisFlux;
             VisFlux.resizeLike(DiffUxy);
             VisFlux.setZero();
@@ -365,6 +425,30 @@ namespace DNDS
                 k,
                 settings.idealGasProperty.CpGas,
                 VisFlux);
+            
+            // if (mesh->face2cellLocal[iFace][0] == 10756)
+            // {
+            //     std::cout << "Face " << iFace << " " << mesh->face2cellLocal[iFace][1] << std::endl;
+            //     std::cout << DiffUxy << std::endl;
+            //     std::cout << VisFlux << std::endl;
+            //     std::cout << unitNorm << std::endl;
+            //     std::cout << unitNorm.transpose() * VisFlux << std::endl;
+            //     std::cout << muf << " " << k << std::endl;
+
+            // }
+            // if (iFace == 16404)
+            // {
+            //     std::cout << std::setprecision(10);
+            //     std::cout << "Face " << iFace << " " << mesh->face2cellLocal[iFace][0] << " " << mesh->face2cellLocal[iFace][1] << std::endl;
+            //     std::cout << DiffUxy << std::endl;
+            //     std::cout << VisFlux << std::endl;
+            //     std::cout << unitNorm << std::endl;
+            //     std::cout << unitNorm.transpose() * VisFlux << std::endl;
+            //     std::cout << muf << " " << k << std::endl;
+            //     std::cout << lambdaFace[iFace] << std::endl;
+            //     exit(-1);
+
+            // }
             if constexpr (model == NS_SA)
             {
                 real sigma = 2. / 3.;
@@ -387,60 +471,80 @@ namespace DNDS
             TU finc;
             finc.resizeLike(ULxy);
 
+            {
+                TU wLMean, wRMean;
+                TU ULMean = ULMeanXy;
+                TU URMean = URMeanXy;
+                ULMean(Seq123) = normBase(Seq012, Seq012).transpose() * ULMean(Seq123);
+                URMean(Seq123) = normBase(Seq012, Seq012).transpose() * URMean(Seq123);
+                Gas::IdealGasThermalConservative2Primitive<dim>(ULMean, wLMean, gamma);
+                Gas::IdealGasThermalConservative2Primitive<dim>(URMean, wRMean, gamma);
+                Gas::GasInviscidFlux<dim>(ULMean, wLMean(Seq123), wLMean(I4), FLfix);
+                Gas::GasInviscidFlux<dim>(URMean, wRMean(Seq123), wRMean(I4), FRfix);
+                FLfix(Seq123) = normBase * FLfix(Seq123);
+                FRfix(Seq123) = normBase * FRfix(Seq123);
+                if (model == NS_SA)
+                {
+                    FLfix(I4 + 1) = wLMean(1) * ULMean(I4 + 1);
+                    FRfix(I4 + 1) = wRMean(1) * URMean(I4 + 1); // F_5 = rhoNut * un
+                }
+                // FLfix *= 0;
+                // FRfix *= 0;
+            }
+
+            auto exitFun = [&]()
+            {
+                std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
+                std::cout << "UL" << UL.transpose() << '\n';
+                std::cout << "UR" << UR.transpose() << std::endl;
+            };
+
+            real lam0{0}, lam123{0}, lam4{0};
+            lam123 = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
+
             // std::cout << "HERE" << std::endl;
             if (rsType == Setting::RiemannSolverType::HLLEP)
                 Gas::HLLEPFlux_IdealGas<dim>(
                     UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
-                    [&]()
-                    {
-                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
-                        std::cout << "UL" << UL.transpose() << '\n';
-                        std::cout << "UR" << UR.transpose() << std::endl;
-                    });
+                    exitFun);
             else if (rsType == Setting::RiemannSolverType::HLLC)
                 Gas::HLLCFlux_IdealGas_HartenYee<dim>(
                     UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
-                    [&]()
-                    {
-                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
-                        std::cout << "UL" << UL.transpose() << '\n';
-                        std::cout << "UR" << UR.transpose() << std::endl;
-                    });
+                    exitFun);
             else if (rsType == Setting::RiemannSolverType::Roe)
                 Gas::RoeFlux_IdealGas_HartenYee<dim>(
                     UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
-                    [&]()
-                    {
-                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
-                        std::cout << "UL" << UL.transpose() << '\n';
-                        std::cout << "UR" << UR.transpose() << std::endl;
-                    });
+                    exitFun, lam0, lam123, lam4);
             else if (rsType == Setting::RiemannSolverType::Roe_M1)
                 Gas::RoeFlux_IdealGas_HartenYee<dim, 1>(
                     UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
-                    [&]()
-                    {
-                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
-                        std::cout << "UL" << UL.transpose() << '\n';
-                        std::cout << "UR" << UR.transpose() << std::endl;
-                    });
+                    exitFun, lam0, lam123, lam4);
             else if (rsType == Setting::RiemannSolverType::Roe_M2)
                 Gas::RoeFlux_IdealGas_HartenYee<dim, 2>(
                     UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
-                    [&]()
-                    {
-                        std::cout << "face at" << vfv->faceCenters[iFace].transpose() << '\n';
-                        std::cout << "UL" << UL.transpose() << '\n';
-                        std::cout << "UR" << UR.transpose() << std::endl;
-                    });
+                    exitFun, lam0, lam123, lam4);
+            else if (rsType == Setting::RiemannSolverType::Roe_M3)
+                Gas::RoeFlux_IdealGas_HartenYee<dim, 3>(
+                    UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                    exitFun, lam0, lam123, lam4);
+            else if (rsType == Setting::RiemannSolverType::Roe_M4)
+                Gas::RoeFlux_IdealGas_HartenYee<dim, 4>(
+                    UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                    exitFun, lam0, lam123, lam4);
+            else if (rsType == Setting::RiemannSolverType::Roe_M5)
+                Gas::RoeFlux_IdealGas_HartenYee<dim, 5>(
+                    UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
+                    exitFun, lam0, lam123, lam4);
             else
                 assert(false);
             // std::cout << "HERE2" << std::endl;
 
+            // lam123 = std::abs(UL(1) / UL(0)) + std::abs(UR(1) / UR(0)) * 0.5; //!high fix
+            lam123 = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5; //!low fix
             if constexpr (model == NS_SA)
             {
                 // real lambdaFaceCC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
-                real lambdaFaceCC = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5; //! using velo instead of velo + a
+                real lambdaFaceCC = lam123; //! using velo instead of velo + a
                 finc(I4 + 1) = ((UL(1) / UL(0) * UL(I4 + 1) + UR(1) / UR(0) * UR(I4 + 1)) -
                                 (UR(I4 + 1) - UL(I4 + 1)) * lambdaFaceCC) *
                                0.5;
@@ -448,7 +552,7 @@ namespace DNDS
 
             finc(Seq123) = normBase * finc(Seq123);
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
-            finc -= VisFlux.transpose() * unitNorm;
+            finc -= VisFlux.transpose() * unitNorm * 1;
 #endif
 
             if (finc.hasNaN() || (!finc.allFinite()))
@@ -538,18 +642,18 @@ namespace DNDS
                 real Sbar = nuh / (sqr(kappa) * sqr(d)) * fnu2;
 
                 real Sh;
-                if (Sbar < -cnu2 * S)
-                    Sh = S + S * (sqr(cnu2) * S + cnu3 * Sbar) / ((cnu3 - 2 * cnu2) * S - Sbar);
-                else
-                    Sh = S + Sbar;
+                // if (Sbar < -cnu2 * S)
+                //     Sh = S + S * (sqr(cnu2) * S + cnu3 * Sbar) / ((cnu3 - 2 * cnu2) * S - Sbar);
+                // else //*negative fix
+                Sh = S + Sbar;
 
                 real r = std::min(nuh / (Sh * sqr(kappa * d) + verySmallReal), rlim);
                 real g = r + cw2 * (std::pow(r, 6) - r);
                 real fw = g * std::pow((1 + std::pow(cw3, 6)) / (std::pow(g, 6) + std::pow(cw3, 6)), 1. / 6.);
 
                 real ft2 = ct3 * std::exp(-ct4 * sqr(Chi));
-                real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //! modified >>
-                real P = cb1 * (1 - ft2) * Sh * nuh;                         //! modified >>
+                real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //*negative fix //! modified >>
+                real P = cb1 * (1 - ft2) * Sh * nuh;                         //*negative fix //! modified >>
                 // real D = cw1 * fw * sqr(nuh / d);
                 // real P = cb1 * Sh * nuh;
                 real fn = 1;
@@ -571,7 +675,7 @@ namespace DNDS
                     P = D = 0;
                 ret(I4 + 1) = UMeanXy(0) * (P - D + diffNu.squaredNorm() * cb2 / sigma) / muRef -
                               (UMeanXy(I4 + 1) * fn * muRef + mufPhy) / (UMeanXy(0) * sigma) * diffRho.dot(diffNu) / muRef;
-
+                // std::cout << "P, D " << P / muRef << " " << D / muRef << " " << diffNu.squaredNorm() << std::endl;
                 if (ret.hasNaN())
                 {
                     std::cout << P << std::endl;
@@ -823,12 +927,13 @@ namespace DNDS
         }
 
         TU generateBoundaryValue(
-            const TU &ULxy,
+            TU &ULxy, //! warning, possible that UL is also modified
             const TVec &uNorm,
             const TMat &normBase,
             const TVec &pPhysics,
             real t,
-            BoundaryType btype)
+            BoundaryType btype,
+            bool fixUL = false)
         {
             DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
             assert(ULxy(0) > 0);
@@ -1003,6 +1108,8 @@ namespace DNDS
                 if (model == NS_SA)
                 {
                     URxy(I4 + 1) *= -1;
+                    if(fixUL)
+                        ULxy(I4 + 1) = URxy(I4 + 1) = 0; //! modifing UL
                 }
             }
             else if (btype == BoundaryType::Wall)
@@ -1019,7 +1126,8 @@ namespace DNDS
 
         inline TU CompressRecPart(
             const TU &umean,
-            const TU &uRecInc)
+            const TU &uRecInc,
+            bool &compressed)
         {
             DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
             // if (umean(0) + uRecInc(0) < 0)
@@ -1056,10 +1164,10 @@ namespace DNDS
             real eK = ret(Seq123).squaredNorm() * 0.5 / (verySmallReal + std::abs(ret(0)));
             real e = ret(I4) - eK;
             if (e <= 0 || ret(0) <= 0)
-                ret = umean;
+                ret = umean, compressed = true;
             if constexpr (model == NS_SA)
                 if (ret(I4 + 1) < 0)
-                    ret = umean;
+                    ret = umean, compressed = true;
 
             return ret;
         }
@@ -1098,11 +1206,11 @@ namespace DNDS
                     // std::cout << "Fixing SA inc " << std::endl;
 
                     assert(u(I4 + 1) >= 0); //! might be bad using gmeres, add this to gmres inc!
-                    real declineV = ret(I4 + 1) / (u(I4 + 1) + verySmallReal);
+                    real declineV = ret(I4 + 1) / (u(I4 + 1) + 1e-6);
                     real newu5 = u(I4 + 1) * std::exp(declineV);
                     // ! refvalue:
                     real muRef = settings.idealGasProperty.muGas;
-                    newu5 = std::max(1e-12, newu5);
+                    newu5 = std::max(1e-6, newu5);
                     ret(I4 + 1) = newu5 - u(I4 + 1);
                 }
             }

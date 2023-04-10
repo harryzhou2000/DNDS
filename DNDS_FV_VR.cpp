@@ -34,7 +34,7 @@ void DNDS::VRFiniteVolume2D::initIntScheme() //  2-d specific
             switch (eCell.getPspace())
             {
             case Elem::ParamSpace::TriSpace:
-                recAtr.intScheme = Elem::INT_SCHEME_TRI_7;
+                recAtr.intScheme = Elem::INT_SCHEME_TRI_4;
                 recAtr.NDOF = PolynomialNDOF(P_ORDER);
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 break;
@@ -86,7 +86,7 @@ void DNDS::VRFiniteVolume2D::initMoment()
     baseMoments.resize(nlocalCells);
     cellCenters.resize(nlocalCells);
     cellBaries.resize(nlocalCells);
-    cellIntertia = std::make_shared<decltype(cellIntertia)::element_type>(nlocalCells);
+    cellInertia = std::make_shared<decltype(cellInertia)::element_type>(nlocalCells);
     forEachInArrayPair(
         *mesh->cell2nodeLocal.pair,
         [&](tAdjArray::tComponent &c2n, index iCell)
@@ -117,9 +117,9 @@ void DNDS::VRFiniteVolume2D::initMoment()
             cellBaries[iCell] /= FV->volumeLocal[iCell];
             // std::cout << cellBaries[iCell] << std::endl;
             // exit(0);
-            (*cellIntertia)[iCell].setZero();
+            (*cellInertia)[iCell].setZero();
             eCell.Integration(
-                (*cellIntertia)[iCell],
+                (*cellInertia)[iCell],
                 [&](Elem::tJacobi &incC, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
                 {
                     Elem::tPoint pPhysical = coords * iDiNj(0, Eigen::all).transpose() - cellBaries[iCell]; // = pPhysical
@@ -127,18 +127,18 @@ void DNDS::VRFiniteVolume2D::initMoment()
                     Elem::tJacobi Jacobi = Elem::DiNj2Jacobi(iDiNj, coords);
                     incC *= Jacobi({0, 1}, {0, 1}).determinant();
                 });
-            (*cellIntertia)[iCell] /= FV->volumeLocal[iCell];
+            (*cellInertia)[iCell] /= FV->volumeLocal[iCell];
             // std::cout << "I\n"
-            //           << (*cellIntertia)[iCell] << std::endl;
-            // auto iOrig = (*cellIntertia)[iCell];
-            (*cellIntertia)[iCell] = HardEigen::Eigen3x3RealSymEigenDecomposition((*cellIntertia)[iCell]);
+            //           << (*cellInertia)[iCell] << std::endl;
+            // auto iOrig = (*cellInertia)[iCell];
+            (*cellInertia)[iCell] = HardEigen::Eigen3x3RealSymEigenDecomposition((*cellInertia)[iCell]);
             // std::cout << "IS\n"
-            //           << (*cellIntertia)[iCell] << std::endl;
+            //           << (*cellInertia)[iCell] << std::endl;
 
             // std::cout << iOrig << std::endl;
-            // std::cout << (*cellIntertia)[iCell] * (*cellIntertia)[iCell].transpose() << std::endl;
-            // std::cout << (*cellIntertia)[iCell] << std::endl;
-            // std::cout << (*cellIntertia)[iCell].col(0).norm() * 3 << " " << (*cellIntertia)[iCell].col(1).norm() * 3 << std::endl;
+            // std::cout << (*cellInertia)[iCell] * (*cellInertia)[iCell].transpose() << std::endl;
+            // std::cout << (*cellInertia)[iCell] << std::endl;
+            // std::cout << (*cellInertia)[iCell].col(0).norm() * 3 << " " << (*cellInertia)[iCell].col(1).norm() * 3 << std::endl;
             // exit(0);
 
             Eigen::MatrixXd BjBuffer(1, cellRecAtr.NDOF);
@@ -695,6 +695,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             // *** Do weights!!
             // if (f2c[1] == FACE_2_VOL_EMPTY)
             //     std::cout << faceAtr.iPhy << std::endl;
+            pFace = faceCenters[iFace];
             (*faceWeights)[iFace].resize(faceRecAtr.NDIFF);
             Elem::tPoint delta;
             int NDOFmax = std::max(cellRecAtrL->NDOF, cellRecAtrR->NDOF);
@@ -732,6 +733,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 (*faceWeights)[iFace].setConstant(0.0);
                 (*faceWeights)[iFace][0] = setting.wallWeight;
                 delta = pFace - cellBaries[f2c[0]];
+                // delta = faceNormCenter[iFace].normalized() * faceNormCenter[iFace].normalized().dot(delta);
                 delta *= 1.0;
             }
             else
@@ -774,9 +776,9 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                     0. / 0.};
                 static const real dirWeight3_HQM[6] = {
                     1,
-                    0.5295,
-                    0.2117 * std::sqrt(1.),
-                    0.2117 * std::sqrt(1.),
+                    0.4608,
+                    0.2215 * std::sqrt(1.),
+                    0.2215 * std::sqrt(1.),
                     0. / 0.,
                     0. / 0.};
                 assert(ndx + ndy < 5);
@@ -1074,11 +1076,14 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 }
             }
             vectorBatchElem.m(0) = vectorBatchElem.m(0) * Ainv.transpose(); // must be outside the loop as it operates all rows at once
-            // std::cout << cellBaries[iCell].transpose() << std::endl;
-            // std::cout << "A\n"
-            //           << A << std::endl;
-            // std::cout << "Ai\n"
-            //           << matrixBatchElem.m(0) << std::endl;
+            // if (iCell == 10756)
+            // {
+            //     std::cout << cellBaries[iCell].transpose() << std::endl << std::setprecision(10);
+            //     std::cout << "A\n"
+            //               << A << std::endl;
+            //     std::cout << "Ai\n"
+            //               << matrixBatchElem.m(0) << std::endl;
+            // }
             // if (iCell == 1)
             //     assert(false);
         });
