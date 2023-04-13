@@ -1411,11 +1411,12 @@ namespace DNDS
          * \pre u need to StartPersistentPullClean()
          * \post u,uR need to WaitPersistentPullClean();
          */
-        template <int dim = 3, int nVars_Fixed = Eigen::Dynamic, class TU_DOF>
+        template <int dim = 3, int nVars_Fixed = Eigen::Dynamic, class TU_DOF, class TFBoundary>
         // static const int vsize = 1; // intellisense helper: give example...
         void ReconstructionJacobiStep(TU_DOF &u,
                                       ArrayRecV &uRec,
-                                      ArrayRecV &uRecNewBuf)
+                                      ArrayRecV &uRecNewBuf,
+                                      TFBoundary &&FBoundary)
         {
             static const auto Seq012 = Eigen::seq(Eigen::fix<0>, Eigen::fix<dim - 1>);
             static const auto Seq123 = Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>);
@@ -1560,6 +1561,8 @@ namespace DNDS
                                     index nvars = u[iCell].size();
                                     // auto &diffI = faceDiBjGaussCache[iFace][ig * 2 + 0]; // must be left
                                     auto diffI = faceDiBjGaussBatchElem.m(ig * 2 + 0);
+                                    Eigen::Vector<real, dim> normOut = faceNorms[iFace][ig](Seq012).stableNormalized();
+
                                     Eigen::Vector<real, nVars_Fixed> uBV(nvars);
                                     Eigen::Vector<real, nVars_Fixed> uBL = (diffI.row(0).rightCols(uRec[iCell].rows()) *
                                                                             uRec[iCell])
@@ -1568,16 +1571,9 @@ namespace DNDS
                                     //                                       uRec[iCell])
                                     //                                          .transpose();//!2D!!
 
-                                    uBL += u[iCell].transpose();
-                                    // uBV.setZero();
-                                    uBV = -uBL;
-                                    uBV(0) = uBL(0);
-                                    // Elem::tPoint normOut = faceNorms[iFace][ig].stableNormalized();
-                                    // auto uBLMomentum = uBL({1, 2, 3});
-                                    // uBV({1, 2, 3}) = uBLMomentum - normOut * (normOut.dot(uBLMomentum));
-                                    // uBV({1, 2, 3}).setZero();
-                                    uBV(Seq123) = -uBL(Seq123);
-                                    uBV(I4) = uBL(I4) = 0; //! SA!
+                                    uBL += u[iCell].transpose();//!need fixing?
+
+                                    uBV = FBoundary(uBL, normOut, faceCenters[iFace](Seq012), BoundaryType(faceAttribute.iPhy)); //using inaccurate pPhy
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell]).transpose();
                                     Eigen::MatrixXd rowDiffI = diffI.row(0).rightCols(uRec[iCell].rows());
@@ -1604,11 +1600,12 @@ namespace DNDS
                     // if (iCell == 100)
                     //     assert(false);
                 }
-                // if (iCell == 10756)
-                // {
-                //     std::cout << "Rec at cell" << iCell << std::endl;
-                //     std::cout << matrixBatchElem.m(0) << std::endl;
-                // }
+                if (iCell == 10756)
+                {
+                    std::cout << "Rec at cell" << iCell << std::endl;
+                    std::cout << uRec[iCell] << std::endl;
+                    std::cout << matrixBatchElem.m(0) << std::endl;
+                }
                 // exit(0);
                 if (icount == 1)
                 {

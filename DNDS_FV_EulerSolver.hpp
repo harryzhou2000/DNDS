@@ -656,7 +656,7 @@ namespace DNDS
             int curvilinearNum = 0;
             int curvilinearStepper = 0;
 
-            real tsimu = 0.0;
+            real tSimu = 0.0;
             real nextTout = config.tDataOut;
             int nextStepOut = config.nDataOut;
             int nextStepOutC = config.nDataOutC;
@@ -686,7 +686,13 @@ namespace DNDS
                 for (int iRec = 0; iRec < config.nInternalRecStep; iRec++)
                 {
                     double tstartA = MPI_Wtime();
-                    vfv->ReconstructionJacobiStep<dim, nVars_Fixed>(cx, uRec, uRecNew);
+                    vfv->ReconstructionJacobiStep<dim, nVars_Fixed>(
+                        cx, uRec, uRecNew,
+                        [&](TU &UL, const TVec &normOut, const TVec &pPhy, const BoundaryType bType) -> TU
+                        {
+                            auto normBase = Elem::NormBuildLocalBaseV(normOut);
+                            return eval.generateBoundaryValue(UL, normOut, normBase, pPhy, tSimu + ct * curDtImplicit, bType, true);
+                        });
                     trec += MPI_Wtime() - tstartA;
 
                     uRec.StartPersistentPullClean();
@@ -764,9 +770,9 @@ namespace DNDS
                 double tstartE = MPI_Wtime();
                 eval.setPassiveDiscardSource(iter <= 0);
                 if (config.useLimiter)
-                    eval.EvaluateRHS(crhs, cx, uRecNew, tsimu + ct * curDtImplicit);
+                    eval.EvaluateRHS(crhs, cx, uRecNew, tSimu + ct * curDtImplicit);
                 else
-                    eval.EvaluateRHS(crhs, cx, uRec, tsimu + ct * curDtImplicit);
+                    eval.EvaluateRHS(crhs, cx, uRec, tSimu + ct * curDtImplicit);
                 if (getNVars(model) > (I4 + 1) && iter <= config.nFreezePassiveInner)
                 {
                     for (int i = 0; i < crhs.size(); i++)
@@ -799,7 +805,7 @@ namespace DNDS
 
                 if (config.jacobianTypeCode != 0)
                 {
-                    eval.LUSGSADMatrixInit(dTau, dt, alphaDiag, cx, config.jacobianTypeCode, tsimu);
+                    eval.LUSGSADMatrixInit(dTau, dt, alphaDiag, cx, config.jacobianTypeCode, tSimu);
                 }
                 else
                 {
@@ -807,12 +813,12 @@ namespace DNDS
                         eval.LUSGSMatrixInit(dTau, dt, alphaDiag,
                                              cx, uRecNew,
                                              config.jacobianTypeCode,
-                                             tsimu);
+                                             tSimu);
                     else
                         eval.LUSGSMatrixInit(dTau, dt, alphaDiag,
                                              cx, uRec,
                                              config.jacobianTypeCode,
-                                             tsimu);
+                                             tSimu);
                 }
                 for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
                 {
@@ -946,7 +952,7 @@ namespace DNDS
                               << "\t Internal === Step [" << iStep << ", " << iter << "]   "
                               << "res \033[91m[" << resRel.transpose() << "]\033[39m   "
                               << "t,dTaumin,CFL,nFix \033[92m["
-                              << tsimu << ", " << curDtMin << ", " << CFLNow << ", " << eval.nFaceReducedOrder << "]\033[39m   "
+                              << tSimu << ", " << curDtMin << ", " << CFLNow << ", " << eval.nFaceReducedOrder << "]\033[39m   "
                               << std::setprecision(3) << std::fixed
                               << "Time [" << telapsed << "]   recTime ["
                               << trec << "]   rhsTime ["
@@ -971,7 +977,7 @@ namespace DNDS
                             << std::left
                             << std::setprecision(9) << std::scientific
                             << res.transpose() << delimC
-                            << tsimu << delimC
+                            << tSimu << delimC
                             << curDtMin << delimC
                             << real(eval.nFaceReducedOrder) << delimC
                             << eval.fluxWallSum.transpose() << std::endl;
@@ -1009,9 +1015,9 @@ namespace DNDS
             // and finally decides if break time loop
             auto fmainloop = [&]() -> bool
             {
-                tsimu += curDtImplicit;
+                tSimu += curDtImplicit;
                 if (ifOutT)
-                    tsimu = nextTout;
+                    tSimu = nextTout;
                 Eigen::Vector<real, -1> res(nVars);
                 eval.EvaluateResidual(res, ode->getLatestRHS(), 1, config.useVolWiseResidual);
                 if (stepCount == 0 && resBaseC.norm() == 0)
@@ -1027,7 +1033,7 @@ namespace DNDS
                         log() << std::setprecision(3) << std::scientific
                               << "=== Step [" << step << "]   "
                               << "res \033[91m[" << (res.array() / resBaseC.array()).transpose() << "]\033[39m   "
-                              << "t,dt(min) \033[92m[" << tsimu << ", " << curDtMin << "]\033[39m   "
+                              << "t,dt(min) \033[92m[" << tSimu << ", " << curDtMin << "]\033[39m   "
                               << std::setprecision(3) << std::fixed
                               << "Time [" << telapsed << "]   recTime [" << trec << "]   rhsTime [" << trhs << "]   commTime [" << tcomm << "]  limTime [" << tLim << "]  " << std::endl;
                         log().setf(fmt);
@@ -1040,7 +1046,7 @@ namespace DNDS
                             << std::left
                             << std::setprecision(9) << std::scientific
                             << res.transpose() << delimC
-                            << tsimu << delimC
+                            << tSimu << delimC
                             << curDtMin << delimC
                             << eval.fluxWallSum.transpose() << std::endl;
                     }
@@ -1070,9 +1076,9 @@ namespace DNDS
                 }
                 if (config.eulerSetting.specialBuiltinInitializer == 2 && (step % config.nConsoleCheck == 0)) // IV problem special: reduction on solution
                 {
-                    real xymin = 5 + tsimu - 2;
-                    real xymax = 5 + tsimu + 2;
-                    real xyc = 5 + tsimu;
+                    real xymin = 5 + tSimu - 2;
+                    real xymax = 5 + tSimu + 2;
+                    real xyc = 5 + tSimu;
                     real sumErrRho = 0.0;
                     real sumErrRhoSum = 0.0 / 0.0;
                     real sumVol = 0.0;
@@ -1137,7 +1143,7 @@ namespace DNDS
 
                 stepCount++;
 
-                return tsimu >= config.tEnd;
+                return tSimu >= config.tEnd;
             };
 
             /**********************************/
@@ -1149,10 +1155,10 @@ namespace DNDS
                 InsertCheck(mpi, "Implicit Step");
                 ifOutT = false;
                 curDtImplicit = config.dtImplicit; //* could add CFL driven dt here
-                if (tsimu + curDtImplicit > nextTout)
+                if (tSimu + curDtImplicit > nextTout)
                 {
                     ifOutT = true;
-                    curDtImplicit = (nextTout - tsimu);
+                    curDtImplicit = (nextTout - tSimu);
                 }
                 CFLNow = config.CFL;
                 ode->Step(

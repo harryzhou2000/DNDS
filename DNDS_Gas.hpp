@@ -469,7 +469,11 @@ namespace DNDS
                 /**
                  * Nico Fleischmann, Stefan Adami, Xiangyu Y. Hu, Nikolaus A. Adams, A low dissipation method to cure the grid-aligned shock instability, 2020
                  */
+#ifdef USE_SIGN_MINUS_AT_ROE_M4_FLUX
+                real uStar = signM(veloRoe(0)) * std::max(aRoe * scaleLD, std::abs(veloRoe(0)));
+#else
                 real uStar = sign(veloRoe(0)) * std::max(aRoe * scaleLD, std::abs(veloRoe(0))); //! why signM here?
+#endif
                 lam0 = std::abs(uStar - aRoe);
                 lam123 = std::abs(uStar);
                 lam4 = std::abs(uStar + aRoe);
@@ -559,41 +563,43 @@ namespace DNDS
 
             F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = (FL + FR) * 0.5 - 0.5 * incF;
 
-            struct t_getRoeFlux{
-                bool operator()(
-                int NCV, Eigen::Vector<real, 4> &flux,
-                real rL, real uL, real vL, real preL, real HL, real rNuHatL,
-                real rR, real uR, real vR, real preR, real HR, real rNuHatR,
-                real eig1, real eig2, real eig3, real eigSA1, real eigSA2, real eigSA3, real gamma,
-                real rTilde, real uTilde, real vTilde, real aSoundTile, real HTilde,
-                real uNVx, real uNVy, real EPS)
+            struct t_getRoeFlux
             {
-                struct tunv
+                bool operator()(
+                    int NCV, Eigen::Vector<real, 4> &flux,
+                    real rL, real uL, real vL, real preL, real HL, real rNuHatL,
+                    real rR, real uR, real vR, real preR, real HR, real rNuHatR,
+                    real eig1, real eig2, real eig3, real eigSA1, real eigSA2, real eigSA3, real gamma,
+                    real rTilde, real uTilde, real vTilde, real aSoundTile, real HTilde,
+                    real uNVx, real uNVy, real EPS)
                 {
-                    real x, y;
-                } uNV{uNVx, uNVy};
-                real dun = uNV.x * (uR - uL) + uNV.y * (vR - vL);
-                real unL = uNV.x * uL + uNV.y * vL;
-                real unR = uNV.x * uR + uNV.y * vR;
-                real runL = rL * unL;
-                real runR = rR * unR;
-                real unTilde = uNV.x * uTilde + uNV.y * vTilde;
+                    struct tunv
+                    {
+                        real x, y;
+                    } uNV{uNVx, uNVy};
+                    real dun = uNV.x * (uR - uL) + uNV.y * (vR - vL);
+                    real unL = uNV.x * uL + uNV.y * vL;
+                    real unR = uNV.x * uR + uNV.y * vR;
+                    real runL = rL * unL;
+                    real runR = rR * unR;
+                    real unTilde = uNV.x * uTilde + uNV.y * vTilde;
 
-                real alpha1 = eig1 * (rR - rL - (preR - preL) / aSoundTile / aSoundTile);
-                real alpha2 = 0.5 * eig2 * (preR - preL + rTilde * aSoundTile * dun) / aSoundTile / aSoundTile;
-                real alpha3 = 0.5 * eig3 * (preR - preL - rTilde * aSoundTile * dun) / aSoundTile / aSoundTile;
-                real alpha4 = alpha1 + alpha2 + alpha3;
-                real alpha5 = aSoundTile * (alpha2 - alpha3);
-                real alpha6 = eig1 * rTilde * (uR - uL - uNV.x * dun);
-                real alpha7 = eig1 * rTilde * (vR - vL - uNV.y * dun);
-                // length should be considered
-                flux[0] = 0.5 * ((runL + runR) - alpha4);
-                flux[1] = 0.5 * ((runL * uL + runR * uR + uNV.x * (preL + preR)) - uTilde * alpha4 - uNV.x * alpha5 - alpha6);
-                flux[2] = 0.5 * ((runL * vL + runR * vR + uNV.y * (preL + preR)) - vTilde * alpha4 - uNV.y * alpha5 - alpha7);
-                flux[3] = 0.5 * ((runL * HL + runR * HR) - HTilde * alpha4 - unTilde * alpha5 - uTilde * alpha6 - vTilde * alpha7 + aSoundTile * aSoundTile * alpha1 / (gamma - 1));
+                    real alpha1 = eig1 * (rR - rL - (preR - preL) / aSoundTile / aSoundTile);
+                    real alpha2 = 0.5 * eig2 * (preR - preL + rTilde * aSoundTile * dun) / aSoundTile / aSoundTile;
+                    real alpha3 = 0.5 * eig3 * (preR - preL - rTilde * aSoundTile * dun) / aSoundTile / aSoundTile;
+                    real alpha4 = alpha1 + alpha2 + alpha3;
+                    real alpha5 = aSoundTile * (alpha2 - alpha3);
+                    real alpha6 = eig1 * rTilde * (uR - uL - uNV.x * dun);
+                    real alpha7 = eig1 * rTilde * (vR - vL - uNV.y * dun);
+                    // length should be considered
+                    flux[0] = 0.5 * ((runL + runR) - alpha4);
+                    flux[1] = 0.5 * ((runL * uL + runR * uR + uNV.x * (preL + preR)) - uTilde * alpha4 - uNV.x * alpha5 - alpha6);
+                    flux[2] = 0.5 * ((runL * vL + runR * vR + uNV.y * (preL + preR)) - vTilde * alpha4 - uNV.y * alpha5 - alpha7);
+                    flux[3] = 0.5 * ((runL * HL + runR * HR) - HTilde * alpha4 - unTilde * alpha5 - uTilde * alpha6 - vTilde * alpha7 + aSoundTile * aSoundTile * alpha1 / (gamma - 1));
 
-                return true;
-            }} getRoeFlux;
+                    return true;
+                }
+            } getRoeFlux;
 
             // Eigen::Vector<real, 4> fluxH;
             // getRoeFlux(-1, fluxH,
@@ -607,8 +613,6 @@ namespace DNDS
             // F(2) = fluxH(2);
             // F(4) = fluxH(3);
         }
-
-        
 
         template <typename TUL, typename TUR, typename TF, typename TdFdU, typename TFdumpInfo>
         void RoeFlux_IdealGas_HartenYee_AutoDiff(const TUL &UL, const TUR &UR, real gamma, TF &F,

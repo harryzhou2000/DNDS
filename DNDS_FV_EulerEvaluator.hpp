@@ -310,7 +310,7 @@ namespace DNDS
                 }
                 for (int ig = 0; ig < eCell.getNInt(); ig++)
                 {
-                    dWall[iCell][ig] = distSum / distSumDiv;
+                    // dWall[iCell][ig] = distSum / distSumDiv;
                 }
                 if (NSampleLine == 2) // using O1 grid geom
                 {
@@ -406,8 +406,8 @@ namespace DNDS
             {
                 real cnu1 = 7.1;
                 real Chi = UMeanXy(I4 + 1) * muRef / mufPhy;
-                // if (Chi < 10) //*negative fix
-                //     Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
+                if (Chi < 10) //*negative fix
+                    Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
                 real Chi3 = std::pow(Chi, 3);
                 fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
                 muf *= (1 + Chi * fnu1);
@@ -425,7 +425,7 @@ namespace DNDS
                 k,
                 settings.idealGasProperty.CpGas,
                 VisFlux);
-            
+
             // if (mesh->face2cellLocal[iFace][0] == 10756)
             // {
             //     std::cout << "Face " << iFace << " " << mesh->face2cellLocal[iFace][1] << std::endl;
@@ -452,7 +452,6 @@ namespace DNDS
             if constexpr (model == NS_SA)
             {
                 real sigma = 2. / 3.;
-                real lambdaFaceC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) + UR(1)) * 0.5;
                 Eigen::Matrix<real, dim, 1> diffRhoNu = DiffUxy(Seq012, {I4 + 1}) * muRef;
                 Eigen::Matrix<real, dim, 1> diffRho = DiffUxy(Seq012, {0});
                 Eigen::Matrix<real, dim, 1> diffNu = (diffRhoNu - UMeanXy(I4 + 1) * muRef / UMeanXy(0) * diffRho) / UMeanXy(0);
@@ -537,10 +536,13 @@ namespace DNDS
                     exitFun, lam0, lam123, lam4);
             else
                 assert(false);
-            // std::cout << "HERE2" << std::endl;
+                // std::cout << "HERE2" << std::endl;
 
-            // lam123 = std::abs(UL(1) / UL(0)) + std::abs(UR(1) / UR(0)) * 0.5; //!high fix
-            lam123 = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5; //!low fix
+#ifndef USE_ENTROPY_FIXED_LAMBDA_IN_SA
+            lam123 = (std::abs(UL(1) / UL(0)) + std::abs(UR(1) / UR(0))) * 0.5; //! high fix
+                                                                                // lam123 = std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5; //! low fix
+#endif
+
             if constexpr (model == NS_SA)
             {
                 // real lambdaFaceCC = sqrt(std::abs(asqrMean)) + std::abs(UL(1) / UL(0) + UR(1) / UR(0)) * 0.5;
@@ -626,7 +628,7 @@ namespace DNDS
                                (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
                                (T + settings.idealGasProperty.CSutherland);
 
-                real Chi = std::abs(UMeanXy(I4 + 1) * muRef / mufPhy);
+                real Chi = (UMeanXy(I4 + 1) * muRef / mufPhy);
                 real fnu1 = std::pow(Chi, 3) / (std::pow(Chi, 3) + std::pow(cnu1, 3));
                 real fnu2 = 1 - Chi / (1 + Chi * fnu1);
 
@@ -642,8 +644,8 @@ namespace DNDS
                 real Sbar = nuh / (sqr(kappa) * sqr(d)) * fnu2;
 
                 real Sh;
-                // if (Sbar < -cnu2 * S)
-                //     Sh = S + S * (sqr(cnu2) * S + cnu3 * Sbar) / ((cnu3 - 2 * cnu2) * S - Sbar);
+                if (Sbar < -cnu2 * S)
+                    Sh = S + S * (sqr(cnu2) * S + cnu3 * Sbar) / ((cnu3 - 2 * cnu2) * S - Sbar);
                 // else //*negative fix
                 Sh = S + Sbar;
 
@@ -751,7 +753,7 @@ namespace DNDS
                                (settings.idealGasProperty.TRef + settings.idealGasProperty.CSutherland) /
                                (T + settings.idealGasProperty.CSutherland);
 
-                real Chi = std::abs(UMeanXy(I4 + 1) * muRef / mufPhy);
+                real Chi = (UMeanXy(I4 + 1) * muRef / mufPhy);
                 real fnu1 = std::pow(Chi, 3) / (std::pow(Chi, 3) + std::pow(cnu1, 3));
                 real fnu2 = 1 - Chi / (1 + Chi * fnu1);
 
@@ -1108,8 +1110,10 @@ namespace DNDS
                 if (model == NS_SA)
                 {
                     URxy(I4 + 1) *= -1;
-                    if(fixUL)
+#ifdef USE_FIX_ZERO_SA_NUT_AT_WALL
+                    if (fixUL)
                         ULxy(I4 + 1) = URxy(I4 + 1) = 0; //! modifing UL
+#endif
                 }
             }
             else if (btype == BoundaryType::Wall)
@@ -1160,14 +1164,49 @@ namespace DNDS
             // ret(4) = e + Ek;
             // // * Compress Method
 
+            // TU ret = umean + uRecInc;
+            // real eK = ret(Seq123).squaredNorm() * 0.5 / (verySmallReal + std::abs(ret(0)));
+            // real e = ret(I4) - eK;
+            // if (e <= 0 || ret(0) <= 0)
+            //     ret = umean, compressed = true;
+            // if constexpr (model == NS_SA)
+            //     if (ret(I4 + 1) < 0)
+            //         ret = umean, compressed = true;
+
+            bool rhoFixed = false;
+            bool eFixed = false;
             TU ret = umean + uRecInc;
-            real eK = ret(Seq123).squaredNorm() * 0.5 / (verySmallReal + std::abs(ret(0)));
+            // do rho fix
+            if (ret(0) < 0)
+            {
+                // rhoFixed = true;
+                // TVec veloOld = umean(Seq123) / umean(0);
+                // real eOld = umean(I4) - 0.5 * veloOld.squaredNorm() * umean(0);
+                // ret(0) = umean(0) * std::exp(uRecInc(0) / (umean(0) + verySmallReal));
+                // ret(Seq123) = veloOld * ret(0);
+                // ret(I4) = eOld + 0.5 * veloOld.squaredNorm() * ret(0);
+
+                ret  = umean;
+                compressed = true;
+            }
+
+            real eK = ret(Seq123).squaredNorm() * 0.5 / (verySmallReal + ret(0));
             real e = ret(I4) - eK;
-            if (e <= 0 || ret(0) <= 0)
-                ret = umean, compressed = true;
-            if constexpr (model == NS_SA)
-                if (ret(I4 + 1) < 0)
-                    ret = umean, compressed = true;
+            if (e < 0)
+            {
+                // eFixed = true;
+                // real eOld = umean(I4) - eK;
+                // real eNew = eOld * std::exp(eOld / (umean(I4) - eK));
+                // ret(I4) = eNew + eK;
+
+                ret = umean;
+
+                compressed = true;
+            }
+
+            // if constexpr (model == NS_SA)
+            //     if (ret(I4 + 1) < 0)
+            //         ret = umean, compressed = true;
 
             return ret;
         }

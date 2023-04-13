@@ -118,14 +118,14 @@ namespace DNDS
             lambdaFaceC[iFace] = std::abs(veloNMean) + lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR); // passive part
             lambdaFaceVis[iFace] = lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
 
-            // if (iFace == 16404)
-            // {
-            //     std::cout << "Lambdas" << std::setprecision(10) << iFace << std::endl;
-            //     std::cout << lambdaConvection << std::endl;
-            //     std::cout << lambdaFaceVis[iFace] << std::endl;
-            //     std::cout << veloNMean << " " << aMean << std::endl;
-            //     std::cout << gamma << " "  << pMean <<" " << uMean(0) << std::endl;
-            // }
+            if (f2c[0] == 10756)
+            {
+                std::cout << "----Lambdas" << std::setprecision(16) << iFace << std::endl;
+                std::cout << lambdaConvection << std::endl;
+                std::cout << lambdaFaceVis[iFace] << std::endl;
+                std::cout << veloNMean << " " << aMean << std::endl;
+                std::cout << gamma << " " << pMean << " " << uMean(0) << std::endl;
+            }
 
             lambdaCell[iCellL] += lambdaFace[iFace] * fv->faceArea[iFace];
             if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
@@ -140,6 +140,11 @@ namespace DNDS
             // exit(0);
             dt[iCell] = std::min(CFL * fv->volumeLocal[iCell] / (lambdaCell[iCell] + 1e-100), MaxDt);
             dtMin = std::min(dtMin, dt[iCell]);
+            if (iCell == 10756)
+            {
+                std::cout << "dt " << std::setprecision(16) << dt[iCell] << " " << settings.nTimeFilterPass;
+                std::cout << std::endl;
+            }
         }
 
         MPI_Allreduce(&dtMin, &dtMinall, 1, DNDS_MPI_REAL, MPI_MIN, u.dist->getMPI().comm);
@@ -211,7 +216,12 @@ namespace DNDS
             auto &faceAtr = mesh->faceAtrLocal[iFace][0];
             auto f2c = mesh->face2cellLocal[iFace];
             Elem::ElementManager eFace(faceAtr.type, faceRecAtr.intScheme);
+#ifdef USE_FLUX_BALANCE_TERM
             Eigen::Matrix<real, nVars_Fixed, 3, Eigen::ColMajor> fluxEs(cnvars, 3);
+#else
+            Eigen::Matrix<real, nVars_Fixed, 1, Eigen::ColMajor> fluxEs(cnvars, 1);
+#endif
+
             fluxEs.setZero();
             auto faceDiBjGaussBatchElemVR = (*vfv->faceDiBjGaussBatch)[iFace];
 
@@ -222,25 +232,32 @@ namespace DNDS
             Elem::SummationNoOp noOp;
             bool faceOrderReducedL = false;
             bool faceOrderReducedR = false;
-            // eFace.Integration(
-            //     noOp,
-            //     [&](decltype(noOp) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
-            //     {
-            //         if (!faceOrderReduced)
-            //         {
-            //             TU ULxy =
-            //                 faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
-            //                 uRec[f2c[0]] * IF_NOT_NOREC;
-            //             ULxy = CompressRecPart(u[f2c[0]], ULxy, faceOrderReduced);
-            //             if (f2c[1] != FACE_2_VOL_EMPTY)
-            //             {
-            //                 TU URxy =
-            //                     faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
-            //                     uRec[f2c[1]] * IF_NOT_NOREC;
-            //                 URxy = CompressRecPart(u[f2c[1]], URxy, faceOrderReduced);
-            //             }
-            //         }
-            //     });
+
+#ifdef USE_TOTAL_REDUCED_ORDER_CELL
+            eFace.Integration(
+                noOp,
+                [&](decltype(noOp) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+                {
+                    if (!faceOrderReducedL)
+                    {
+                        TU ULxy =
+                            faceDiBjGaussBatchElemVR.m(ig * 2 + 0).row(0).rightCols(uRec[f2c[0]].rows()) *
+                            uRec[f2c[0]] * IF_NOT_NOREC;
+                        ULxy = CompressRecPart(u[f2c[0]], ULxy, faceOrderReducedL);
+                    }
+                    
+                    if (f2c[1] != FACE_2_VOL_EMPTY)
+                    {
+                        if (!faceOrderReducedR)
+                        {
+                            TU URxy =
+                                faceDiBjGaussBatchElemVR.m(ig * 2 + 1).row(0).rightCols(uRec[f2c[1]].rows()) *
+                                uRec[f2c[1]] * IF_NOT_NOREC;
+                            URxy = CompressRecPart(u[f2c[1]], URxy, faceOrderReducedR);
+                        }
+                    }
+                });
+#endif
 
             eFace.Integration(
                 fluxEs,
@@ -342,7 +359,7 @@ namespace DNDS
                             normBase,
                             vfv->faceCenters[iFace](Seq012),
                             t,
-                            BoundaryType(faceAtr.iPhy), false);
+                            BoundaryType(faceAtr.iPhy), true);
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
                         GradURxy = GradULxy;
 #endif
@@ -359,11 +376,13 @@ namespace DNDS
                     // UL = ULxy;
                     // UR({1, 2, 3}) = normBase.transpose() * UR({1, 2, 3});
                     // UL({1, 2, 3}) = normBase.transpose() * UL({1, 2, 3});
-
-                    real distGRP = minVol / fv->faceArea[iFace] * 2 +
-                                   (faceAtr.iPhy == BoundaryType::Wall_Euler || faceAtr.iPhy == BoundaryType::Wall_NoSlip
-                                        ? 0.0 // veryLargeReal
-                                        : 0.0);
+                    real distGRP = minVol / fv->faceArea[iFace] * 2;
+#ifdef USE_DISABLE_DIST_GRP_FIX_AT_WALL
+                    distGRP +=
+                        (faceAtr.iPhy == BoundaryType::Wall_Euler || faceAtr.iPhy == BoundaryType::Wall_NoSlip
+                             ? veryLargeReal
+                             : 0.0);
+#endif
                     // real distGRP = (vfv->cellBaries[f2c[0]] -
                     //                 (f2c[1] != FACE_2_VOL_EMPTY
                     //                      ? vfv->cellBaries[f2c[1]]
@@ -371,6 +390,7 @@ namespace DNDS
                     //                    .norm();
                     // InsertCheck(u.dist->getMPI(), "RHS inner 1");
                     TU UMeanXy = 0.5 * (ULxy + URxy);
+
 #ifndef DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
                     TDiffU GradUMeanXy = (GradURxy + GradULxy) * 0.5 +
                                          (1.0 / distGRP) *
@@ -445,10 +465,17 @@ namespace DNDS
                     //     std::cout << lambdaFace[iFace] << std::endl;
                     //     exit(-1);
                     // }
+                    if (f2c[0] == 10756)
+                    {
+                        std::cout << "RLR " << ULxy.transpose() << " " << URxy.transpose() << " " << std::endl;
+                        std::cout << "RO " << pointOrderReducedL << " " << pointOrderReducedR << std::endl;
+                    }
 
                     finc(Eigen::all, 0) = fincC;
+#ifdef USE_FLUX_BALANCE_TERM
                     finc(Eigen::all, 1) = FLFix;
                     finc(Eigen::all, 2) = FRFix;
+#endif
 
                     finc *= vfv->faceNorms[iFace][ig].norm(); // don't forget this
 
@@ -456,15 +483,28 @@ namespace DNDS
                         nFaceReducedOrder++, faceOrderReducedL = false;
                     if (pointOrderReducedR)
                         nFaceReducedOrder++, faceOrderReducedR = false;
+                    if (faceOrderReducedL)
+                        nFaceReducedOrder++;
+                    if (faceOrderReducedR)
+                        nFaceReducedOrder++;
+
                 });
+
+            if (f2c[0] == 10756)
+            {
+                std::cout << std::setprecision(16)
+                          << fluxEs(Eigen::all, 0).transpose() << std::endl;
+                // exit(-1);
+            }
 
             rhs[f2c[0]] += fluxEs(Eigen::all, 0) / fv->volumeLocal[f2c[0]];
             if (f2c[1] != FACE_2_VOL_EMPTY)
                 rhs[f2c[1]] -= fluxEs(Eigen::all, 0) / fv->volumeLocal[f2c[1]];
-
+#ifdef USE_FLUX_BALANCE_TERM
             rhs[f2c[0]] -= fluxEs(Eigen::all, 1) / fv->volumeLocal[f2c[0]];
             if (f2c[1] != FACE_2_VOL_EMPTY)
                 rhs[f2c[1]] += fluxEs(Eigen::all, 2) / fv->volumeLocal[f2c[1]];
+#endif
 
             if (faceAtr.iPhy == BoundaryType::Wall_NoSlip || faceAtr.iPhy == BoundaryType::Wall_Euler)
             {
@@ -492,18 +532,21 @@ namespace DNDS
 
             Elem::SummationNoOp noOp;
             bool cellOrderReduced = false;
-            // eCell.Integration(
-            //     noOp,
-            //     [&](decltype(noOp) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
-            //     {
-            //         if (!cellOrderReduced)
-            //         {
-            //             TU ULxy =
-            //                 cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
-            //                 uRec[iCell] * IF_NOT_NOREC;
-            //             ULxy = CompressRecPart(u[iCell], ULxy, cellOrderReduced);
-            //         }
-            //     });
+
+#ifdef USE_TOTAL_REDUCED_ORDER_CELL
+            eCell.Integration(
+                noOp,
+                [&](decltype(noOp) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+                {
+                    if (!cellOrderReduced)
+                    {
+                        TU ULxy =
+                            cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+                            uRec[iCell] * IF_NOT_NOREC;
+                        ULxy = CompressRecPart(u[iCell], ULxy, cellOrderReduced);
+                    }
+                });
+#endif
 
             eCell.Integration(
                 sourceV,
@@ -968,7 +1011,7 @@ namespace DNDS
 #endif
 
             // LUSGS diag part
-            real fpDivisor = 1.0 / dTau[iCell] + 1.0 / dt;
+            real fpDivisor = 1.0 / dTau[iCell] + 1.0 / dt; //!! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
                 index iFace = c2f[ic2f];
@@ -1179,6 +1222,11 @@ namespace DNDS
                                       << uINCj.transpose() << std::endl;
                             assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
                         }
+                        if (iCell == 10756)
+                        {
+                            std::cout << std::setprecision(16) << "??? dUother " << (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] * fInc.transpose()
+                                      << std::endl;
+                        }
                     }
                 }
             }
@@ -1217,6 +1265,9 @@ namespace DNDS
             //     assert(false);
             // uIncNewI(0) = 0;
             // u[iCell](0) = 1 + iCell * 1e-8;
+
+            if (iCell == 20636 || iCell == 10756)
+                std::cout << std::setprecision(16) << "??? " << uIncNewI(0) << " RHS " << RHSI(0) << " dF " << uIncNewBuf(0) - RHSI(0) << " IJ " << jacobianCellInv[iCell](0, 0) << std::endl;
         }
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
         // exit(-1);
@@ -1291,6 +1342,8 @@ namespace DNDS
 #else
             uIncNewI += jacobianCellInv_Scalar[iCell] * uIncNewBuf; // backward
 #endif
+            if (iCell == 20636 || iCell == 10756)
+                std::cout << std::setprecision(16) << "!!! " << uIncNewI(0) << std::endl;
             // std::cout << "BackWard " << iCell << "-- " << uIncNewI(0) << std::endl;
 
             // fix rho increment

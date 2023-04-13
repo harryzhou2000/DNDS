@@ -733,7 +733,9 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 (*faceWeights)[iFace].setConstant(0.0);
                 (*faceWeights)[iFace][0] = setting.wallWeight;
                 delta = pFace - cellBaries[f2c[0]];
-                // delta = faceNormCenter[iFace].normalized() * faceNormCenter[iFace].normalized().dot(delta);
+#ifdef USE_FIRST_ORDER_VISCOUS_WALL_DELTA_IN_VR_WEIGHT
+                delta = faceNormCenter[iFace].normalized() * faceNormCenter[iFace].normalized().dot(delta);
+#endif
                 delta *= 1.0;
             }
             else
@@ -1076,14 +1078,15 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 }
             }
             vectorBatchElem.m(0) = vectorBatchElem.m(0) * Ainv.transpose(); // must be outside the loop as it operates all rows at once
-            // if (iCell == 10756)
-            // {
-            //     std::cout << cellBaries[iCell].transpose() << std::endl << std::setprecision(10);
-            //     std::cout << "A\n"
-            //               << A << std::endl;
-            //     std::cout << "Ai\n"
-            //               << matrixBatchElem.m(0) << std::endl;
-            // }
+            if (iCell == 10756)
+            {
+                std::cout << cellBaries[iCell].transpose() << std::endl
+                          << std::setprecision(16);
+                std::cout << "A\n"
+                          << A << std::endl;
+                std::cout << "Ai\n"
+                          << matrixBatchElem.m(0) << std::endl;
+            }
             // if (iCell == 1)
             //     assert(false);
         });

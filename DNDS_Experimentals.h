@@ -7,6 +7,27 @@
 // #define USE_LOCAL_COORD_CURVILINEAR
 // #define PRINT_EVERY_VR_JACOBI_ITER_INCREMENT
 
+
+#define USE_FLUX_BALANCE_TERM
+
+#define USE_ENTROPY_FIXED_LAMBDA_IN_SA
+
+#define USE_FIX_ZERO_SA_NUT_AT_WALL
+
+// #define USE_TOTAL_REDUCED_ORDER_CELL
+
+#define USE_DISABLE_DIST_GRP_FIX_AT_WALL
+
+// #define USE_SIGN_MINUS_AT_ROE_M4_FLUX
+
+// #define USE_FIRST_ORDER_VISCOUS_WALL_DELTA_IN_VR_WEIGHT
+
+
+
+/*-------------------------------------------------------------------------------------------------*/
+/*-------------------------------------------------------------------------------------------------*/
+/*-------------------------------------------------------------------------------------------------*/
+
 static const std::string DNDS_Experimentals_State = std::string("DNDS_Experimentals ")
 #ifdef USE_NORM_FUNCTIONAL
                                                     + " USE_NORM_FUNCTIONAL "
@@ -16,5 +37,26 @@ static const std::string DNDS_Experimentals_State = std::string("DNDS_Experiment
 #endif
 #ifdef PRINT_EVERY_VR_JACOBI_ITER_INCREMENT
                                                     + " PRINT_EVERY_VR_JACOBI_ITER_INCREMENT "
+#endif
+#ifdef USE_FLUX_BALANCE_TERM
+                                                    + " USE_FLUX_BALANCE_TERM "
+#endif
+#ifdef USE_ENTROPY_FIXED_LAMBDA_IN_SA
+                                                    + " USE_ENTROPY_FIXED_LAMBDA_IN_SA "
+#endif
+#ifdef USE_FIX_ZERO_SA_NUT_AT_WALL
+                                                    + " USE_FIX_ZERO_SA_NUT_AT_WALL "
+#endif
+#ifdef USE_TOTAL_REDUCED_ORDER_CELL
+                                                    + " USE_TOTAL_REDUCED_ORDER_CELL "
+#endif
+#ifdef USE_DISABLE_DIST_GRP_FIX_AT_WALL
+                                                    + " USE_DISABLE_DIST_GRP_FIX_AT_WALL "
+#endif
+#ifdef USE_SIGN_MINUS_AT_ROE_M4_FLUX
+                                                    + " USE_SIGN_MINUS_AT_ROE_M4_FLUX "
+#endif
+#ifdef USE_FIRST_ORDER_VISCOUS_WALL_DELTA_IN_VR_WEIGHT
+                                                    + " USE_FIRST_ORDER_VISCOUS_WALL_DELTA_IN_VR_WEIGHT "
 #endif
     ;
