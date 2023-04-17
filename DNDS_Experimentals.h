@@ -20,9 +20,13 @@
 
 // #define USE_SIGN_MINUS_AT_ROE_M4_FLUX
 
-// #define USE_FIRST_ORDER_VISCOUS_WALL_DELTA_IN_VR_WEIGHT
+#define USE_FIRST_ORDER_VISCOUS_WALL_DELTA_IN_VR_WEIGHT
 
+#define USE_FIRST_ORDER_WALL_DIST
 
+#define USE_NS_SA_NEGATIVE_MODEL
+
+// #define USE_NS_SA_NUT_REDUCED_ORDER
 
 /*-------------------------------------------------------------------------------------------------*/
 /*-------------------------------------------------------------------------------------------------*/
@@ -58,5 +62,14 @@ static const std::string DNDS_Experimentals_State = std::string("DNDS_Experiment
 #endif
 #ifdef USE_FIRST_ORDER_VISCOUS_WALL_DELTA_IN_VR_WEIGHT
                                                     + " USE_FIRST_ORDER_VISCOUS_WALL_DELTA_IN_VR_WEIGHT "
+#endif
+#ifdef USE_FIRST_ORDER_WALL_DIST
+                                                    + " USE_FIRST_ORDER_WALL_DIST "
+#endif
+#ifdef USE_NS_SA_NEGATIVE_MODEL
+                                                    + " USE_NS_SA_NEGATIVE_MODEL "
+#endif
+#ifdef USE_NS_SA_NUT_REDUCED_ORDER
+                                                    + " USE_NS_SA_NUT_REDUCED_ORDER "
 #endif
     ;

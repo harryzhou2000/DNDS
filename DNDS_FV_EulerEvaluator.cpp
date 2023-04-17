@@ -89,11 +89,13 @@ namespace DNDS
             {
                 real cnu1 = 7.1;
                 real Chi = uMean(I4 + 1) * muRef / muf;
+#ifdef USE_NS_SA_NEGATIVE_MODEL
                 if (Chi < 10)
                     Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
+#endif
                 real Chi3 = std::pow(Chi, 3);
                 real fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
-                muf *= (1 + Chi * fnu1);
+                muf *= std::max((1 + Chi * fnu1), 1.0);
             }
             real lamVis = muf / uMean(0) *
                           std::max(4. / 3., gamma / settings.idealGasProperty.prGas);
@@ -245,7 +247,7 @@ namespace DNDS
                             uRec[f2c[0]] * IF_NOT_NOREC;
                         ULxy = CompressRecPart(u[f2c[0]], ULxy, faceOrderReducedL);
                     }
-                    
+
                     if (f2c[1] != FACE_2_VOL_EMPTY)
                     {
                         if (!faceOrderReducedR)
@@ -487,7 +489,6 @@ namespace DNDS
                         nFaceReducedOrder++;
                     if (faceOrderReducedR)
                         nFaceReducedOrder++;
-
                 });
 
             if (f2c[0] == 10756)

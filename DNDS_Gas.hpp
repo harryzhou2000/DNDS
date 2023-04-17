@@ -477,6 +477,15 @@ namespace DNDS
                 lam0 = std::abs(uStar - aRoe);
                 lam123 = std::abs(uStar);
                 lam4 = std::abs(uStar + aRoe);
+
+                // real thresholdHartenYee = std::max(scaleLD * (std::sqrt(vsqrRoe) + aRoe), 0);
+                // real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
+                // if (lam0 < thresholdHartenYee)
+                //     lam0 = (sqr(lam0) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+                // if (lam4 < thresholdHartenYee)
+                //     lam4 = (sqr(lam4) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+                // if (lam123 < thresholdHartenYee)
+                //     lam123 = (sqr(lam123) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
             }
             else if constexpr (eigScheme == 5)
             {

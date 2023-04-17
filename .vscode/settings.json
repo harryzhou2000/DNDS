@@ -6,6 +6,7 @@
         "dfix",
         "DNDS",
         "dsqr",
+        "Experimentals",
         "HLLC",
         "HLLEP",
         "NDOF",
@@ -14,6 +15,7 @@
         "rapidjson",
         "rhsbuf",
         "rowsize",
+        "simu",
         "SSPRK",
         "velo",
         "WBAP"
@@ -22,6 +24,7 @@
         "*.cu": "cpp",
         "*.f90": "FortranFreeForm",
         "*.hypara": "csharp",
+        "*config*.json": "jsonc",
         "ostream": "cpp",
         "array": "cpp",
         "atomic": "cpp",
@@ -113,6 +116,13 @@
         "shared_mutex": "cpp",
         "cfenv": "cpp",
         "typeindex": "cpp",
-        "variant": "cpp"
-    }
+        "variant": "cpp",
+        "ranges": "cpp",
+        "span": "cpp"
+    },
+    "cSpell.enableFiletypes": [
+        "FortranFreeForm",
+        "bibtex",
+        "jsonc"
+    ]
 }

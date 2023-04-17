@@ -172,6 +172,10 @@ void DNDS::VRFiniteVolume2D::initMoment()
     // InsertCheck(mpi, "InitMomentEnd");
 }
 
+
+/**
+ * @brief 
+*/
 void DNDS::VRFiniteVolume2D::initBaseDiffCache()
 {
     // InsertCheck(mpi, "initBaseDiffCache");
@@ -778,9 +782,9 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                     0. / 0.};
                 static const real dirWeight3_HQM[6] = {
                     1,
-                    0.4608,
-                    0.2215 * std::sqrt(1.),
-                    0.2215 * std::sqrt(1.),
+                    .5295,
+                    .2117 * std::sqrt(1.),
+                    .2117 * std::sqrt(1.),
                     0. / 0.,
                     0. / 0.};
                 assert(ndx + ndy < 5);

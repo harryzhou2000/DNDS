@@ -1,29 +1,29 @@
 {
     "ifSteadyQuit": true, // quit computation normally instead of time marching unsteady
     "recOrder": 3, // (VR) reconstruction polynomial degree
-    "nInternalRecStep": 1, // linear recstruction steps per nonlinear iteration
-    "nTimeStep": 100000, // unsteaty TSs
+    "nInternalRecStep": 1, // linear reconstruction steps per nonlinear iteration
+    "nTimeStep": 100000, // unsteady TSs
     "nTimeStepInternal": 100000, // internal TSs
     "nSGSIterationInternal": 0, // LUSGS linear steps
     "gmresCode": 0, //0 for LUSGS, 1 for gmres
     "nGmresSpace": 5, // k, num of Krylov space
     "nGmresIter": 1, // GMRES linear steps
-    "jacobianTypeCode": 0, // 0 is OK now //! deprecated for now
+    "jacobianTypeCode": 0, // 0 is OK now //!deprecated for now
     "nFreezePassiveInner": 0, // freeze SA variables, in Euler_SA
-    "nConsoleCheck": 2, // unsteaty log frequency
+    "nConsoleCheck": 2, // unsteady log frequency
     "nConsoleCheckInternal": 10, // internal log frequency
     "consoleOutputMode": 1, // 1 to output wall face flux
-    "nDataOutC": 10, // c datafile output freq
-    "nDataOut": 10, // numbered datafile output freq
-    "nDataOutCInternal": 100, // c datafile output freq for internal
-    "nDataOutInternal": 1000000, // numbered datafile output freq for internal
-    "tDataOut": 1e100, // datafile output freq, in simutime //!deprecated for now
-    "tEnd": 100e100, // datafile output freq, in simutime //!deprecated for now
-    "CFL": 50, // CFL for interal tau (pusuedo ts)
+    "nDataOutC": 10, // c data file output freq
+    "nDataOut": 10, // numbered data file output freq
+    "nDataOutCInternal": 100, // c data file output freq for internal
+    "nDataOutInternal": 1000000, // numbered data file output freq for internal
+    "tDataOut": 1e100, // data file output freq, in simu time //!deprecated for now
+    "tEnd": 100e100, // data file output freq, in simu time //!deprecated for now
+    "CFL": 50, // CFL for internal tau (pseudo ts)
     "dtImplicit": 0.5e100, // ts for unsteady
     "rhsThresholdInternal": 1e-15, // internal exit condition
-    "useLocalDt": true, // disable for not using local dtau
-    "useLimiter": false,
+    "useLocalDt": true, // disable for not using local dTau
+    "useLimiter": false, 
     "nPartialLimiterStart": 100,
     "nPartialLimiterStartLocal": 5000,
     "nLimiterTurnOn": 0,
@@ -33,7 +33,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 50,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/NACA0012_H2.msh",
+    "meshFile": "data/mesh/NACA0012_H1.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -55,8 +55,8 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_H2",
-    "outLogName": "data/out/test_Euler_.NACA0012_H2",
+    "outPltName": "data/out/test_Euler_.NACA0012_H1",
+    "outLogName": "data/out/test_Euler_.NACA0012_H1",
     "uniqueStamps": false,
     "err_dMax": 0.01,
     "res_base": 1,
@@ -135,7 +135,7 @@
             1
         ],
         "planeInitializerValue": [],
-        "comment_farSatic": [
+        "comment_farStatic": [
             [
                 "A",
                 1,

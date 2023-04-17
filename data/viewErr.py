@@ -18,6 +18,7 @@ parser.add_argument('-o', '--output', default="cur.png", type=str)
 parser.add_argument('-t', '--title', default="", type=str)
 parser.add_argument('--normalize', action='store_true', default=False)
 parser.add_argument('--nlogy', action='store_true', default=False)
+parser.add_argument('--force', action='store_true', default=False)
 parser.add_argument('--ylim', default="", type=str)
 
 args = parser.parse_args()
@@ -42,9 +43,13 @@ for name in names:
 fileDirsSorted = sorted(
     fileDirs.items(), key=lambda x: x[1], reverse=True)  # latest first
 
+fname = ""
+filetime = 0
+
 if mode == "name":
     for pair in fileDirsSorted:
         fname = pair[0]
+        filetime = pair[1]
         print(fname)
         if(re.match(args.name, fname)):
             break
@@ -54,6 +59,7 @@ if mode == "name":
 elif mode == "index":
     assert(args.index < fileDirsSorted.__len__())
     fname = fileDirsSorted[args.index][0]
+    filetime = fileDirsSorted[args.index][1]
 else:
     raise ValueError("no such mode")
 
@@ -61,6 +67,16 @@ isee = args.see
 
 foutpic = os.path.join(args.prefix, args.output)
 print("Plotting error number %d at file [%s] to [%s]" % (isee, fname, foutpic))
+
+if os.path.exists(foutpic):
+    stat = os.stat(foutpic)
+    if stat.st_ctime >= filetime:
+        print("Output file seems newer")
+        if not args.force:
+            print("Exiting")
+            exit(0)
+
+        
 
 
 fin = open(fname, "r")

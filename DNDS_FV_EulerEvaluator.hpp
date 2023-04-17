@@ -226,7 +226,11 @@ namespace DNDS
             dWall.resize(mesh->cell2nodeLocal.size());
 
             MPIInfo mpi = mesh->mpi;
+#ifdef USE_FIRST_ORDER_WALL_DIST
             const int NSampleLine = 2;
+#else
+            const int NSampleLine = 11;
+#endif
 
             index nBCPoint = 0;
             for (index iFace = 0; iFace < mesh->face2nodeLocal.dist->size(); iFace++)
@@ -406,11 +410,13 @@ namespace DNDS
             {
                 real cnu1 = 7.1;
                 real Chi = UMeanXy(I4 + 1) * muRef / mufPhy;
+#ifdef USE_NS_SA_NEGATIVE_MODEL
                 if (Chi < 10) //*negative fix
                     Chi = 0.05 * std::log(1 + std::exp(20 * Chi));
+#endif
                 real Chi3 = std::pow(Chi, 3);
                 fnu1 = Chi3 / (Chi3 + std::pow(cnu1, 3));
-                muf *= (1 + Chi * fnu1);
+                muf *= std::max((1 + Chi * fnu1), 1.0);
             }
 
             real k = settings.idealGasProperty.CpGas * (muf - mufPhy) / 0.9 +
@@ -458,11 +464,13 @@ namespace DNDS
 
                 real cn1 = 16;
                 real fn = 1;
+#ifdef USE_NS_SA_NEGATIVE_MODEL
                 if (UMeanXy(I4 + 1) < 0)
                 {
                     real Chi = UMeanXy(I4 + 1) * muRef / mufPhy;
                     fn = (cn1 + std::pow(Chi, 3)) / (cn1 - std::pow(Chi, 3));
                 }
+#endif
                 VisFlux(Seq012, {I4 + 1}) = diffNu * (mufPhy + UMeanXy(I4 + 1) * muRef * fn) / sigma / muRef;
             }
 #endif
@@ -536,7 +544,9 @@ namespace DNDS
                     exitFun, lam0, lam123, lam4);
             else
                 assert(false);
-                // std::cout << "HERE2" << std::endl;
+            // std::cout << "HERE2" << std::endl;
+            // if (btype == BoundaryType::Wall_NoSlip || btype == BoundaryType::Wall_Euler)
+            //     finc(0) = 0; //! enforce mass leak = 0
 
 #ifndef USE_ENTROPY_FIXED_LAMBDA_IN_SA
             lam123 = (std::abs(UL(1) / UL(0)) + std::abs(UR(1) / UR(0))) * 0.5; //! high fix
@@ -644,21 +654,27 @@ namespace DNDS
                 real Sbar = nuh / (sqr(kappa) * sqr(d)) * fnu2;
 
                 real Sh;
+#ifdef USE_NS_SA_NEGATIVE_MODEL
                 if (Sbar < -cnu2 * S)
                     Sh = S + S * (sqr(cnu2) * S + cnu3 * Sbar) / ((cnu3 - 2 * cnu2) * S - Sbar);
-                // else //*negative fix
-                Sh = S + Sbar;
+                else //*negative fix
+#endif
+                    Sh = S + Sbar;
 
                 real r = std::min(nuh / (Sh * sqr(kappa * d) + verySmallReal), rlim);
                 real g = r + cw2 * (std::pow(r, 6) - r);
                 real fw = g * std::pow((1 + std::pow(cw3, 6)) / (std::pow(g, 6) + std::pow(cw3, 6)), 1. / 6.);
 
                 real ft2 = ct3 * std::exp(-ct4 * sqr(Chi));
-                real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //*negative fix //! modified >>
-                real P = cb1 * (1 - ft2) * Sh * nuh;                         //*negative fix //! modified >>
-                // real D = cw1 * fw * sqr(nuh / d);
-                // real P = cb1 * Sh * nuh;
+#ifdef USE_NS_SA_NEGATIVE_MODEL
+                real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d); //! modified >>
+                real P = cb1 * (1 - ft2) * Sh * nuh;                         //! modified >>
+#else
+                real D = (cw1 * fw - cb1 / sqr(kappa) * ft2) * sqr(nuh / d);
+                real P = cb1 * (1 - ft2) * Sh * nuh;
+#endif
                 real fn = 1;
+#ifdef USE_NS_SA_NEGATIVE_MODEL
                 if (UMeanXy(I4 + 1) < 0)
                 {
                     real cn1 = 16;
@@ -667,6 +683,7 @@ namespace DNDS
                     P = cb1 * (1 - ct3) * S * nuh;
                     D = -cw1 * sqr(nuh / d);
                 }
+#endif
 
                 TU ret;
                 ret.resizeLike(UMeanXy);
@@ -769,9 +786,11 @@ namespace DNDS
                 real Sbar = nuh / (sqr(kappa) * sqr(d)) * fnu2;
 
                 real Sh;
+#ifdef USE_NS_SA_NEGATIVE_MODEL
                 if (Sbar < -cnu2 * S)
                     Sh = S + S * (sqr(cnu2) * S + cnu3 * Sbar) / ((cnu3 - 2 * cnu2) * S - Sbar);
                 else
+#endif
                     Sh = S + Sbar;
 
                 real r = std::min(nuh / (Sh * sqr(kappa * d) + verySmallReal), rlim);
@@ -784,6 +803,7 @@ namespace DNDS
                 // real D = cw1 * fw * sqr(nuh / d);
                 // real P = cb1 * Sh * nuh;
                 real fn = 1;
+#ifdef USE_NS_SA_NEGATIVE_MODEL
                 if (UMeanXy(I4 + 1) < 0)
                 {
                     real cn1 = 16;
@@ -792,6 +812,7 @@ namespace DNDS
                     P = cb1 * (1 - ct3) * S * nuh;
                     D = -cw1 * sqr(nuh / d);
                 }
+#endif
 
                 TU ret;
                 ret.resizeLike(UMeanXy);
@@ -1186,7 +1207,7 @@ namespace DNDS
                 // ret(Seq123) = veloOld * ret(0);
                 // ret(I4) = eOld + 0.5 * veloOld.squaredNorm() * ret(0);
 
-                ret  = umean;
+                ret = umean;
                 compressed = true;
             }
 
@@ -1204,9 +1225,11 @@ namespace DNDS
                 compressed = true;
             }
 
-            // if constexpr (model == NS_SA)
-            //     if (ret(I4 + 1) < 0)
-            //         ret = umean, compressed = true;
+#ifdef USE_NS_SA_NUT_REDUCED_ORDER
+            if constexpr (model == NS_SA)
+                if (ret(I4 + 1) < 0)
+                    ret(I4 + 1) = umean(I4 + 1), compressed = true;
+#endif
 
             return ret;
         }
