@@ -123,6 +123,8 @@ namespace DNDS
 
             int odeCode = 0;
 
+            int runningMode = 0;
+
         } config;
 
         void ConfigureFromJson(const std::string &jsonName)
@@ -130,6 +132,9 @@ namespace DNDS
             config_doc = std::make_shared<rapidjson::Document>();
             JSON::ReadFile(jsonName, *config_doc);
             JSON::ParamParser root(mpi);
+
+            root.AddInt(
+                "runningMode", &config.runningMode, []() {}, JSON::ParamParser::FLAG_NULL);
 
             root.AddInt("nInternalRecStep", &config.nInternalRecStep);
             root.AddInt("recOrder", &config.recOrder);
@@ -261,7 +266,6 @@ namespace DNDS
                             assert(false);
                         if (mpi.rank == 0)
                             log() << "JSON: vfvSetting.tangWeightDirection = " << config.vfvSetting.tangWeightDirectionName << std::endl;
-
                     },
                     JSON::ParamParser::FLAG_NULL);
             }
@@ -704,10 +708,10 @@ namespace DNDS
                     double tstartA = MPI_Wtime();
                     vfv->ReconstructionJacobiStep<dim, nVars_Fixed>(
                         cx, uRec, uRecNew,
-                        [&](TU &UL, const TVec &normOut, const TVec &pPhy, const BoundaryType bType) -> TU
+                        [&](TU &UL, const TVec &normOut, const Elem::tPoint &pPhy, const BoundaryType bType) -> TU
                         {
                             auto normBase = Elem::NormBuildLocalBaseV(normOut);
-                            return eval.generateBoundaryValue(UL, normOut, normBase, pPhy, tSimu + ct * curDtImplicit, bType, true);
+                            return eval.generateBoundaryValue(UL, normOut, normBase, pPhy(Seq012), tSimu + ct * curDtImplicit, bType, true);
                         });
                     trec += MPI_Wtime() - tstartA;
 
@@ -727,7 +731,8 @@ namespace DNDS
                     vfv->ReconstructionWBAPLimitFacialV3<dim, nVars_Fixed>(
                         cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                         iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
-                        [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                        [&](const auto &UL, const auto &UR, const auto &n) -> auto
+                        {
                             PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
                             Eigen::Vector<real, I4 + 1> UC = (UL + UR)(Seq01234)*0.5;
                             auto normBase = Elem::NormBuildLocalBaseV<dim>(n(Seq012));
@@ -743,7 +748,8 @@ namespace DNDS
                             return ret;
                             // return Eigen::Matrix<real, 5, 5>::Identity();
                         },
-                        [&](const auto &UL, const auto &UR, const auto &n) -> auto{
+                        [&](const auto &UL, const auto &UR, const auto &n) -> auto
+                        {
                             PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
                             Eigen::Vector<real, I4 + 1> UC = (UL + UR)(Seq01234)*0.5;
                             auto normBase = Elem::NormBuildLocalBaseV<dim>(n(Seq012));
@@ -1194,11 +1200,215 @@ namespace DNDS
             logErr.close();
         }
 
+        void RunStaticReconstruction()
+        {
+            DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
+            InsertCheck(mpi, "Implicit 1 nvars " + std::to_string(nVars));
+
+            EulerEvaluator<model> eval(mesh.get(), fv.get(), vfv.get());
+
+            /************* Files **************/
+            if (mpi.rank == 0)
+            {
+                std::ofstream logConfig(config.outLogName + "_" + output_stamp + ".config.json");
+                rapidjson::OStreamWrapper logConfigWrapper(logConfig);
+                rapidjson::Writer<rapidjson::OStreamWrapper> writer(logConfigWrapper);
+                rapidjson::Value ctd_info, partnum;
+                ctd_info.SetString(DNDS_Defines_state.c_str(), DNDS_Defines_state.length());
+                partnum.SetInt(mpi.size);
+                config_doc->GetObject().AddMember("___Compile_Time_Defines", ctd_info, config_doc->GetAllocator());
+                config_doc->GetObject().AddMember("___Runtime_PartitionNumber", partnum, config_doc->GetAllocator());
+                config_doc->Accept(writer);
+                logConfig.close();
+            }
+            /************* Files **************/
+
+            eval.settings = config.eulerSetting;
+
+            double tstart = MPI_Wtime();
+            double trec{0}, tcomm{0}, trhs{0}, tLim{0};
+            int stepCount = 0;
+            Eigen::Vector<real, -1> resBaseC;
+            Eigen::Vector<real, -1> resBaseCInternal;
+            resBaseC.resize(nVars);
+            resBaseCInternal.resize(nVars);
+            resBaseC.setConstant(config.res_base);
+
+            auto fTest = [](Elem::tPoint p) -> Eigen::Vector<real, 3>
+            {
+                Eigen::Vector<real, 3> fs;
+                real a = 0.0027;
+                real b = -0.1409;
+                real utau = std::sqrt(a * 1 * sqr(1) * std::pow(p(0) + 1e-10, b) / 2 / 1);
+                real utau_dx = std::sqrt(a * 1 * sqr(1) * std::pow(p(0) + 1e-10, b) / 2. / 1.) / (p(0) + 1e-10) * (b / 2);
+                real kap = 0.42;
+                real nu = 1e-5;
+                real c1 = 1;
+                real yPlus = p(1) * utau / nu;
+                real yPlus_dx = p(1) * utau_dx / nu;
+                real yPlus_dy = utau / nu;
+                real uPlus =
+                    1. / kap * std::log(1 + kap * yPlus) +
+                    c1 * (1 - std::exp(-yPlus / 11) - yPlus / 11 * exp(-0.33 * yPlus));
+                real uPlus_dyPlus =
+                    1. / kap * 1. / (1 + kap * yPlus) * kap +
+                    c1 * (std::exp(-yPlus / 11) / 11 -
+                          exp(-0.33 * yPlus) / 11 +
+                          yPlus / 11 * exp(-0.33 * yPlus) * 0.33);
+                real uPlus_dx = uPlus_dyPlus * yPlus_dx;
+                real uPlus_dy = uPlus_dyPlus * yPlus_dy;
+
+                real uu = uPlus * utau;
+                real uu_dx = uPlus_dx * utau + utau_dx * uPlus;
+                real uu_dy = uPlus_dy * utau;
+                fs(0) = uu;
+                fs(1) = uu_dx;
+                fs(2) = uu_dy;
+
+                // std::cout << " p " << p.transpose() << std::endl;
+                // std::cout << fs.transpose() << std::endl;
+                // std::cout << yPlus << std::endl;
+                if (!fs.allFinite() || fs.hasNaN())
+                {
+                    assert(false);
+                }
+                return fs;
+            };
+
+            for (index iCell = 0; iCell < u.dist->size(); iCell++)
+            {
+                auto &cellRecAtr = vfv->cellRecAtrLocal[iCell][0];
+                auto &cellAtr = mesh->cellAtrLocal[iCell][0];
+                auto &c2n = mesh->cell2nodeLocal[iCell];
+                Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
+
+                auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
+                Eigen::MatrixXd coords;
+                mesh->LoadCoords(c2n, coords);
+
+                real valueInt = 0;
+
+                eCell.Integration(
+                    valueInt,
+                    [&](decltype(valueInt) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
+                    {
+                        Elem::tPoint pPhysical = coords * iDiNj(0, Eigen::all).transpose();
+                        finc = fTest(pPhysical)(0);
+                        finc *= vfv->cellGaussJacobiDets[iCell][ig];
+                    });
+                // std::cout << coords << std::endl;
+                valueInt /= fv->volumeLocal[iCell];
+                u[iCell](0) = 1;
+                u[iCell](4) = valueInt;
+            }
+            u.StartPersistentPullClean();
+            u.WaitPersistentPullClean();
+
+            for (int iter = 1; iter <= 100; iter++)
+            {
+                vfv->ReconstructionJacobiStep<dim, nVars_Fixed>(
+                    u, uRec, uRecNew,
+                    [&](TU &UL, const TVec &normOut, const Elem::tPoint &pPhy, const BoundaryType bType) -> TU
+                    {
+                        TU Ub = UL;
+                        UL(0) = fTest(pPhy)(0);
+                        return Ub;
+                    });
+                uRec.StartPersistentPullClean();
+                uRec.WaitPersistentPullClean();
+                if (iter % config.nConsoleCheckInternal == 0)
+                    log() << "Rec Step " << iter << std::endl;
+            }
+            real errP = 2.;
+
+            Eigen::Vector<real, 3> errSum, errSumSum;
+            errSum.setZero(), errSumSum.setZero();
+
+            for (index iCell = 0; iCell < u.dist->size(); iCell++)
+            {
+                auto &cellRecAtr = vfv->cellRecAtrLocal[iCell][0];
+                auto &cellAtr = mesh->cellAtrLocal[iCell][0];
+                auto &c2n = mesh->cell2nodeLocal[iCell];
+                Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
+
+                auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
+                Eigen::MatrixXd coords;
+                mesh->LoadCoords(c2n, coords);
+
+                Eigen::Vector<real, 3> valueInt;
+                valueInt.setZero();
+
+                eCell.Integration(
+                    valueInt,
+                    [&](decltype(valueInt) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
+                    {
+                        Elem::tPoint pPhysical = coords * iDiNj(0, Eigen::all).transpose();
+                        TDiffU GradU;
+                        GradU({0, 1}, Eigen::all) =
+                            cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
+                            uRec[iCell];
+                        TU ULxy = (cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+                                   uRec[iCell])
+                                      .transpose() +
+                                  u[iCell];
+
+                        auto fAcc = fTest(pPhysical);
+                        // std::cout << ULxy.transpose() << fAcc.transpose() << std::endl;
+                        finc(0) = std::pow(std::abs(ULxy(4) - fAcc(0)), errP);
+                        finc(1) = std::pow(std::abs(GradU(0, 4) - fAcc(1)), errP);
+                        finc(2) = std::pow(std::abs(GradU(1, 4) - fAcc(2)), errP);
+                        finc *= vfv->cellGaussJacobiDets[iCell][ig];
+                    });
+
+                valueInt /= fv->volumeLocal[iCell];
+                u[iCell]({1, 2, 3}) = valueInt.array().pow(1. / errP);
+
+                if (vfv->cellBaries[iCell](0) > 0.5) //! neglecting !!!
+                    errSum += valueInt * fv->volumeLocal[iCell];
+            }
+
+            MPI_Allreduce(errSum.data(), errSumSum.data(), 3, DNDS_MPI_REAL, MPI_SUM, mpi.comm);
+
+            errSumSum = errSumSum.array().pow(1. / errP);
+
+            if (mpi.rank == 0)
+            {
+                std::cout << "Errors: " << std::scientific
+                          << "[" << errSumSum(0) << "]  "
+                          << "[" << errSumSum(1) << "]  "
+                          << "[" << errSumSum(2) << "]  "
+                          << std::endl;
+            }
+
+            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+            {
+                for (int i = 0; i < nVars; i++)
+                    (*outDist)[iCell][i] = u[iCell][i];
+                // std::cout << u[iCell].transpose() << std::endl;
+            }
+            outSerial->startPersistentPull();
+            outSerial->waitPersistentPull();
+            std::vector<std::string> names;
+            for (int i = 0; i < nVars; i++)
+            {
+                names.push_back("V" + std::to_string(i));
+            }
+            mesh->PrintSerialPartPltBinaryDataArray(
+                config.outPltName + "_static.plt", 0, nVars, //! oprank = 0
+                [&](int idata)
+                { return names[idata]; },
+                [&](int idata, index iv)
+                {
+                    return (*outSerial)[iv][idata];
+                },
+                0);
+        }
+
         template <typename tODE>
         void PrintData(const std::string &fname, tODE &ode)
         {
 
-            for (int iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
             {
                 DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
                 TU recu =
@@ -1239,7 +1449,7 @@ namespace DNDS
                 "R", "U", "V", "W", "P", "T", "M", "ifUseLimiter", "RHSr"};
             for (int i = I4 + 1; i < nVars; i++)
             {
-                names.push_back("V" + std::to_string(i - I4));
+                // names.push_back("V" + std::to_string(i - I4));
             }
             mesh->PrintSerialPartPltBinaryDataArray(
                 fname, 0, nOUTS, //! oprank = 0

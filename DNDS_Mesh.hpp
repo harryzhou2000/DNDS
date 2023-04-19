@@ -1411,7 +1411,8 @@ namespace DNDS
         }
 
         // c2n must be pointing to local
-        void LoadCoords(const tAdjArray::tComponent &c2n, Eigen::MatrixXd &coords)
+        template <class TCoords>
+        void LoadCoords(const tAdjArray::tComponent &c2n, TCoords &coords)
         {
             coords.resize(3, c2n.size());
             for (int in = 0; in < c2n.size(); in++)

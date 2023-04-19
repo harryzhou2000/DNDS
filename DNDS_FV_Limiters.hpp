@@ -1,4 +1,5 @@
 #include "DNDS_Defines.h"
+#include "Eigen/Dense"
 
 namespace DNDS
 {

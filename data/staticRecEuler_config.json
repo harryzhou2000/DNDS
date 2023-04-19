@@ -33,7 +33,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/IV1280_40_LDD.msh",
+    "meshFile": "data/mesh/SR_BL1.pw.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform128.msh",
@@ -51,8 +51,8 @@
         "data/mesh/NACA0012_WIDE_H3G_NS.msh",
         "data/mesh/IV160.msh"
     ],
-    "outPltName": "data/outUnsteady/test_Euler_.IV1280_40_LDD",
-    "outLogName": "data/outUnsteady/test_Euler_.IV1280_40_LDD",
+    "outPltName": "data/out/SR_BL1.pw.msh",
+    "outLogName": "data/out/SR_BL1.pw.msh",
     "err_dMax": 0.00,
     "res_base": 0,
     "uniqueStamps": false,
@@ -62,20 +62,20 @@
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
         "anisotropicLengths": true,
-        "tangWeight": 0,
-        "tangWeightModMin": 1,
+        "tangWeight": 1,
+        "tangWeightModMin": 0,
         "tangWeightDirection": "Norm",
         "useLocalCoord": true,
-        "wallWeight": 0.5,
+        "wallWeight": 1,
         "farWeight": 0,
-        "weightSchemeGeom": "SDHQM",
+        "weightSchemeGeom": "None",
         "comment_weightSchemeGeom": [
             "None",
             "S",
             "D",
             "SDHQM"
         ],
-        "weightSchemeDir": "optHQM",
+        "weightSchemeDir": "None",
         "comment_weightSchemeDir": [
             "None",
             "optHQM"

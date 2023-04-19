@@ -70,6 +70,7 @@ CXX_LINK_FLAGS=${LINK}
 
 SINGLE_TARGETS=test/mpitest.exe test/test.exe test/cgnstest.exe test/elemtest.exe\
  test/meshtest.exe test/staticReconstructionTest.exe\
+ test/staticRecEuler.exe\
  test/gmrestest.exe test/adtest.exe test/testGas.exe\
 test/eikonal.exe test/staticReconstructionTestJR.exe \
 test/euler.exe test/eulerSA.exe test/euler2D.exe
@@ -83,9 +84,16 @@ PREBUILD_FAST_DEP:=$(PREBUILD_FAST:.o=.d)
 
 HEADERS=$(wildcard *.hpp *.h)
 
+HPPHEADERS=$(wildcard *.hpp)
 
 
+PRECOMPILE=$(addsuffix .gch, ${HPPHEADERS})
 
+
+$(PRECOMPILE):%.hpp.gch: %.hpp
+	$(CPC) $< -c -o $@ $(FLAGS) $(CXX_COMPILE_FLAGS) -MMD 
+
+precompiles: ${PRECOMPILE}
 
 
 -include $(PREBUILD_FAST_DEP)
@@ -120,10 +128,10 @@ test/testTensor.exe: test/testTensor.cpp SmallTensor.hpp
 	g++ $< -o $@ -std=c++14
 
 
-.PHONY: clean first arch cleardata
+.PHONY: clean first arch cleardata precompiles
 
 clean:
-	rm -f *.exe *.o *.d
+	rm -f *.exe *.o *.d *.gch
 	rm -f test/*.exe
 
 cleardata:

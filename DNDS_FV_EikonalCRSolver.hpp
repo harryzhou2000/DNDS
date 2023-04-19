@@ -721,11 +721,11 @@ namespace DNDS
                         log() << "JSON: vfvSetting.tangWeight = " << config.vfvSetting.tangWeight << std::endl;
                 }
 
-                if (doc["vfvSetting"]["anistropicLengths"].IsBool())
+                if (doc["vfvSetting"]["anisotropicLengths"].IsBool())
                 {
-                    config.vfvSetting.anistropicLengths = doc["vfvSetting"]["anistropicLengths"].GetBool();
+                    config.vfvSetting.anisotropicLengths = doc["vfvSetting"]["anisotropicLengths"].GetBool();
                     if (mpi.rank == 0)
-                        log() << "JSON: vfvSetting.anistropicLengths = " << config.vfvSetting.anistropicLengths << std::endl;
+                        log() << "JSON: vfvSetting.anisotropicLengths = " << config.vfvSetting.anisotropicLengths << std::endl;
                 }
 
                 if (doc["vfvSetting"]["baseCenterType"].IsString())
@@ -1036,7 +1036,7 @@ namespace DNDS
                 if ((curvilinearStepper == config.curvilinearOneStep && curvilinearNum == 0) ||
                     (curvilinearStepper == config.curvilinearRepeatInterval && (curvilinearNum > 0 && curvilinearNum < config.curvilinearRepeatNum)))
                 {
-                    assert(!vfv->setting.anistropicLengths);
+                    assert(!vfv->setting.anisotropicLengths);
                     curvilinearStepper = 0;
                     curvilinearNum++;
 

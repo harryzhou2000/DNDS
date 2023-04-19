@@ -3,7 +3,7 @@
     "recOrder": 3, // (VR) reconstruction polynomial degree
     "nInternalRecStep": 1, // linear reconstruction steps per nonlinear iteration
     "nTimeStep": 100000, // unsteady TSs
-    "nTimeStepInternal": 100000, // internal TSs
+    "nTimeStepInternal": 50000, // internal TSs
     "nSGSIterationInternal": 0, // LUSGS linear steps
     "gmresCode": 0, //0 for LUSGS, 1 for gmres
     "nGmresSpace": 5, // k, num of Krylov space
@@ -70,7 +70,7 @@
         "tangWeight": 1,
         "tangWeightModMin": 1,
         "tangWeightDirection": "Norm",
-        "useLocalCoord": true,
+        "useLocalCoord": false,
         "wallWeight": 1,
         "farWeight": 1,
         "weightSchemeGeom": "SDHQM",

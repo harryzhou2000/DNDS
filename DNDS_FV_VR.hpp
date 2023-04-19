@@ -1598,6 +1598,10 @@ namespace DNDS
                             Eigen::MatrixXd BCCorrection;
                             BCCorrection.resizeLike(uRec[iCell]);
                             BCCorrection.setZero();
+                            auto f2n = mesh->face2nodeLocal[iFace];
+                            Eigen::Matrix3Xd coords;
+                            mesh->LoadCoords(f2n, coords);
+                            
                             eFace.Integration(
                                 BCCorrection,
                                 [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
@@ -1616,8 +1620,9 @@ namespace DNDS
                                     //                                          .transpose();//!2D!!
 
                                     uBL += u[iCell].transpose(); //! need fixing?
+                                    Elem::tPoint pPhysical = coords * iDiNj(0, Eigen::all).transpose();
 
-                                    uBV = FBoundary(uBL, normOut, faceCenters[iFace](Seq012), BoundaryType(faceAttribute.iPhy)); // using inaccurate pPhy
+                                    uBV = FBoundary(uBL, normOut, pPhysical, BoundaryType(faceAttribute.iPhy)); // using inaccurate pPhy
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell]).transpose();
                                     Eigen::MatrixXd rowDiffI = diffI.row(0).rightCols(uRec[iCell].rows());

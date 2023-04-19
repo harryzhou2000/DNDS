@@ -2,6 +2,7 @@
 *.o
 *.d
 *.out
+*.gch
 html
 latex
 data/out*
@@ -33,4 +34,5 @@ build
 *.bmp
 *.gif
 *.eps
+
 
