@@ -3,9 +3,14 @@
 
 
 
-// #define USE_NORM_FUNCTIONAL
+#define USE_NORM_FUNCTIONAL
+#define USE_THIN_NORM_FUNCTIONAL
 // #define USE_LOCAL_COORD_CURVILINEAR
 // #define PRINT_EVERY_VR_JACOBI_ITER_INCREMENT
+
+// #define USE_ISOTROPIC_OPTHQM
+
+
 
 
 #define USE_FLUX_BALANCE_TERM
@@ -35,6 +40,9 @@
 static const std::string DNDS_Experimentals_State = std::string("DNDS_Experimentals ")
 #ifdef USE_NORM_FUNCTIONAL
                                                     + " USE_NORM_FUNCTIONAL "
+#endif
+#ifdef USE_THIN_NORM_FUNCTIONAL
+                                                    + " USE_THIN_NORM_FUNCTIONAL "
 #endif
 #ifdef USE_LOCAL_COORD_CURVILINEAR
                                                     + " USE_LOCAL_COORD_CURVILINEAR "
@@ -71,5 +79,8 @@ static const std::string DNDS_Experimentals_State = std::string("DNDS_Experiment
 #endif
 #ifdef USE_NS_SA_NUT_REDUCED_ORDER
                                                     + " USE_NS_SA_NUT_REDUCED_ORDER "
+#endif
+#ifdef USE_ISOTROPIC_OPTHQM
+                                                    + " USE_ISOTROPIC_OPTHQM "
 #endif
     ;

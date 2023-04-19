@@ -199,7 +199,7 @@ namespace DNDS
                 vfvParser.AddBool("orthogonalizeBase", &config.vfvSetting.orthogonalizeBase);
                 vfvParser.AddBool("normWBAP", &config.vfvSetting.normWBAP);
             }
-            std::string centerOpt, weightOpt;
+            std::string centerOpt, weightOpt, tangWeightDirectionOpt;
             {
                 vfvParser.Addstd_String(
                     "baseCenterType", &centerOpt,
@@ -246,6 +246,22 @@ namespace DNDS
                             assert(false);
                         if (mpi.rank == 0)
                             log() << "JSON: vfvSetting.weightSchemeDir = " << config.vfvSetting.weightSchemeDirName << std::endl;
+                    },
+                    JSON::ParamParser::FLAG_NULL);
+                vfvParser.Addstd_String(
+                    "tangWeightDirection", &tangWeightDirectionOpt,
+                    [&]()
+                    {
+                        config.vfvSetting.tangWeightDirectionName = tangWeightDirectionOpt;
+                        if (tangWeightDirectionOpt == "Bary")
+                            config.vfvSetting.tangWeightDirection = VRFiniteVolume2D::Setting::TangWeightDirection::TWD_Bary;
+                        else if (tangWeightDirectionOpt == "Norm")
+                            config.vfvSetting.tangWeightDirection = VRFiniteVolume2D::Setting::TangWeightDirection::TWD_Norm;
+                        else
+                            assert(false);
+                        if (mpi.rank == 0)
+                            log() << "JSON: vfvSetting.tangWeightDirection = " << config.vfvSetting.tangWeightDirectionName << std::endl;
+
                     },
                     JSON::ParamParser::FLAG_NULL);
             }

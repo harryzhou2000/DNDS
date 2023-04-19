@@ -172,10 +172,9 @@ void DNDS::VRFiniteVolume2D::initMoment()
     // InsertCheck(mpi, "InitMomentEnd");
 }
 
-
 /**
- * @brief 
-*/
+ * @brief
+ */
 void DNDS::VRFiniteVolume2D::initBaseDiffCache()
 {
     // InsertCheck(mpi, "initBaseDiffCache");
@@ -766,9 +765,22 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             default:
                 assert(false);
             }
+            if (setting.tangWeightDirection == Setting::TangWeightDirection::TWD_Bary)
+            {
+                // no change
+            }
+            else if (setting.tangWeightDirection == Setting::TangWeightDirection::TWD_Norm)
+            {
+                delta = faceNormCenter[iFace].stableNormalized() * delta.norm();
+            }
+            else
+            {
+                assert(false);
+            }
 #ifndef USE_NORM_FUNCTIONAL
             delta[0] = delta[1] = delta({0, 1}).norm();
 #endif
+
             for (int idiff = 0; idiff < faceRecAtr.NDIFF; idiff++)
             {
                 int ndx = Elem::diffOperatorOrderList2D[idiff][0];
@@ -795,7 +807,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                     (*faceWeights)[iFace][idiff] *= GW *
                                                     std::pow(delta[0], ndx) *
                                                     std::pow(delta[1], ndy) *
-                                                    real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
+                                                    std::sqrt(real(Elem::diffNCombs2D[idiff])) / real(Elem::factorials[ndx + ndy]);
                     break;
 
                 case Setting::WeightSchemeDir::OPTHQM:
@@ -807,21 +819,36 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                             (*faceWeights)[iFace][idiff] *= GW *
                                                             std::pow(delta[0], ndx) *
                                                             std::pow(delta[1], ndy) *
-                                                            real(1) / real(Elem::factorials[ndx + ndy]);
+#ifdef USE_ISOTROPIC_OPTHQM
+                                                            std::sqrt(real(Elem::diffNCombs2D[idiff])) /
+#else
+                                                            1 /
+#endif
+                                                            real(Elem::factorials[ndx + ndy]);
                             break;
 
                         case 6:
                             (*faceWeights)[iFace][idiff] *= GW *
                                                             std::pow(delta[0], ndx) *
                                                             std::pow(delta[1], ndy) *
-                                                            real(1) * dirWeight2_HQM[ndx + ndy];
+#ifdef USE_ISOTROPIC_OPTHQM
+                                                            std::sqrt(real(Elem::diffNCombs2D[idiff])) *
+#else
+                                                            1 *
+#endif
+                                                            dirWeight2_HQM[ndx + ndy];
                             break;
 
                         case 10:
                             (*faceWeights)[iFace][idiff] *= GW *
                                                             std::pow(delta[0], ndx) *
                                                             std::pow(delta[1], ndy) *
-                                                            real(1) * dirWeight3_HQM[ndx + ndy];
+#ifdef USE_ISOTROPIC_OPTHQM
+                                                            std::sqrt(real(Elem::diffNCombs2D[idiff])) *
+#else
+                                                            1 *
+#endif
+                                                            dirWeight3_HQM[ndx + ndy];
                             break;
                         default:
                             assert(false);
@@ -1082,15 +1109,15 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 }
             }
             vectorBatchElem.m(0) = vectorBatchElem.m(0) * Ainv.transpose(); // must be outside the loop as it operates all rows at once
-            if (iCell == 10756)
-            {
-                std::cout << cellBaries[iCell].transpose() << std::endl
-                          << std::setprecision(16);
-                std::cout << "A\n"
-                          << A << std::endl;
-                std::cout << "Ai\n"
-                          << matrixBatchElem.m(0) << std::endl;
-            }
+            // if (iCell == 10756)
+            // {
+            //     std::cout << cellBaries[iCell].transpose() << std::endl
+            //               << std::setprecision(16);
+            //     std::cout << "A\n"
+            //               << A << std::endl;
+            //     std::cout << "Ai\n"
+            //               << matrixBatchElem.m(0) << std::endl;
+            // }
             // if (iCell == 1)
             //     assert(false);
         });

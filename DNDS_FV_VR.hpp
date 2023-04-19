@@ -174,6 +174,12 @@ namespace DNDS
 
             real tangWeight = 5e-3;
             real tangWeightModMin = 1;
+            std::string tangWeightDirectionName = "Norm";
+            enum TangWeightDirection
+            {
+                TWD_Norm,
+                TWD_Bary,
+            } tangWeightDirection = TangWeightDirection::TWD_Bary;
 
             // center type
             std::string baseCenterTypeName = "Bary";
@@ -1023,11 +1029,22 @@ namespace DNDS
             }
             real cellARMax = std::max(cellARL, cellARR);
             real faceSigL = std::pow(FV->volumeLocal[icellL], 1. / 2.) / FV->faceArea[iFace]; // 2D
-            real faceSigR = std::pow(FV->volumeLocal[icellR], 1. / 2.) / FV->faceArea[iFace]; // 2D
-            cellARMax = std::max({1., faceSigL, faceSigR});                                   //* using_tm_V1
+            real faceSigR = std::pow(FV->volumeLocal[icellR], 1. / 2.) / FV->faceArea[iFace]; // 
+            real delta;
+            if(f2c[1] != FACE_2_VOL_EMPTY)
+            {
+                delta = (cellBaries[f2c[0]] - cellBaries[f2c[1]]).stableNorm();
+            }
+            else
+            {
+                delta = (cellBaries[f2c[0]] - faceCenters[iFace]).stableNorm() * 2; 
+            }
+            real faceSigG = FV->faceArea[iFace] / delta;
+            cellARMax = std::max({1., faceSigL, faceSigR}); //* using_tm_V1
 
             // real tangModifier = (1- 1./cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
             real tangModifier = (1. / cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
+            tangModifier = sqr(tangModifier);
 
             assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
 #ifndef USE_NORM_FUNCTIONAL
@@ -1050,15 +1067,18 @@ namespace DNDS
                     w2r = w3r = 0.0;
                     length = 0;
                 }
-                Eigen::Vector2d fNorm = iGauss >= 0 ? faceNorms[iFace][iGauss]({0, 1}).stableNormalized() * length
-                                                    : faceNormCenter[iFace]({0, 1}).stableNormalized() * length;
+                Eigen::Vector2d fNorm;
+                if (setting.tangWeightDirection == Setting::TangWeightDirection::TWD_Norm)
+                    fNorm = iGauss >= 0 ? faceNorms[iFace][iGauss]({0, 1}).stableNormalized() * length
+                                        : faceNormCenter[iFace]({0, 1}).stableNormalized() * length;
+                else
+                    fNorm = Eigen::Vector2d{Weights(1), Weights(2)};
 
                 Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
-                fTang *= setting.tangWeight * tangModifier;
+                // fTang *= setting.tangWeight * faceSigG; //! using ultraFix
+                fTang *= setting.tangWeight;
                 real n0 = fNorm(0), n1 = fNorm(1);
                 real t0 = fTang(0), t1 = fTang(1);
-                // w2r *= 0.1;
-                // w3r *= 0.1;
 
                 Conj.resize(DiffI.cols(), DiffJ.cols());
                 Conj.setZero();
@@ -1073,7 +1093,7 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
                         csumA = DiffI(1, i) * t0 + DiffI(2, i) * t1;
                         csumB = DiffJ(1, j) * t0 + DiffJ(2, j) * t1;
-                        Conj(i, j) += csumA * csumB;
+                        Conj(i, j) += csumA * csumB * tangModifier;
 
                         csumA = (DiffI(3, i) * n0 * n0 +
                                  DiffI(4, i) * n0 * n1 * 2 +
@@ -1086,14 +1106,20 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
 
                         csumA = (DiffI(3, i) * n0 * t0 +
-                                 DiffI(4, i) * n0 * t1 * 2 +
+                                 DiffI(4, i) * (n0 * t1 + n1 * t0) +
                                  DiffI(5, i) * n1 * t1) *
                                 w2r;
                         csumB = (DiffJ(3, j) * n0 * t0 +
-                                 DiffJ(4, j) * n0 * t1 * 2 +
+                                 DiffJ(4, j) * (n0 * t1 + n1 * t0) +
                                  DiffJ(5, j) * n1 * t1) *
                                 w2r;
-                        Conj(i, j) += csumA * csumB * 2;
+                        Conj(i, j) += csumA * csumB *
+#ifdef USE_THIN_NORM_FUNCTIONAL
+                                      1
+#else
+                                      2
+#endif
+                                      * tangModifier;
 
                         csumA = (DiffI(3, i) * t0 * t0 +
                                  DiffI(4, i) * t0 * t1 * 2 +
@@ -1103,7 +1129,7 @@ namespace DNDS
                                  DiffJ(4, j) * t0 * t1 * 2 +
                                  DiffJ(5, j) * t1 * t1) *
                                 w2r;
-                        Conj(i, j) += csumA * csumB;
+                        Conj(i, j) += csumA * csumB * tangModifier;
 
                         csumA = (DiffI(6, i) * n0 * n0 * n0 +
                                  DiffI(7, i) * n0 * n0 * n1 * 3 +
@@ -1118,28 +1144,40 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
 
                         csumA = (DiffI(6, i) * n0 * n0 * t0 +
-                                 DiffI(7, i) * n0 * n0 * t1 * 3 +
-                                 DiffI(8, i) * n0 * n1 * t1 * 3 +
+                                 DiffI(7, i) * (n0 * n0 * t1 + n0 * t0 * n1 + t0 * n0 * n1) +
+                                 DiffI(8, i) * (n0 * n1 * t1 + n0 * t1 * n1 + t0 * n1 * n1) +
                                  DiffI(9, i) * n1 * n1 * t1) *
                                 w3r;
                         csumB = (DiffJ(6, j) * n0 * n0 * t0 +
-                                 DiffJ(7, j) * n0 * n0 * t1 * 3 +
-                                 DiffJ(8, j) * n0 * n1 * t1 * 3 +
+                                 DiffJ(7, j) * (n0 * n0 * t1 + n0 * t0 * n1 + t0 * n0 * n1) +
+                                 DiffJ(8, j) * (n0 * n1 * t1 + n0 * t1 * n1 + t0 * n1 * n1) +
                                  DiffJ(9, j) * n1 * n1 * t1) *
                                 w3r;
-                        Conj(i, j) += csumA * csumB * 3;
+                        Conj(i, j) += csumA * csumB *
+#ifdef USE_THIN_NORM_FUNCTIONAL
+                                      1
+#else
+                                      3
+#endif
+                                      * tangModifier;
 
                         csumA = (DiffI(6, i) * n0 * t0 * t0 +
-                                 DiffI(7, i) * n0 * t0 * t1 * 3 +
-                                 DiffI(8, i) * n0 * t1 * t1 * 3 +
+                                 DiffI(7, i) * (t0 * n0 * t1 + n0 * t0 * t1 + t0 * t0 * n1) +
+                                 DiffI(8, i) * (t0 * n1 * t1 + n0 * t1 * t1 + t0 * t1 * n1) +
                                  DiffI(9, i) * n1 * t1 * t1) *
                                 w3r;
                         csumB = (DiffJ(6, j) * n0 * t0 * t0 +
-                                 DiffJ(7, j) * n0 * t0 * t1 * 3 +
-                                 DiffJ(8, j) * n0 * t1 * t1 * 3 +
+                                 DiffJ(7, j) * (t0 * n0 * t1 + n0 * t0 * t1 + t0 * t0 * n1) +
+                                 DiffJ(8, j) * (t0 * n1 * t1 + n0 * t1 * t1 + t0 * t1 * n1) +
                                  DiffJ(9, j) * n1 * t1 * t1) *
                                 w3r;
-                        Conj(i, j) += csumA * csumB * 3;
+                        Conj(i, j) += csumA * csumB *
+#ifdef USE_THIN_NORM_FUNCTIONAL
+                                      1
+#else
+                                      3
+#endif
+                                      * tangModifier;
 
                         csumA = (DiffI(6, i) * t0 * t0 * t0 +
                                  DiffI(7, i) * t0 * t0 * t1 * 3 +
@@ -1150,7 +1188,7 @@ namespace DNDS
                                  DiffJ(7, j) * t0 * t0 * t1 * 3 +
                                  DiffJ(8, j) * t0 * t1 * t1 * 3 +
                                  DiffJ(9, j) * t1 * t1 * t1) *
-                                w3r;
+                                w3r * tangModifier;
                         Conj(i, j) += csumA * csumB;
                     }
             }
@@ -1193,7 +1231,7 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
                         csumA = DiffI(1, i) * t0 + DiffI(2, i) * t1;
                         csumB = DiffJ(1, j) * t0 + DiffJ(2, j) * t1;
-                        Conj(i, j) += csumA * csumB;
+                        Conj(i, j) += csumA * csumB * tangModifier;
 
                         csumA = (DiffI(3, i) * n0 * n0 +
                                  DiffI(4, i) * n0 * n1 * 2 +
@@ -1213,7 +1251,13 @@ namespace DNDS
                                  DiffJ(4, j) * n0 * t1 * 2 +
                                  DiffJ(5, j) * n1 * t1) *
                                 w2r;
-                        Conj(i, j) += csumA * csumB * 2;
+                        Conj(i, j) += csumA * csumB *
+#ifdef USE_THIN_NORM_FUNCTIONAL
+                                      1
+#else
+                                      2
+#endif
+                                      * tangModifier;
 
                         csumA = (DiffI(3, i) * t0 * t0 +
                                  DiffI(4, i) * t0 * t1 * 2 +
@@ -1223,7 +1267,7 @@ namespace DNDS
                                  DiffJ(4, j) * t0 * t1 * 2 +
                                  DiffJ(5, j) * t1 * t1) *
                                 w2r;
-                        Conj(i, j) += csumA * csumB;
+                        Conj(i, j) += csumA * csumB * tangModifier;
                     }
             }
             else
@@ -1571,9 +1615,9 @@ namespace DNDS
                                     //                                       uRec[iCell])
                                     //                                          .transpose();//!2D!!
 
-                                    uBL += u[iCell].transpose();//!need fixing?
+                                    uBL += u[iCell].transpose(); //! need fixing?
 
-                                    uBV = FBoundary(uBL, normOut, faceCenters[iFace](Seq012), BoundaryType(faceAttribute.iPhy)); //using inaccurate pPhy
+                                    uBV = FBoundary(uBL, normOut, faceCenters[iFace](Seq012), BoundaryType(faceAttribute.iPhy)); // using inaccurate pPhy
 
                                     Eigen::MatrixXd rowUD = (uBV - u[iCell]).transpose();
                                     Eigen::MatrixXd rowDiffI = diffI.row(0).rightCols(uRec[iCell].rows());
@@ -1600,12 +1644,12 @@ namespace DNDS
                     // if (iCell == 100)
                     //     assert(false);
                 }
-                if (iCell == 10756)
-                {
-                    std::cout << "Rec at cell" << iCell << std::endl;
-                    std::cout << uRec[iCell] << std::endl;
-                    std::cout << matrixBatchElem.m(0) << std::endl;
-                }
+                // if (iCell == 10756)
+                // {
+                //     std::cout << "Rec at cell" << iCell << std::endl;
+                //     std::cout << uRec[iCell] << std::endl;
+                //     std::cout << matrixBatchElem.m(0) << std::endl;
+                // }
                 // exit(0);
                 if (icount == 1)
                 {

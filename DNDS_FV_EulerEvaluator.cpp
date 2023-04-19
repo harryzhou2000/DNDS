@@ -120,14 +120,14 @@ namespace DNDS
             lambdaFaceC[iFace] = std::abs(veloNMean) + lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR); // passive part
             lambdaFaceVis[iFace] = lamVis * area * (1. / fv->volumeLocal[iCellL] + 1. / volR);
 
-            if (f2c[0] == 10756)
-            {
-                std::cout << "----Lambdas" << std::setprecision(16) << iFace << std::endl;
-                std::cout << lambdaConvection << std::endl;
-                std::cout << lambdaFaceVis[iFace] << std::endl;
-                std::cout << veloNMean << " " << aMean << std::endl;
-                std::cout << gamma << " " << pMean << " " << uMean(0) << std::endl;
-            }
+            // if (f2c[0] == 10756)
+            // {
+            //     std::cout << "----Lambdas" << std::setprecision(16) << iFace << std::endl;
+            //     std::cout << lambdaConvection << std::endl;
+            //     std::cout << lambdaFaceVis[iFace] << std::endl;
+            //     std::cout << veloNMean << " " << aMean << std::endl;
+            //     std::cout << gamma << " " << pMean << " " << uMean(0) << std::endl;
+            // }
 
             lambdaCell[iCellL] += lambdaFace[iFace] * fv->faceArea[iFace];
             if (f2c[1] != FACE_2_VOL_EMPTY) // can't be non local
@@ -142,11 +142,11 @@ namespace DNDS
             // exit(0);
             dt[iCell] = std::min(CFL * fv->volumeLocal[iCell] / (lambdaCell[iCell] + 1e-100), MaxDt);
             dtMin = std::min(dtMin, dt[iCell]);
-            if (iCell == 10756)
-            {
-                std::cout << "dt " << std::setprecision(16) << dt[iCell] << " " << settings.nTimeFilterPass;
-                std::cout << std::endl;
-            }
+            // if (iCell == 10756)
+            // {
+            //     std::cout << "dt " << std::setprecision(16) << dt[iCell] << " " << settings.nTimeFilterPass;
+            //     std::cout << std::endl;
+            // }
         }
 
         MPI_Allreduce(&dtMin, &dtMinall, 1, DNDS_MPI_REAL, MPI_MIN, u.dist->getMPI().comm);
@@ -467,11 +467,11 @@ namespace DNDS
                     //     std::cout << lambdaFace[iFace] << std::endl;
                     //     exit(-1);
                     // }
-                    if (f2c[0] == 10756)
-                    {
-                        std::cout << "RLR " << ULxy.transpose() << " " << URxy.transpose() << " " << std::endl;
-                        std::cout << "RO " << pointOrderReducedL << " " << pointOrderReducedR << std::endl;
-                    }
+                    // if (f2c[0] == 10756)
+                    // {
+                    //     std::cout << "RLR " << ULxy.transpose() << " " << URxy.transpose() << " " << std::endl;
+                    //     std::cout << "RO " << pointOrderReducedL << " " << pointOrderReducedR << std::endl;
+                    // }
 
                     finc(Eigen::all, 0) = fincC;
 #ifdef USE_FLUX_BALANCE_TERM
@@ -491,12 +491,12 @@ namespace DNDS
                         nFaceReducedOrder++;
                 });
 
-            if (f2c[0] == 10756)
-            {
-                std::cout << std::setprecision(16)
-                          << fluxEs(Eigen::all, 0).transpose() << std::endl;
-                // exit(-1);
-            }
+            // if (f2c[0] == 10756)
+            // {
+            //     std::cout << std::setprecision(16)
+            //               << fluxEs(Eigen::all, 0).transpose() << std::endl;
+            //     // exit(-1);
+            // }
 
             rhs[f2c[0]] += fluxEs(Eigen::all, 0) / fv->volumeLocal[f2c[0]];
             if (f2c[1] != FACE_2_VOL_EMPTY)
@@ -1223,11 +1223,11 @@ namespace DNDS
                                       << uINCj.transpose() << std::endl;
                             assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
                         }
-                        if (iCell == 10756)
-                        {
-                            std::cout << std::setprecision(16) << "??? dUother " << (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] * fInc.transpose()
-                                      << std::endl;
-                        }
+                        // if (iCell == 10756)
+                        // {
+                        //     std::cout << std::setprecision(16) << "??? dUother " << (0.5 * alphaDiag) * fv->faceArea[iFace] / fv->volumeLocal[iCell] * fInc.transpose()
+                        //               << std::endl;
+                        // }
                     }
                 }
             }
@@ -1267,8 +1267,8 @@ namespace DNDS
             // uIncNewI(0) = 0;
             // u[iCell](0) = 1 + iCell * 1e-8;
 
-            if (iCell == 20636 || iCell == 10756)
-                std::cout << std::setprecision(16) << "??? " << uIncNewI(0) << " RHS " << RHSI(0) << " dF " << uIncNewBuf(0) - RHSI(0) << " IJ " << jacobianCellInv[iCell](0, 0) << std::endl;
+            // if (iCell == 20636 || iCell == 10756)
+            //     std::cout << std::setprecision(16) << "??? " << uIncNewI(0) << " RHS " << RHSI(0) << " dF " << uIncNewBuf(0) - RHSI(0) << " IJ " << jacobianCellInv[iCell](0, 0) << std::endl;
         }
         InsertCheck(u.dist->getMPI(), "UpdateLUSGSForward -1");
         // exit(-1);
@@ -1343,8 +1343,8 @@ namespace DNDS
 #else
             uIncNewI += jacobianCellInv_Scalar[iCell] * uIncNewBuf; // backward
 #endif
-            if (iCell == 20636 || iCell == 10756)
-                std::cout << std::setprecision(16) << "!!! " << uIncNewI(0) << std::endl;
+            // if (iCell == 20636 || iCell == 10756)
+            //     std::cout << std::setprecision(16) << "!!! " << uIncNewI(0) << std::endl;
             // std::cout << "BackWard " << iCell << "-- " << uIncNewI(0) << std::endl;
 
             // fix rho increment
