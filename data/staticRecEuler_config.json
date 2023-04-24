@@ -1,7 +1,7 @@
 {
     "odeCode": 0,
     "recOrder": 3,
-    "nInternalRecStep": 1,
+    "nInternalRecStep": 1000,
     "nTimeStep": 5,
     "nTimeStepInternal": 40,
     "nSGSIterationInternal": 0,
@@ -95,7 +95,7 @@
         "idealGasProperty": {
             "gamma": 1.4,
             "Rgas": 1,
-            "muGas": 1e-200
+            "muGas": 1e-5
         },
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",

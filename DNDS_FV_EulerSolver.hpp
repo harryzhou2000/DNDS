@@ -726,9 +726,14 @@ namespace DNDS
                 InsertCheck(mpi, " Lambda RHS: StartLim");
                 if (config.useLimiter)
                 {
-                    // vfv->ReconstructionWBAPLimitFacial(
-                    //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
+// vfv->ReconstructionWBAPLimitFacial(
+//     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
+#ifdef USE_CWBAP_INSTEAD_OF_3WBAP
                     vfv->ReconstructionWBAPLimitFacialV3<dim, nVars_Fixed>(
+#else
+                    vfv->ReconstructionWBAPLimitFacialV2<dim, nVars_Fixed>(
+#endif
+
                         cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                         iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                         [&](const auto &UL, const auto &UR, const auto &n) -> auto
@@ -1234,7 +1239,7 @@ namespace DNDS
             resBaseCInternal.resize(nVars);
             resBaseC.setConstant(config.res_base);
 
-            auto fTest = [](Elem::tPoint p) -> Eigen::Vector<real, 3>
+            auto fTest = [&](Elem::tPoint p) -> Eigen::Vector<real, 3>
             {
                 Eigen::Vector<real, 3> fs;
                 real a = 0.0027;
@@ -1242,7 +1247,7 @@ namespace DNDS
                 real utau = std::sqrt(a * 1 * sqr(1) * std::pow(p(0) + 1e-10, b) / 2 / 1);
                 real utau_dx = std::sqrt(a * 1 * sqr(1) * std::pow(p(0) + 1e-10, b) / 2. / 1.) / (p(0) + 1e-10) * (b / 2);
                 real kap = 0.42;
-                real nu = 1e-5;
+                real nu = eval.settings.idealGasProperty.muGas;
                 real c1 = 1;
                 real yPlus = p(1) * utau / nu;
                 real yPlus_dx = p(1) * utau_dx / nu;
@@ -1304,7 +1309,7 @@ namespace DNDS
             u.StartPersistentPullClean();
             u.WaitPersistentPullClean();
 
-            for (int iter = 1; iter <= 100; iter++)
+            for (int iter = 1; iter <= config.nInternalRecStep; iter++)
             {
                 vfv->ReconstructionJacobiStep<dim, nVars_Fixed>(
                     u, uRec, uRecNew,
@@ -1449,7 +1454,7 @@ namespace DNDS
                 "R", "U", "V", "W", "P", "T", "M", "ifUseLimiter", "RHSr"};
             for (int i = I4 + 1; i < nVars; i++)
             {
-                // names.push_back("V" + std::to_string(i - I4));
+                names.push_back("V" + std::to_string(i - I4));
             }
             mesh->PrintSerialPartPltBinaryDataArray(
                 fname, 0, nOUTS, //! oprank = 0
