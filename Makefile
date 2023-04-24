@@ -16,16 +16,17 @@ FLAGS_FAST=-O2
 -include Makefile.arc.in
 
 ifneq (${NATIVE_ARCH},TH2B)
-export OMPI_CXX=clang++
-# export OMPI_CXX=g++
-export MPICH_CXX=clang++
-# export MPICH_CXX=g++
+# export OMPI_CXX=clang++
+export OMPI_CXX=g++
+# export MPICH_CXX=clang++
+export MPICH_CXX=g++
 endif
 
 first: what
 
-CPC=mpicxx.openmpi
+# CPC=mpicxx.openmpi
 # CPC=mpicxx.mpich
+CPC=mpicxx #if intel
 # CPC=/home/harry/tools/openmpi-4.1.4/BUILD_GCC/bin/mpicxx
 arch:
 ifeq (${NATIVE_ARCH},TH2B)

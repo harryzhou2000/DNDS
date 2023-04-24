@@ -726,9 +726,14 @@ namespace DNDS
                 InsertCheck(mpi, " Lambda RHS: StartLim");
                 if (config.useLimiter)
                 {
-                    // vfv->ReconstructionWBAPLimitFacial(
-                    //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
+// vfv->ReconstructionWBAPLimitFacial(
+//     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
+#ifdef USE_CWBAP_INSTEAD_OF_3WBAP
                     vfv->ReconstructionWBAPLimitFacialV3<dim, nVars_Fixed>(
+#else
+                    vfv->ReconstructionWBAPLimitFacialV2<dim, nVars_Fixed>(
+#endif
+
                         cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
                         iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
                         [&](const auto &UL, const auto &UR, const auto &n) -> auto
