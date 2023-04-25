@@ -2,9 +2,11 @@
 *.o
 *.d
 *.out
+*.gch
 html
 latex
-data
+data/out*
+data/mesh
 log*.txt
 *.lnk
 Eigen
@@ -22,7 +24,15 @@ pulldata.sh
 *.log
 *.tmp
 *.zip
+*.tar
+*.gz
 Makefile.arc.in
 running
 build
+*.png
+*.jpg
+*.bmp
+*.gif
+*.eps
+
 

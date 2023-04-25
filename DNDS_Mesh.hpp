@@ -29,6 +29,7 @@ namespace DNDS
 
         Special_DMRFar = -2,
         Special_RTFar = -3,
+        Special_IVFar = -4,
 
     };
 }
@@ -810,6 +811,8 @@ namespace DNDS
                     e.iPhy = index(BoundaryType::Special_DMRFar);
                 else if (gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name == "bc-RTFar")
                     e.iPhy = index(BoundaryType::Special_RTFar);
+                else if (gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name == "bc-IVFar")
+                    e.iPhy = index(BoundaryType::Special_IVFar);
                 else if (gmshReader.faceElems[iff].phyGrp == -1)
                     e.iPhy = index(BoundaryType::Inner);
                 else
@@ -878,11 +881,7 @@ namespace DNDS
                 options[METIS_OPTION_CTYPE] = METIS_CTYPE_RM;
                 options[METIS_OPTION_IPTYPE] = METIS_IPTYPE_GROW;
                 options[METIS_OPTION_RTYPE] = METIS_RTYPE_FM;
-<<<<<<< HEAD
                 //options[METIS_OPTION_NO2HOP] = 0; // only available in metis 5.1.0
-=======
-                // options[METIS_OPTION_NO2HOP] = 0; // only available in metis 5.1.0
->>>>>>> d8479c1e1d9e268e3c798740f133512f2ec6736f
                 options[METIS_OPTION_NCUTS] = 1;
                 options[METIS_OPTION_NITER] = 10;
                 options[METIS_OPTION_UFACTOR] = 30;
@@ -897,11 +896,7 @@ namespace DNDS
                 partition.resize(cell2cellSiz.size());
                 std::vector<idx_t> iGlobal; // iGlobal[iCell_Serial] = iCell_Global
                 iGlobal.reserve(cell2cellSiz.size());
-<<<<<<< HEAD
-		std::cout << "size of idx_t,real_t: " << sizeof(idx_t) << " " << sizeof(real_t) << std::endl;
-=======
                 // std::cout << "size of idx_t,real_t: " << sizeof(idx_t) << " " << sizeof(real_t) << std::endl;
->>>>>>> d8479c1e1d9e268e3c798740f133512f2ec6736f
                 if (nparts > 1)
                 {
                     int ret = METIS_PartGraphKway(&ncell, &ncons, cell2cellStarts.data(), cell2cell.data(), NULL, NULL, NULL, &nparts, NULL, NULL, options, &objval, partition.data());
@@ -1416,7 +1411,8 @@ namespace DNDS
         }
 
         // c2n must be pointing to local
-        void LoadCoords(const tAdjArray::tComponent &c2n, Eigen::MatrixXd &coords)
+        template <class TCoords>
+        void LoadCoords(const tAdjArray::tComponent &c2n, TCoords &coords)
         {
             coords.resize(3, c2n.size());
             for (int in = 0; in < c2n.size(); in++)

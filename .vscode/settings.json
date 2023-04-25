@@ -1,12 +1,30 @@
 {
     "cSpell.words": [
         "Alltoall",
-        "DNDS"
+        "asqr",
+        "Coef",
+        "dfix",
+        "DNDS",
+        "dsqr",
+        "Experimentals",
+        "HLLC",
+        "HLLEP",
+        "NDOF",
+        "nvars",
+        "orthogonalize",
+        "rapidjson",
+        "rhsbuf",
+        "rowsize",
+        "simu",
+        "SSPRK",
+        "velo",
+        "WBAP"
     ],
     "files.associations": {
         "*.cu": "cpp",
         "*.f90": "FortranFreeForm",
         "*.hypara": "csharp",
+        "*config*.json": "jsonc",
         "ostream": "cpp",
         "array": "cpp",
         "atomic": "cpp",
@@ -98,6 +116,13 @@
         "shared_mutex": "cpp",
         "cfenv": "cpp",
         "typeindex": "cpp",
-        "variant": "cpp"
-    }
+        "variant": "cpp",
+        "ranges": "cpp",
+        "span": "cpp"
+    },
+    "cSpell.enableFiletypes": [
+        "FortranFreeForm",
+        "bibtex",
+        "jsonc"
+    ]
 }

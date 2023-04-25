@@ -45,6 +45,9 @@ namespace DNDS
     const MPI_Datatype DNDS_MPI_INDEX = __DNDSToMPITypeInt<index>();
     const MPI_Datatype DNDS_MPI_REAL = __DNDSToMPITypeFloat<real>();
 
+    
+    
+
     struct MPIInfo
     {
         MPI_Comm comm = MPI_COMM_NULL;
@@ -64,6 +67,8 @@ namespace DNDS
             return (comm == r.comm) && (rank == r.rank) && (size == r.size);
         }
     };
+
+    std::string getTimeStamp(const MPIInfo &mpi);
 
     inline void InsertCheck(const MPIInfo &mpi, const std::string &info = "",
                             const std::string &FUNCTION = "", const std::string &FILE = "", int LINE = -1)

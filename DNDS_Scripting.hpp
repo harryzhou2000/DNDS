@@ -3,9 +3,15 @@
 #include "DNDS_Defines.h"
 #include "DNDS_MPI.hpp"
 #include "Eigen/Dense"
+DISABLE_WARNING_PUSH
+DISABLE_WARNING_DEPRECATED_DECLARATIONS
+//! rapidjson uses deprecated iterator in STL, still usable in c++17; could port to c++17 easily (?)
 #include "rapidjson/filereadstream.h"
+#include "rapidjson/ostreamwrapper.h"
 // #include "rapidjson/istreamwrapper.h"
 #include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+DISABLE_WARNING_POP
 #include <cstdio>
 
 namespace DNDS
@@ -22,7 +28,16 @@ namespace DNDS
 #endif
             char readBuffer[65536];
             FileReadStream is(fp, readBuffer, sizeof(readBuffer));
-            d.ParseStream(is);
+            // std::cout <<"rere" << std::endl;
+            // std::cout << "kParseCommentsFlag" << kParseCommentsFlag << std::endl;
+
+            d.ParseStream<
+                kParseCommentsFlag |
+                kParseNanAndInfFlag |
+                kParseFullPrecisionFlag |
+                kParseTrailingCommasFlag>(is);
+            auto t = d.GetType();
+            // std::cout << "T=" << t << std::endl;
             fclose(fp);
         }
 
@@ -43,12 +58,12 @@ namespace DNDS
             // rapidjson::Document *doc = nullptr;
             // rapidjson::Value::Object obj;
             // std::vector<std::string> prefix;
-            public:
+        public:
             static const uint32_t FLAG_MANDATORY = 0x00000001U;
             static const uint32_t FLAG_NULL = 0U;
             static const uint32_t FLAG_DEFAULT = FLAG_MANDATORY;
-            private:
 
+        private:
             typedef std::tuple<ItemType, void *, std::string, tFPost, uint32_t> listComponent;
             std::vector<listComponent> list;
 

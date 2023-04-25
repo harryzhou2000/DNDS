@@ -86,7 +86,7 @@ void DNDS::VRFiniteVolume2D::initMoment()
     baseMoments.resize(nlocalCells);
     cellCenters.resize(nlocalCells);
     cellBaries.resize(nlocalCells);
-    cellIntertia = std::make_shared<decltype(cellIntertia)::element_type>(nlocalCells);
+    cellInertia = std::make_shared<decltype(cellInertia)::element_type>(nlocalCells);
     forEachInArrayPair(
         *mesh->cell2nodeLocal.pair,
         [&](tAdjArray::tComponent &c2n, index iCell)
@@ -117,9 +117,9 @@ void DNDS::VRFiniteVolume2D::initMoment()
             cellBaries[iCell] /= FV->volumeLocal[iCell];
             // std::cout << cellBaries[iCell] << std::endl;
             // exit(0);
-            (*cellIntertia)[iCell].setZero();
+            (*cellInertia)[iCell].setZero();
             eCell.Integration(
-                (*cellIntertia)[iCell],
+                (*cellInertia)[iCell],
                 [&](Elem::tJacobi &incC, int ig, Elem::tPoint &ip, Elem::tDiFj &iDiNj)
                 {
                     Elem::tPoint pPhysical = coords * iDiNj(0, Eigen::all).transpose() - cellBaries[iCell]; // = pPhysical
@@ -127,18 +127,18 @@ void DNDS::VRFiniteVolume2D::initMoment()
                     Elem::tJacobi Jacobi = Elem::DiNj2Jacobi(iDiNj, coords);
                     incC *= Jacobi({0, 1}, {0, 1}).determinant();
                 });
-            (*cellIntertia)[iCell] /= FV->volumeLocal[iCell];
+            (*cellInertia)[iCell] /= FV->volumeLocal[iCell];
             // std::cout << "I\n"
-            //           << (*cellIntertia)[iCell] << std::endl;
-            // auto iOrig = (*cellIntertia)[iCell];
-            (*cellIntertia)[iCell] = HardEigen::Eigen3x3RealSymEigenDecomposition((*cellIntertia)[iCell]);
+            //           << (*cellInertia)[iCell] << std::endl;
+            // auto iOrig = (*cellInertia)[iCell];
+            (*cellInertia)[iCell] = HardEigen::Eigen3x3RealSymEigenDecomposition((*cellInertia)[iCell]);
             // std::cout << "IS\n"
-            //           << (*cellIntertia)[iCell] << std::endl;
+            //           << (*cellInertia)[iCell] << std::endl;
 
             // std::cout << iOrig << std::endl;
-            // std::cout << (*cellIntertia)[iCell] * (*cellIntertia)[iCell].transpose() << std::endl;
-            // std::cout << (*cellIntertia)[iCell] << std::endl;
-            // std::cout << (*cellIntertia)[iCell].col(0).norm() * 3 << " " << (*cellIntertia)[iCell].col(1).norm() * 3 << std::endl;
+            // std::cout << (*cellInertia)[iCell] * (*cellInertia)[iCell].transpose() << std::endl;
+            // std::cout << (*cellInertia)[iCell] << std::endl;
+            // std::cout << (*cellInertia)[iCell].col(0).norm() * 3 << " " << (*cellInertia)[iCell].col(1).norm() * 3 << std::endl;
             // exit(0);
 
             Eigen::MatrixXd BjBuffer(1, cellRecAtr.NDOF);
@@ -172,6 +172,9 @@ void DNDS::VRFiniteVolume2D::initMoment()
     // InsertCheck(mpi, "InitMomentEnd");
 }
 
+/**
+ * @brief
+ */
 void DNDS::VRFiniteVolume2D::initBaseDiffCache()
 {
     // InsertCheck(mpi, "initBaseDiffCache");
@@ -547,8 +550,8 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             DNDS::ElemAttributes *cellAtrR{nullptr};
             mesh->LoadCoords(mesh->cell2nodeLocal[f2c[0]], cellCoordsL);
             sScaleL = CoordMinMaxScale(cellCoordsL);
-            cellRecAtrL = &cellRecAtrLocal[f2c[0]][0];
-            cellAtrL = &mesh->cellAtrLocal[f2c[0]][0];
+            cellRecAtrR = cellRecAtrL = &cellRecAtrLocal[f2c[0]][0];
+            cellAtrR = cellAtrL = &mesh->cellAtrLocal[f2c[0]][0];
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
                 mesh->LoadCoords(mesh->cell2nodeLocal[f2c[1]], cellCoordsR);
@@ -692,11 +695,13 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             }
             // exit(0);
 
-            // *Do weights!!
+            // *** Do weights!!
             // if (f2c[1] == FACE_2_VOL_EMPTY)
             //     std::cout << faceAtr.iPhy << std::endl;
+            pFace = faceCenters[iFace];
             (*faceWeights)[iFace].resize(faceRecAtr.NDIFF);
             Elem::tPoint delta;
+            int NDOFmax = std::max(cellRecAtrL->NDOF, cellRecAtrR->NDOF);
             if (f2c[1] != FACE_2_VOL_EMPTY)
             {
                 delta = cellBaries[f2c[1]] - cellBaries[f2c[0]];
@@ -712,7 +717,8 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             }
             else if (faceAtr.iPhy == BoundaryType::Farfield ||
                      faceAtr.iPhy == BoundaryType::Special_DMRFar ||
-                     faceAtr.iPhy == BoundaryType::Special_RTFar)
+                     faceAtr.iPhy == BoundaryType::Special_RTFar ||
+                     faceAtr.iPhy == BoundaryType::Special_IVFar)
             {
                 (*faceWeights)[iFace].setConstant(0.0);
                 (*faceWeights)[iFace][0] = setting.farWeight;
@@ -730,6 +736,9 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 (*faceWeights)[iFace].setConstant(0.0);
                 (*faceWeights)[iFace][0] = setting.wallWeight;
                 delta = pFace - cellBaries[f2c[0]];
+#ifdef USE_FIRST_ORDER_VISCOUS_WALL_DELTA_IN_VR_WEIGHT
+                delta = faceNormCenter[iFace].normalized() * faceNormCenter[iFace].normalized().dot(delta);
+#endif
                 delta *= 1.0;
             }
             else
@@ -742,7 +751,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             real GW = 1;
             switch (setting.weightSchemeGeom)
             {
-            case Setting::WeightSchemeGeom::None:
+            case Setting::WeightSchemeGeom::NoneGeom:
                 break;
             case Setting::WeightSchemeGeom::D:
                 GW = 1. / D;
@@ -750,17 +759,108 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             case Setting::WeightSchemeGeom::S:
                 GW = 1. / S;
                 break;
+            case Setting::WeightSchemeGeom::SDHQM:
+                GW = std::pow(S / D, 0.5 / 2);
+                break;
             default:
                 assert(false);
             }
+            if (setting.tangWeightDirection == Setting::TangWeightDirection::TWD_Bary)
+            {
+                // no change
+            }
+            else if (setting.tangWeightDirection == Setting::TangWeightDirection::TWD_Norm)
+            {
+                delta = faceNormCenter[iFace].stableNormalized() * delta.norm();
+            }
+            else
+            {
+                assert(false);
+            }
+#ifndef USE_NORM_FUNCTIONAL
+            delta[0] = delta[1] = delta({0, 1}).norm();
+#endif
+
             for (int idiff = 0; idiff < faceRecAtr.NDIFF; idiff++)
             {
                 int ndx = Elem::diffOperatorOrderList2D[idiff][0];
                 int ndy = Elem::diffOperatorOrderList2D[idiff][1];
-                (*faceWeights)[iFace][idiff] *= GW *
-                                                std::pow(delta[0], ndx) *
-                                                std::pow(delta[1], ndy) *
-                                                real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
+                static const real dirWeight2_HQM[6] = {
+                    1,
+                    0.4643,
+                    0.1559,
+                    0. / 0.,
+                    0. / 0.,
+                    0. / 0.};
+                static const real dirWeight3_HQM[6] = {
+                    1,
+                    .5295,
+                    .2117 * std::sqrt(1.),
+                    .2117 * std::sqrt(1.),
+                    0. / 0.,
+                    0. / 0.};
+                assert(ndx + ndy < 5);
+                switch (setting.weightSchemeDir)
+                {
+                case Setting::WeightSchemeDir::NoneDir:
+                    /******** simple factorial weight ********/
+                    (*faceWeights)[iFace][idiff] *= GW *
+                                                    std::pow(delta[0], ndx) *
+                                                    std::pow(delta[1], ndy) *
+                                                    std::sqrt(real(Elem::diffNCombs2D[idiff])) / real(Elem::factorials[ndx + ndy]);
+                    break;
+
+                case Setting::WeightSchemeDir::OPTHQM:
+                    /******** HQM opt dir weight ********/ //! optHQM has not comb number!
+                    {
+                        switch (NDOFmax)
+                        {
+                        case 3:
+                            (*faceWeights)[iFace][idiff] *= GW *
+                                                            std::pow(delta[0], ndx) *
+                                                            std::pow(delta[1], ndy) *
+#ifdef USE_ISOTROPIC_OPTHQM
+                                                            std::sqrt(real(Elem::diffNCombs2D[idiff])) /
+#else
+                                                            1 /
+#endif
+                                                            real(Elem::factorials[ndx + ndy]);
+                            break;
+
+                        case 6:
+                            (*faceWeights)[iFace][idiff] *= GW *
+                                                            std::pow(delta[0], ndx) *
+                                                            std::pow(delta[1], ndy) *
+#ifdef USE_ISOTROPIC_OPTHQM
+                                                            std::sqrt(real(Elem::diffNCombs2D[idiff])) *
+#else
+                                                            1 *
+#endif
+                                                            dirWeight2_HQM[ndx + ndy];
+                            break;
+
+                        case 10:
+                            (*faceWeights)[iFace][idiff] *= GW *
+                                                            std::pow(delta[0], ndx) *
+                                                            std::pow(delta[1], ndy) *
+#ifdef USE_ISOTROPIC_OPTHQM
+                                                            std::sqrt(real(Elem::diffNCombs2D[idiff])) *
+#else
+                                                            1 *
+#endif
+                                                            dirWeight3_HQM[ndx + ndy];
+                            break;
+                        default:
+                            assert(false);
+                            break;
+                        }
+                    }
+                    break;
+
+                default:
+                    assert(false);
+                    break;
+                }
             }
         });
 
@@ -898,6 +998,10 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
 
                         incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                         incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
+
+                        // std::cout << "w\n"
+                        //           << (*faceWeights)[iFace].transpose() << std::endl;
+                        // std::cout << "DBVI \n" << diffsI.transpose() << std::endl;
                     });
             }
 
@@ -957,7 +1061,8 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 }
                 else if (faceAttribute.iPhy == BoundaryType::Farfield ||
                          faceAttribute.iPhy == BoundaryType::Special_DMRFar ||
-                         faceAttribute.iPhy == BoundaryType::Special_RTFar)
+                         faceAttribute.iPhy == BoundaryType::Special_RTFar ||
+                         faceAttribute.iPhy == BoundaryType::Special_IVFar)
                 {
                     Eigen::MatrixXd B;
                     B.resizeLike(matrixBatchElem.m(ic2f + 1));
@@ -1004,5 +1109,16 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 }
             }
             vectorBatchElem.m(0) = vectorBatchElem.m(0) * Ainv.transpose(); // must be outside the loop as it operates all rows at once
+            // if (iCell == 10756)
+            // {
+            //     std::cout << cellBaries[iCell].transpose() << std::endl
+            //               << std::setprecision(16);
+            //     std::cout << "A\n"
+            //               << A << std::endl;
+            //     std::cout << "Ai\n"
+            //               << matrixBatchElem.m(0) << std::endl;
+            // }
+            // if (iCell == 1)
+            //     assert(false);
         });
 }

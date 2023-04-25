@@ -113,7 +113,7 @@ namespace DNDS
         template <int dim = 3, typename TU, typename TF, class TVec>
         inline void GasInviscidFlux(const TU &U, const TVec &velo, real p, TF &F)
         {
-            F = U(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) * velo(0);
+            F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = U(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) * velo(0); // note that additional flux are unattended!
             F(1) += p;
             F(dim + 1) += velo(0) * p;
         }
@@ -122,7 +122,7 @@ namespace DNDS
         inline void IdealGasUIncrement(const TU &U, const TU &dU, const TVec &velo, real gamma, TVec &dVelo, real &dp)
         {
             dVelo = (dU(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) -
-                     U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) * dU(0)) /
+                     U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) / U(0) * dU(0)) /
                     U(0);
             dp = (gamma - 1) * (dU(dim + 1) -
                                 0.5 * (dU(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).dot(velo) +
@@ -372,11 +372,13 @@ namespace DNDS
             }
         }
 
-        template <int dim = 3, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
+        // eigScheme: 0 = Roe_HY, 1 = cLLF_M, 2 = lax_0
+        template <int dim = 3, int eigScheme = 0, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void RoeFlux_IdealGas_HartenYee(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
-                                        const TFdumpInfo &dumpInfo)
+                                        const TFdumpInfo &dumpInfo, real &lam0, real &lam123, real &lam4)
         {
             static real scaleHartenYee = 0.05;
+            static real scaleLD = 0.2;
             using TVec = Eigen::Vector<real, dim>;
 
             if (!(UL(0) > 0 && UR(0) > 0))
@@ -401,6 +403,10 @@ namespace DNDS
             real asqrRoe = (gamma - 1) * (HRoe - 0.5 * vsqrRoe);
             real rhoRoe = sqrtRhoL * sqrtRhoR;
 
+            Eigen::Vector<real, dim + 2> FL, FR;
+            GasInviscidFlux<dim>(UL, veloL, pL, FL);
+            GasInviscidFlux<dim>(UR, veloR, pR, FR);
+
             if (!(asqrRoe > 0))
             {
                 dumpInfo();
@@ -408,23 +414,90 @@ namespace DNDS
             assert(asqrRoe > 0);
             real aRoe = std::sqrt(asqrRoe);
 
-            real lam0 = veloRoe(0) - aRoe;
-            real lam123 = veloRoe(0);
-            real lam4 = veloRoe(0) + aRoe;
+            lam0 = std::abs(veloRoe(0) - aRoe);
+            lam123 = std::abs(veloRoe(0));
+            lam4 = std::abs(veloRoe(0) + aRoe);
+
+            if constexpr (eigScheme == 0)
+            {
+                //*HY
+                real thresholdHartenYee = std::max(scaleHartenYee * (std::sqrt(vsqrRoe) + aRoe), dLambda);
+                real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
+                if (lam0 < thresholdHartenYee)
+                    lam0 = (sqr(lam0) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+                if (lam4 < thresholdHartenYee)
+                    lam4 = (sqr(lam4) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+                //*HY
+            }
+            else if constexpr (eigScheme == 1)
+            {
+                //*LD, cLLF_M
+                /**
+                 * Nico Fleischmann, Stefan Adami, Xiangyu Y. Hu, Nikolaus A. Adams, A low dissipation method to cure the grid-aligned shock instability, 2020
+                 */
+                real aL = std::min(std::sqrt(asqrL), std::abs(veloL(0)) / scaleLD);
+                real aR = std::min(std::sqrt(asqrR), std::abs(veloR(0)) / scaleLD);
+                lam0 = std::max(std::abs(veloL(0) - aL), std::abs(veloR(0) - aR));
+                lam123 = std::max(std::abs(veloL(0)), std::abs(veloR(0)));
+                lam4 = std::max(std::abs(veloL(0) + aL), std::abs(veloR(0) + aR));
+                //*LD, cLLF_M
+            }
+            else if constexpr (eigScheme == 2)
+            {
+                // *vanilla Lax
+                // lam0 = lam123 = lam4 = std::max({lam0, lam123, lam4});
+                lam0 = lam123 = lam4 = std::max(std::abs(veloL(0)) + std::sqrt(asqrL), std::abs(veloR(0)) + std::sqrt(asqrR));
+                F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) =
+                    (FL + FR) * 0.5 -
+                    0.5 * lam0 * (UR(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) - UL(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)));
+                return; //* early exit
+            }
+            else if constexpr (eigScheme == 3)
+            {
+                //*LD, Roe_M
+                /**
+                 * Nico Fleischmann, Stefan Adami, Xiangyu Y. Hu, Nikolaus A. Adams, A low dissipation method to cure the grid-aligned shock instability, 2020
+                 */
+                real LDthreshold = std::abs(veloRoe(0)) / scaleLD;
+                real aRoeStar = std::min(LDthreshold, aRoe);
+                lam0 = std::abs(veloRoe(0) - aRoeStar);
+                lam4 = std::abs(veloRoe(0) + aRoeStar);
+            }
+            else if constexpr (eigScheme == 4)
+            {
+                //*ID, Roe_M
+                /**
+                 * Nico Fleischmann, Stefan Adami, Xiangyu Y. Hu, Nikolaus A. Adams, A low dissipation method to cure the grid-aligned shock instability, 2020
+                 */
+#ifdef USE_SIGN_MINUS_AT_ROE_M4_FLUX
+                real uStar = signM(veloRoe(0)) * std::max(aRoe * scaleLD, std::abs(veloRoe(0)));
+#else
+                real uStar = sign(veloRoe(0)) * std::max(aRoe * scaleLD, std::abs(veloRoe(0))); //! why signM here?
+#endif
+                lam0 = std::abs(uStar - aRoe);
+                lam123 = std::abs(uStar);
+                lam4 = std::abs(uStar + aRoe);
+
+                // real thresholdHartenYee = std::max(scaleLD * (std::sqrt(vsqrRoe) + aRoe), 0);
+                // real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
+                // if (lam0 < thresholdHartenYee)
+                //     lam0 = (sqr(lam0) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+                // if (lam4 < thresholdHartenYee)
+                //     lam4 = (sqr(lam4) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+                // if (lam123 < thresholdHartenYee)
+                //     lam123 = (sqr(lam123) + thresholdHartenYeeS) / (2 * thresholdHartenYee);
+            }
+            else if constexpr (eigScheme == 5)
+            {
+            }
+            else
+            {
+                assert(false);
+            }
             Eigen::Vector<real, dim + 2> lam;
             lam(0) = lam0;
             lam(dim + 1) = lam4;
             lam(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).setConstant(lam123);
-            lam = lam.array().abs();
-
-            //*HY
-            real thresholdHartenYee = std::max(scaleHartenYee * (std::sqrt(vsqrRoe) + aRoe), dLambda);
-            real thresholdHartenYeeS = thresholdHartenYee * thresholdHartenYee;
-            if (std::abs(lam0) < thresholdHartenYee)
-                lam(0) = (lam0 * lam0 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
-            if (std::abs(lam4) < thresholdHartenYee)
-                lam(dim + 1) = (lam4 * lam4 + thresholdHartenYeeS) / (2 * thresholdHartenYee);
-            //*HY
 
             Eigen::Vector<real, dim + 2> alpha;
             Eigen::Matrix<real, dim + 2, dim + 2> ReVRoe;
@@ -448,8 +521,45 @@ namespace DNDS
             alpha(1) = (gamma - 1) / asqrRoe *
                        (incU(0) * (HRoe - veloRoe(0) * veloRoe(0)) +
                         veloRoe(0) * incU(1) - incU4b);
-            alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
+            alpha(0) = (incU(0) * (veloRoe(0) + aRoe) - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
             alpha(dim + 1) = incU(0) - (alpha(0) + alpha(1)); // * HLLEP doesn't need this
+
+            // * Roe-Modified
+            // veloRoe(0) = signM(veloRoe(0)) * lam123;
+            // aRoe = std::max(lam0 - lam123, lam4 - lam123);
+            // asqrRoe = sqr(aRoe);
+            // alpha(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) =
+            //     incU(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>)) -
+            //     veloRoe(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>)) * incU(0);
+            // real incU4b = incU(dim + 1) -
+            //               alpha(Eigen::seq(Eigen::fix<2>, Eigen::fix<dim>))
+            //                   .dot(veloRoe(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim - 1>)));
+            // alpha(1) = (gamma - 1) / asqrRoe *
+            //            (incU(0) * (HRoe - veloRoe(0) * veloRoe(0)) +
+            //             veloRoe(0) * incU(1) - incU4b);
+            // alpha(0) = (incU(0) * (veloRoe(0) + aRoe) - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
+            // alpha(dim + 1) = incU(0) - (alpha(0) + alpha(1)); // * HLLEP doesn't need this
+
+            // * Roe-HQM
+            // real alpha1 = lam123 * (UR(0) - UL(0) - (pR - pL) / asqrRoe);
+            // real alpha2 = 0.5 * lam0 * (pR - pL + rhoRoe * aRoe * incVelo(0)) / asqrRoe;
+            // real alpha3 = 0.5 * lam4 * (pR - pL - rhoRoe * aRoe * incVelo(0)) / asqrRoe;
+            // real alpha4 = alpha1 + alpha2 + alpha3;
+            // real alpha5 = aRoe * (alpha2 - alpha3);
+            // real alpha6 = 0;
+            // Eigen::Vector<real, dim> alpha7s = lam123 * rhoRoe * (veloR - veloL);
+            // alpha7s(0) = alpha5;
+            // Eigen::Vector<real, dim + 2>
+            //     incF;
+            // incF(0) = alpha4;
+            // incF(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)) = veloRoe * alpha4 + alpha7s;
+            // incF(dim + 1) = HRoe * alpha4 + veloRoe.dot(alpha7s) - asqrRoe * alpha1 / (gamma - 1);
+
+            // length should be considered
+            // flux[0] = (-alpha4);
+            // flux[1] = (-uTilde * alpha4 - uNV.x * alpha5 - alpha6);
+            // flux[2] = (-vTilde * alpha4 - uNV.y * alpha5 - alpha7);
+            // flux[3] = (-HTilde * alpha4 - unTilde * alpha5 - vTilde * alpha7 + aSoundTile * aSoundTile * alpha1 / (gamma - 1));
 
             // * Roe-Pike
             // alpha(0) = 0.5 / aRoe * (incP - rhoRoe * aRoe * incVelo(0));
@@ -458,12 +568,59 @@ namespace DNDS
             // alpha(3) = rhoRoe * incVelo(2);
             // alpha(4) = 0.5 / aRoe * (incP + rhoRoe * aRoe * incVelo(0));
 
-            Eigen::Vector<real, dim + 2>
-                incF = ReVRoe * (lam.array() * alpha.array()).matrix();
-            Eigen::Vector<real, dim + 2> FL, FR;
-            GasInviscidFlux<dim>(UL, veloL, pL, FL);
-            GasInviscidFlux<dim>(UR, veloR, pR, FR);
+            Eigen::Vector<real, dim + 2> incF = ReVRoe * (lam.array() * alpha.array()).matrix();
+
             F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = (FL + FR) * 0.5 - 0.5 * incF;
+
+            struct t_getRoeFlux
+            {
+                bool operator()(
+                    int NCV, Eigen::Vector<real, 4> &flux,
+                    real rL, real uL, real vL, real preL, real HL, real rNuHatL,
+                    real rR, real uR, real vR, real preR, real HR, real rNuHatR,
+                    real eig1, real eig2, real eig3, real eigSA1, real eigSA2, real eigSA3, real gamma,
+                    real rTilde, real uTilde, real vTilde, real aSoundTile, real HTilde,
+                    real uNVx, real uNVy, real EPS)
+                {
+                    struct tunv
+                    {
+                        real x, y;
+                    } uNV{uNVx, uNVy};
+                    real dun = uNV.x * (uR - uL) + uNV.y * (vR - vL);
+                    real unL = uNV.x * uL + uNV.y * vL;
+                    real unR = uNV.x * uR + uNV.y * vR;
+                    real runL = rL * unL;
+                    real runR = rR * unR;
+                    real unTilde = uNV.x * uTilde + uNV.y * vTilde;
+
+                    real alpha1 = eig1 * (rR - rL - (preR - preL) / aSoundTile / aSoundTile);
+                    real alpha2 = 0.5 * eig2 * (preR - preL + rTilde * aSoundTile * dun) / aSoundTile / aSoundTile;
+                    real alpha3 = 0.5 * eig3 * (preR - preL - rTilde * aSoundTile * dun) / aSoundTile / aSoundTile;
+                    real alpha4 = alpha1 + alpha2 + alpha3;
+                    real alpha5 = aSoundTile * (alpha2 - alpha3);
+                    real alpha6 = eig1 * rTilde * (uR - uL - uNV.x * dun);
+                    real alpha7 = eig1 * rTilde * (vR - vL - uNV.y * dun);
+                    // length should be considered
+                    flux[0] = 0.5 * ((runL + runR) - alpha4);
+                    flux[1] = 0.5 * ((runL * uL + runR * uR + uNV.x * (preL + preR)) - uTilde * alpha4 - uNV.x * alpha5 - alpha6);
+                    flux[2] = 0.5 * ((runL * vL + runR * vR + uNV.y * (preL + preR)) - vTilde * alpha4 - uNV.y * alpha5 - alpha7);
+                    flux[3] = 0.5 * ((runL * HL + runR * HR) - HTilde * alpha4 - unTilde * alpha5 - uTilde * alpha6 - vTilde * alpha7 + aSoundTile * aSoundTile * alpha1 / (gamma - 1));
+
+                    return true;
+                }
+            } getRoeFlux;
+
+            // Eigen::Vector<real, 4> fluxH;
+            // getRoeFlux(-1, fluxH,
+            //            UL(0), veloL(0), veloL(1), pL, HL, UnInitReal,
+            //            UR(0), veloR(0), veloR(1), pR, HR, UnInitReal,
+            //            lam123, lam0, lam4, lam123, lam0, lam4,
+            //            gamma, rhoRoe, veloRoe(0), veloRoe(1), aRoe, HRoe,
+            //            1, 0, UnInitReal);
+            // F(0) = fluxH(0);
+            // F(1) = fluxH(1);
+            // F(2) = fluxH(2);
+            // F(4) = fluxH(3);
         }
 
         template <typename TUL, typename TUR, typename TF, typename TdFdU, typename TFdumpInfo>

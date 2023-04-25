@@ -1,39 +1,39 @@
 {
-    "ifSteadyQuit": true,
-    "recOrder": 3,
-    "nInternalRecStep": 1,
-    "nTimeStep": 100000,
-    "nTimeStepInternal": 50000,
-    "nSGSIterationInternal": 0,
-    "gmresCode": 0,
-    "nGmresSpace": 10,
-    "nGmresIter": 1,
-    "jacobianTypeCode": 0,
-    "nFreezePassiveInner": 0,
-    "nConsoleCheck": 1,
-    "nConsoleCheckInternal": 10,
-    "consoleOutputMode": 1,
-    "nDataOutC": 10,
-    "nDataOut": 10,
-    "nDataOutCInternal": 100,
-    "nDataOutInternal": 1000000000,
-    "tDataOut": 1e100,
-    "tEnd": 100e100,
-    "CFL": 50,
-    "dtImplicit": 0.5e100,
-    "rhsThresholdInternal": 1e-15,
-    "useLocalDt": true,
-    "useLimiter": false,
+    "ifSteadyQuit": true, // quit computation normally instead of time marching unsteady
+    "recOrder": 3, // (VR) reconstruction polynomial degree
+    "nInternalRecStep": 1, // linear reconstruction steps per nonlinear iteration
+    "nTimeStep": 100000, // unsteady TSs
+    "nTimeStepInternal": 50000, // internal TSs
+    "nSGSIterationInternal": 0, // LUSGS linear steps
+    "gmresCode": 0, //0 for LUSGS, 1 for gmres
+    "nGmresSpace": 5, // k, num of Krylov space
+    "nGmresIter": 1, // GMRES linear steps
+    "jacobianTypeCode": 0, // 0 is OK now //!deprecated for now
+    "nFreezePassiveInner": 0, // freeze SA variables, in Euler_SA
+    "nConsoleCheck": 2, // unsteady log frequency
+    "nConsoleCheckInternal": 10, // internal log frequency
+    "consoleOutputMode": 1, // 1 to output wall face flux
+    "nDataOutC": 10, // c data file output freq
+    "nDataOut": 10, // numbered data file output freq
+    "nDataOutCInternal": 100, // c data file output freq for internal
+    "nDataOutInternal": 1000000, // numbered data file output freq for internal
+    "tDataOut": 1e100, // data file output freq, in simu time //!deprecated for now
+    "tEnd": 100e100, // data file output freq, in simu time //!deprecated for now
+    "CFL": 50, // CFL for internal tau (pseudo ts)
+    "dtImplicit": 0.5e100, // ts for unsteady
+    "rhsThresholdInternal": 1e-15, // internal exit condition
+    "useLocalDt": true, // disable for not using local dTau
+    "useLimiter": false, 
     "nPartialLimiterStart": 100,
     "nPartialLimiterStartLocal": 5000,
     "nLimiterTurnOn": 0,
     "nLimiterTurnOnInternal": 0,
     "nForceLocalStartStep": 1000000000,
-    "nCFLRampStart": 10000,
+    "nCFLRampStart": 10000000,
     "nCFLRampLength": 10000,
     "CFLRampEnd": 50,
-    "meshRotZ": -15,
-    "meshFile": "data/mesh/NACA0012_WIDE_H4_M.msh",
+    "meshRotZ": -0,
+    "meshFile": "data/mesh/NACA0012_H3M.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -55,21 +55,36 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_WIDE_H4_M",
-    "outLogName": "data/out/test_Euler_.NACA0012_WIDE_H4_M",
+    "outPltName": "data/out/test_Euler_.NACA0012_H3M",
+    "outLogName": "data/out/test_Euler_.NACA0012_H3M",
+    "uniqueStamps": false,
     "err_dMax": 0.01,
-    "res_base": 0,
+    "res_base": 1,
+    "useVolWiseResidual": true,
     "vfvSetting": {
         "SOR_Instead": true,
         "SOR_InverseScanning": false,
         "SOR_RedBlack": false,
         "JacobiRelax": 1,
-        "anistropicLengths": false,
+        "anisotropicLengths": true,
         "tangWeight": 1,
-        "tangWeightModMin": 0.1,
-        "wallWeight": 0.5,
+        "tangWeightModMin": 0.05,
+        "tangWeightDirection": "Norm",
+        "useLocalCoord": false,
+        "wallWeight": 1,
         "farWeight": 1,
-        "weightSchemeGeom": "None",
+        "weightSchemeGeom": "SDHQM",
+        "comment_weightSchemeGeom": [
+            "None",
+            "S",
+            "D",
+            "SDHQM"
+        ],
+        "weightSchemeDir": "optHQM",
+        "comment_weightSchemeDir": [
+            "None",
+            "optHQM"
+        ],
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
@@ -80,12 +95,12 @@
     "nDropVisScale": -1,
     "vDropVisScale": 0.025,
     "eulerSetting": {
-        "riemannSolverType": "Roe",
+        "riemannSolverType": "Roe_M4",
         "nTimeFilterPass": 0,
         "idealGasProperty": {
             "gamma": 1.4,
-            "Rgas": 0.0654,
-            "muGas": 3.4722e-07
+            "Rgas": 0.116221972344982,
+            "muGas": 3.472222222222222e-7
         },
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
@@ -98,15 +113,14 @@
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
             1,
-            1,
+            0.965925826289068,
+            0.258819045102521,
             0,
-            0,
-            45.1429,
-            1
+            79.8650793650794,
+            1.3
         ],
-        "boxInitializerValue": [
-        ],
-        "comment_boxInitializerValue":[
+        "boxInitializerValue": [],
+        "comment_boxInitializerValue": [
             "0.2M -15AOA",
             -1e100,
             1e100,
@@ -119,9 +133,10 @@
             -0.2588,
             0,
             45.1429,
-            1],
+            1
+        ],
         "planeInitializerValue": [],
-        "comment_farSatic": [
+        "comment_farStatic": [
             [
                 "A",
                 1,
@@ -163,7 +178,7 @@
                 2.528
             ],
             [
-                "0.2M alpha=00",
+                "0.2M alpha=00 with Rg = 0.0654",
                 1,
                 1,
                 0,
@@ -183,11 +198,19 @@
             [
                 "0.2M alpha=15",
                 1,
-                0.9659,
-                0.2588,
+                0.965925826289068,
+                0.258819045102521,
                 0,
                 45.1429,
                 1
+            ],
+            [
+                "0.15M with Rg = 0.116221972344982",
+                1,
+                1,
+                0,
+                0,
+                79.8650
             ]
         ]
     },
@@ -195,5 +218,6 @@
     "curvilinearRestartNstep": 100,
     "curvilinearRepeatInterval": 100,
     "curvilinearRepeatNum": 1,
-    "curvilinearRange": 0.4
+    "curvilinearRange": 0.4,
+    "manual_comments": "using Roe, ReconstructionWBAPLimitFacialV3, using_tm_V1"
 }

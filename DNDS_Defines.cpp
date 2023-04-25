@@ -9,4 +9,6 @@ namespace DNDS
     std::ostream &log() { return useCout ? std::cout : *logStream; }
 
     void setLogStream(std::ostream *nstream) { useCout = false, logStream = nstream; }
+
+    
 }
