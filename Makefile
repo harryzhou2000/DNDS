@@ -16,10 +16,10 @@ FLAGS_FAST=-O2
 -include Makefile.arc.in
 
 ifneq (${NATIVE_ARCH},TH2B)
-# export OMPI_CXX=clang++
-export OMPI_CXX=g++
-# export MPICH_CXX=clang++
-export MPICH_CXX=g++
+export OMPI_CXX=clang++
+# export OMPI_CXX=g++
+export MPICH_CXX=clang++
+# export MPICH_CXX=g++
 endif
 
 first: what

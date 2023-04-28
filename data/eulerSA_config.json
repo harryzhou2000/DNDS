@@ -33,7 +33,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 50,
     "meshRotZ": -0,
-    "meshFile": "data/mesh/NACA0012_H3M.msh",
+    "meshFile": "data/mesh/NACA0012_H1.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform/UniformA4_Euler.msh",
@@ -55,8 +55,8 @@
         "data/mesh/grid_NACA0012_vis.msh",
         "data/mesh/BL_A1.msh"
     ],
-    "outPltName": "data/out/test_Euler_.NACA0012_H3M",
-    "outLogName": "data/out/test_Euler_.NACA0012_H3M",
+    "outPltName": "data/out/test_Euler_.NACA0012_H1",
+    "outLogName": "data/out/test_Euler_.NACA0012_H1",
     "uniqueStamps": false,
     "err_dMax": 0.01,
     "res_base": 1,
@@ -68,7 +68,7 @@
         "JacobiRelax": 1,
         "anisotropicLengths": true,
         "tangWeight": 1,
-        "tangWeightModMin": 0.05,
+        "tangWeightModMin": 0.00,
         "tangWeightDirection": "Norm",
         "useLocalCoord": false,
         "wallWeight": 1,

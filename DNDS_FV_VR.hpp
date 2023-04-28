@@ -1044,7 +1044,8 @@ namespace DNDS
 
             // real tangModifier = (1- 1./cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
             real tangModifier = (1. / cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
-            tangModifier = sqr(tangModifier);
+            // tangModifier = sqr(tangModifier);
+            tangModifier = std::pow(tangModifier, real(2./3.));
 
             assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
 #ifndef USE_NORM_FUNCTIONAL
@@ -1076,7 +1077,7 @@ namespace DNDS
 
                 Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
                 // fTang *= setting.tangWeight * faceSigG; //! using ultraFix
-                fTang *= setting.tangWeight;
+                fTang *= setting.tangWeight * tangModifier;
                 real n0 = fNorm(0), n1 = fNorm(1);
                 real t0 = fTang(0), t1 = fTang(1);
 
@@ -1093,7 +1094,7 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
                         csumA = DiffI(1, i) * t0 + DiffI(2, i) * t1;
                         csumB = DiffJ(1, j) * t0 + DiffJ(2, j) * t1;
-                        Conj(i, j) += csumA * csumB * tangModifier;
+                        Conj(i, j) += csumA * csumB;
 
                         csumA = (DiffI(3, i) * n0 * n0 +
                                  DiffI(4, i) * n0 * n1 * 2 +
@@ -1119,7 +1120,7 @@ namespace DNDS
 #else
                                       2
 #endif
-                                      * tangModifier;
+                                      ;
 
                         csumA = (DiffI(3, i) * t0 * t0 +
                                  DiffI(4, i) * t0 * t1 * 2 +
@@ -1129,7 +1130,7 @@ namespace DNDS
                                  DiffJ(4, j) * t0 * t1 * 2 +
                                  DiffJ(5, j) * t1 * t1) *
                                 w2r;
-                        Conj(i, j) += csumA * csumB * tangModifier;
+                        Conj(i, j) += csumA * csumB;
 
                         csumA = (DiffI(6, i) * n0 * n0 * n0 +
                                  DiffI(7, i) * n0 * n0 * n1 * 3 +
@@ -1159,7 +1160,7 @@ namespace DNDS
 #else
                                       3
 #endif
-                                      * tangModifier;
+                                      ;
 
                         csumA = (DiffI(6, i) * n0 * t0 * t0 +
                                  DiffI(7, i) * (t0 * n0 * t1 + n0 * t0 * t1 + t0 * t0 * n1) +
@@ -1177,7 +1178,7 @@ namespace DNDS
 #else
                                       3
 #endif
-                                      * tangModifier;
+                                      ;
 
                         csumA = (DiffI(6, i) * t0 * t0 * t0 +
                                  DiffI(7, i) * t0 * t0 * t1 * 3 +
@@ -1188,7 +1189,7 @@ namespace DNDS
                                  DiffJ(7, j) * t0 * t0 * t1 * 3 +
                                  DiffJ(8, j) * t0 * t1 * t1 * 3 +
                                  DiffJ(9, j) * t1 * t1 * t1) *
-                                w3r * tangModifier;
+                                w3r ;
                         Conj(i, j) += csumA * csumB;
                     }
             }
