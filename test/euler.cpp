@@ -2,12 +2,11 @@
 
 int main(int argc, char *argv[])
 {
-    std::cout << "Start" << std::endl;
+    // std::cout << "Start" << std::endl;
     MPI_Init(&argc, &argv);
     using namespace DNDS;
     MPIInfo mpi;
     mpi.setWorld();
-    std::cout << "Start" << std::endl;
 
     {
         EulerSolver<NS> solver(mpi);

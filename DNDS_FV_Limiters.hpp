@@ -361,7 +361,7 @@ namespace DNDS
             uDown += thetaInverse.square() * thetaInverse.square();
             uUp += thetaInverse.cube();
         }
-        uOut = uOthers[0] * (uUp + n1)  / (uDown + n1);
+        uOut = uOthers[0] * (uUp + n1) / (uDown + n1); // currently fast version
 
         // if (uOut.hasNaN())
         // {
@@ -372,12 +372,11 @@ namespace DNDS
         //     abort();
         // }
 
-        /************************/
+        /************************/ //! safe version
         // uOut.resizeLike(uOthers[0]);
         // static const int maxNeighbour = 7;
         // assert(uOthers.size() <= maxNeighbour);
         // real theta[maxNeighbour];
-        
 
         // for (int idof = 0; idof < uOthers[0].cols(); idof++)
         //     for (int irec = 0; irec < uOthers[0].rows(); irec++)
@@ -386,14 +385,14 @@ namespace DNDS
         //         for (int ii = 0; ii < uOthers.size(); ++ii)
         //         {
         //             real uother = uOthers[ii](irec, idof);
-        //             theta[ii] = (u0 + signP(u0) * 1e-12) /
-        //                         (uother + signP(uother) * 1e-12);
+        //             theta[ii] = (u0 + signM(u0) * 1e-12) /
+        //                         (uother + signM(uother) * 1e-12);
         //         }
 
         //         static const real p = 4.0;
         //         real sumLocal1 = n1;
         //         real sumLocal2 = n1;
-        //         for (int ii = 0; ii < uOthers.size(); ++ii)
+        //         for (int ii = 1; ii < uOthers.size(); ++ii)
         //         {
         //             sumLocal1 += std::pow(theta[ii], (p - 1.0));
         //             sumLocal2 += std::pow(theta[ii], p);
@@ -432,15 +431,16 @@ namespace DNDS
         auto theta1 = frac.cube();
         auto theta2 = frac.square() * frac.square();
 
-        uOut = u1 * (n + theta1) / (n + theta2);
+        uOut = u1 * (n + theta1) / (n + theta2); // currently fast version
         ///////////
+        /************************/ //! safe version
         // uOut.resizeLike(u1);
         // for (int idof = 0; idof < u1.cols(); idof++)
         //     for (int irec = 0; irec < u1.rows(); irec++)
         //     {
         //         real u1c = u1(irec, idof);
         //         real u2c = u2(irec, idof);
-        //         real frac = u1c / (u2c + signP(u2c) * 1e-14);
+        //         real frac = (u1c) / (u2c + signM(u2c) * 1e-12);
         //         real theta1 = std::pow(frac, p - 1);
         //         real theta2 = std::pow(frac, p);
         //         uOut(irec, idof) = u1c * (n + theta1) / (n + theta2);

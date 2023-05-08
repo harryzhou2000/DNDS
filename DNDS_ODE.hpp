@@ -446,7 +446,7 @@ namespace DNDS
                 index kCurrent = cnPrev + 1;
                 index prevSiz = kBDF - 1;
                 for (index iPrev = 0; iPrev < cnPrev; iPrev++)
-                    assert(std::abs(dtPrevs[mod(iPrev + prevStart, prevSiz)] - dt) < dt * 1e-8);
+                    assert(prevSiz && std::abs(dtPrevs[mod(iPrev + prevStart, prevSiz)] - dt) < dt * 1e-8);
 
                 xLast = x;
                 // x = xLast;
@@ -461,8 +461,13 @@ namespace DNDS
                     rhsbuf[0] *= BDFCoefs(kCurrent - 1, 0);
                     rhsbuf[0].addTo(x, -1. / dt);
                     rhsbuf[0].addTo(xLast, BDFCoefs(kCurrent - 1, 1) / dt);
-                    for (index iPrev = 0; iPrev < cnPrev; iPrev++)
-                        rhsbuf[0].addTo(xPrevs[mod(iPrev + prevStart, prevSiz)], BDFCoefs(kCurrent - 1, 2 + iPrev) / dt);
+                    // std::cout << "add " << BDFCoefs(kCurrent - 1, 1) << " " << "last" << std::endl;
+                    if(prevSiz)
+                        for (index iPrev = 0; iPrev < cnPrev; iPrev++)
+                        {
+                            // std::cout << "add " << BDFCoefs(kCurrent - 1, 2 + iPrev) <<" " << mod(iPrev + prevStart, prevSiz) << std::endl;
+                            rhsbuf[0].addTo(xPrevs[mod(iPrev + prevStart, prevSiz)], BDFCoefs(kCurrent - 1, 2 + iPrev) / dt);
+                        }
 
                     fsolve(x, rhsbuf[0], dTau, dt, BDFCoefs(kCurrent - 1, 0), xinc, iter);
                     //* xinc = (I/dtau-A*alphaDiag)\rhs
@@ -481,12 +486,14 @@ namespace DNDS
                 }
                 if (iter > maxIter)
                     fstop(iter, xinc, 1);
-
-                prevStart = mod(prevStart - 1, prevSiz);
-                // std::cout << dtPrevs.size() << " " << prevStart << std::endl;
-                xPrevs[prevStart] = xLast;
-                dtPrevs[prevStart] = dt;
-                cnPrev = std::min(cnPrev + 1, prevSiz);
+                if (prevSiz)
+                {
+                    prevStart = mod(prevStart - 1, prevSiz);
+                    // std::cout << dtPrevs.size() << " " << prevStart << std::endl;
+                    xPrevs[prevStart] = xLast;
+                    dtPrevs[prevStart] = dt;
+                    cnPrev = std::min(cnPrev + 1, prevSiz);
+                }
             }
 
             virtual TDATA &getLatestRHS() override

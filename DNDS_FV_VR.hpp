@@ -217,6 +217,8 @@ namespace DNDS
             } weightSchemeDir = WeightSchemeDir::NoneDir;
             std::string weightSchemeDirName;
 
+            real weightLenScale = 1;
+
             real WBAP_SmoothIndicatorScale = 1e-10;
             real WBAP_nStd = 10.0;
             bool normWBAP = false;
@@ -1029,22 +1031,23 @@ namespace DNDS
             }
             real cellARMax = std::max(cellARL, cellARR);
             real faceSigL = std::pow(FV->volumeLocal[icellL], 1. / 2.) / FV->faceArea[iFace]; // 2D
-            real faceSigR = std::pow(FV->volumeLocal[icellR], 1. / 2.) / FV->faceArea[iFace]; // 
+            real faceSigR = std::pow(FV->volumeLocal[icellR], 1. / 2.) / FV->faceArea[iFace]; //
             real delta;
-            if(f2c[1] != FACE_2_VOL_EMPTY)
+            if (f2c[1] != FACE_2_VOL_EMPTY)
             {
                 delta = (cellBaries[f2c[0]] - cellBaries[f2c[1]]).stableNorm();
             }
             else
             {
-                delta = (cellBaries[f2c[0]] - faceCenters[iFace]).stableNorm() * 2; 
+                delta = (cellBaries[f2c[0]] - faceCenters[iFace]).stableNorm() * 2;
             }
             real faceSigG = FV->faceArea[iFace] / delta;
             cellARMax = std::max({1., faceSigL, faceSigR}); //* using_tm_V1
 
             // real tangModifier = (1- 1./cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
             real tangModifier = (1. / cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
-            tangModifier = sqr(tangModifier);
+            // tangModifier = sqr(tangModifier);
+            tangModifier = std::pow(tangModifier, real(1. / 1.)); // ! still testing
 
             assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
 #ifndef USE_NORM_FUNCTIONAL
@@ -1076,7 +1079,7 @@ namespace DNDS
 
                 Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
                 // fTang *= setting.tangWeight * faceSigG; //! using ultraFix
-                fTang *= setting.tangWeight;
+                fTang *= setting.tangWeight * tangModifier;
                 real n0 = fNorm(0), n1 = fNorm(1);
                 real t0 = fTang(0), t1 = fTang(1);
 
@@ -1093,7 +1096,7 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
                         csumA = DiffI(1, i) * t0 + DiffI(2, i) * t1;
                         csumB = DiffJ(1, j) * t0 + DiffJ(2, j) * t1;
-                        Conj(i, j) += csumA * csumB * tangModifier;
+                        Conj(i, j) += csumA * csumB;
 
                         csumA = (DiffI(3, i) * n0 * n0 +
                                  DiffI(4, i) * n0 * n1 * 2 +
@@ -1119,7 +1122,7 @@ namespace DNDS
 #else
                                       2
 #endif
-                                      * tangModifier;
+                            ;
 
                         csumA = (DiffI(3, i) * t0 * t0 +
                                  DiffI(4, i) * t0 * t1 * 2 +
@@ -1129,7 +1132,7 @@ namespace DNDS
                                  DiffJ(4, j) * t0 * t1 * 2 +
                                  DiffJ(5, j) * t1 * t1) *
                                 w2r;
-                        Conj(i, j) += csumA * csumB * tangModifier;
+                        Conj(i, j) += csumA * csumB;
 
                         csumA = (DiffI(6, i) * n0 * n0 * n0 +
                                  DiffI(7, i) * n0 * n0 * n1 * 3 +
@@ -1159,7 +1162,7 @@ namespace DNDS
 #else
                                       3
 #endif
-                                      * tangModifier;
+                            ;
 
                         csumA = (DiffI(6, i) * n0 * t0 * t0 +
                                  DiffI(7, i) * (t0 * n0 * t1 + n0 * t0 * t1 + t0 * t0 * n1) +
@@ -1177,7 +1180,7 @@ namespace DNDS
 #else
                                       3
 #endif
-                                      * tangModifier;
+                            ;
 
                         csumA = (DiffI(6, i) * t0 * t0 * t0 +
                                  DiffI(7, i) * t0 * t0 * t1 * 3 +
@@ -1188,7 +1191,7 @@ namespace DNDS
                                  DiffJ(7, j) * t0 * t0 * t1 * 3 +
                                  DiffJ(8, j) * t0 * t1 * t1 * 3 +
                                  DiffJ(9, j) * t1 * t1 * t1) *
-                                w3r * tangModifier;
+                                w3r;
                         Conj(i, j) += csumA * csumB;
                     }
             }
@@ -1212,7 +1215,7 @@ namespace DNDS
                                                     : faceNormCenter[iFace]({0, 1}).stableNormalized() * length;
 
                 Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
-                fTang *= setting.tangWeight;
+                fTang *= setting.tangWeight * tangModifier;
                 real n0 = fNorm(0), n1 = fNorm(1);
                 real t0 = fTang(0), t1 = fTang(1);
                 // w2r *= 0.1;
@@ -1231,7 +1234,7 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
                         csumA = DiffI(1, i) * t0 + DiffI(2, i) * t1;
                         csumB = DiffJ(1, j) * t0 + DiffJ(2, j) * t1;
-                        Conj(i, j) += csumA * csumB * tangModifier;
+                        Conj(i, j) += csumA * csumB;
 
                         csumA = (DiffI(3, i) * n0 * n0 +
                                  DiffI(4, i) * n0 * n1 * 2 +
@@ -1257,7 +1260,7 @@ namespace DNDS
 #else
                                       2
 #endif
-                                      * tangModifier;
+                                      ;
 
                         csumA = (DiffI(3, i) * t0 * t0 +
                                  DiffI(4, i) * t0 * t1 * 2 +
@@ -1267,7 +1270,7 @@ namespace DNDS
                                  DiffJ(4, j) * t0 * t1 * 2 +
                                  DiffJ(5, j) * t1 * t1) *
                                 w2r;
-                        Conj(i, j) += csumA * csumB * tangModifier;
+                        Conj(i, j) += csumA * csumB;
                     }
             }
             else
@@ -1601,7 +1604,7 @@ namespace DNDS
                             auto f2n = mesh->face2nodeLocal[iFace];
                             Eigen::Matrix3Xd coords;
                             mesh->LoadCoords(f2n, coords);
-                            
+
                             eFace.Integration(
                                 BCCorrection,
                                 [&](Eigen::MatrixXd &corInc, int ig, Elem::tPoint &p, Elem::tDiFj &iDiNj)
@@ -1918,6 +1921,54 @@ namespace DNDS
                                         LimStart,
                                         LimEnd),
                                     Eigen::all);
+                            // { // for testing on uniform grid
+                            //     Elem::tPoint delta = getCellCenter(iCell) - getCellCenter(iCellOther);
+                            //     delta = delta.normalized() * 2;
+                            //     real dx = delta(0);
+                            //     real dy = delta(1);
+                            //     Eigen::MatrixXd uOtherI = uRecNewBuf[iCellOther];
+                            //     uOtherI(8, Eigen::all) = uRecNewBuf[iCellOther](8, Eigen::all);
+                            //     uOtherI(7, Eigen::all) = uRecNewBuf[iCellOther](7, Eigen::all);
+                            //     uOtherI(6, Eigen::all) = uRecNewBuf[iCellOther](6, Eigen::all);
+                            //     uOtherI(5, Eigen::all) = uRecNewBuf[iCellOther](5, Eigen::all);
+                            //     uOtherI(4, Eigen::all) = uRecNewBuf[iCellOther](4, Eigen::all) + uRecNewBuf[iCellOther](7, Eigen::all) * dx * 1 + uRecNewBuf[iCellOther](8, Eigen::all) * dy * 3;
+                            //     uOtherI(3, Eigen::all) = uRecNewBuf[iCellOther](3, Eigen::all) + uRecNewBuf[iCellOther](6, Eigen::all) * dx * 2 + uRecNewBuf[iCellOther](7, Eigen::all) * dy * 2;
+                            //     uOtherI(2, Eigen::all) = uRecNewBuf[iCellOther](2, Eigen::all) + uRecNewBuf[iCellOther](5, Eigen::all) * dx * 3 + uRecNewBuf[iCellOther](6, Eigen::all) * dy * 1;
+                            //     uOtherI(1, Eigen::all) = uRecNewBuf[iCellOther](1, Eigen::all) +
+                            //                              uRecNewBuf[iCellOther](3, Eigen::all) * dx * 1 +
+                            //                              uRecNewBuf[iCellOther](4, Eigen::all) * dy * 2 +
+                            //                              uRecNewBuf[iCellOther](6, Eigen::all) * dx * dx * 1 +
+                            //                              uRecNewBuf[iCellOther](7, Eigen::all) * dx * dy * 2 +
+                            //                              uRecNewBuf[iCellOther](8, Eigen::all) * dy * dy * 3;
+                            //     uOtherI(0, Eigen::all) = uRecNewBuf[iCellOther](0, Eigen::all) +
+                            //                              uRecNewBuf[iCellOther](2, Eigen::all) * dx * 2 +
+                            //                              uRecNewBuf[iCellOther](3, Eigen::all) * dy * 1 +
+                            //                              uRecNewBuf[iCellOther](5, Eigen::all) * dx * dx * 3 +
+                            //                              uRecNewBuf[iCellOther](6, Eigen::all) * dx * dy * 2 +
+                            //                              uRecNewBuf[iCellOther](7, Eigen::all) * dy * dy * 1;
+
+                            //     if ((uOtherI - matrixSecondary *
+                            //                        uRecNewBuf[iCellOther])
+                            //             .norm() > 1e-8)
+                            //     {
+                            //         std::cout << uOtherI.transpose() << std::endl;
+                            //         std::cout << (matrixSecondary *
+                            //                       uRecNewBuf[iCellOther])
+                            //                          .transpose()
+                            //                   << std::endl;
+                            //         std::cout
+                            //             << "mSR\n"
+                            //             << matrixSecondary << std::endl;
+                            //         std::cout << dx << "\t" << dy << "\t" << iFace << "\t" << iCellAtFace << std::endl;
+                            //         exit(-1);
+                            //     }
+                            //     uOtherIn = uOtherI(
+                            //         Eigen::seq(
+                            //             LimStart,
+                            //             LimEnd),
+                            //         Eigen::all);
+                            // }
+
                             Eigen::MatrixXd uThisIn =
                                 uC.matrix();
                             // 2 char space :
@@ -2143,6 +2194,20 @@ namespace DNDS
                         // uFaces[ic2f] = uRecNewBuf[iCellOther] * 1e100;
                         uFaces[ic2f].resizeLike(uRecNewBuf[iCellOther]);
                     }
+                    if (iCell == 4240)
+                    {
+                        uRecNewBuf[iCellOther](0, 0) = 0; // 9;
+                        uRecNewBuf[iCellOther](1, 0) = 0; // 8;
+                        uRecNewBuf[iCellOther](2, 0) = 0; // 7;
+                        uRecNewBuf[iCellOther](3, 0) = 0; // 6;
+                        uRecNewBuf[iCellOther](4, 0) = 0; // 5;
+                        uRecNewBuf[iCellOther](5, 0) = 0; // 4;
+                        uRecNewBuf[iCellOther](6, 0) = 0; // 3;
+                        uRecNewBuf[iCellOther](7, 0) = 0; // 2;
+                        uRecNewBuf[iCellOther](8, 0) = 0; // 1;
+                        // uRecNewBuf[iCell](Eigen::all, 0).setConstant(0);
+                        uRecNewBuf[iCell](Eigen::all, 0) = Eigen::Vector<real, 9>{1, 2, 3, 4, 5, 6, 7, 8, 9};
+                    }
                 }
 
                 int cPOrder = P_ORDER;
@@ -2198,20 +2263,7 @@ namespace DNDS
                             // if (!(ifUseLimiter[iCell] & 0x0000000FU))
                             //     continue;
 
-                            auto &c2n = mesh->cell2nodeLocal[iCellOther];
-                            Eigen::MatrixXd coords;
-                            mesh->LoadCoords(c2n, coords);
-                            Elem::tPoint sScaleOther = CoordMinMaxScale(coords);
-
                             Elem::tPoint unitNorm = faceNormCenter[iFace].stableNormalized();
-
-                            auto &cOther2f = mesh->cell2faceLocal[iCellOther];
-                            index icOther2f = 0;
-                            //* find icOther2f
-                            for (; icOther2f < cOther2f.size(); icOther2f++)
-                                if (iFace == cOther2f[icOther2f])
-                                    break;
-                            assert(icOther2f < cOther2f.size());
 
                             const auto &matrixSecondary =
                                 iCellAtFace
@@ -2222,16 +2274,82 @@ namespace DNDS
                                 iCellAtFace
                                     ? matrixSecondaryBatchElem.m(0)
                                     : matrixSecondaryBatchElem.m(1);
+
                             // std::cout << "A"<<std::endl;
                             //! note that when false == bool(iCellAtFace), this cell is at left of the face
                             Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOF> uOtherOther = uRecNewBuf[iCellOther](Eigen::seq(0, NRecDOFLim - 1), Eigen::all);
-                            if (LimEnd < uOtherOther.rows() - 1)
+                            if (LimEnd < uOtherOther.rows() - 1) // successive SR
                                 uOtherOther(Eigen::seq(LimEnd + 1, NRecDOFLim - 1), Eigen::all) =
                                     matrixSecondaryOther(Eigen::seq(LimEnd + 1, NRecDOFLim - 1), Eigen::seq(LimEnd + 1, NRecDOFLim - 1)) *
                                     uFaces[ic2f](Eigen::seq(LimEnd + 1, NRecDOFLim - 1), Eigen::all);
+
                             // std::cout << "B" << std::endl;
                             Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uOtherIn =
                                 matrixSecondary(Eigen::seq(LimStart, LimEnd), Eigen::all) * uOtherOther;
+
+                            // { // for testing on uniform grid
+                            //     Elem::tPoint delta = getCellCenter(iCell) - getCellCenter(iCellOther);
+                            //     delta = delta.normalized() * 2;
+                            //     real dx = delta(0);
+                            //     real dy = delta(1);
+                            //     Eigen::MatrixXd uOtherI = uRecNewBuf[iCellOther];
+                            //     switch (cPOrder)
+                            //     {
+                            //     case 3:
+                            //         uOtherI(8, Eigen::all) = uRecNewBuf[iCellOther](8, Eigen::all);
+                            //         uOtherI(7, Eigen::all) = uRecNewBuf[iCellOther](7, Eigen::all);
+                            //         uOtherI(6, Eigen::all) = uRecNewBuf[iCellOther](6, Eigen::all);
+                            //         uOtherI(5, Eigen::all) = uRecNewBuf[iCellOther](5, Eigen::all);
+                            //     case 2:
+                            //         uOtherI(4, Eigen::all) = uRecNewBuf[iCellOther](4, Eigen::all) + uFaces[ic2f](7, Eigen::all) * dx * 1 + uFaces[ic2f](8, Eigen::all) * dy * 3;
+                            //         uOtherI(3, Eigen::all) = uRecNewBuf[iCellOther](3, Eigen::all) + uFaces[ic2f](6, Eigen::all) * dx * 2 + uFaces[ic2f](7, Eigen::all) * dy * 2;
+                            //         uOtherI(2, Eigen::all) = uRecNewBuf[iCellOther](2, Eigen::all) + uFaces[ic2f](5, Eigen::all) * dx * 3 + uFaces[ic2f](6, Eigen::all) * dy * 1;
+                            //     case 1:
+                            //         uOtherI(1, Eigen::all) = uRecNewBuf[iCellOther](1, Eigen::all) +
+                            //                                  uFaces[ic2f](3, Eigen::all) * dx * 1 +
+                            //                                  uFaces[ic2f](4, Eigen::all) * dy * 2 -
+                            //                                  uFaces[ic2f](6, Eigen::all) * dx * dx * 1 -
+                            //                                  uFaces[ic2f](7, Eigen::all) * dx * dy * 2 -
+                            //                                  uFaces[ic2f](8, Eigen::all) * dy * dy * 3;
+                            //         uOtherI(0, Eigen::all) = uRecNewBuf[iCellOther](0, Eigen::all) +
+                            //                                  uFaces[ic2f](2, Eigen::all) * dx * 2 +
+                            //                                  uFaces[ic2f](3, Eigen::all) * dy * 1 -
+                            //                                  uFaces[ic2f](5, Eigen::all) * dx * dx * 3 -
+                            //                                  uFaces[ic2f](6, Eigen::all) * dx * dy * 2 -
+                            //                                  uFaces[ic2f](7, Eigen::all) * dy * dy * 1;
+                            //         break;
+                            //     default:
+                            //         assert(false);
+                            //         break;
+                            //     }
+
+                            //     if ((uOtherIn - uOtherI(
+                            //                         Eigen::seq(
+                            //                             LimStart,
+                            //                             LimEnd),
+                            //                         Eigen::all))
+                            //             .norm() > 1e-8)
+                            //     {
+                            //         std::cout << uOtherIn.transpose() << std::endl;
+                            //         std::cout << uOtherI(
+                            //                          Eigen::seq(
+                            //                              LimStart,
+                            //                              LimEnd),
+                            //                          Eigen::all)
+                            //                          .transpose()
+                            //                   << std::endl;
+                            //         std::cout
+                            //             << "mSR\n"
+                            //             << matrixSecondary << std::endl;
+                            //         std::cout << dx << "\t" << dy << "\t" << iFace << "\t" << iCellAtFace << std::endl;
+                            //         exit(-1);
+                            //     }
+                            //     uOtherIn = uOtherI(
+                            //         Eigen::seq(
+                            //             LimStart,
+                            //             LimEnd),
+                            //         Eigen::all);
+                            // }
 
                             Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uThisIn =
                                 uC.matrix();
@@ -2264,6 +2382,24 @@ namespace DNDS
 
                             uFaces[ic2f](Eigen::seq(LimStart, LimEnd), Eigen::all) = uLimOutArray.matrix();
                             uOthers.push_back(uLimOutArray);
+
+                            if (iCell == 4240)
+                            {
+                                std::cout << "\n === === === === === === === ===\n";
+                                std::cout << "iO = " << cPOrder << " === iC2F = " << ic2f << std::endl;
+                                if (cPOrder == 3)
+                                {
+                                    std::cout << unitNorm.transpose() << std::endl;
+                                    std::cout << "===\n"
+                                              << matrixSecondary << std::endl;
+                                    std::cout << "===\n"
+                                              << matrixSecondaryOther << std::endl;
+                                }
+                                std::cout << "=== uOtherOther\n"
+                                          << uOtherOther(Eigen::all, 0).transpose() << std::endl;
+                                std::cout << "=== uFaces[ic2f]\n"
+                                          << uFaces[ic2f](Eigen::all, 0).transpose() << std::endl;
+                            }
                         }
                         else
                         {
@@ -2272,6 +2408,7 @@ namespace DNDS
                     Eigen::Array<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch> uLimOutArray;
 
                     real n = setting.WBAP_nStd;
+
                     if (setting.normWBAP)
                     {
                         if (setting.orthogonalizeBase)
@@ -2283,11 +2420,34 @@ namespace DNDS
                     else
                         FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray, n);
 
+                    if (iCell == 4240)
+                    {
+                        if (cPOrder == 3)
+                        {
+                            std::cout << "centerIns at 9" << std::endl;
+                            std::cout << uOthers[0](0, 0) << "\t"
+                                      << uOthers[1](0, 0) << "\t"
+                                      << uOthers[2](0, 0) << "\t"
+                                      << uOthers[3](0, 0) << "\t"
+                                      << uOthers[4](0, 0) << "\t";
+                            std::cout << uLimOutArray(0, 0);
+                            std::cout << std::endl;
+                            std::cout << "n=" << n << std::endl;
+                        }
+                    }
+
                     uRecNewBuf1[iCell](
                         Eigen::seq(
                             LimStart,
                             LimEnd),
                         Eigen::all) = uLimOutArray.matrix();
+                }
+                if (iCell == 4240)
+                {
+                    std::cout << "final\n"
+                              << std::setprecision(15);
+                    std::cout << uRecNewBuf1[iCell](Eigen::all, 0).transpose() << std::endl;
+                    exit(-1);
                 }
             }
             uRecNewBuf1.StartPersistentPullClean();
