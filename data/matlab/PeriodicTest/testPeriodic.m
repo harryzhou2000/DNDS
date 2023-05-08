@@ -1,5 +1,5 @@
 
-compressY = 1e-3;
+compressY = 1e-4;
 skewX = 0;
 quadP1 = [-0.5, -0.5*compressY]';
 quadP2 = [0.5 + skewX, -0.5*compressY]';
@@ -37,7 +37,7 @@ Moment = Moment(1,:)/vol;
 
 
 
-dirWeights = [1 1 1/2 1/6];
+dirWeights = [1 1 0 0];
 tangWeight = 1;
 normed = true;
 
