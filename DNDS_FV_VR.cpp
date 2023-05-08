@@ -688,6 +688,14 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                                                  faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1), msR2L);
                 HardEigen::EigenLeastSquareSolve(faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1),
                                                  faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1), msL2R);
+                // //* Force to upperTri and sparse
+                // for (int ii = 0; ii < msR2L.rows(); ii++)
+                //     for (int jj = 0; jj < msR2L.cols(); jj++)
+                //         msR2L(ii, jj) *= (ii > jj || std::abs(msR2L(ii, jj)) < 1e-12) ? 0. : 1.;
+                // for (int ii = 0; ii < msL2R.rows(); ii++)
+                //     for (int jj = 0; jj < msL2R.cols(); jj++)
+                //         msL2R(ii, jj) *= (ii > jj || std::abs(msL2R(ii, jj)) < 1e-12) ? 0. : 1.;
+                // assert(msL2R.isUpperTriangular() && msR2L.isUpperTriangular());
                 matrixSecondaryBatchElem.m(0) = msR2L;
                 matrixSecondaryBatchElem.m(1) = msL2R;
                 // std::cout << msR2L << std::endl;
@@ -754,10 +762,10 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             case Setting::WeightSchemeGeom::NoneGeom:
                 break;
             case Setting::WeightSchemeGeom::D:
-                GW = 1. / D;
+                GW = std::pow(1. / D, 0.5);
                 break;
             case Setting::WeightSchemeGeom::S:
-                GW = 1. / S;
+                GW = std::pow(1. / S, 0.5);
                 break;
             case Setting::WeightSchemeGeom::SDHQM:
                 GW = std::pow(S / D, 0.5 / 2);
@@ -780,6 +788,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
 #ifndef USE_NORM_FUNCTIONAL
             delta[0] = delta[1] = delta({0, 1}).norm();
 #endif
+            delta *= setting.weightLenScale;
 
             for (int idiff = 0; idiff < faceRecAtr.NDIFF; idiff++)
             {
@@ -799,6 +808,8 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                     .2117 * std::sqrt(1.),
                     0. / 0.,
                     0. / 0.};
+                // static const real wdiff1[6] = {1., 1., 0.5, 0.2, 0. / 0., 0. / 0.};
+
                 assert(ndx + ndy < 5);
                 switch (setting.weightSchemeDir)
                 {
@@ -807,7 +818,8 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                     (*faceWeights)[iFace][idiff] *= GW *
                                                     std::pow(delta[0], ndx) *
                                                     std::pow(delta[1], ndy) *
-                                                    std::sqrt(real(Elem::diffNCombs2D[idiff])) / real(Elem::factorials[ndx + ndy]);
+                                                    real(Elem::diffNCombs2D[idiff]) / real(Elem::factorials[ndx + ndy]);
+                                                    //now identical with original PJH scheme with len scale right
                     break;
 
                 case Setting::WeightSchemeDir::OPTHQM:
@@ -1030,6 +1042,12 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 Elem::ElementManager eFace(faceAttribute.type, faceRecAttribute.intScheme);
                 auto faceDiBjGaussBatchElem = (*faceDiBjGaussBatch)[iFace];
 
+                // if (iCell == 4240)
+                // {
+                //     std::cout << "FW\n"
+                //               << (*faceWeights)[iFace].transpose().array().square() << std::endl;
+                // }
+
                 if (iCellOther != FACE_2_VOL_EMPTY)
                 {
                     auto &cellAttributeOther = mesh->cellAtrLocal[iCellOther][0];
@@ -1110,6 +1128,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
             }
             vectorBatchElem.m(0) = vectorBatchElem.m(0) * Ainv.transpose(); // must be outside the loop as it operates all rows at once
             // if (iCell == 10756)
+            // if (iCell == 4240)
             // {
             //     std::cout << cellBaries[iCell].transpose() << std::endl
             //               << std::setprecision(16);

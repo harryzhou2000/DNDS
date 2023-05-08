@@ -68,7 +68,7 @@
         "JacobiRelax": 1,
         "anisotropicLengths": true,
         "tangWeight": 1,
-        "tangWeightModMin": 0.00,
+        "tangWeightModMin": 0.01,
         "tangWeightDirection": "Norm",
         "useLocalCoord": false,
         "wallWeight": 1,

@@ -195,6 +195,8 @@ namespace DNDS
                     "tangWeightModMin", &config.vfvSetting.tangWeightModMin, []() {}, JSON::ParamParser::FLAG_NULL);
                 vfvParser.AddBool(
                     "useLocalCoord", &config.vfvSetting.useLocalCoord, []() {}, JSON::ParamParser::FLAG_NULL);
+                vfvParser.AddDNDS_Real(
+                    "weightLenScale", &config.vfvSetting.weightLenScale, []() {}, JSON::ParamParser::FLAG_NULL);
                 vfvParser.AddBool("anisotropicLengths", &config.vfvSetting.anisotropicLengths);
                 vfvParser.AddDNDS_Real("scaleMLargerPortion", &config.vfvSetting.scaleMLargerPortion);
                 vfvParser.AddDNDS_Real("farWeight", &config.vfvSetting.farWeight);
@@ -203,6 +205,7 @@ namespace DNDS
                 vfvParser.AddDNDS_Real("WBAP_SmoothIndicatorScale", &config.vfvSetting.WBAP_SmoothIndicatorScale);
                 vfvParser.AddBool("orthogonalizeBase", &config.vfvSetting.orthogonalizeBase);
                 vfvParser.AddBool("normWBAP", &config.vfvSetting.normWBAP);
+                
             }
             std::string centerOpt, weightOpt, tangWeightDirectionOpt;
             {
@@ -751,7 +754,7 @@ namespace DNDS
                             ret(Seq01234, Seq01234) = M;
                             PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
                             return ret;
-                            // return Eigen::Matrix<real, 5, 5>::Identity();
+                            // return real(1);
                         },
                         [&](const auto &UL, const auto &UR, const auto &n) -> auto
                         {
@@ -781,7 +784,7 @@ namespace DNDS
 
                             PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
                             return ret;
-                            // return Eigen::Matrix<real, 5, 5>::Identity();
+                            // return real(1);
                         });
                     // uRecNew.StartPersistentPullClean();
                     // uRecNew.WaitPersistentPullClean();
@@ -1438,7 +1441,7 @@ namespace DNDS
                 (*outDist)[iCell][I4 + 1] = T;
                 (*outDist)[iCell][I4 + 2] = M;
                 // (*outDist)[iCell][7] = (bool)(ifUseLimiter[iCell] & 0x0000000FU);
-                (*outDist)[iCell][I4 + 3] = ifUseLimiter[iCell][0] / config.vfvSetting.WBAP_SmoothIndicatorScale;
+                (*outDist)[iCell][I4 + 3] = ifUseLimiter[iCell][0] / (config.vfvSetting.WBAP_SmoothIndicatorScale + verySmallReal);
                 // std::cout << iCell << ode.rhsbuf[0][iCell] << std::endl;
                 (*outDist)[iCell][I4 + 4] = ode->getLatestRHS()[iCell][0];
                 // (*outDist)[iCell][8] = (*vfv->SOR_iCell2iScan)[iCell];//!using SOR rb seq instead
