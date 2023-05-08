@@ -385,7 +385,7 @@ namespace DNDS
             TU UL = ULxy;
             UR(Seq123) = normBase(Seq012, Seq012).transpose() * UR(Seq123);
             UL(Seq123) = normBase(Seq012, Seq012).transpose() * UL(Seq123);
-            if (btype == BoundaryType::Wall_Euler || btype == BoundaryType::Wall_NoSlip)
+            if (btype == BoundaryType::Wall_NoSlip)
                 UR(Seq123) = -UL(Seq123);
             TU UMeanXy = 0.5 * (ULxy + URxy);
 
