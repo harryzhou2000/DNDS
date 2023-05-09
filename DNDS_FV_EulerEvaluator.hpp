@@ -385,8 +385,11 @@ namespace DNDS
             TU UL = ULxy;
             UR(Seq123) = normBase(Seq012, Seq012).transpose() * UR(Seq123);
             UL(Seq123) = normBase(Seq012, Seq012).transpose() * UL(Seq123);
-            if (btype == BoundaryType::Wall_NoSlip)
-                UR(Seq123) = -UL(Seq123);
+            // if (btype == BoundaryType::Wall_NoSlip)
+            //     UR(Seq123) = -UL(Seq123);
+            // if (btype == BoundaryType::Wall_Euler)
+            //     UR(1) = -UL(1);
+            
             TU UMeanXy = 0.5 * (ULxy + URxy);
 
             real pMean, asqrMean, Hmean;
@@ -544,9 +547,9 @@ namespace DNDS
                     exitFun, lam0, lam123, lam4);
             else
                 assert(false);
-            // std::cout << "HERE2" << std::endl;
-            // if (btype == BoundaryType::Wall_NoSlip || btype == BoundaryType::Wall_Euler)
-            //     finc(0) = 0; //! enforce mass leak = 0
+                // std::cout << "HERE2" << std::endl;
+                // if (btype == BoundaryType::Wall_NoSlip || btype == BoundaryType::Wall_Euler)
+                //     finc(0) = 0; //! enforce mass leak = 0
 
 #ifndef USE_ENTROPY_FIXED_LAMBDA_IN_SA
             lam123 = (std::abs(UL(1) / UL(0)) + std::abs(UR(1) / UR(0))) * 0.5; //! high fix
