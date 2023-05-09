@@ -175,6 +175,7 @@ namespace DNDS
             return LeV;
         }
 
+#define DNDS_GAS_HLLEP_USE_V1
         template <int dim = 3, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
         void HLLEPFlux_IdealGas(const TUL &UL, const TUR &UR, real gamma, TF &F, real dLambda,
                                 const TFdumpInfo &dumpInfo)
@@ -251,9 +252,12 @@ namespace DNDS
             alpha(1) = (gamma - 1) / asqrRoe *
                        (incU(0) * (HRoe - veloRoe(0) * veloRoe(0)) +
                         veloRoe(0) * incU(1) - incU4b);
-            //! ?
-            // alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
-            // alpha(dim + 1) = incU(0) - (alpha(0) + alpha(1)); // * HLLEP doesn't need this
+            // ? HLLEP V1
+#ifdef DNDS_GAS_HLLEP_USE_V1
+            alpha(0) = (incU(0) * lam4 - incU(1) - aRoe * alpha(1)) / (2 * aRoe);
+            alpha(dim + 1) = incU(0) - (alpha(0) + alpha(1)); // * HLLEP doesn't need 
+#endif
+            
             // std::cout << alpha.transpose() << std::endl;
             // std::cout << std::endl;
 
@@ -268,8 +272,10 @@ namespace DNDS
             GasInviscidFlux<dim>(UR, veloR, pR, FR);
             real SP = std::max(SR, 0.0);
             real SM = std::min(SL, 0.0);
+
+#ifndef DNDS_GAS_HLLEP_USE_V1
             real div = SP - SM;
-            div += sign(div) * verySmallReal;
+            div += signP(div) * verySmallReal;
 
             // F = (SP * FL - SM * FR) / div + (SP * SM / div) * (UR - UL - dfix * ReVRoe(Eigen::all, {1, 2, 3}) * alpha({1, 2, 3}));
             F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) =
@@ -278,29 +284,29 @@ namespace DNDS
                     (UR(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) -
                      UL(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) -
                      dfix * ReVRoe(Eigen::all, {1}) * alpha({1}));
+#else
+            // ? HLLEP V1
+            real aSound = aRoe;
+            real un_abs = aRoe;
+            real Sp = SP;
+            real Sn = SM;
+            real delta1 = aSound / (un_abs + aSound + verySmallReal);
+            real delta2 = 0.0;
+            real delta3 = 0.0;
+            real un = veloRoe(0);
 
-            // //! ?
+            real eV1 = ((Sp + Sn) * un - 2.0 * (1.0 - delta1) * (Sp * Sn)) / (Sp - Sn);
+            real eV2 = ((Sp + Sn) * (un + aSound) - 2.0 * (1.0 - delta2) * (Sp * Sn)) / (Sp - Sn);
+            real eV3 = ((Sp + Sn) * (un - aSound) - 2.0 * (1.0 - delta3) * (Sp * Sn)) / (Sp - Sn);
 
-            // real aSound = aRoe;
-            // real un_abs = aRoe;
-            // real Sp = SP;
-            // real Sn = SM;
-            // real delta1 = aSound / (un_abs + aSound + verySmallReal);
-            // real delta2 = 0.0;
-            // real delta3 = 0.0;
-            // real un = veloRoe(0);
+            lam(0) = eV3;
+            lam(dim + 1) = eV2;
+            lam(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).setConstant(eV1);
+            lam = lam.array().abs();
 
-            // real eV1 = ((Sp + Sn) * un - 2.0 * (1.0 - delta1) * (Sp * Sn)) / (Sp - Sn);
-            // real eV2 = ((Sp + Sn) * (un + aSound) - 2.0 * (1.0 - delta2) * (Sp * Sn)) / (Sp - Sn);
-            // real eV3 = ((Sp + Sn) * (un - aSound) - 2.0 * (1.0 - delta3) * (Sp * Sn)) / (Sp - Sn);
-
-            // lam(0) = eV3;
-            // lam(dim + 1) = eV2;
-            // lam(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).setConstant(eV1);
-            // lam = lam.array().abs();
-
-            // Eigen::Vector<real, dim + 2> incF = ReVRoe * (lam.array() * alpha.array()).matrix();
-            // F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = (FL + FR) * 0.5 - 0.5 * incF;
+            Eigen::Vector<real, dim + 2> incF = ReVRoe * (lam.array() * alpha.array()).matrix();
+            F(Eigen::seq(Eigen::fix<0>, Eigen::fix<dim + 1>)) = (FL + FR) * 0.5 - 0.5 * incF;
+#endif
         }
 
         template <int dim = 3, typename TUL, typename TUR, typename TF, typename TFdumpInfo>
