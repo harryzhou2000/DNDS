@@ -8,12 +8,12 @@
 #include <functional>
 
 // #define DNDS_FV_EULEREVALUATOR_SOURCE_TERM_ZERO
-// #define DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
-// #define DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
+// // #define DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
+// // #define DNDS_FV_EULEREVALUATOR_IGNORE_VISCOUS_TERM
 
-#ifdef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM // term dependency
-// #define DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
-#endif
+// // #ifdef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM // term dependency
+// // // #define DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
+// // #endif
 
 namespace DNDS
 {
@@ -187,6 +187,9 @@ namespace DNDS
             int specialBuiltinInitializer = 0;
 
             Eigen::Vector<real, 3> constMassForce = Eigen::Vector<real, 3>{0, 0, 0};
+
+            bool ignoreSourceTerm = false;
+            bool useScalarJacobian = false;
 
         } settings;
 

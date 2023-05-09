@@ -517,124 +517,125 @@ namespace DNDS
 
         InsertCheck(u.dist->getMPI(), "EvaluateRHS After Flux");
 
-#ifndef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
-        for (index iCell = 0; iCell < jacobianCellSourceDiag.size(); iCell++) // force zero source jacobian
-            jacobianCellSourceDiag[iCell].setZero();
-
-        for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+        if (!settings.ignoreSourceTerm)
         {
-            auto &cellRecAtr = vfv->cellRecAtrLocal[iCell][0];
-            auto &cellAtr = mesh->cellAtrLocal[iCell][0];
-            Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
-            auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
+            for (index iCell = 0; iCell < jacobianCellSourceDiag.size(); iCell++) // force zero source jacobian
+                jacobianCellSourceDiag[iCell].setZero();
 
-            Eigen::Vector<real, nvarsFixedMultipy<nVars_Fixed, 2>()> sourceV(cnvars * 2); // now includes sourcejacobian diag
-            sourceV.setZero();
+            for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
+            {
+                auto &cellRecAtr = vfv->cellRecAtrLocal[iCell][0];
+                auto &cellAtr = mesh->cellAtrLocal[iCell][0];
+                Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
+                auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
 
-            Elem::SummationNoOp noOp;
-            bool cellOrderReduced = false;
+                Eigen::Vector<real, nvarsFixedMultipy<nVars_Fixed, 2>()> sourceV(cnvars * 2); // now includes sourcejacobian diag
+                sourceV.setZero();
+
+                Elem::SummationNoOp noOp;
+                bool cellOrderReduced = false;
 
 #ifdef USE_TOTAL_REDUCED_ORDER_CELL
-            eCell.Integration(
-                noOp,
-                [&](decltype(noOp) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
-                {
-                    if (!cellOrderReduced)
+                eCell.Integration(
+                    noOp,
+                    [&](decltype(noOp) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
                     {
-                        TU ULxy =
-                            cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
-                            uRec[iCell] * IF_NOT_NOREC;
-                        ULxy = CompressRecPart(u[iCell], ULxy, cellOrderReduced);
-                    }
-                });
+                        if (!cellOrderReduced)
+                        {
+                            TU ULxy =
+                                cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+                                uRec[iCell] * IF_NOT_NOREC;
+                            ULxy = CompressRecPart(u[iCell], ULxy, cellOrderReduced);
+                        }
+                    });
 #endif
 
-            eCell.Integration(
-                sourceV,
-                [&](decltype(sourceV) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+                eCell.Integration(
+                    sourceV,
+                    [&](decltype(sourceV) &finc, int ig, Elem::tPoint &p, Elem::tDiFj &DiNj)
+                    {
+                        TDiffU GradU;
+                        GradU.resize(Eigen::NoChange, cnvars);
+                        GradU.setZero();
+                        PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterB);
+                        if constexpr (gdim == 2)
+                            GradU({0, 1}, Eigen::all) =
+                                cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
+                                uRec[iCell] * IF_NOT_NOREC; // 2d specific
+                        else
+                            GradU({0, 1, 2}, Eigen::all) =
+                                cellDiBjGaussBatchElemVR.m(ig)({1, 2, 3}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
+                                uRec[iCell] * IF_NOT_NOREC; // 3d specific
+
+                        bool pointOrderReduced;
+                        TU ULxy = u[iCell];
+                        if (!cellOrderReduced)
+                        {
+                            // ULxy += cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+                            //         uRec[iCell] * IF_NOT_NOREC;
+                            ULxy = CompressRecPart(ULxy,
+                                                   cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
+                                                       uRec[iCell] * IF_NOT_NOREC,
+                                                   pointOrderReduced);
+                        }
+                        PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterB);
+
+                        // bool compressed = false;
+                        // ULxy = CompressRecPart(u[iCell], ULxy, compressed); //! do not forget the mean value
+
+                        finc.resizeLike(sourceV);
+                        if constexpr (nVars_Fixed > 0)
+                        {
+                            finc(Eigen::seq(Eigen::fix<0>, Eigen::fix<nVars_Fixed - 1>)) =
+                                source(
+                                    ULxy,
+                                    GradU,
+                                    iCell, ig);
+                            finc(Eigen::seq(Eigen::fix<nVars_Fixed>, Eigen::fix<2 * nVars_Fixed - 1>)) =
+                                sourceJacobianDiag(
+                                    ULxy,
+                                    GradU,
+                                    iCell, ig);
+                        }
+                        else
+                        {
+                            finc(Eigen::seq(0, cnvars - 1)) =
+                                source(
+                                    ULxy,
+                                    GradU,
+                                    iCell, ig);
+                            finc(Eigen::seq(cnvars, 2 * cnvars - 1)) =
+                                sourceJacobianDiag(
+                                    ULxy,
+                                    GradU,
+                                    iCell, ig);
+                        }
+
+                        finc *= vfv->cellGaussJacobiDets[iCell][ig]; // don't forget this
+                        if (finc.hasNaN() || (!finc.allFinite()))
+                        {
+                            std::cout << finc.transpose() << std::endl;
+                            std::cout << ULxy.transpose() << std::endl;
+                            std::cout << GradU << std::endl;
+                            assert(false);
+                        }
+                    });
+                if constexpr (nVars_Fixed > 0)
                 {
-                    TDiffU GradU;
-                    GradU.resize(Eigen::NoChange, cnvars);
-                    GradU.setZero();
-                    PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterB);
-                    if constexpr (gdim == 2)
-                        GradU({0, 1}, Eigen::all) =
-                            cellDiBjGaussBatchElemVR.m(ig)({1, 2}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
-                            uRec[iCell] * IF_NOT_NOREC; // 2d specific
-                    else
-                        GradU({0, 1, 2}, Eigen::all) =
-                            cellDiBjGaussBatchElemVR.m(ig)({1, 2, 3}, Eigen::seq(Eigen::fix<1>, Eigen::last)) *
-                            uRec[iCell] * IF_NOT_NOREC; // 3d specific
-
-                    bool pointOrderReduced;
-                    TU ULxy = u[iCell];
-                    if (!cellOrderReduced)
-                    {
-                        // ULxy += cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
-                        //         uRec[iCell] * IF_NOT_NOREC;
-                        ULxy = CompressRecPart(ULxy,
-                                               cellDiBjGaussBatchElemVR.m(ig).row(0).rightCols(uRec[iCell].rows()) *
-                                                   uRec[iCell] * IF_NOT_NOREC,
-                                               pointOrderReduced);
-                    }
-                    PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterB);
-
-                    // bool compressed = false;
-                    // ULxy = CompressRecPart(u[iCell], ULxy, compressed); //! do not forget the mean value
-
-                    finc.resizeLike(sourceV);
-                    if constexpr (nVars_Fixed > 0)
-                    {
-                        finc(Eigen::seq(Eigen::fix<0>, Eigen::fix<nVars_Fixed - 1>)) =
-                            source(
-                                ULxy,
-                                GradU,
-                                iCell, ig);
-                        finc(Eigen::seq(Eigen::fix<nVars_Fixed>, Eigen::fix<2 * nVars_Fixed - 1>)) =
-                            sourceJacobianDiag(
-                                ULxy,
-                                GradU,
-                                iCell, ig);
-                    }
-                    else
-                    {
-                        finc(Eigen::seq(0, cnvars - 1)) =
-                            source(
-                                ULxy,
-                                GradU,
-                                iCell, ig);
-                        finc(Eigen::seq(cnvars, 2 * cnvars - 1)) =
-                            sourceJacobianDiag(
-                                ULxy,
-                                GradU,
-                                iCell, ig);
-                    }
-
-                    finc *= vfv->cellGaussJacobiDets[iCell][ig]; // don't forget this
-                    if (finc.hasNaN() || (!finc.allFinite()))
-                    {
-                        std::cout << finc.transpose() << std::endl;
-                        std::cout << ULxy.transpose() << std::endl;
-                        std::cout << GradU << std::endl;
-                        assert(false);
-                    }
-                });
-            if constexpr (nVars_Fixed > 0)
-            {
-                rhs[iCell] += sourceV(Eigen::seq(Eigen::fix<0>, Eigen::fix<nVars_Fixed - 1>)) / fv->volumeLocal[iCell];
-                jacobianCellSourceDiag[iCell] = sourceV(Eigen::seq(Eigen::fix<nVars_Fixed>, Eigen::fix<2 * nVars_Fixed - 1>)) / fv->volumeLocal[iCell];
+                    rhs[iCell] += sourceV(Eigen::seq(Eigen::fix<0>, Eigen::fix<nVars_Fixed - 1>)) / fv->volumeLocal[iCell];
+                    jacobianCellSourceDiag[iCell] = sourceV(Eigen::seq(Eigen::fix<nVars_Fixed>, Eigen::fix<2 * nVars_Fixed - 1>)) / fv->volumeLocal[iCell];
+                }
+                else
+                {
+                    rhs[iCell] += sourceV(Eigen::seq(0, cnvars - 1)) / fv->volumeLocal[iCell];
+                    jacobianCellSourceDiag[iCell] = sourceV(Eigen::seq(cnvars, 2 * cnvars - 1)) / fv->volumeLocal[iCell];
+                }
+                // if (iCell == 18195)
+                // {
+                //     std::cout << rhs[iCell].transpose() << std::endl;
+                // }
             }
-            else
-            {
-                rhs[iCell] += sourceV(Eigen::seq(0, cnvars - 1)) / fv->volumeLocal[iCell];
-                jacobianCellSourceDiag[iCell] = sourceV(Eigen::seq(cnvars, 2 * cnvars - 1)) / fv->volumeLocal[iCell];
-            }
-            // if (iCell == 18195)
-            // {
-            //     std::cout << rhs[iCell].transpose() << std::endl;
-            // }
         }
-#endif
         InsertCheck(u.dist->getMPI(), "EvaluateRHS -1");
     }
 
@@ -1007,35 +1008,35 @@ namespace DNDS
             Elem::ElementManager eCell(cellAtr.type, cellRecAtr.intScheme);
             auto cellDiBjGaussBatchElemVR = (*vfv->cellDiBjGaussBatch)[iCell];
             auto &c2f = mesh->cell2faceLocal[iCell];
-#ifndef DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
-            jacobianCell[iCell].setIdentity();
-#endif
+
+            if (!(settings.ignoreSourceTerm && settings.useScalarJacobian))
+                jacobianCell[iCell].setIdentity();
 
             // LUSGS diag part
-            real fpDivisor = 1.0 / dTau[iCell] + 1.0 / dt; 
+            real fpDivisor = 1.0 / dTau[iCell] + 1.0 / dt;
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
             {
                 index iFace = c2f[ic2f];
                 fpDivisor += (0.5 * alphaDiag) * fv->faceArea[iFace] * lambdaFace[iFace] / fv->volumeLocal[iCell];
             }
-#ifndef DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
-            jacobianCell[iCell] *= fpDivisor; //! all passive vars use same diag for flux part
-#else
-            jacobianCell_Scalar[iCell] = fpDivisor;
-#endif
+            if (!(settings.ignoreSourceTerm && settings.useScalarJacobian))
+                jacobianCell[iCell] *= fpDivisor; //! all passive vars use same diag for flux part
+            else
+                jacobianCell_Scalar[iCell] = fpDivisor;
+
             // std::cout << fpDivisor << std::endl;
 
             // jacobian diag
 
-#ifndef DNDS_FV_EULEREVALUATOR_IGNORE_SOURCE_TERM
-            jacobianCell[iCell] += alphaDiag * jacobianCellSourceDiag[iCell].asDiagonal();
-#endif
+            if (!settings.ignoreSourceTerm)
+                jacobianCell[iCell] += alphaDiag * jacobianCellSourceDiag[iCell].asDiagonal();
+
             //! assuming diagonal here!
-#ifndef DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
-            jacobianCellInv[iCell] = jacobianCell[iCell].diagonal().array().inverse().matrix().asDiagonal();
-#else
-            jacobianCellInv_Scalar[iCell] = 1. / fpDivisor;
-#endif
+            if (!(settings.ignoreSourceTerm && settings.useScalarJacobian))
+                jacobianCellInv[iCell] = jacobianCell[iCell].diagonal().array().inverse().matrix().asDiagonal();
+            else
+                jacobianCellInv_Scalar[iCell] = 1. / fpDivisor;
+
             // jacobianCellInv[iCell] = jacobianCell[iCell].partialPivLu().inverse();
 
             // std::cout << "jacobian Diag\n"
@@ -1123,11 +1124,11 @@ namespace DNDS
             // uIncNewBuf /= fpDivisor;
             // uIncNew[iCell] = uIncNewBuf;
             auto AuIncI = AuInc[iCell];
-#ifndef DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
+            if (!(settings.ignoreSourceTerm && settings.useScalarJacobian))
             AuIncI = jacobianCell[iCell] * uInc[iCell] - uIncNewBuf;
-#else
+            else
             AuIncI = jacobianCell_Scalar[iCell] * uInc[iCell] - uIncNewBuf;
-#endif
+
             if (AuIncI.hasNaN())
             {
                 std::cout << AuIncI.transpose() << std::endl
@@ -1232,11 +1233,11 @@ namespace DNDS
                 }
             }
             auto uIncNewI = uIncNew[iCell];
-#ifndef DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
-            uIncNewI = jacobianCellInv[iCell] * uIncNewBuf;
-#else
-            uIncNewI = jacobianCellInv_Scalar[iCell] * uIncNewBuf;
-#endif
+            if (!(settings.ignoreSourceTerm && settings.useScalarJacobian))
+                uIncNewI = jacobianCellInv[iCell] * uIncNewBuf;
+            else
+                uIncNewI = jacobianCellInv_Scalar[iCell] * uIncNewBuf;
+
             // std::cout << "Forward " << iCell << "-- " << uIncNewI(0) << std::endl;
             // if (iCell == 10756)
             // {
@@ -1338,11 +1339,11 @@ namespace DNDS
                 }
             }
             auto uIncNewI = uIncNew[iCell];
-#ifndef DNDS_FV_EULEREVALUATOR_USE_SCALAR_JACOBIAN
-            uIncNewI += jacobianCellInv[iCell] * uIncNewBuf; // backward
-#else
-            uIncNewI += jacobianCellInv_Scalar[iCell] * uIncNewBuf; // backward
-#endif
+            if (!(settings.ignoreSourceTerm && settings.useScalarJacobian))
+                uIncNewI += jacobianCellInv[iCell] * uIncNewBuf; // backward
+            else
+                uIncNewI += jacobianCellInv_Scalar[iCell] * uIncNewBuf; // backward
+
             // if (iCell == 20636 || iCell == 10756)
             //     std::cout << std::setprecision(16) << "!!! " << uIncNewI(0) << std::endl;
             // std::cout << "BackWard " << iCell << "-- " << uIncNewI(0) << std::endl;

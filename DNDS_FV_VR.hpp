@@ -2194,20 +2194,20 @@ namespace DNDS
                         // uFaces[ic2f] = uRecNewBuf[iCellOther] * 1e100;
                         uFaces[ic2f].resizeLike(uRecNewBuf[iCellOther]);
                     }
-                    if (iCell == 4240)
-                    {
-                        uRecNewBuf[iCellOther](0, 0) = 0; // 9;
-                        uRecNewBuf[iCellOther](1, 0) = 0; // 8;
-                        uRecNewBuf[iCellOther](2, 0) = 0; // 7;
-                        uRecNewBuf[iCellOther](3, 0) = 0; // 6;
-                        uRecNewBuf[iCellOther](4, 0) = 0; // 5;
-                        uRecNewBuf[iCellOther](5, 0) = 0; // 4;
-                        uRecNewBuf[iCellOther](6, 0) = 0; // 3;
-                        uRecNewBuf[iCellOther](7, 0) = 0; // 2;
-                        uRecNewBuf[iCellOther](8, 0) = 0; // 1;
-                        // uRecNewBuf[iCell](Eigen::all, 0).setConstant(0);
-                        uRecNewBuf[iCell](Eigen::all, 0) = Eigen::Vector<real, 9>{1, 2, 3, 4, 5, 6, 7, 8, 9};
-                    }
+                    // if (iCell == 4240)
+                    // {
+                    //     uRecNewBuf[iCellOther](0, 0) = 0; // 9;
+                    //     uRecNewBuf[iCellOther](1, 0) = 0; // 8;
+                    //     uRecNewBuf[iCellOther](2, 0) = 0; // 7;
+                    //     uRecNewBuf[iCellOther](3, 0) = 0; // 6;
+                    //     uRecNewBuf[iCellOther](4, 0) = 0; // 5;
+                    //     uRecNewBuf[iCellOther](5, 0) = 0; // 4;
+                    //     uRecNewBuf[iCellOther](6, 0) = 0; // 3;
+                    //     uRecNewBuf[iCellOther](7, 0) = 0; // 2;
+                    //     uRecNewBuf[iCellOther](8, 0) = 0; // 1;
+                    //     // uRecNewBuf[iCell](Eigen::all, 0).setConstant(0);
+                    //     uRecNewBuf[iCell](Eigen::all, 0) = Eigen::Vector<real, 9>{1, 2, 3, 4, 5, 6, 7, 8, 9};
+                    // }
                 }
 
                 int cPOrder = P_ORDER;
@@ -2383,23 +2383,23 @@ namespace DNDS
                             uFaces[ic2f](Eigen::seq(LimStart, LimEnd), Eigen::all) = uLimOutArray.matrix();
                             uOthers.push_back(uLimOutArray);
 
-                            if (iCell == 4240)
-                            {
-                                std::cout << "\n === === === === === === === ===\n";
-                                std::cout << "iO = " << cPOrder << " === iC2F = " << ic2f << std::endl;
-                                if (cPOrder == 3)
-                                {
-                                    std::cout << unitNorm.transpose() << std::endl;
-                                    std::cout << "===\n"
-                                              << matrixSecondary << std::endl;
-                                    std::cout << "===\n"
-                                              << matrixSecondaryOther << std::endl;
-                                }
-                                std::cout << "=== uOtherOther\n"
-                                          << uOtherOther(Eigen::all, 0).transpose() << std::endl;
-                                std::cout << "=== uFaces[ic2f]\n"
-                                          << uFaces[ic2f](Eigen::all, 0).transpose() << std::endl;
-                            }
+                            // if (iCell == 4240)
+                            // {
+                            //     std::cout << "\n === === === === === === === ===\n";
+                            //     std::cout << "iO = " << cPOrder << " === iC2F = " << ic2f << std::endl;
+                            //     if (cPOrder == 3)
+                            //     {
+                            //         std::cout << unitNorm.transpose() << std::endl;
+                            //         std::cout << "===\n"
+                            //                   << matrixSecondary << std::endl;
+                            //         std::cout << "===\n"
+                            //                   << matrixSecondaryOther << std::endl;
+                            //     }
+                            //     std::cout << "=== uOtherOther\n"
+                            //               << uOtherOther(Eigen::all, 0).transpose() << std::endl;
+                            //     std::cout << "=== uFaces[ic2f]\n"
+                            //               << uFaces[ic2f](Eigen::all, 0).transpose() << std::endl;
+                            // }
                         }
                         else
                         {
@@ -2420,21 +2420,21 @@ namespace DNDS
                     else
                         FWBAP_L2_Multiway(uOthers, uOthers.size(), uLimOutArray, n);
 
-                    if (iCell == 4240)
-                    {
-                        if (cPOrder == 3)
-                        {
-                            std::cout << "centerIns at 9" << std::endl;
-                            std::cout << uOthers[0](0, 0) << "\t"
-                                      << uOthers[1](0, 0) << "\t"
-                                      << uOthers[2](0, 0) << "\t"
-                                      << uOthers[3](0, 0) << "\t"
-                                      << uOthers[4](0, 0) << "\t";
-                            std::cout << uLimOutArray(0, 0);
-                            std::cout << std::endl;
-                            std::cout << "n=" << n << std::endl;
-                        }
-                    }
+                    // if (iCell == 4240)
+                    // {
+                    //     if (cPOrder == 3)
+                    //     {
+                    //         std::cout << "centerIns at 9" << std::endl;
+                    //         std::cout << uOthers[0](0, 0) << "\t"
+                    //                   << uOthers[1](0, 0) << "\t"
+                    //                   << uOthers[2](0, 0) << "\t"
+                    //                   << uOthers[3](0, 0) << "\t"
+                    //                   << uOthers[4](0, 0) << "\t";
+                    //         std::cout << uLimOutArray(0, 0);
+                    //         std::cout << std::endl;
+                    //         std::cout << "n=" << n << std::endl;
+                    //     }
+                    // }
 
                     uRecNewBuf1[iCell](
                         Eigen::seq(
@@ -2442,13 +2442,13 @@ namespace DNDS
                             LimEnd),
                         Eigen::all) = uLimOutArray.matrix();
                 }
-                if (iCell == 4240)
-                {
-                    std::cout << "final\n"
-                              << std::setprecision(15);
-                    std::cout << uRecNewBuf1[iCell](Eigen::all, 0).transpose() << std::endl;
-                    exit(-1);
-                }
+                // if (iCell == 4240)
+                // {
+                //     std::cout << "final\n"
+                //               << std::setprecision(15);
+                //     std::cout << uRecNewBuf1[iCell](Eigen::all, 0).transpose() << std::endl;
+                //     exit(-1);
+                // }
             }
             uRecNewBuf1.StartPersistentPullClean();
             uRecNewBuf1.WaitPersistentPullClean();
