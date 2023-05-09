@@ -61,8 +61,10 @@ LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -lmetis -llapacke -lopenblas
 ifeq (${NATIVE_ARCH},TH2B)
 INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS} -I/PARA/pp089/BIGDATA-2/apps/include
 LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS} -L/PARA/pp089/BIGDATA-2/apps/lib -L/PARA/pp089/BIGDATA-2/apps/lib64 -lmetis -llapacke -lblas
+# METIS_INCLUDE_PATH=.
+# METIS_LIBRARY_PATH=.
 # INCLUDE=${MPIINC} ${CGNSINC} ${PYTHON_CFLAGS} -I${METIS_INCLUDE_PATH}
-# LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS}  -L${METIS_LIBRARY_PATH} -lmetis  # -llapacke -lblas
+# LINK   =${MPILIB} ${CGNSLIB} ${PYTHON_LDFLAGS}  -L${METIS_LIBRARY_PATH} -lmetis -llapacke -lblas
 endif
 
 CXX_COMPILE_FLAGS=${INCLUDE} -std=c++17 -Wall \
@@ -137,3 +139,4 @@ clean:
 
 cleardata:
 	rm -v data/out/*
+
