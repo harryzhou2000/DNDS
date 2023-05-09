@@ -311,6 +311,11 @@ namespace DNDS
                 eulerParser.AddDNDS_Real("isiScaleIn", &config.eulerSetting.isiScaleIn);
                 eulerParser.AddDNDS_Real("isiCutDown", &config.eulerSetting.isiCutDown);
                 eulerParser.AddDNDS_Real("visScale", &config.eulerSetting.visScale);
+
+                eulerParser.AddBool(
+                    "useScalarJacobian", &config.eulerSetting.useScalarJacobian, []() {}, JSON::ParamParser::FLAG_NULL);
+                eulerParser.AddBool(
+                    "ignoreSourceTerm", &config.eulerSetting.ignoreSourceTerm, []() {}, JSON::ParamParser::FLAG_NULL);
             }
             JSON::ParamParser eulerGasParser(mpi);
             {
