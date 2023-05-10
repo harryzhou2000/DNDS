@@ -2,7 +2,7 @@
     "odeCode": 1,
     "recOrder": 3,
     "nInternalRecStep": 1,
-    "nTimeStep": 3200,
+    "nTimeStep": 1600,
     "nTimeStepInternal": 20,
     "nSGSIterationInternal": 0,
     "gmresCode": 0,
@@ -20,11 +20,11 @@
     "tDataOut": 1e100,
     "tEnd": 100e100,
     "CFL": 10,
-    "dtImplicit": 6.25e-5,
+    "dtImplicit": 0.0005,
     "rhsThresholdInternal": 1e-3,
     "useLocalDt": true,
     "useLimiter": true,
-    "nPartialLimiterStart": 0,
+    "nPartialLimiterStart": 10000,
     "nPartialLimiterStartLocal": 10000,
     "nLimiterTurnOn": 0,
     "nLimiterTurnOnInternal": 0,
@@ -33,7 +33,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/UniformDM240.msh",
+    "meshFile": "data/mesh/Uniform2R_1000.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform128.msh",
@@ -48,10 +48,11 @@
         "data/mesh/NACA0012_SW_0_NS.msh",
         "data/mesh/NACA0012_WIDE_H3_NS.msh",
         "data/mesh/NACA0012_WIDE_H3G_NS.msh",
-        "data/mesh/UniformTube200.msh"
+        "data/mesh/UniformTube200.msh",
+        "data/mesh/Uniform2R_128.msh"
     ],
-    "outPltName": "data/outUnsteady/test_Euler_.UniformDM240_NF_SD",
-    "outLogName": "data/outUnsteady/test_Euler_.UniformDM240_NF_SD",
+    "outPltName": "data/outUnsteady/test_Euler_.Uniform2R_1000_C_N_X", //WBAPTYPE_FUNCTIONALTYPE_LIMITERTYPE
+    "outLogName": "data/outUnsteady/test_Euler_.Uniform2R_1000_C_N_X",
     "uniqueStamps": false,
     "err_dMax": 0.00,
     "res_base": 0,
@@ -83,7 +84,7 @@
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 1e-1,
+        "WBAP_SmoothIndicatorScale": 1e-100,
         "normWBAP": false,
         "orthogonalizeBase": false
     },
@@ -95,9 +96,9 @@
         "idealGasProperty": {
             "gamma": 1.4,
             "Rgas": 289,
-            "muGas": 1e-200
+            "muGas": 1e-1
         },
-        "ignoreSourceTerm": true,
+        "ignoreSourceTerm": false,
         "useScalarJacobian": false,
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
@@ -109,24 +110,49 @@
         "ekCutDown": 0.5,
         "isiCutDown": 0.5,
         "farFieldStaticValue": [
-            1.4,
+            1.5,
             0,
             0,
             0,
-            2.5
+            3.75
         ],
-        "boxInitializerValue": [],
-        "planeInitializerValue": [
-            -1,
-            0.577350269189626,
+        "boxInitializerValue": [
+            -1e100,
+            0.8,
+            -1e100,
+            1e100,
+            -1e100,
+            1e100,
+            0.532258064516129,
+            0.641927378778465,
             0,
-            0.166666666666667,
-            8,
-            57.157676649772960,
-            -33,
             0,
-            5.635e2
+            1.137096774193549, // box1
+            -1e100,
+            1e100,
+            -1e100,
+            0.8,
+            -1e100,
+            1e100,
+            0.532258064516129,
+            0,
+            0.641927378778465,
+            0,
+            1.137096774193549, // box2
+            -1e100,
+            0.8,
+            -1e100,
+            0.8,
+            -1e100,
+            1e100,
+            0.137992831541219,
+            0.166425616720343,
+            0.166425616720343,
+            0,
+            0.273297491039427
+            // box3
         ],
+        "planeInitializerValue": [],
         "comment_farSatic": [
             [
                 "A",

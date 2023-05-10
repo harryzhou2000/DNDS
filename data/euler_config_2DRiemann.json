@@ -33,7 +33,7 @@
     "nCFLRampLength": 10000,
     "CFLRampEnd": 2,
     "meshRotZ": 0,
-    "meshFile": "data/mesh/Uniform2R_128.msh",
+    "meshFile": "data/mesh/Uniform2R_512.msh",
     "comment_meshFileList": [
         "data/mesh/Uniform512.msh",
         "data/mesh/Uniform128.msh",
@@ -51,8 +51,8 @@
         "data/mesh/UniformTube200.msh",
         "data/mesh/Uniform2R_128.msh"
     ],
-    "outPltName": "data/outUnsteady/test_Euler_.Uniform2R_128",
-    "outLogName": "data/outUnsteady/test_Euler_.Uniform2R_128",
+    "outPltName": "data/outUnsteady/test_Euler_.Uniform2R_512",
+    "outLogName": "data/outUnsteady/test_Euler_.Uniform2R_512",
     "uniqueStamps": false,
     "err_dMax": 0.00,
     "res_base": 0,
