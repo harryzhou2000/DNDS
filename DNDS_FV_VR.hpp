@@ -1551,7 +1551,8 @@ namespace DNDS
                         else if (faceAttribute.iPhy == BoundaryType::Farfield ||
                                  faceAttribute.iPhy == BoundaryType::Special_DMRFar ||
                                  faceAttribute.iPhy == BoundaryType::Special_RTFar ||
-                                 faceAttribute.iPhy == BoundaryType::Special_IVFar)
+                                 faceAttribute.iPhy == BoundaryType::Special_IVFar ||
+                                 faceAttribute.iPhy == BoundaryType::Special_2DRiemannFar)
                         {
                             if (!setting.SOR_Instead)
                                 uRecNewBuf[iCell] +=

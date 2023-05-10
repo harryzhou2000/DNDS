@@ -726,7 +726,8 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             else if (faceAtr.iPhy == BoundaryType::Farfield ||
                      faceAtr.iPhy == BoundaryType::Special_DMRFar ||
                      faceAtr.iPhy == BoundaryType::Special_RTFar ||
-                     faceAtr.iPhy == BoundaryType::Special_IVFar)
+                     faceAtr.iPhy == BoundaryType::Special_IVFar ||
+                     faceAtr.iPhy == BoundaryType::Special_2DRiemannFar)
             {
                 (*faceWeights)[iFace].setConstant(0.0);
                 (*faceWeights)[iFace][0] = setting.farWeight;
@@ -1080,7 +1081,8 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 else if (faceAttribute.iPhy == BoundaryType::Farfield ||
                          faceAttribute.iPhy == BoundaryType::Special_DMRFar ||
                          faceAttribute.iPhy == BoundaryType::Special_RTFar ||
-                         faceAttribute.iPhy == BoundaryType::Special_IVFar)
+                         faceAttribute.iPhy == BoundaryType::Special_IVFar ||
+                         faceAttribute.iPhy == BoundaryType::Special_2DRiemannFar)
                 {
                     Eigen::MatrixXd B;
                     B.resizeLike(matrixBatchElem.m(ic2f + 1));
