@@ -175,7 +175,7 @@ namespace DNDS
                         {
                             std::cout << "ADError: has hanging nodes except for launch, check for unused midterms"
                                       << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     }
                 }
@@ -382,7 +382,7 @@ namespace DNDS
                 }
                 void calc()
                 {
-                    assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
+                    DNDS_assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     d = da->d * db->d(0, 0);
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
                     code_out << "Eigen::Matrix<double, "
@@ -398,11 +398,11 @@ namespace DNDS
                 void back() override
                 {
 
-                    assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
+                    DNDS_assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     da->g += db->d(0, 0) * g;
 
                     int acols = da->d.cols();
-                    assert(db->g.rows() == 1 && db->g.cols() == nGrads);
+                    DNDS_assert(db->g.rows() == 1 && db->g.cols() == nGrads);
                     for (int i = 0; i < nGrads; i++)
                         db->g(0, i) +=
                             (g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array() *
@@ -442,7 +442,7 @@ namespace DNDS
                 }
                 void calc()
                 {
-                    assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
+                    DNDS_assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     d = da->d / db->d(0, 0);
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
                     code_out << "Eigen::Matrix<double, "
@@ -458,11 +458,11 @@ namespace DNDS
                 void back() override
                 {
 
-                    assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
+                    DNDS_assert(db->d.rows() == db->d.cols() && db->d.cols() == 1);
                     da->g += (1.0 / db->d(0, 0)) * g;
 
                     int acols = da->d.cols();
-                    assert(db->g.rows() == 1 && db->g.cols() == nGrads);
+                    DNDS_assert(db->g.rows() == 1 && db->g.cols() == nGrads);
                     for (int i = 0; i < nGrads; i++)
                         db->g(0, i) +=
                             (g(Eigen::all, Eigen::seq(0 + i * acols, acols - 1 + i * acols)).array() *
@@ -1012,7 +1012,7 @@ namespace DNDS
                 {
                     sons.push_back(d0.get());
                     sons.push_back(a.get());
-                    assert(a->d.cols() == a->d.rows() && a->d.rows() == 1);
+                    DNDS_assert(a->d.cols() == a->d.rows() && a->d.rows() == 1);
 #ifdef DNDS_AUTODIFF_GENERATE_CODE
                     objID[this] = objID.size();
 #endif
@@ -1179,7 +1179,7 @@ namespace DNDS
                     return ADEigenMat(pData(pNewOp));
                 }
 
-                assert(false);
+                DNDS_assert(false);
                 return (ADEigenMat());
             }
 
@@ -1204,7 +1204,7 @@ namespace DNDS
                     pNewOp->calc();
                     return ADEigenMat(pData(pNewOp));
                 }
-                assert(false);
+                DNDS_assert(false);
                 return (ADEigenMat());
             }
 
@@ -1277,7 +1277,7 @@ namespace DNDS
 
             void back() // TODO: add if clear gradient?
             {
-                // assert(op->nFather == op->nDone && op->nFather == 0);
+                // DNDS_assert(op->nFather == op->nDone && op->nFather == 0);
                 op->backMain();
             }
 

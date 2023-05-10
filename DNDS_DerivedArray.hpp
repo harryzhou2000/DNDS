@@ -20,7 +20,7 @@ namespace DNDS
         template <class Tarr>
         ArrayPair(Tarr &&nArr, Tarr &&nArrGhost) : arr(std::forward<Tarr>(nArr)), arrGhost(std::forward<Tarr>(nArrGhost))
         {
-            assert(arrGhost.father == &arr);
+            DNDS_assert(arrGhost.father == &arr);
             arr.connectWith(arrGhost);
             connected = true;
             tPrebuild.resize(size());
@@ -35,7 +35,7 @@ namespace DNDS
 
         T &operator[](index i)
         {
-            assert(i >= 0 && i < size());
+            DNDS_assert(i >= 0 && i < size());
             // if (i >= arr.size())
             //     return arrGhost[i - arr.size()];
             // return arr[i];
@@ -105,7 +105,7 @@ namespace DNDS
 
         void Copy(ArrayLocal<T> &R)
         {
-            assert(&R != this);
+            DNDS_assert(&R != this);
             dist = std::make_shared<Array<T>>(*R.dist);
             ghost = std::make_shared<Array<T>>(*R.ghost, dist.get());
             // ghost->BorrowGGIndexing(*R.ghost);
@@ -116,7 +116,7 @@ namespace DNDS
         template <class TR>
         void CreateGhostCopyComm(ArrayLocal<TR> &R)
         {
-            assert(dist);
+            DNDS_assert(dist);
             ghost = std::make_shared<Array<T>>(dist.get());
             ghost->BorrowGGIndexing(*R.ghost);
             ghost->createMPITypes();
@@ -125,19 +125,19 @@ namespace DNDS
 
         void MakePair()
         {
-            assert(dist && ghost);
+            DNDS_assert(dist && ghost);
             pair = std::make_shared<ArrayPair<T>>(*dist, *ghost);
         }
 
         void PullOnce()
         {
-            assert(pair && dist && ghost);
+            DNDS_assert(pair && dist && ghost);
             ghost->pullOnce();
         }
 
         void PushOnce()
         {
-            assert(pair && dist && ghost);
+            DNDS_assert(pair && dist && ghost);
             ghost->pushOnce();
         }
 
@@ -152,7 +152,7 @@ namespace DNDS
         // index the pair
         inline T &operator[](index i)
         {
-            assert(pair && dist && ghost);
+            DNDS_assert(pair && dist && ghost);
             // if (i >= 0)
             return pair->operator[](i);
             // else
@@ -161,7 +161,7 @@ namespace DNDS
 
         index size() const
         {
-            assert(pair && dist && ghost);
+            DNDS_assert(pair && dist && ghost);
             return pair->size();
         }
     };
@@ -187,7 +187,7 @@ namespace DNDS
 
         void resize(index nsize)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             MPIInfo mpi = base::dist->getMPI();
             base::dist = std::make_shared<Array<VecStaticBatch<vsize>>>(
                 typename VecStaticBatch<vsize>::Context(nsize), mpi);
@@ -205,7 +205,7 @@ namespace DNDS
 
         void setConstant(real v)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p().setConstant(v); });
         }
@@ -213,7 +213,7 @@ namespace DNDS
         template <typename Tin>
         void setConstant(const Tin &in)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p() = in; });
         }
@@ -226,28 +226,28 @@ namespace DNDS
 
         void operator+=(const ArrayDOF<vsize> &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p() += (*R.dist)[i].p(); });
         }
 
         void addTo(const ArrayDOF<vsize> &R, real r)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p() += (*R.dist)[i].p() * r; });
         }
 
         void operator-=(const ArrayDOF<vsize> &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p() -= (*R.dist)[i].p(); });
         }
 
         void operator*=(real r)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p() *= r; });
         }
@@ -255,7 +255,7 @@ namespace DNDS
         template <class VR>
         void operator*=(const VR &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { e.p() *= R[i]; });
         }
@@ -266,7 +266,7 @@ namespace DNDS
          */
         real norm2()
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             real sqrSum{0}, sqrSumAll;
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { sqrSum += e.p().squaredNorm(); });
@@ -277,7 +277,7 @@ namespace DNDS
 
         real dot(const ArrayDOF<vsize> &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             real sqrSum{0}, sqrSumAll;
             forEachInArray(*base::dist, [&](VecStaticBatch<vsize> &e, index i)
                            { sqrSum += e.p().dot((*R.dist)[i].p()); });
@@ -321,7 +321,7 @@ namespace DNDS
 
         void resize(index nsize, index vecSize)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             MPIInfo mpi = base::dist->getMPI();
             base::dist = std::make_shared<TArray>(
                 typename TElem::Context(
@@ -343,7 +343,7 @@ namespace DNDS
 
         void setConstant(real v)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p().setConstant(v); });
         }
@@ -351,7 +351,7 @@ namespace DNDS
         template <typename Tin>
         void setConstant(const Tin &in)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() = in; });
         }
@@ -364,28 +364,28 @@ namespace DNDS
 
         void operator+=(const ArrayDOFV<vsize> &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() += (*R.dist)[i].p(); });
         }
 
         void addTo(const ArrayDOFV<vsize> &R, real r)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() += (*R.dist)[i].p() * r; });
         }
 
         void operator-=(const ArrayDOFV<vsize> &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() -= (*R.dist)[i].p(); });
         }
 
         void operator*=(real r)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() *= r; });
         }
@@ -393,7 +393,7 @@ namespace DNDS
         template <class VR>
         void operator*=(const VR &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](TElem &e, index i)
                            { e.p() *= R[i]; });
         }
@@ -404,7 +404,7 @@ namespace DNDS
          */
         real norm2()
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             real sqrSum{0}, sqrSumAll;
             forEachInArray(*base::dist, [&](TElem &e, index i)
                            { sqrSum += e.p().squaredNorm(); });
@@ -415,7 +415,7 @@ namespace DNDS
 
         real dot(const ArrayDOFV<vsize> &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             real sqrSum{0}, sqrSumAll;
             forEachInArray(*base::dist, [&](TElem &e, index i)
                            { sqrSum += e.p().dot((*R.dist)[i].p()); });
@@ -480,7 +480,7 @@ namespace DNDS
 
         void setConstant(real v)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VarVector &e, index i)
                            { e.p().setConstant(v); });
         }
@@ -488,7 +488,7 @@ namespace DNDS
         template <typename Tin>
         void setConstant(const Tin &in)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VarVector &e, index i)
                            { e.p() = in; });
         }
@@ -501,28 +501,28 @@ namespace DNDS
 
         void operator+=(const ArrayRecV &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VarVector &e, index i)
                            { e.p() += (*R.dist)[i].p(); });
         }
 
         void addTo(const ArrayRecV &R, real r)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VarVector &e, index i)
                            { e.p() += (*R.dist)[i].p() * r; });
         }
 
         void operator-=(const ArrayRecV &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VarVector &e, index i)
                            { e.p() -= (*R.dist)[i].p(); });
         }
 
         void operator*=(real r)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VarVector &e, index i)
                            { e.p() *= r; });
         }
@@ -530,7 +530,7 @@ namespace DNDS
         template <class VR>
         void operator*=(const VR &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](VarVector &e, index i)
                            { e.p() *= R[i]; });
         }
@@ -541,7 +541,7 @@ namespace DNDS
          */
         real norm2__TODO()
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             real sqrSum{0}, sqrSumAll;
             forEachInArray(*base::dist, [&](VarVector &e, index i)
                            { sqrSum += e.p().squaredNorm(); });
@@ -552,7 +552,7 @@ namespace DNDS
 
         real dot__TODO(const ArrayRecV &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             real sqrSum{0}, sqrSumAll;
             forEachInArray(*base::dist, [&](VarVector &e, index i)
                            { sqrSum += e.p().dot((*R.dist)[i].p()); });
@@ -583,7 +583,7 @@ namespace DNDS
 
         void setConstant(real v)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
                            { e.m().setConstant(v); });
         }
@@ -596,28 +596,28 @@ namespace DNDS
 
         void operator+=(const ArrayVDOF<vsize> &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
                            { e.m() += (*R.dist)[i].m(); });
         }
 
         void addTo(const ArrayVDOF<vsize> &R, real r)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
                            { e.m() += (*R.dist)[i].m() * r; });
         }
 
         void operator-=(const ArrayVDOF<vsize> &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
                            { e.m() -= (*R.dist)[i].m(); });
         }
 
         void operator*=(real r)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
                            { e.m() *= r; });
         }
@@ -625,7 +625,7 @@ namespace DNDS
         template <class VR>
         void operator*=(const VR &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
                            { e.m() *= R[i]; });
         }
@@ -636,7 +636,7 @@ namespace DNDS
          */
         real norm2()
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             real sqrSum{0}, sqrSumAll;
             forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
                            { sqrSum += e.m().squaredNorm(); });
@@ -647,7 +647,7 @@ namespace DNDS
 
         real dot(const ArrayVDOF<vsize> &R)
         {
-            assert(base::dist);
+            DNDS_assert(base::dist);
             real sqrSum{0}, sqrSumAll;
             forEachInArray(*base::dist, [&](SemiVarMatrix<vsize> &e, index i)
                            { sqrSum += (e.m().array() * (*R.dist)[i].m().array()).sum(); });

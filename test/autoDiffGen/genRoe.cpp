@@ -18,7 +18,7 @@ int main()
 
         if (!(UL(0) > 0 && UR(0) > 0))
         {
-            assert(UL(0) > 0 && UR(0) > 0);
+            DNDS_assert(UL(0) > 0 && UR(0) > 0);
         }
 
         ADEigenMat _One{Eigen::MatrixXd{{1}}}, _Zero{Eigen::MatrixXd{{0}}};
@@ -51,7 +51,7 @@ int main()
         // std::cout << asqrRoe.d() << std::endl;
         if (!(asqrRoe.d()(0, 0) > 0))
         {
-            assert(false);
+            DNDS_assert(false);
         }
 
         ADEigenMat aRoe = asqrRoe.sqrt();

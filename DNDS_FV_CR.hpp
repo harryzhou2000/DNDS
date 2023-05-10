@@ -65,7 +65,7 @@ namespace DNDS
                     }
                     else
                     {
-                        assert(false);
+                        DNDS_assert(false);
                     }
                 }
             };
@@ -89,7 +89,7 @@ namespace DNDS
                         int nmats = -123;
                         std::vector<int> matSizes;
                         fGetMatrixSize(nmats, matSizes, i);
-                        assert(matSizes.size() == nmats * 2);
+                        DNDS_assert(matSizes.size() == nmats * 2);
                         return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
                     },
                     [&](uint8_t *data, index siz, index i)
@@ -97,7 +97,7 @@ namespace DNDS
                         int nmats = -123;
                         std::vector<int> matSizes;
                         fGetMatrixSize(nmats, matSizes, i);
-                        assert(matSizes.size() == nmats * 2);
+                        DNDS_assert(matSizes.size() == nmats * 2);
                         DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
                     },
                     mesh->cell2faceLocal.dist->size()),
@@ -110,7 +110,7 @@ namespace DNDS
                         int nmats = -123;
                         std::vector<int> matSizes;
                         fGetVectorSize(nmats, matSizes, i);
-                        assert(matSizes.size() == nmats * 2);
+                        DNDS_assert(matSizes.size() == nmats * 2);
                         return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
                     },
                     [&](uint8_t *data, index siz, index i)
@@ -118,7 +118,7 @@ namespace DNDS
                         int nmats = -123;
                         std::vector<int> matSizes;
                         fGetVectorSize(nmats, matSizes, i);
-                        assert(matSizes.size() == nmats * 2);
+                        DNDS_assert(matSizes.size() == nmats * 2);
                         DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
                     },
                     mesh->cell2faceLocal.dist->size()),
@@ -135,7 +135,7 @@ namespace DNDS
                     auto &cellRecAttribute = cellRecAtrLocal[iCell][0];
                     auto &cellVRRecAttribute = VFV->cellRecAtrLocal[iCell][0];
                     auto eCell = Elem::ElementManager(cellAttribute.type, cellAttribute.intScheme);
-                    assert(c2f.size() == eCell.getNFace());
+                    DNDS_assert(c2f.size() == eCell.getNFace());
 
                     auto matrixBatchElem = (*matrixBatch)[iCell];
                     auto vectorBatchElem = (*vectorBatch)[iCell];
@@ -165,7 +165,7 @@ namespace DNDS
                                 Eigen::MatrixXd diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                 Eigen::MatrixXd incAFull;
                                 FFaceFunctional(iFace, ig, diffsI.topRows(1), diffsI.topRows(1), (*faceWeights)[iFace].topRows(1), incAFull);
-                                assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
+                                DNDS_assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                                 incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                 incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
                             });
@@ -181,7 +181,7 @@ namespace DNDS
                                 auto diffsVRI = faceDiBjGaussBatchElemVR.m(ig * 2 + iCellAtFace);
                                 Eigen::MatrixXd incAFull;
                                 FFaceFunctional(iFace, ig, diffsVRI.topRows(1), diffsI.topRows(1), (*faceWeights)[iFace].topRows(1), incAFull);
-                                assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
+                                DNDS_assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                                 incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                 incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
                             });
@@ -196,7 +196,7 @@ namespace DNDS
                                 auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                 Eigen::MatrixXd incAFull;
                                 FFaceFunctional(iFace, ig, diffsI.topRows(1), Eigen::MatrixXd::Ones(1, 1), (*faceWeights)[iFace].topRows(1), incAFull);
-                                assert(incAFull(0) == 0);
+                                DNDS_assert(incAFull(0) == 0);
                                 incA = incAFull.bottomRows(incAFull.rows() - 1);
                                 incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
                             });
@@ -216,7 +216,7 @@ namespace DNDS
                                     auto diffsVRI = faceDiBjGaussBatchElemVR.m(ig * 2 + 1 - iCellAtFace);
                                     Eigen::MatrixXd incAFull;
                                     FFaceFunctional(iFace, ig, diffsI.topRows(1), diffsVRI.topRows(1), (*faceWeights)[iFace].topRows(1), incAFull);
-                                    assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
+                                    DNDS_assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                                     incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                                     incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
                                 });
@@ -234,7 +234,7 @@ namespace DNDS
                                     auto diffsI = faceDiBjGaussBatchElem.m(ig * 2 + iCellAtFace);
                                     Eigen::MatrixXd incAFull;
                                     FFaceFunctional(iFace, ig, diffsI.topRows(1), Eigen::MatrixXd::Ones(1, 1), (*faceWeights)[iFace].topRows(1), incAFull);
-                                    assert(incAFull(0) == 0);
+                                    DNDS_assert(incAFull(0) == 0);
                                     incA = incAFull.bottomRows(incAFull.rows() - 1);
                                     incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
                                 });
@@ -242,7 +242,7 @@ namespace DNDS
                         }
                         else
                         {
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     }
                     Eigen::MatrixXd Ainv, AinvFilterd;
@@ -418,7 +418,7 @@ namespace DNDS
                         //         }
                         //         else
                         //         {
-                        //             assert(false);
+                        //             DNDS_assert(false);
                         //         }
                         //         biInc = (faceDiBjGaussCache[iFace][ig * 2 + iCellAtFace].row(0).rightCols(cellRA.NDOF - 1).transpose()) *
                         //                 FFace * std::pow((*faceWeights)[iFace][0], 2);
@@ -438,7 +438,7 @@ namespace DNDS
                         }
                         else
                         {
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     }
                 }

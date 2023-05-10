@@ -78,7 +78,7 @@ namespace DNDS
 
         Eigen::Map<Eigen::Matrix<real, -1, -1>> m_by_ncol(index ncol)
         {
-            // assert(Bsize % ncol == 0);
+            // DNDS_assert(Bsize % ncol == 0);
             return Eigen::Map<Eigen::Matrix<real, -1, -1>>(data, Bsize/ncol, ncol);
         }
     };
@@ -161,7 +161,7 @@ namespace DNDS
         {
             nM = *((tMatIndex *)(data)); // c-language abstraction...
             nMij = (tMatIndex *)(data) + 1;
-            assert(nM >= 0 && nM < 1024); // magical constraint for the sake of performance
+            DNDS_assert(nM >= 0 && nM < 1024); // magical constraint for the sake of performance
             matStarts.resize(nM);
             if (nM == 0) // !warning: currently depends on the initialized data == bit 0, should add dumb initializer option?
                 return;
@@ -172,7 +172,7 @@ namespace DNDS
                 curPlc += (nMij[i * 2 + 0] * nMij[i * 2 + 1]) * __size_of_data_element;
             }
             // std::cout << _size << " " << curPlc << " " << nM << std::endl;
-            assert(_size == curPlc); // to not use overlapping data or underlapping data
+            DNDS_assert(_size == curPlc); // to not use overlapping data or underlapping data
         }
 
         template <class TArray>
@@ -193,7 +193,7 @@ namespace DNDS
 
         Eigen::Map<Eigen::Matrix<real, -1, -1>> m(tMatIndex iMat)
         {
-            assert(iMat >= 0 && iMat < nM);
+            DNDS_assert(iMat >= 0 && iMat < nM);
             return Eigen::Map<Eigen::Matrix<real, -1, -1>>((real *)(data + matStarts[iMat]), nMij[iMat * 2 + 0], nMij[iMat * 2 + 1]);
         }
     };

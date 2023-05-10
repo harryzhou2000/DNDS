@@ -99,7 +99,7 @@ namespace DNDS
                 // std::vector<std::string> newPrefix = prefix;
                 // newPrefix.push_back(name);
 
-                // assert(obj[name.c_str()].IsObject());
+                // DNDS_assert(obj[name.c_str()].IsObject());
                 // ParamParser *pParser = new ParamParser(obj[name.c_str()].GetObject(), mpi);
                 list.push_back(std::make_tuple(Object, (void *)(pParser), name, post, flag));
             }

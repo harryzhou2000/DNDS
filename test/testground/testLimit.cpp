@@ -51,7 +51,7 @@ static inline void FWBAP_L2_Multiway_Polynomial2D(const TinOthers &uOthers, int 
             break;
 
         default:
-            assert(false);
+            DNDS_assert(false);
             break;
         }
         thetaNorm += verySmallReal_pDiP;
@@ -89,7 +89,7 @@ static inline void FWBAP_L2_Multiway_Polynomial2D(const TinOthers &uOthers, int 
             break;
 
         default:
-            assert(false);
+            DNDS_assert(false);
             break;
         }
 

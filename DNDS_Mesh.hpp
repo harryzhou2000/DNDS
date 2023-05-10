@@ -91,7 +91,7 @@ namespace DNDS
             if (!fin)
             {
                 log() << "Error: FileRead open \"" << fname << "\" failure" << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
             std::regex regComments("Comments");
             std::regex regNodes("Nodes");
@@ -118,7 +118,7 @@ namespace DNDS
                         {
                             log() << "FileRead Error, comment not concluded\n"
                                   << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     }
                     else if (std::regex_search(line, regNodes))
@@ -149,7 +149,7 @@ namespace DNDS
                         {
                             log() << "FileRead Error, nodes not concluded\n"
                                   << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     }
                     else if (std::regex_search(line, regElems))
@@ -171,7 +171,7 @@ namespace DNDS
                             lineStream << line;
                             index ielem, gmshType, ntag, iphy, iegrp;
                             lineStream >> ielem >> gmshType >> ntag >> iphy >> iegrp;
-                            assert(ntag == 2);                              // warning: why???
+                            DNDS_assert(ntag == 2);                              // warning: why???
                             Elem::ElemType type = Elem::ElemType(gmshType); // direct mapping of type
                             Elem::ElementManager e(type, 0);
                             int nnode = e.getNNode();
@@ -190,7 +190,7 @@ namespace DNDS
                         {
                             log() << "FileRead Error, elems not concluded\n"
                                   << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     }
                     else if (std::regex_search(line, regPhyGrps))
@@ -210,7 +210,7 @@ namespace DNDS
                             std::cmatch m;
                             auto ret = std::regex_search(line.c_str(), m, regPhyContent);
                             std::cout << line << std::endl;
-                            assert(ret);
+                            DNDS_assert(ret);
 
                             index dim, iphy;
                             std::string name;
@@ -226,7 +226,7 @@ namespace DNDS
                         {
                             log() << "FileRead Error, phygrp not concluded\n"
                                   << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     }
                 }
@@ -247,7 +247,7 @@ namespace DNDS
                 else if (readPhyGrps[i.phyGrp].dim == 1) // magical 2d for face
                     nBndElem++;
                 else
-                    assert(false);
+                    DNDS_assert(false);
             };
             log() << "GmshGrid: found volume elements: [" << nVolElem << "]\n";
             log() << "GmshGrid: found boundary elements: [" << nBndElem << "]\n";
@@ -259,9 +259,9 @@ namespace DNDS
                 else if (readPhyGrps[i.phyGrp].dim == 1) // magical 2d for face
                     bndElems.push_back(i);
                 else
-                    assert(false);
+                    DNDS_assert(false);
             };
-            assert(volElems.size() == nVolElem && bndElems.size() == nBndElem);
+            DNDS_assert(volElems.size() == nVolElem && bndElems.size() == nBndElem);
 
             faceElems.reserve(nVolElem * 3);
             face2vol.reserve(nVolElem * 3);
@@ -304,7 +304,7 @@ namespace DNDS
                     for (auto f : node2face[checkNode])
                         if (faceElems[f] == faceElem)
                         {
-                            assert(face2vol[f].second == FACE_2_VOL_EMPTY);
+                            DNDS_assert(face2vol[f].second == FACE_2_VOL_EMPTY);
                             face2vol[f].second = iv;
                             found = true;
                             vol2face[iv][iface] = f;
@@ -328,11 +328,11 @@ namespace DNDS
                 for (auto f : node2face[checkNode])
                     if (faceElems[f] == i)
                     {
-                        assert(face2vol[f].second == FACE_2_VOL_EMPTY); // for must be a boundary
+                        DNDS_assert(face2vol[f].second == FACE_2_VOL_EMPTY); // for must be a boundary
                         ffound = f;
                         found = true;
                     }
-                assert(found);
+                DNDS_assert(found);
                 faceElems[ffound].phyGrp = i.phyGrp;
                 // std::cout << faceElems[ffound].phyGrp << std::endl;
             }
@@ -359,7 +359,7 @@ namespace DNDS
             if (!fout)
             {
                 log() << "Error: WriteMeshDebugTecASCII open \"" << fname << "\" failure" << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
             fout << "VARIABLES = \"x\", \"y\", \"volume\"\n" // 2d mesh so only x y
                  << "Zone N =" << readPoints.size() << ","
@@ -386,7 +386,7 @@ namespace DNDS
                     e.setType(i.elemType, schemeQuad);
                     break;
                 default:
-                    assert(false);
+                    DNDS_assert(false);
                 }
                 real v = 0.0;
                 Eigen::MatrixXd coords(3, e.getNNode());
@@ -400,7 +400,7 @@ namespace DNDS
                                   vinc = DNDS::Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
                                   if (vinc < 0)
                                       log() << "Error: 2d vol orientation wrong or distorted" << std::endl;
-                                  assert(vinc > 0);
+                                  DNDS_assert(vinc > 0);
                               });
                 fout << v << "\n";
                 vsum += v;
@@ -418,7 +418,7 @@ namespace DNDS
                     fout << i.nodeList[0] + 1 << " " << i.nodeList[1] + 1 << " " << i.nodeList[2] + 1 << " " << i.nodeList[3] + 1 << '\n';
                     break;
                 default:
-                    assert(false);
+                    DNDS_assert(false);
                 }
             }
             fout.close();
@@ -584,12 +584,12 @@ namespace DNDS
         for (auto r : partition)
         {
             localPushSizes[r]++;
-            assert(r < mpi.size);
+            DNDS_assert(r < mpi.size);
         }
         AccumulateRowSize(localPushSizes, localPushStart);
         localPush.resize(localPushStart[mpi.size]);
         localPushSizes.assign(mpi.size, 0);
-        assert(partition.size() == localPush.size());
+        DNDS_assert(partition.size() == localPush.size());
         for (index i = 0; i < partition.size(); i++)
             localPush[localPushStart[partition[i]] + (localPushSizes[partition[i]]++)] = i;
     }
@@ -715,14 +715,14 @@ namespace DNDS
 
         CompactFacedMeshSerialRW(SerialGmshReader2d &gmshReader, const MPIInfo &nmpi) : mpi(nmpi)
         {
-            assert(gmshReader.vol2face.size() == gmshReader.volElems.size());
+            DNDS_assert(gmshReader.vol2face.size() == gmshReader.volElems.size());
 
             // copy cell2node
             cell2node = std::make_shared<tAdjArray>(
                 tAdjArray::tContext(
                     [&](index i) -> rowsize
                     {
-                        assert(gmshReader.volElems[i].nodeList.size() == Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNNode());
+                        DNDS_assert(gmshReader.volElems[i].nodeList.size() == Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNNode());
                         return Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNNode();
                     },
                     gmshReader.volElems.size()),
@@ -739,7 +739,7 @@ namespace DNDS
                 tAdjArray::tContext(
                     [&](index i) -> rowsize
                     {
-                        assert(gmshReader.faceElems[i].nodeList.size() == Elem::ElementManager(gmshReader.faceElems[i].elemType, 0).getNNode());
+                        DNDS_assert(gmshReader.faceElems[i].nodeList.size() == Elem::ElementManager(gmshReader.faceElems[i].elemType, 0).getNNode());
                         return Elem::ElementManager(gmshReader.faceElems[i].elemType, 0).getNNode();
                     },
                     gmshReader.faceElems.size()),
@@ -756,7 +756,7 @@ namespace DNDS
                 tAdjArray::tContext(
                     [&](index i) -> rowsize
                     {
-                        assert(gmshReader.vol2face[i].size() == Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNFace());
+                        DNDS_assert(gmshReader.vol2face[i].size() == Elem::ElementManager(gmshReader.volElems[i].elemType, 0).getNFace());
                         return gmshReader.vol2face[i].size();
                     },
                     gmshReader.vol2face.size()),
@@ -767,7 +767,7 @@ namespace DNDS
                 for (rowsize in = 0; in < e.size(); in++)
                     e[in] = gmshReader.vol2face[iv][in];
             }
-            assert(cell2face->size() == cell2node->size());
+            DNDS_assert(cell2face->size() == cell2node->size());
 
             // copy face2cell
             face2cell = std::make_shared<tAdjStatic2Array>(
@@ -821,7 +821,7 @@ namespace DNDS
                 else
                 {
                     std::cout << gmshReader.readPhyGrps[gmshReader.faceElems[iff].phyGrp].name << std::endl;
-                    assert(false);
+                    DNDS_assert(false);
                 }
                 e.type = gmshReader.faceElems[iff].elemType;
                 e.intScheme = -1; // init value
@@ -873,7 +873,7 @@ namespace DNDS
                                 cell2cell[icell2cellfill++] = (*face2cell)[faceList[iff]][0];
                         }
                 }
-                assert(icell2cellfill == cell2cell.size());
+                DNDS_assert(icell2cellfill == cell2cell.size());
                 /*******************************************************/
 
                 idx_t ncell = cell2cellSiz.size();
@@ -906,7 +906,7 @@ namespace DNDS
                     if (ret != METIS_OK)
                     {
                         log() << "METIS returned not OK: [" << ret << "]" << std::endl;
-                        assert(false);
+                        DNDS_assert(false);
                     }
                 }
                 else
@@ -961,7 +961,7 @@ namespace DNDS
                 std::vector<idx_t> partitionFace(0);
                 std::vector<idx_t> partitionNode(0);
                 std::vector<idx_t> partition(0);
-                assert(cell2node->size() == 0 && face2node->size() == 0 && nodeCoords->size() == 0);
+                DNDS_assert(cell2node->size() == 0 && face2node->size() == 0 && nodeCoords->size() == 0);
 
                 std::vector<index> localIdxNode, localIdxStartNode, localIdxFace, localIdxStartFace, localIdx, localIdxStart;
                 Partition2LocalIdx(partition, localIdx, localIdxStart, mpi);
@@ -1027,7 +1027,7 @@ namespace DNDS
             std::vector<index> serialPullCell;
             std::vector<index> serialPullNode;
             std::vector<index> serialPullFace;
-            assert(cell2nodeDist->obtainTotalSize() == numCellGlobal);
+            DNDS_assert(cell2nodeDist->obtainTotalSize() == numCellGlobal);
             if (mpi.rank == oprank)
             {
                 serialPullCell.resize(numCellGlobal);
@@ -1088,7 +1088,7 @@ namespace DNDS
                     MPI_int rank;
                     index val;
                     bool found = pFaceGlobalMapping->search(ifg, rank, val);
-                    assert(found);
+                    DNDS_assert(found);
                     if (rank != mpi.rank)
                         nghostFaces++;
                 });
@@ -1101,7 +1101,7 @@ namespace DNDS
                     MPI_int rank;
                     index val;
                     bool found = pFaceGlobalMapping->search(ifg, rank, val);
-                    assert(found);
+                    DNDS_assert(found);
                     if (rank != mpi.rank)
                         ghostFaces.push_back(ifg);
                 });
@@ -1145,7 +1145,7 @@ namespace DNDS
                         bool rt0 = pFaceGhostMapping->search_indexAppend(c2f[iff], rank, val);
                         // if (mpi.rank == 0)
                         //     std::cout << val << std::endl;
-                        assert(rt0);
+                        DNDS_assert(rt0);
                         auto f2c = (*face2cellPair)[val];
 
                         if (f2c[1] == FACE_2_VOL_EMPTY)
@@ -1154,7 +1154,7 @@ namespace DNDS
                         index bCellGlob = f2c[0] == icGlob ? f2c[1] : f2c[0];
 
                         bool rt = pCellGlobalMapping->search(bCellGlob, rank, val);
-                        assert(rt);
+                        DNDS_assert(rt);
                         if (rank != mpi.rank)
                             nghostCells++;
                     }
@@ -1171,7 +1171,7 @@ namespace DNDS
                         MPI_int rank;
                         index val;
                         bool rt0 = pFaceGhostMapping->search_indexAppend(c2f[iff], rank, val);
-                        assert(rt0);
+                        DNDS_assert(rt0);
                         auto f2c = (*face2cellPair)[val];
 
                         if (f2c[1] == FACE_2_VOL_EMPTY)
@@ -1180,7 +1180,7 @@ namespace DNDS
                         index bCellGlob = f2c[0] == icGlob ? f2c[1] : f2c[0];
 
                         bool rt = pCellGlobalMapping->search(bCellGlob, rank, val);
-                        assert(rt);
+                        DNDS_assert(rt);
                         if (rank != mpi.rank)
                             ghostCells.push_back(bCellGlob);
                     }
@@ -1221,7 +1221,7 @@ namespace DNDS
                     MPI_int rank = -1;
                     index val = -1;
                     bool rt = pNodeGlobalMapping->search(in, rank, val);
-                    assert(rt);
+                    DNDS_assert(rt);
                     if (rank != mpi.rank)
                         nghostNode++;
                 });
@@ -1234,7 +1234,7 @@ namespace DNDS
                     MPI_int rank;
                     index val;
                     bool rt = pNodeGlobalMapping->search(in, rank, val);
-                    assert(rt);
+                    DNDS_assert(rt);
                     if (rank != mpi.rank)
                         ghostNodes.push_back(in);
                 });
@@ -1269,7 +1269,7 @@ namespace DNDS
                     MPI_int rank;
                     index val;
                     bool found = pNodeGhostMapping->search_indexAppend(in, rank, val);
-                    assert(found); // every cell in cell pair must have all nodes in pair
+                    DNDS_assert(found); // every cell in cell pair must have all nodes in pair
                     in = val;
                 });
             forEachBasicInArrayPair(
@@ -1283,7 +1283,7 @@ namespace DNDS
                     MPI_int rank;
                     index val;
                     bool found = pCellGhostMapping->search_indexAppend(ic, rank, val);
-                    assert(found); // every face in adjacent set must have non empty adj cell in cell pair
+                    DNDS_assert(found); // every face in adjacent set must have non empty adj cell in cell pair
                     ic = val;
                 });
             forEachBasicInArrayPair(
@@ -1293,7 +1293,7 @@ namespace DNDS
                     MPI_int rank;
                     index val;
                     bool found = pNodeGhostMapping->search_indexAppend(in, rank, val);
-                    assert(found); // every face in adjacent set must have all nodes in pair
+                    DNDS_assert(found); // every face in adjacent set must have all nodes in pair
                     in = val;
                 });
 
@@ -1345,7 +1345,7 @@ namespace DNDS
                             f2cr[0] = ic2f;
                             break;
                         }
-                    assert(ic2f < c2f.size());
+                    DNDS_assert(ic2f < c2f.size());
                     // cell 1
                     if (f2c[1] == FACE_2_VOL_EMPTY)
                         return;
@@ -1357,7 +1357,7 @@ namespace DNDS
                             break;
                         }
                     // std::cout << "R Cell = " << ic2f << std::endl;
-                    assert(ic2f < c2f.size());
+                    DNDS_assert(ic2f < c2f.size());
                 });
             // InsertCheck(mpi, "CompactFaceMeshSerialRW BuildGhosts End");
         }
@@ -1384,7 +1384,7 @@ namespace DNDS
             faceBndGlobalIdx = std::make_shared<tIndexArray>(faceBndGlobalIdxDist.get());
             faceBndGlobalIdx->createGlobalMapping();
             numFaceBndGlobal = faceBndGlobalIdx->pLGlobalMapping->globalSize();
-            assert(numFaceBndGlobal == faceBndGlobalIdxDist->obtainTotalSize());
+            DNDS_assert(numFaceBndGlobal == faceBndGlobalIdxDist->obtainTotalSize());
 
             std::vector<index> serialDemand;
             if (mpi.rank == oprank)
@@ -1462,7 +1462,7 @@ namespace DNDS
             if (!fout)
             {
                 log() << "Error: WriteMeshDebugTecASCII open \"" << fname << "\" failure" << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
             fout << "VARIABLES = \"x\", \"y\", \"volume\", \"iPart\"\n" // 2d mesh so only x y
                  << "Zone N =" << nodeCoords->size() << ","
@@ -1501,7 +1501,7 @@ namespace DNDS
                         elemMan.setType(atr.type, schemeQuad);
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     real v = 0.0;
                     Eigen::MatrixXd coords(3, elemMan.getNNode());
@@ -1515,7 +1515,7 @@ namespace DNDS
                             vinc = DNDS::Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
                             if (vinc < 0)
                                 log() << "Error: 2d vol orientation wrong or distorted" << std::endl;
-                            assert(vinc > 0);
+                            DNDS_assert(vinc > 0);
                         });
                     fout << v << "\n";
                     vsum += v;
@@ -1543,7 +1543,7 @@ namespace DNDS
                         fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[3] + 1 << '\n';
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                 });
             fout.close();
@@ -1571,7 +1571,7 @@ namespace DNDS
             if (!fout)
             {
                 log() << "Error: WriteMeshDebugTecASCII open \"" << fname << "\" failure" << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
             fout << "VARIABLES = \"x\", \"y\", \"iPart\"";
             for (int idata = 0; idata < arraySiz; idata++)
@@ -1625,7 +1625,7 @@ namespace DNDS
                         fout << c2n[0] + 1 << " " << c2n[1] + 1 << " " << c2n[2] + 1 << " " << c2n[3] + 1 << '\n';
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                 });
             fout.close();
@@ -1654,7 +1654,7 @@ namespace DNDS
             if (!fout)
             {
                 log() << "Error: WriteMeshDebugTecASCII open \"" << fname << "\" failure" << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
             const char magic_word[] = "#!TDV112";
             const int b_magic_word = sizeof(magic_word) - 1;
@@ -1809,7 +1809,7 @@ namespace DNDS
                         writeInt(c2n[3] + 0); // ! note that tis is zero based
                         break;
                     default:
-                        assert(false); //! 2d
+                        DNDS_assert(false); //! 2d
                     }
                 });
             fout.close();

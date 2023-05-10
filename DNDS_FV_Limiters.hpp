@@ -51,7 +51,7 @@ namespace DNDS
                 break;
 
             default:
-                assert(false);
+                DNDS_assert(false);
                 break;
             }
             thetaNorm += verySmallReal_pDiP;
@@ -92,7 +92,7 @@ namespace DNDS
         //         break;
 
         //     default:
-        //         assert(false);
+        //         DNDS_assert(false);
         //         break;
         //     }
 
@@ -177,7 +177,7 @@ namespace DNDS
                 break;
 
             default:
-                assert(false);
+                DNDS_assert(false);
                 break;
             }
             Eigen::ArrayXd selection = (thetaNorm - thetaMinNormNorm).sign() * 0.5 + 0.5; //! need eliminate one side?
@@ -221,7 +221,7 @@ namespace DNDS
                 thetaMinNorm(3, Eigen::all).pow(2);
             break;
         default:
-            assert(false);
+            DNDS_assert(false);
             break;
         }
         Eigen::ArrayXd replaceLoc = ((thetaNorm / (thetaMinNormNorm + verySmallReal)).sqrt() - 1).max(verySmallReal);
@@ -375,7 +375,7 @@ namespace DNDS
         /************************/ //! safe version
         // uOut.resizeLike(uOthers[0]);
         // static const int maxNeighbour = 7;
-        // assert(uOthers.size() <= maxNeighbour);
+        // DNDS_assert(uOthers.size() <= maxNeighbour);
         // real theta[maxNeighbour];
 
         // for (int idof = 0; idof < uOthers[0].cols(); idof++)
@@ -493,7 +493,7 @@ namespace DNDS
             break;
 
         default:
-            assert(false);
+            DNDS_assert(false);
             break;
         }
         u1p = u1p.pow(p / 2);
@@ -561,7 +561,7 @@ namespace DNDS
             break;
 
         default:
-            assert(false);
+            DNDS_assert(false);
             break;
         }
         u1p = u1p.sqrt();

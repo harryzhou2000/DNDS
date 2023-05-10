@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     int rank, size;
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    assert(size == 2);
+    DNDS_assert(size == 2);
     int Nlocal = 1024 * 1024;
     double *data = new double[Nlocal];
     double *dataRecv = new double[Nlocal];

@@ -56,16 +56,16 @@ namespace DNDS
             /// \brief returns start index and length in byte
             constexpr inline std::tuple<index, index> operator[](index i) const
             {
-                assert(i < Length);
-                assert(i >= 0);
+                DNDS_assert(i < Length);
+                DNDS_assert(i >= 0);
                 return std::make_tuple<index, index>(index(BsizeByte * i), index(BsizeByte));
             }
 
             /// \brief returns start index in byte
             constexpr inline index operator()(index i) const
             {
-                assert(i <= Length);
-                assert(i >= 0);
+                DNDS_assert(i <= Length);
+                DNDS_assert(i >= 0);
                 return index(BsizeByte * i);
             }
 
@@ -79,9 +79,9 @@ namespace DNDS
             {
                 for (auto i : pushingSizes)
                 {
-                    assert(BsizeByte == i);
+                    DNDS_assert(BsizeByte == i);
                 }
-                assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
+                DNDS_assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
                 Length = LGhostMapping.ghostStart[LGhostMapping.ghostStart.size() - 1];
                 // already know that all pushing sizes of all ranks are Bsize
             }
@@ -104,13 +104,13 @@ namespace DNDS
 
         T &operator[](uint32_t i)
         {
-            assert(i >= 0 && i < Bsize);
+            DNDS_assert(i >= 0 && i < Bsize);
             return data[i];
         }
 
         const T &operator[](uint32_t i) const
         {
-            assert(i >= 0 && i < Bsize);
+            DNDS_assert(i >= 0 && i < Bsize);
             return data[i];
         }
 
@@ -175,16 +175,16 @@ namespace DNDS
             /// \brief returns start index and length in byte
             constexpr inline std::tuple<index, index> operator[](index i) const
             {
-                assert(i < Length);
-                assert(i >= 0);
+                DNDS_assert(i < Length);
+                DNDS_assert(i >= 0);
                 return std::make_tuple<index, index>(index(BsizeByte * i), index(BsizeByte));
             }
 
             /// \brief returns start index in byte
             constexpr inline index operator()(index i) const
             {
-                assert(i <= Length);
-                assert(i >= 0);
+                DNDS_assert(i <= Length);
+                DNDS_assert(i >= 0);
                 return index(BsizeByte * i);
             }
 
@@ -199,9 +199,9 @@ namespace DNDS
                 BsizeByte = indexer.BsizeByte;
                 for (auto i : pushingSizes)
                 {
-                    assert(BsizeByte == i);
+                    DNDS_assert(BsizeByte == i);
                 }
-                assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
+                DNDS_assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
                 Length = LGhostMapping.ghostStart[LGhostMapping.ghostStart.size() - 1];
                 // already know that all pushing sizes of all ranks are Bsize
             }
@@ -227,13 +227,13 @@ namespace DNDS
 
         T &operator[](uint32_t i)
         {
-            assert(i >= 0 && i < Bsize);
+            DNDS_assert(i >= 0 && i < Bsize);
             return data[i];
         }
 
         const T &operator[](uint32_t i) const
         {
-            assert(i >= 0 && i < Bsize);
+            DNDS_assert(i >= 0 && i < Bsize);
             return data[i];
         }
 
@@ -341,8 +341,8 @@ namespace DNDS
             /// \brief returns start index and length in byte
             constexpr inline std::tuple<index, index> operator[](index i) const
             {
-                assert(i < Length);
-                assert(i >= 0);
+                DNDS_assert(i < Length);
+                DNDS_assert(i >= 0);
                 // return indexModder(
                 //     std::make_tuple<index, index>(
                 //         index((*pRowstart)[i]),
@@ -356,8 +356,8 @@ namespace DNDS
             /// \brief returns start index in byte, allows past-the end input
             constexpr inline index operator()(index i) const
             {
-                assert(i <= Length);
-                assert(i >= 0);
+                DNDS_assert(i <= Length);
+                DNDS_assert(i >= 0);
                 //    return indexModder(
                 //     std::make_tuple<index, index>(
                 //         index((*pRowstart)[i]),
@@ -381,7 +381,7 @@ namespace DNDS
                                       OffsetAscendIndexMapping &LGhostMapping,                 // pulling side structure
                                       const MPIInfo &mpi)
             {
-                assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
+                DNDS_assert(mpi.size == LGhostMapping.ghostStart.size() - 1);
                 Length = LGhostMapping.ghostStart[LGhostMapping.ghostStart.size() - 1];
                 // std::cout << LGhostMapping.gStarts().size() << std::endl;
                 pRowstart.reset();
@@ -431,13 +431,13 @@ namespace DNDS
 
         T &operator[](uint32_t i)
         {
-            assert(i >= 0 && i < _size);
+            DNDS_assert(i >= 0 && i < _size);
             return data[i];
         }
 
         const T &operator[](uint32_t i) const
         {
-            assert(i >= 0 && i < _size);
+            DNDS_assert(i >= 0 && i < _size);
             return data[i];
         }
 

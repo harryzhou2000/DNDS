@@ -89,7 +89,7 @@ namespace DNDS
             real p = (gamma - 1) * (E - rho * 0.5 * vSqr);
             prim(0) = rho;
             prim(1 + dim) = p;
-            assert(rho > 0);
+            DNDS_assert(rho > 0);
         }
 
         template <int dim = 3, class TCons, class TPrim>
@@ -103,7 +103,7 @@ namespace DNDS
             real E = p / (gamma - 1) + rho * 0.5 * vSqr;
             U(0) = rho;
             U(dim + 1) = E;
-            assert(rho > 0);
+            DNDS_assert(rho > 0);
         }
 
         /**
@@ -148,14 +148,14 @@ namespace DNDS
         template <int dim = 3, typename TU>
         inline auto IdealGas_EulerGasRightEigenVector(const TU &U, real gamma)
         {
-            assert(U(0) > 0);
+            DNDS_assert(U(0) > 0);
             Eigen::Matrix<real, dim + 2, dim + 2> ReV;
             Eigen::Vector<real, dim> velo =
                 (U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / U(0)).matrix();
             real vsqr = velo.squaredNorm();
             real asqr, p, H;
             IdealGasThermal(U(dim + 1), U(0), vsqr, gamma, p, asqr, H);
-            assert(asqr >= 0);
+            DNDS_assert(asqr >= 0);
             EulerGasRightEigenVector<dim>(velo, vsqr, H, std::sqrt(asqr), ReV);
             return ReV;
         }
@@ -163,14 +163,14 @@ namespace DNDS
         template <int dim = 3, typename TU>
         inline auto IdealGas_EulerGasLeftEigenVector(const TU &U, real gamma)
         {
-            assert(U(0) > 0);
+            DNDS_assert(U(0) > 0);
             Eigen::Matrix<real, dim + 2, dim + 2> LeV;
             Eigen::Vector<real, dim> velo =
                 (U(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / U(0)).matrix();
             real vsqr = velo.squaredNorm();
             real asqr, p, H;
             IdealGasThermal(U(dim + 1), U(0), vsqr, gamma, p, asqr, H);
-            assert(asqr >= 0);
+            DNDS_assert(asqr >= 0);
             EulerGasLeftEigenVector<dim>(velo, vsqr, H, std::sqrt(asqr), gamma, LeV);
             return LeV;
         }
@@ -187,7 +187,7 @@ namespace DNDS
             {
                 dumpInfo();
             }
-            assert(UL(0) > 0 && UR(0) > 0);
+            DNDS_assert(UL(0) > 0 && UR(0) > 0);
             TVec veloL = (UL(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UL(0)).matrix();
             TVec veloR = (UR(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UR(0)).matrix();
 
@@ -209,7 +209,7 @@ namespace DNDS
             {
                 dumpInfo();
             }
-            assert((asqrRoe > 0 && asqrL > 0 && asqrR > 0));
+            DNDS_assert((asqrRoe > 0 && asqrL > 0 && asqrR > 0));
             real aRoe = std::sqrt(asqrRoe);
 
             real lam0 = veloRoe(0) - aRoe;
@@ -320,7 +320,7 @@ namespace DNDS
             {
                 dumpInfo();
             }
-            assert(UL(0) > 0 && UR(0) > 0);
+            DNDS_assert(UL(0) > 0 && UR(0) > 0);
             TVec veloL = (UL(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UL(0)).matrix();
             TVec veloR = (UR(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UR(0)).matrix();
 
@@ -345,7 +345,7 @@ namespace DNDS
             {
                 dumpInfo();
             }
-            assert(dsqr > 0);
+            DNDS_assert(dsqr > 0);
             real SL = veloRoe(0) - sqrt(dsqr);
             real SR = veloRoe(0) + sqrt(dsqr);
             dLambda += verySmallReal;
@@ -415,7 +415,7 @@ namespace DNDS
             {
                 dumpInfo();
             }
-            assert(UL(0) > 0 && UR(0) > 0);
+            DNDS_assert(UL(0) > 0 && UR(0) > 0);
             TVec veloL = (UL(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UL(0)).matrix();
             TVec veloR = (UR(Eigen::seq(Eigen::fix<1>, Eigen::fix<dim>)).array() / UR(0)).matrix();
 
@@ -441,7 +441,7 @@ namespace DNDS
             {
                 dumpInfo();
             }
-            assert(asqrRoe > 0);
+            DNDS_assert(asqrRoe > 0);
             real aRoe = std::sqrt(asqrRoe);
 
             lam0 = std::abs(veloRoe(0) - aRoe);
@@ -522,7 +522,7 @@ namespace DNDS
             }
             else
             {
-                assert(false);
+                DNDS_assert(false);
             }
             Eigen::Vector<real, dim + 2> lam;
             lam(0) = lam0;
@@ -666,7 +666,7 @@ namespace DNDS
             {
                 dumpInfo();
             }
-            assert(UL(0) > 0 && UR(0) > 0);
+            DNDS_assert(UL(0) > 0 && UR(0) > 0);
             ADEigenMat ULad(UL), URad(UR);
             ADEigenMat rhoL = ULad({0}, {0});
             ADEigenMat rhoR = URad({0}, {0});
@@ -694,7 +694,7 @@ namespace DNDS
             if (!(asqrRoe.d()(0, 0) > 0))
             {
                 dumpInfo();
-                assert(false);
+                DNDS_assert(false);
             }
 
             ADEigenMat aRoe = asqrRoe.sqrt();

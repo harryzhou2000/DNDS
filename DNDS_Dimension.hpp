@@ -126,7 +126,7 @@ namespace DNDS
                 if (references.size() != 7)
                 {
                     std::cout << "Need 7 Basics" << std::endl;
-                    assert(false);
+                    DNDS_assert(false);
                 }
 
                 Eigen::Vector<real, 7> rhs;
@@ -143,7 +143,7 @@ namespace DNDS
                 if (LU.rank() != 7)
                 {
                     std::cout << "ill posed constraints for dim refs! " << std::endl;
-                    assert(false);
+                    DNDS_assert(false);
                 }
 
                 basic_ref = LU.solve(rhs);

@@ -10,8 +10,6 @@
 
 // #define USE_ISOTROPIC_OPTHQM
 
-#define USE_CWBAP_INSTEAD_OF_3WBAP
-
 #define USE_FLUX_BALANCE_TERM
 
 #define USE_ENTROPY_FIXED_LAMBDA_IN_SA
@@ -81,8 +79,5 @@ static const std::string DNDS_Experimentals_State = std::string("DNDS_Experiment
 #endif
 #ifdef USE_ISOTROPIC_OPTHQM
                                                     + " USE_ISOTROPIC_OPTHQM "
-#endif
-#ifdef USE_CWBAP_INSTEAD_OF_3WBAP
-                                                    + " USE_CWBAP_INSTEAD_OF_3WBAP "
 #endif
     ;

@@ -4,7 +4,7 @@
 
 int main(int argc, char *argv[])
 {
-    assert(argc == 3);
+    DNDS_assert(argc == 3);
 
     int a = std::stoi(argv[1]);
     int b = std::stoi(argv[2]);

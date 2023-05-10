@@ -535,7 +535,7 @@ namespace DNDS
             case 39:
                 return 19;
             default:
-                assert(false);
+                DNDS_assert(false);
                 return -1;
                 break;
             }
@@ -600,7 +600,7 @@ namespace DNDS
                     return i;
             log() << "Error === getDiffOrderFromDiffSize got diffs size not good\n"
                   << std::endl;
-            assert(false);
+            DNDS_assert(false);
             return -1;
         }
 
@@ -713,8 +713,8 @@ namespace DNDS
                 iInt = NIntSchemeIndex;
                 nIntPoint = IntSchemeSize[paramSpace][iInt];
                 bufInt = IntSchemeBuffPos[paramSpace][iInt];
-                // assert(nIntPoint > 0 && iInt < 5 && iInt >= 0 && bufInt && bufInt[dim * nIntPoint - 1] > 0. && bufInt[dim * nIntPoint - 1] <= 4.);
-                assert(NIntSchemeIndex < paramSpaceNumIntScheme[paramSpace]);
+                // DNDS_assert(nIntPoint > 0 && iInt < 5 && iInt >= 0 && bufInt && bufInt[dim * nIntPoint - 1] > 0. && bufInt[dim * nIntPoint - 1] <= 4.);
+                DNDS_assert(NIntSchemeIndex < paramSpaceNumIntScheme[paramSpace]);
             }
             inline tPoint getCenterPParam()
             {
@@ -733,20 +733,20 @@ namespace DNDS
                 case ParamSpace::PrismSpace:
                     return tPoint{1. / 3., 1. / 3., 0};
                 default:
-                    assert(false);
+                    DNDS_assert(false);
                     return tPoint{1e100, 1e100, 1e100};
                 }
             }
             inline ElementManager ObtainFace(int iface, tIntScheme faceiInt)
             {
-                assert(iface < Nface);
+                DNDS_assert(iface < Nface);
                 return ElementManager(FaceTypeList[elemType][iface], faceiInt);
             }
 
             // returns param coord of int point
             inline void GetIntPoint(int iGpoint, tPoint &p)
             {
-                assert(iGpoint < nIntPoint);
+                DNDS_assert(iGpoint < nIntPoint);
                 int d;
                 for (d = 0; d < dim; d++)
                     p[d] = bufInt[d * nIntPoint + iGpoint];
@@ -758,7 +758,7 @@ namespace DNDS
             template <class TP>
             void FaceSpace2VolSpace(int iface, const TP &pface, TP &pvol, bool invert = false)
             {
-                assert(iface >= 0 && iface < Nface);
+                DNDS_assert(iface >= 0 && iface < Nface);
                 // // TODO: implement now
                 switch (paramSpace)
                 {
@@ -776,7 +776,7 @@ namespace DNDS
                             pvol[0] = 0, pvol[1] = 0.5 * (-pface[0] + 1), pvol[2] = 0.;
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             break;
                         }
                     else
@@ -792,7 +792,7 @@ namespace DNDS
                             pvol[0] = 0, pvol[1] = 0.5 * (pface[0] + 1), pvol[2] = 0.;
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             break;
                         }
                     break;
@@ -814,7 +814,7 @@ namespace DNDS
                             pvol[0] = -1, pvol[1] = -pface[0], pvol[2] = 0.;
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             break;
                         }
                     else
@@ -833,14 +833,14 @@ namespace DNDS
                             pvol[0] = -1, pvol[1] = pface[0], pvol[2] = 0.;
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             break;
                         }
                     break;
                 default:
                     log() << "FaceSpace2VolSpace: space not supported!\n"
                           << std::endl;
-                    assert(false);
+                    DNDS_assert(false);
                     break;
                 }
             }
@@ -849,12 +849,12 @@ namespace DNDS
             template <class TP, class TArray, class TArray2>
             void FaceSpace2VolSpace(int iface, const TP &pface, TP &pvol, const TArray &faceNodes, const TArray2 &faceSTDNodes)
             {
-                assert(iface >= 0 && iface < Nface);
+                DNDS_assert(iface >= 0 && iface < Nface);
                 // // TODO: implement now
                 switch (paramSpace)
                 {
                 case ParamSpace::TriSpace:
-                    assert((faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1]) ||
+                    DNDS_assert((faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1]) ||
                            (faceNodes[0] == faceSTDNodes[1] && faceNodes[1] == faceSTDNodes[0]));
                     if (faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1])
                         switch (iface)
@@ -869,7 +869,7 @@ namespace DNDS
                             pvol[0] = 0, pvol[1] = 0.5 * (-pface[0] + 1), pvol[2] = 0.;
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             break;
                         }
                     else
@@ -885,13 +885,13 @@ namespace DNDS
                             pvol[0] = 0, pvol[1] = 0.5 * (pface[0] + 1), pvol[2] = 0.;
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             break;
                         }
                     break;
 
                 case ParamSpace::QuadSpace:
-                    assert((faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1]) ||
+                    DNDS_assert((faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1]) ||
                            (faceNodes[0] == faceSTDNodes[1] && faceNodes[1] == faceSTDNodes[0]));
                     if (faceNodes[0] == faceSTDNodes[0])
                         switch (iface)
@@ -909,7 +909,7 @@ namespace DNDS
                             pvol[0] = -1, pvol[1] = -pface[0], pvol[2] = 0.;
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             break;
                         }
                     else
@@ -928,14 +928,14 @@ namespace DNDS
                             pvol[0] = -1, pvol[1] = pface[0], pvol[2] = 0.;
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             break;
                         }
                     break;
                 default:
                     log() << "FaceSpace2VolSpace: space not supported!\n"
                           << std::endl;
-                    assert(false);
+                    DNDS_assert(false);
                     break;
                 }
             }
@@ -945,15 +945,15 @@ namespace DNDS
             template <class TArray, class TArrayG>
             void FaceIGauss2STDMap(int iface, ElementManager &ef, const TArray &faceNodes, const TArray &faceSTDNodes, TArrayG &gaussMAP, bool invert = false)
             {
-                assert(iface < Nface && iface >= 0);
-                assert(faceNodes.size() >= ef.getNVert() && faceSTDNodes.size() >= ef.getNVert() && gaussMAP.size() >= ef.nIntPoint);
+                DNDS_assert(iface < Nface && iface >= 0);
+                DNDS_assert(faceNodes.size() >= ef.getNVert() && faceSTDNodes.size() >= ef.getNVert() && gaussMAP.size() >= ef.nIntPoint);
                 switch (elemType)
                 {
                 case ElemType::Tri3:
                 case ElemType::Tri6:
                 case ElemType::Quad4:
                 case ElemType::Quad9: // as planar faces always have line faces, cases are simple
-                    assert((faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1]) ||
+                    DNDS_assert((faceNodes[0] == faceSTDNodes[0] && faceNodes[1] == faceSTDNodes[1]) ||
                            (faceNodes[0] == faceSTDNodes[1] && faceNodes[1] == faceSTDNodes[0]));
                     if (faceNodes[0] == faceSTDNodes[0])
                         for (int i = 0; i < ef.nIntPoint; i++)
@@ -963,7 +963,7 @@ namespace DNDS
                             gaussMAP[i] = (!invert) ? ef.nIntPoint - 1 - i : i;
                     break;
                 default:
-                    assert(false);
+                    DNDS_assert(false);
                     break;
                 }
             }
@@ -977,7 +977,7 @@ namespace DNDS
             template <class TArray, class TArray2>
             void SubstractFaceNodes(int iface, const ElementManager &faceElem, const TArray &nodes, TArray2 &faceNodes)
             {
-                assert(iface < Nface && iface >= 0);
+                DNDS_assert(iface < Nface && iface >= 0);
                 for (int i = 0; i < faceElem.Nnode; i++)
                     faceNodes[i] = nodes[FaceNodeList[elemType][iface][i]];
             }
@@ -993,7 +993,7 @@ namespace DNDS
             void GetDiNj(const TPoint &p, TDiFj &DiNj)
             {
                 int diffOrder = getDiffOrderFromDiffSize(DiNj.rows());
-                assert(DiNj.cols() >= Nnode);
+                DNDS_assert(DiNj.cols() >= Nnode);
                 auto x = p[0], y = p[1]; //, z = p[2]; // param space
                 switch (elemType)
                 {
@@ -1018,7 +1018,7 @@ namespace DNDS
                         DiNj(0, 1) = (1 + x) * 0.5;
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     break;
 
@@ -1047,7 +1047,7 @@ namespace DNDS
                         DiNj(0, 2) = y;
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     break;
 
@@ -1084,7 +1084,7 @@ namespace DNDS
                         DiNj(0, 3) = (1 - x) * (1 + y) * 0.25;
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     break;
 
@@ -1116,7 +1116,7 @@ namespace DNDS
                         DiNj(0, 2) = (1 - x) * (1 + x) * 1.0;
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     break;
 
@@ -1175,7 +1175,7 @@ namespace DNDS
                         DiNj(0, 5) = -4 * y * (-1 + y + x);
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     break;
 
@@ -1278,12 +1278,12 @@ namespace DNDS
                         DiNj(0, 8) = ((1 - x) * (1 + x)) * ((1 - y) * (1 + y)) * 1.00;
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     break;
 
                 default:
-                    assert(false);
+                    DNDS_assert(false);
                     break;
                 }
             }
@@ -1381,7 +1381,7 @@ namespace DNDS
                 //     break;
                 // default:
                 //     log() << "ParamSpace in Int not implemented\n";
-                //     assert(false);
+                //     DNDS_assert(false);
                 //     break;
                 // }
             }
@@ -1454,7 +1454,7 @@ namespace DNDS
         {
             if (Jacobi(0, 2) != 0.0)
                 std::cout << Jacobi << std::endl;
-            assert(Jacobi(0, 2) == 0.0);
+            DNDS_assert(Jacobi(0, 2) == 0.0);
 
             return tPoint{Jacobi(0, 1), -Jacobi(0, 0), 0.0};
         }
@@ -1522,7 +1522,7 @@ namespace DNDS
                 break;
 
             default:
-                assert(false);
+                DNDS_assert(false);
                 break;
             }
         }

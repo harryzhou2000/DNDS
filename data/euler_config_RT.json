@@ -23,6 +23,7 @@
     "rhsThresholdInternal": 1e-3,
     "useLocalDt": true,
     "useLimiter": true,
+    "limiterProcedure": 1, //1 == CWBAP
     "nPartialLimiterStart": 0,
     "nPartialLimiterStartLocal": 10000,
     "nLimiterTurnOn": 0,

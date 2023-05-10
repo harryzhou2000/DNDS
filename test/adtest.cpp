@@ -126,7 +126,7 @@ int main()
         if (!(UL(0) > 0 && UR(0) > 0))
         {
         }
-        assert(UL(0) > 0 && UR(0) > 0);
+        DNDS_assert(UL(0) > 0 && UR(0) > 0);
         ADEigenMat ULad(UL), URad(UR);
         std::cout << ULad << std::endl
                   << URad << std::endl;
@@ -154,7 +154,7 @@ int main()
         std::cout << asqrRoe.d() << std::endl;
         if (!(asqrRoe.d()(0, 0) > 0))
         {
-            assert(false);
+            DNDS_assert(false);
         }
 
         ADEigenMat aRoe = asqrRoe.sqrt();

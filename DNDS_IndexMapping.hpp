@@ -55,7 +55,7 @@ namespace DNDS
             //     PrintVec(RankOffsets, std::cout);
             //     std::cout << rank << " KK " << val << std::endl;
             // }
-            assert((rank >= 0 && rank <= RankLengths.size()) &&
+            DNDS_assert((rank >= 0 && rank <= RankLengths.size()) &&
                    (val >= 0 && val <= RankOffsets[rank + 1] - RankOffsets[rank]));
             return RankOffsets[rank] + val;
         }
@@ -179,7 +179,7 @@ namespace DNDS
             : mainOffset(nmainOffset),
               mainSize(nmainSize)
         {
-            assert(pushingStarts.size() == mpi.size + 1 && pushingIndexes.size() == pushingStarts[mpi.size]);
+            DNDS_assert(pushingStarts.size() == mpi.size + 1 && pushingIndexes.size() == pushingStarts[mpi.size]);
             pushIndexSizes.resize(mpi.size);
             pushIndexStarts.resize(mpi.size + 1, 0);
             for (int i = 0; i < mpi.size; i++)
@@ -214,7 +214,7 @@ namespace DNDS
 
         index &ghostAt(MPI_int rank, index ighost)
         {
-            assert(ighost >= 0 && ighost < (ghostStart[rank + 1] - ghostStart[rank]));
+            DNDS_assert(ighost >= 0 && ighost < (ghostStart[rank + 1] - ghostStart[rank]));
             return ghostIndex[ghostStart[rank] + ighost];
         }
 
@@ -239,7 +239,7 @@ namespace DNDS
         // returns place relative to ghostStart[rank]
         bool searchInGhost(index globalQuery, MPI_int rank, index &val) const
         {
-            assert((rank >= 0 && rank < ghostStart.size() - 1));
+            DNDS_assert((rank >= 0 && rank < ghostStart.size() - 1));
             if ((ghostStart[rank + 1] - ghostStart[rank]) == 0)
                 return false; // size = 0 could result in seg error doing search
             auto start = ghostIndex.begin() + ghostStart[rank];
@@ -315,12 +315,12 @@ namespace DNDS
         {
             if (rank == -1)
             {
-                assert(val >= 0 && val < mainSize);
+                DNDS_assert(val >= 0 && val < mainSize);
                 return val + mainOffset;
             }
             else
             {
-                assert(
+                DNDS_assert(
                     (rank >= 0 && rank < ghostStart.size() - 1) &&
                     (val >= 0 && val < ghostStart[rank + 1] - ghostStart[rank]));
                 return ghostIndex[ghostStart[rank] + val];

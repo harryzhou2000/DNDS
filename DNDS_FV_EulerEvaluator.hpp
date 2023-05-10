@@ -549,7 +549,7 @@ namespace DNDS
                     UL, UR, settings.idealGasProperty.gamma, finc, deltaLambdaFace[iFace],
                     exitFun, lam0, lam123, lam4);
             else
-                assert(false);
+                DNDS_assert(false);
                 // std::cout << "HERE2" << std::endl;
                 // if (btype == BoundaryType::Wall_NoSlip || btype == BoundaryType::Wall_Euler)
                 //     finc(0) = 0; //! enforce mass leak = 0
@@ -584,7 +584,7 @@ namespace DNDS
                 std::cout << T << std::endl;
                 std::cout << muf << std::endl;
                 std::cout << pMean << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
 
             return -finc;
@@ -714,7 +714,7 @@ namespace DNDS
                     std::cout << d << std::endl;
                     std::cout << fnu2 << std::endl;
                     std::cout << mufPhy << std::endl;
-                    assert(false);
+                    DNDS_assert(false);
                 }
                 // if (passiveDiscardSource)
                 //     ret(Eigen::seq(5, Eigen::last)).setZero();
@@ -722,7 +722,7 @@ namespace DNDS
             }
             else
             {
-                assert(false);
+                DNDS_assert(false);
             }
         }
 
@@ -846,7 +846,7 @@ namespace DNDS
                     std::cout << pMean << std::endl;
                     std::cout << ret.transpose() << std::endl;
 
-                    assert(false);
+                    DNDS_assert(false);
                 }
                 // if (passiveDiscardSource)
                 //     ret(Eigen::seq(5, Eigen::last)).setZero();
@@ -854,7 +854,7 @@ namespace DNDS
             }
             else
             {
-                assert(false);
+                DNDS_assert(false);
             }
 
             TU Ret;
@@ -873,7 +873,7 @@ namespace DNDS
             BoundaryType btype)
         {
             DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
-            assert(dim == 3); // only for 3D!!!!!!!!
+            DNDS_assert(dim == 3); // only for 3D!!!!!!!!
             const TU &U = UR;
             const TVec &n = uNorm;
 
@@ -965,7 +965,7 @@ namespace DNDS
             bool fixUL = false)
         {
             DNDS_FV_EULEREVALUATOR_GET_FIXED_EIGEN_SEQS
-            assert(ULxy(0) > 0);
+            DNDS_assert(ULxy(0) > 0);
             TU URxy;
 
             if (btype == BoundaryType::Farfield ||
@@ -984,7 +984,7 @@ namespace DNDS
                     real asqr, H, p;
                     Gas::IdealGasThermal(ULxy(I4), ULxy(0), vsqr, gamma, p, asqr, H);
 
-                    assert(asqr >= 0);
+                    DNDS_assert(asqr >= 0);
                     real a = std::sqrt(asqr);
 
                     if (un - a > 0) // full outflow
@@ -1016,7 +1016,7 @@ namespace DNDS
                 }
                 else if (btype == BoundaryType::Special_DMRFar)
                 {
-                    assert(dim > 1);
+                    DNDS_assert(dim > 1);
                     URxy = settings.farFieldStaticValue;
                     real uShock = 10;
                     if constexpr (dim == 3) //* manual static dispatch
@@ -1038,7 +1038,7 @@ namespace DNDS
                 }
                 else if (btype == BoundaryType::Special_RTFar)
                 {
-                    assert(dim > 1);
+                    DNDS_assert(dim > 1);
                     Eigen::VectorXd far = settings.farFieldStaticValue;
                     real gamma = settings.idealGasProperty.gamma;
                     real un = ULxy(Seq123).dot(uNorm) / ULxy(0);
@@ -1046,7 +1046,7 @@ namespace DNDS
                     real asqr, H, p;
                     Gas::IdealGasThermal(ULxy(I4), ULxy(0), vsqr, gamma, p, asqr, H);
 
-                    assert(asqr >= 0);
+                    DNDS_assert(asqr >= 0);
                     real a = std::sqrt(asqr);
                     real v = -0.025 * a * cos(pPhysics(0) * 8 * pi);
 
@@ -1233,7 +1233,8 @@ namespace DNDS
                     }
                     else
                     {
-                        assert(false); // not valid boundary pos
+                        rho = u = v = pre = 0./0.;
+                        DNDS_assert(false); // not valid boundary pos
                     }
                     farPrimitive(0) = rho;
                     farPrimitive(1) = u, farPrimitive(2) = v;
@@ -1241,7 +1242,7 @@ namespace DNDS
                     Gas::IdealGasThermalPrimitive2Conservative<dim>(farPrimitive, URxy, gamma);
                 }
                 else
-                    assert(false);
+                    DNDS_assert(false);
             }
             else if (btype == BoundaryType::Wall_Euler)
             {
@@ -1264,11 +1265,11 @@ namespace DNDS
             else if (btype == BoundaryType::Wall)
             {
                 std::cout << "Wall is not a proper bc" << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
             else
             {
-                assert(false);
+                DNDS_assert(false);
             }
             return URxy;
         }
@@ -1283,7 +1284,7 @@ namespace DNDS
             // {
             //     std::cout << umean.transpose() << std::endl
             //               << uRecInc.transpose() << std::endl;
-            //     assert(false);
+            //     DNDS_assert(false);
             // }
             // return umean + uRecInc; // ! no compress shortcut
             // return umean; // ! 0th order shortcut
@@ -1367,7 +1368,7 @@ namespace DNDS
             TU ret = uInc;
 
             /** A intuitive fix **/ //! need positive perserving technique!
-            // assert(u(0) > 0);
+            // DNDS_assert(u(0) > 0);
             // if (u(0) + ret(0) <= 0)
             // {
             //     real declineV = ret(0) / (u(0) + verySmallReal);
@@ -1391,7 +1392,7 @@ namespace DNDS
                 {
                     // std::cout << "Fixing SA inc " << std::endl;
 
-                    assert(u(I4 + 1) >= 0); //! might be bad using gmeres, add this to gmres inc!
+                    DNDS_assert(u(I4 + 1) >= 0); //! might be bad using gmeres, add this to gmres inc!
                     real declineV = ret(I4 + 1) / (u(I4 + 1) + 1e-6);
                     real newu5 = u(I4 + 1) * std::exp(declineV);
                     // ! refvalue:

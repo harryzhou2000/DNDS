@@ -52,7 +52,7 @@ namespace DNDS
                         elemMan.setType(atr.type, schemeQuad);
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     real v = 0.0;
                     Eigen::MatrixXd coords(3, elemMan.getNNode());
@@ -66,7 +66,7 @@ namespace DNDS
                             vinc = DNDS::Elem::DiNj2Jacobi(DiNj, coords)({0, 1}, {0, 1}).determinant();
                             if (vinc < 0)
                                 log() << "Error: 2d vol orientation wrong or distorted" << std::endl;
-                            assert(vinc > 0);
+                            DNDS_assert(vinc > 0);
                         });
                     volumeLocal[iv] = v;
                     // if (mpi.rank == 0)
@@ -84,7 +84,7 @@ namespace DNDS
                         elemMan.setType(atr.type, schemeLine);
                         break;
                     default:
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     real v = 0.0;
                     Eigen::MatrixXd coords;
@@ -241,7 +241,7 @@ namespace DNDS
         VRFiniteVolume2D(CompactFacedMeshSerialRW *nMesh, ImplicitFiniteVolume2D *nFV, int nPOrder = 3)
             : mpi(nMesh->mpi), P_ORDER(nPOrder), mesh(nMesh), FV(nFV)
         {
-            assert(FV->mpi == mpi);
+            DNDS_assert(FV->mpi == mpi);
         }
 
         static int PolynomialNDOF(int order) //  2-d specific
@@ -277,7 +277,7 @@ namespace DNDS
                 cent = cellCenters[iCell];
                 break;
             default:
-                assert(false);
+                DNDS_assert(false);
                 break;
             }
             // std::cout << cellBaries[iCell] << " " << cellCenters[iCell] << std::endl;
@@ -310,7 +310,7 @@ namespace DNDS
             // static int i = 0;
             // if (i == 9)
             //     exit(0);
-            assert(coords.cols() == cElem.getNNode() && DiNj.cols() == cElem.getNNode());
+            DNDS_assert(coords.cols() == cElem.getNNode() && DiNj.cols() == cElem.getNNode());
             Elem::tPoint pParamC = pParam - cElem.getCenterPParam();
             Elem::tPoint pPhysics = coords * DiNj(0, Eigen::all).transpose();
             Elem::tPoint pPhysicsC = pPhysics - cPhysics;
@@ -462,7 +462,7 @@ namespace DNDS
                     curveA1(1) = curveCoeff(2 - 1, 0);
                     break;
                 default:
-                    assert(false);
+                    DNDS_assert(false);
                     break;
                 }
                 Eigen::TensorFixedSize<real, Eigen::Sizes<3>> xi;
@@ -550,7 +550,7 @@ namespace DNDS
                     curveA1(1) = curveCoeff(2 - 1, 1);
                     break;
                 default:
-                    assert(false);
+                    DNDS_assert(false);
                     break;
                 }
 
@@ -595,7 +595,7 @@ namespace DNDS
                 ExpandTensor2Col(0, DZeta, D0zeta0, D1zeta0, D2zeta0, D3zeta0);
                 ExpandTensor2Col(1, DZeta, D0zeta1, D1zeta1, D2zeta1, D3zeta1);
                 ExpandTensor2Col(2, DZeta, D0zeta2, D1zeta2, D2zeta2, D3zeta2);
-                // assert(DZeta({4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}, Eigen::all).norm() == 0);
+                // DNDS_assert(DZeta({4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}, Eigen::all).norm() == 0);
 
                 Eigen::MatrixXd DiBj3(20, 20);
                 DiBj3.setZero();
@@ -1027,7 +1027,7 @@ namespace DNDS
                 std::cout << (*cellInertia)[icellL] << "\n";
                 std::cout << (*cellInertia)[icellR] << "\n";
                 std::cout << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
             real cellARMax = std::max(cellARL, cellARR);
             real faceSigL = std::pow(FV->volumeLocal[icellL], 1. / 2.) / FV->faceArea[iFace]; // 2D
@@ -1049,7 +1049,7 @@ namespace DNDS
             // tangModifier = sqr(tangModifier);
             tangModifier = std::pow(tangModifier, real(1. / 1.)); // ! still testing
 
-            assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
+            DNDS_assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
 #ifndef USE_NORM_FUNCTIONAL
             Conj = DiffI.transpose() * Weights.asDiagonal() * Weights.asDiagonal() * DiffJ;
             return;
@@ -1338,7 +1338,7 @@ namespace DNDS
                             return 2 * (10 - 1);
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             return -1;
                         }
                     },
@@ -1428,7 +1428,7 @@ namespace DNDS
             std::vector<index> colorSizes(2, 0);
             for (auto c : color)
             {
-                assert(c == 0 || c == 1);
+                DNDS_assert(c == 0 || c == 1);
                 colorSizes[c]++;
             }
             std::vector<index> colorStarts(3, 0);
@@ -1640,18 +1640,18 @@ namespace DNDS
                                 uRec[iCell] +=
                                     relax * matrixBatchElem.m(0) * BCCorrection;
                             // std::cout << iCell << " " << BCCorrection << std::endl;
-                            // assert(false);
+                            // DNDS_assert(false);
                         }
                         else
                         {
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     }
 
                     // std::cout << iCell << std::endl
                     //           << uRec[iCell] << std::endl;
                     // if (iCell == 100)
-                    //     assert(false);
+                    //     DNDS_assert(false);
                 }
                 // if (iCell == 10756)
                 // {
@@ -1818,8 +1818,8 @@ namespace DNDS
                 //                            : 0x00000000U);
                 ifUseLimiter[iCell][0] = std::sqrt(sImax) * (P_ORDER * P_ORDER);
             }
-            // assert(u.ghost->commStat.hasPersistentPullReqs);
-            // assert(uRecFacialBuf.ghost->commStat.hasPersistentPullReqs);
+            // DNDS_assert(u.ghost->commStat.hasPersistentPullReqs);
+            // DNDS_assert(uRecFacialBuf.ghost->commStat.hasPersistentPullReqs);
             // exit(0);
             ifUseLimiter.StartPersistentPullClean();
             ifUseLimiter.WaitPersistentPullClean();
@@ -1855,7 +1855,7 @@ namespace DNDS
                 default:
                     LimStart = -200;
                     LimEnd = -100;
-                    assert(false);
+                    DNDS_assert(false);
                     break;
                 }
 
@@ -1906,7 +1906,7 @@ namespace DNDS
                             for (; icOther2f < cOther2f.size(); icOther2f++)
                                 if (iFace == cOther2f[icOther2f])
                                     break;
-                            assert(icOther2f < cOther2f.size());
+                            DNDS_assert(icOther2f < cOther2f.size());
 
                             const auto &matrixSecondary =
                                 iCellAtFace
@@ -1918,7 +1918,7 @@ namespace DNDS
                             // std::cout << sScaleOther.transpose() << std::endl;
                             // std::cout << ((getCellCenter(iCell)-getCellCenter(iCellOther)).array()/sScaleOther.array()).transpose() << std::endl;
                             // std::cout << matrixSecondary << std::endl;
-                            // assert(false);
+                            // DNDS_assert(false);
 
                             Eigen::Matrix<real, Eigen::Dynamic, nVars_Fixed, 0, maxRecDOFBatch>
                                 uOtherIn =
@@ -1965,7 +1965,7 @@ namespace DNDS
                                 std::cout << uThisIn.array().transpose() << std::endl;
                                 std::cout << uOtherIn.array().transpose() << std::endl;
                                 std::cout << uLimOutArray.transpose() << std::endl;
-                                assert(false);
+                                DNDS_assert(false);
                             }
 
                             // to phys space
@@ -1998,7 +1998,7 @@ namespace DNDS
                             std::cout << "E: \n"
                                       << e.transpose() << std::endl;
                         std::cout << uLimOutArray.transpose() << std::endl;
-                        assert(false);
+                        DNDS_assert(false);
                     }
                     uRecNewBuf1[iCell](
                         Eigen::seq(
@@ -2123,8 +2123,8 @@ namespace DNDS
                 //                            : 0x00000000U);
                 ifUseLimiter[iCell][0] = std::sqrt(sImax) * (P_ORDER * P_ORDER);
             }
-            // assert(u.ghost->commStat.hasPersistentPullReqs);
-            // assert(uRecFacialBuf.ghost->commStat.hasPersistentPullReqs);
+            // DNDS_assert(u.ghost->commStat.hasPersistentPullReqs);
+            // DNDS_assert(uRecFacialBuf.ghost->commStat.hasPersistentPullReqs);
             // exit(0);
             ifUseLimiter.StartPersistentPullClean();
             ifUseLimiter.WaitPersistentPullClean();
@@ -2183,7 +2183,7 @@ namespace DNDS
                     default:
                         LimStart = -200;
                         LimEnd = -100;
-                        assert(false);
+                        DNDS_assert(false);
                         break;
                     }
 
@@ -2379,7 +2379,7 @@ namespace DNDS
                         // }
                         // else
                         // {
-                        //     assert(false);
+                        //     DNDS_assert(false);
                         // }
                         // ! unfinished mat-mult
                     }

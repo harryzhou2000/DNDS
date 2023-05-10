@@ -57,7 +57,7 @@ if mode == "name":
         raise RuntimeError("No such file as: " + args.name)
 
 elif mode == "index":
-    assert(args.index < fileDirsSorted.__len__())
+    DNDS_assert(args.index < fileDirsSorted.__len__())
     fname = fileDirsSorted[args.index][0]
     filetime = fileDirsSorted[args.index][1]
 else:

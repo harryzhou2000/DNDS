@@ -47,7 +47,7 @@ namespace DNDS
                                      settings.idealGasProperty.gamma,
                                      pR, asqrR, HR);
             }
-            assert(uMean(0) > 0);
+            DNDS_assert(uMean(0) > 0);
             TVec veloMean = (uMean(Seq123).array() / uMean(0)).matrix();
             // real veloNMean = veloMean.dot(unitNorm); // original
             real veloNMean = 0.5 * (vL + vR).dot(unitNorm); // paper
@@ -72,7 +72,7 @@ namespace DNDS
             pMean = (pL + pR) * 0.5;
             real aMean = sqrt(settings.idealGasProperty.gamma * pMean / uMean(0)); // paper
 
-            // assert(asqrMean >= 0);
+            // DNDS_assert(asqrMean >= 0);
             // real aMean = std::sqrt(asqrMean); // original
             real lambdaConvection = std::abs(veloNMean) + aMean;
 
@@ -617,7 +617,7 @@ namespace DNDS
                             std::cout << finc.transpose() << std::endl;
                             std::cout << ULxy.transpose() << std::endl;
                             std::cout << GradU << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     });
                 if constexpr (nVars_Fixed > 0)
@@ -651,7 +651,7 @@ namespace DNDS
                                                   int jacobianCode,
                                                   real t)
     {
-        // assert(false);                                                      // TODO: to support model expanding
+        // DNDS_assert(false);                                                      // TODO: to support model expanding
         // for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
         // {
         //     if (iCell < mesh->cell2nodeLocal.dist->size())
@@ -718,7 +718,7 @@ namespace DNDS
         //                   << UL << std::endl;
         //         std::cout << "UR \n"
         //                   << UR << std::endl;
-        //         assert(false);
+        //         DNDS_assert(false);
         //     }
         //     F({1, 2, 3}) = normBase * F({1, 2, 3});
         //     dFdUL.transposeInPlace();
@@ -754,7 +754,7 @@ namespace DNDS
         //         dFvisDUR = (dFvisDu * 0.5 + dFvisDuDiff).transpose();
         //         // std::cout << "lamFaceVis " << lambdaFaceVis[iFace] << " dFvisDuDiff\n"
         //         //           << dFvisDuDiff << std::endl;
-        //         // assert(false);
+        //         // DNDS_assert(false);
         //         // //* A
         //         // dFvisDUL(0, 0) = -0.5 * lambdaFaceVis[iFace];
         //         // dFvisDUR(0, 0) = 0.5 * lambdaFaceVis[iFace];
@@ -817,11 +817,11 @@ namespace DNDS
         //     else if (faceAtr.iPhy == BoundaryType::Wall)
         //     {
         //         std::cout << "Wall is not a proper bc" << std::endl;
-        //         assert(false);
+        //         DNDS_assert(false);
         //     }
         //     else
         //     {
-        //         assert(false);
+        //         DNDS_assert(false);
         //     }
         // }
         // for (index iCell = 0; iCell < mesh->cell2nodeLocal.size(); iCell++) // includes ghost
@@ -837,7 +837,7 @@ namespace DNDS
         //                       << jacobianCellInv[iCell] << std::endl;
         //             std::cout << "JC\n"
         //                       << jacobianCell[iCell] << std::endl;
-        //             assert(false);
+        //             DNDS_assert(false);
         //         }
         //     }
         //     else
@@ -857,7 +857,7 @@ namespace DNDS
     template <EulerModel model>
     void EulerEvaluator<model>::LUSGSADMatrixVec(ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &AuInc)
     {
-        // assert(false); // TODO: to support model expanding
+        // DNDS_assert(false); // TODO: to support model expanding
         // for (index iScan = 0; iScan < mesh->cell2nodeLocal.dist->size(); iScan++)
         // {
         //     index iCell = iScan;
@@ -870,7 +870,7 @@ namespace DNDS
         //     if (uInc[iCell].hasNaN())
         //     {
         //         std::cout << uInc[iCell] << std::endl;
-        //         assert(false);
+        //         DNDS_assert(false);
         //     }
 
         //     for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
@@ -901,7 +901,7 @@ namespace DNDS
     template <EulerModel model>
     void EulerEvaluator<model>::UpdateLUSGSADForward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew)
     {
-        // assert(false); // TODO: to support model expanding
+        // DNDS_assert(false); // TODO: to support model expanding
         // index nCellDist = mesh->cell2nodeLocal.dist->size();
         // for (index iScan = 0; iScan < nCellDist; iScan++)
         // {
@@ -949,7 +949,7 @@ namespace DNDS
     template <EulerModel model>
     void EulerEvaluator<model>::UpdateLUSGSADBackward(ArrayDOFV<nVars_Fixed> &rhs, ArrayDOFV<nVars_Fixed> &u, ArrayDOFV<nVars_Fixed> &uInc, ArrayDOFV<nVars_Fixed> &uIncNew)
     {
-        // assert(false); // TODO: to support model expanding
+        // DNDS_assert(false); // TODO: to support model expanding
         // index nCellDist = mesh->cell2nodeLocal.dist->size();
         // for (index iScan = nCellDist - 1; iScan >= 0; iScan--)
         // {
@@ -999,7 +999,7 @@ namespace DNDS
                                                 real t)
     {
         // TODO: for code0: flux jacobian with lambdaFace, and source jacobian with integration, only diagpart dealt with
-        assert(jacobianCode == 0);
+        DNDS_assert(jacobianCode == 0);
         int cnvars = nVars;
         for (index iCell = 0; iCell < mesh->cell2nodeLocal.dist->size(); iCell++)
         {
@@ -1077,7 +1077,7 @@ namespace DNDS
             if (uINCi.hasNaN())
             {
                 std::cout << uINCi << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
 
             for (int ic2f = 0; ic2f < c2f.size(); ic2f++)
@@ -1116,7 +1116,7 @@ namespace DNDS
                             std::cout
                                 << fInc.transpose() << std::endl
                                 << uInc[iCellOther].transpose() << std::endl;
-                            assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
+                            DNDS_assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
                         }
                     }
                 }
@@ -1136,7 +1136,7 @@ namespace DNDS
                           << u[iCell].transpose() << std::endl
                           << jacobianCell[iCell] << std::endl
                           << iCell << std::endl;
-                assert(!AuInc[iCell].hasNaN());
+                DNDS_assert(!AuInc[iCell].hasNaN());
             }
         }
         InsertCheck(u.dist->getMPI(), "LUSGSMatrixVec -1");
@@ -1222,7 +1222,7 @@ namespace DNDS
                             std::cout << RHSI.transpose() << std::endl
                                       << fInc.transpose() << std::endl
                                       << uINCj.transpose() << std::endl;
-                            assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
+                            DNDS_assert(!(uIncNewBuf.hasNaN() || (!uIncNewBuf.allFinite())));
                         }
                         // if (iCell == 10756)
                         // {
@@ -1252,7 +1252,7 @@ namespace DNDS
                 std::cout << uIncNewI.transpose() << std::endl
                           << jacobianCellInv[iCell] << std::endl
                           << iCell << std::endl;
-                assert(!uIncNew[iCell].hasNaN());
+                DNDS_assert(!uIncNew[iCell].hasNaN());
             }
 
             // fix rho increment
@@ -1264,7 +1264,7 @@ namespace DNDS
             // std::cout << jacobianCellInv[iCell] << std::endl;
 
             // if (iCell == 0)
-            //     assert(false);
+            //     DNDS_assert(false);
             // uIncNewI(0) = 0;
             // u[iCell](0) = 1 + iCell * 1e-8;
 
@@ -1569,7 +1569,7 @@ namespace DNDS
                 if (rhs[iCell].hasNaN() || (!rhs[iCell].allFinite()))
                 {
                     std::cout << rhs[iCell] << std::endl;
-                    assert(false);
+                    DNDS_assert(false);
                 }
                 if (volWise)
                     resc += rhs[iCell].array().abs().pow(P).matrix() * fv->volumeLocal[iCell];

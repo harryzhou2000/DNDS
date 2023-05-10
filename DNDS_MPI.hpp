@@ -173,7 +173,7 @@ namespace DNDS
         static MPIBufferHandler &Instance();
         MPI_int size()
         {
-            assert(buf.size() <= MAX_MPI_int);
+            DNDS_assert(buf.size() <= MAX_MPI_int);
             return buf.size();
         }
         void claim(MPI_int cs, int reportRank = 0)
@@ -188,7 +188,7 @@ namespace DNDS
                 std::cout << "MPIBufferHandler: New BUf at " << reportRank << std::endl
                           << osize << std::endl;
 #endif
-                assert(static_cast<size_type>(osize) == buf.size());
+                DNDS_assert(static_cast<size_type>(osize) == buf.size());
                 buf.resize(claimed + cs);
                 MPI_Buffer_attach(buf.data(), buf.size());
 #ifdef MPIBufferHandler_REPORT_CHANGE
@@ -199,7 +199,7 @@ namespace DNDS
         }
         void unclaim(MPI_int cs)
         {
-            assert(claimed >= cs);
+            DNDS_assert(claimed >= cs);
             claimed -= cs;
         }
         void *getBuf()

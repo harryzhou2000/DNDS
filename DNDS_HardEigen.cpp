@@ -41,7 +41,7 @@ namespace DNDS
             // if (!(solver.eigenvalues()(1) <= solver.eigenvalues()(2)))
             // {
             //     std::cout << solver.eigenvalues() << std::endl;
-            //     assert(false);
+            //     std::exit(-1);
             // }
             return (solver.eigenvectors() * solver.eigenvalues().array().abs().sqrt().matrix().asDiagonal())(Eigen::all, {2, 1, 0});
         }

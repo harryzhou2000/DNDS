@@ -245,7 +245,7 @@ namespace DNDS
                             }
                             else
                             {
-                                assert(false);
+                                DNDS_assert(false);
                             }
                         }
                     }
@@ -305,7 +305,7 @@ namespace DNDS
                         }
                         else
                         {
-                            assert(false);
+                            DNDS_assert(false);
                         }
                     }
                 }
@@ -371,7 +371,7 @@ namespace DNDS
                             }
                             else
                             {
-                                assert(false);
+                                DNDS_assert(false);
                             }
                         }
                     }
@@ -606,14 +606,14 @@ namespace DNDS
             rapidjson::Document doc;
             JSON::ReadFile(jsonName, doc);
 
-            assert(doc["nInternalRecStep"].IsInt());
+            DNDS_assert(doc["nInternalRecStep"].IsInt());
             config.nInternalRecStep = doc["nInternalRecStep"].GetInt();
             if (mpi.rank == 0)
             {
                 log() << "JSON: nInternalRecStep = " << config.nInternalRecStep << std::endl;
             }
 
-            assert(doc["recOrder"].IsInt());
+            DNDS_assert(doc["recOrder"].IsInt());
             config.recOrder = doc["recOrder"].GetInt();
             if (mpi.rank == 0)
             {
@@ -625,62 +625,62 @@ namespace DNDS
                 }
             }
 
-            assert(doc["nTimeStep"].IsInt());
+            DNDS_assert(doc["nTimeStep"].IsInt());
             config.nTimeStep = doc["nTimeStep"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nTimeStep = " << config.nTimeStep << std::endl;
 
-            assert(doc["nConsoleCheck"].IsInt());
+            DNDS_assert(doc["nConsoleCheck"].IsInt());
             config.nConsoleCheck = doc["nConsoleCheck"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nConsoleCheck = " << config.nConsoleCheck << std::endl;
 
-            assert(doc["nDataOut"].IsInt());
+            DNDS_assert(doc["nDataOut"].IsInt());
             config.nDataOut = doc["nDataOut"].GetInt();
             if (mpi.rank == 0)
                 log() << "JSON: nDataOut = " << config.nDataOut << std::endl;
 
-            assert(doc["CFL"].IsNumber());
+            DNDS_assert(doc["CFL"].IsNumber());
             config.CFL = doc["CFL"].GetDouble();
             if (mpi.rank == 0)
                 log() << "JSON: CFL = " << config.CFL << std::endl;
 
-            assert(doc["meshRotZ"].IsNumber());
+            DNDS_assert(doc["meshRotZ"].IsNumber());
             config.meshRotZ = doc["meshRotZ"].GetDouble();
             if (mpi.rank == 0)
                 log() << "JSON: meshRotZ = " << config.meshRotZ << std::endl;
 
-            assert(doc["meshFile"].IsString());
+            DNDS_assert(doc["meshFile"].IsString());
             config.mName = doc["meshFile"].GetString();
             if (mpi.rank == 0)
                 log() << "JSON: meshFile = " << config.mName << std::endl;
 
-            assert(doc["outLogName"].IsString());
+            DNDS_assert(doc["outLogName"].IsString());
             config.outLogName = doc["outLogName"].GetString();
             if (mpi.rank == 0)
                 log() << "JSON: outLogName = " << config.outLogName << std::endl;
 
-            assert(doc["outPltName"].IsString());
+            DNDS_assert(doc["outPltName"].IsString());
             config.outPltName = doc["outPltName"].GetString();
             if (mpi.rank == 0)
                 log() << "JSON: outPltName = " << config.outPltName << std::endl;
 
-            assert(doc["err_dMax"].IsNumber());
+            DNDS_assert(doc["err_dMax"].IsNumber());
             config.err_dMax = doc["err_dMax"].GetDouble();
             if (mpi.rank == 0)
                 log() << "JSON: err_dMax = " << config.err_dMax << std::endl;
 
-            assert(doc["res_base"].IsNumber());
+            DNDS_assert(doc["res_base"].IsNumber());
             config.res_base = doc["res_base"].GetDouble();
             if (mpi.rank == 0)
                 log() << "JSON: res_base = " << config.res_base << std::endl;
 
-            assert(doc["useLocalDt"].IsBool());
+            DNDS_assert(doc["useLocalDt"].IsBool());
             config.useLocalDt = doc["useLocalDt"].GetBool();
             if (mpi.rank == 0)
                 log() << "JSON: useLocalDt = " << config.useLocalDt << std::endl;
 
-            assert(doc["nForceLocalStartStep"].IsInt());
+            DNDS_assert(doc["nForceLocalStartStep"].IsInt());
             config.nForceLocalStartStep = doc["nForceLocalStartStep"].GetInt();
             if (mpi.rank == 0)
             {
@@ -737,7 +737,7 @@ namespace DNDS
                     else if (centerOpt == "Bary")
                         config.vfvSetting.baseCenterType = VRFiniteVolume2D::Setting::BaseCenterType::Barycenter;
                     else
-                        assert(false);
+                        DNDS_assert(false);
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.baseCenterType = " << config.vfvSetting.baseCenterTypeName << std::endl;
                 }
@@ -753,7 +753,7 @@ namespace DNDS
                     else if (centerOpt == "S")
                         config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::S;
                     else
-                        assert(false);
+                        DNDS_assert(false);
                     if (mpi.rank == 0)
                         log() << "JSON: vfvSetting.weightSchemeGeom = " << config.vfvSetting.weightSchemeGeomName << std::endl;
                 }
@@ -1036,7 +1036,7 @@ namespace DNDS
                 if ((curvilinearStepper == config.curvilinearOneStep && curvilinearNum == 0) ||
                     (curvilinearStepper == config.curvilinearRepeatInterval && (curvilinearNum > 0 && curvilinearNum < config.curvilinearRepeatNum)))
                 {
-                    assert(!vfv->setting.anisotropicLengths);
+                    DNDS_assert(!vfv->setting.anisotropicLengths);
                     curvilinearStepper = 0;
                     curvilinearNum++;
 

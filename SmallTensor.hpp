@@ -60,7 +60,7 @@ namespace SmallTensor
 
         index dim(index ind)
         {
-            assert(ind >= 0 && ind < _order);
+            DNDS_assert(ind >= 0 && ind < _order);
             return _dim[ind];
         }
 

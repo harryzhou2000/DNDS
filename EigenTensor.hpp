@@ -42,26 +42,26 @@ namespace Eigen
 
         Map01 GetMap01(Index i2)
         {
-            assert(i2 < d2);
+            DNDS_assert(i2 < d2);
             return Map01(data + i2 * stride2);
         }
 
         Map12 GetMap12(Index i0)
         {
-            assert(i0 < d0);
+            DNDS_assert(i0 < d0);
             return Map12(data + i0 * stride0);
         }
 
         Map02 GetMap02(Index i1)
         {
-            assert(i1 < d1);
+            DNDS_assert(i1 < d1);
             return Map02(data + i1 * stride1);
         }
 
         template <class Tmat>
         void MatTransform0(const Tmat &Rmat)
         {
-            assert(Rmat.cols() == Rmat.rows() && Rmat.rows() == d0);
+            DNDS_assert(Rmat.cols() == Rmat.rows() && Rmat.rows() == d0);
             for (Index i2 = 0; i2 < d2; i2++)
             {
                 Map01 m = GetMap01(i2);
@@ -72,7 +72,7 @@ namespace Eigen
         template <class Tmat>
         void MatTransform1(const Tmat &Rmat)
         {
-            assert(Rmat.cols() == Rmat.rows() && Rmat.rows() == d1);
+            DNDS_assert(Rmat.cols() == Rmat.rows() && Rmat.rows() == d1);
             for (Index i2 = 0; i2 < d2; i2++)
             {
                 Map01 m = GetMap01(i2);
@@ -83,7 +83,7 @@ namespace Eigen
         template <class Tmat>
         void MatTransform2(const Tmat &Rmat)
         {
-            assert(Rmat.cols() == Rmat.rows() && Rmat.rows() == d2);
+            DNDS_assert(Rmat.cols() == Rmat.rows() && Rmat.rows() == d2);
             for (Index i0 = 0; i0 < d0; i0++)
             {
                 Map12 m = GetMap12(i0);
@@ -94,7 +94,7 @@ namespace Eigen
         template <Index dout, class Tmat>
         ETensorR3<T, dout, d1, d2> MatTransform0d(const Tmat &Rmat)
         {
-            assert(Rmat.rows() == d0 && Rmat.cols() == dout);
+            DNDS_assert(Rmat.rows() == d0 && Rmat.cols() == dout);
             ETensorR3<T, dout, d1, d2> res;
             for (Index i2 = 0; i2 < d2; i2++)
             {
@@ -108,7 +108,7 @@ namespace Eigen
         template <Index dout, class Tmat>
         ETensorR3<T, d0, dout, d2> MatTransform1d(const Tmat &Rmat)
         {
-            assert(Rmat.rows() == d1 && Rmat.cols() == dout);
+            DNDS_assert(Rmat.rows() == d1 && Rmat.cols() == dout);
             ETensorR3<T, d0, dout, d2> res;
             // const TDerived &rmat = Rmat;
             for (Index i2 = 0; i2 < d2; i2++)
@@ -123,7 +123,7 @@ namespace Eigen
         template <Index dout, class Tmat>
         ETensorR3<T, d0, d1, dout> MatTransform2d(const Tmat &Rmat)
         {
-            assert(Rmat.rows() == d2 && Rmat.cols() == dout);
+            DNDS_assert(Rmat.rows() == d2 && Rmat.cols() == dout);
             ETensorR3<T, d0, d1, dout> res;
             for (Index i0 = 0; i0 < d0; i0++)
             {

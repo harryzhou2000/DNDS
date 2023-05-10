@@ -30,7 +30,7 @@ namespace DNDS
                                 log() << "    ";
                             log() << name << std::endl;
                             log() << "=== !! Failed !! not object ===" << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                         else
                         {
@@ -63,7 +63,7 @@ namespace DNDS
                                 log() << "    ";
                             log() << name << std::endl;
                             log() << "=== !! Failed !! not int ===" << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                         else
                         {
@@ -93,7 +93,7 @@ namespace DNDS
                                 log() << "    ";
                             log() << name << std::endl;
                             log() << "=== !! Failed !! not real ===" << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                         else
                         {
@@ -123,7 +123,7 @@ namespace DNDS
                                 log() << "    ";
                             log() << name << std::endl;
                             log() << "=== !! Failed !! not bool ===" << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                         else
                         {
@@ -153,7 +153,7 @@ namespace DNDS
                                 log() << "    ";
                             log() << name << std::endl;
                             log() << "=== !! Failed !! not array ===" << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                         else
                         {
@@ -164,7 +164,7 @@ namespace DNDS
                     dest->resize(arr.Size());
                     for (int ii = 0; ii < arr.Size(); ii++)
                     {
-                        assert(arr[ii].IsNumber());
+                        DNDS_assert(arr[ii].IsNumber());
                         dest->operator[](ii) = arr[ii].GetDouble();
                     }
 
@@ -192,7 +192,7 @@ namespace DNDS
                                 log() << "    ";
                             log() << name << std::endl;
                             log() << "=== !! Failed !! not string ===" << std::endl;
-                            assert(false);
+                            DNDS_assert(false);
                         }
                         else
                         {
@@ -211,7 +211,7 @@ namespace DNDS
                 break;
 
                 default:
-                    assert(false);
+                    DNDS_assert(false);
                     break;
                 }
                 post();

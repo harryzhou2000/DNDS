@@ -44,7 +44,7 @@ void DNDS::VRFiniteVolume2D::initIntScheme() //  2-d specific
                 recAtr.NDIFF = PolynomialNDOF(P_ORDER);
                 break;
             default:
-                assert(false);
+                DNDS_assert(false);
                 break;
             }
             recAtr.relax = setting.JacobiRelax;
@@ -72,7 +72,7 @@ void DNDS::VRFiniteVolume2D::initIntScheme() //  2-d specific
                     recAtr.intScheme = Elem::INT_SCHEME_LINE_3;
                 break;
             default:
-                assert(false);
+                DNDS_assert(false);
                 break;
             }
         });
@@ -204,7 +204,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetCellDiBjGaussSize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
             },
             [&](uint8_t *data, index siz, index i)
@@ -212,7 +212,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetCellDiBjGaussSize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
             },
             mesh->cell2faceLocal.size()),
@@ -236,7 +236,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetCellDiBjCenterSize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
             },
             [&](uint8_t *data, index siz, index i)
@@ -244,7 +244,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetCellDiBjCenterSize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
             },
             mesh->cell2faceLocal.size()),
@@ -297,7 +297,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 HighScheme = Elem::INT_SCHEME_TRI_13;
                 break;
             default:
-                assert(false);
+                DNDS_assert(false);
                 break;
             }
 
@@ -322,7 +322,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 if (ldltResult.vectorD()(Eigen::last) < smallReal)
                 {
                     std::cout << "Orth llt failure";
-                    assert(false);
+                    DNDS_assert(false);
                 }
                 auto lltResult = (*matrixInnerProd)[iCell].llt();
                 Eigen::Index nllt = (*matrixInnerProd)[iCell].rows();
@@ -339,7 +339,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 // std::cout << (*matrixInnerProd)[iCell] << std::endl;
                 // std::cout << "Orth converter" << std::endl;
                 // std::cout << LOrth << std::endl;
-                // assert(false);
+                // DNDS_assert(false);
 
                 cellDiBjCenterBatchElem.m(0)(
                     Eigen::seq(Eigen::fix<1>, Eigen::last),
@@ -401,7 +401,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetFaceDiBjCenterSize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
             },
             [&](uint8_t *data, index siz, index i)
@@ -409,7 +409,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetFaceDiBjCenterSize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
             },
             mesh->face2cellLocal.size()),
@@ -457,7 +457,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetFaceDiBjGaussSize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
             },
             [&](uint8_t *data, index siz, index i)
@@ -465,7 +465,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetFaceDiBjGaussSize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
             },
             mesh->face2cellLocal.size()),
@@ -509,7 +509,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetMatrixSecondarySize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
             },
             [&](uint8_t *data, index siz, index i)
@@ -517,7 +517,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetMatrixSecondarySize(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
             },
             mesh->face2cellLocal.size()),
@@ -568,7 +568,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             eFace.GetDiNj(pFace, faceDiNj);
             faceCenters[iFace] = faceCoords * faceDiNj(0, Eigen::all).transpose();
             faceNormCenter[iFace] = Elem::Jacobi2LineNorm2D(Elem::DiNj2Jacobi(faceDiNj, faceCoords));
-            assert(faceNormCenter[iFace].dot(cellCenters[f2c[0]] - faceCenters[iFace]) < 0.0);
+            DNDS_assert(faceNormCenter[iFace].dot(cellCenters[f2c[0]] - faceCenters[iFace]) < 0.0);
 
             // Left side
             index iCell = f2c[0];
@@ -647,7 +647,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 if (ldltResult.vectorD()(Eigen::last) < smallReal)
                 {
                     std::cout << "Orth llt failure";
-                    assert(false);
+                    DNDS_assert(false);
                 }
                 auto lltResult = (*matrixInnerProd)[iCell].llt();
                 Eigen::Index nllt = (*matrixInnerProd)[iCell].rows();
@@ -657,7 +657,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 // std::cout << (*matrixInnerProd)[iCell] << std::endl;
                 // std::cout << "Face Orth converter" << std::endl;
                 // std::cout << LOrth << std::endl;
-                // assert(false);
+                // DNDS_assert(false);
 
                 faceDiBjCenterBatchElem.m(0)(Eigen::seq(1, Eigen::last), Eigen::seq(1, Eigen::last)) *= LOrth.transpose();
                 for (int ig = 0; ig < eFace.getNInt(); ig++)
@@ -695,7 +695,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 // for (int ii = 0; ii < msL2R.rows(); ii++)
                 //     for (int jj = 0; jj < msL2R.cols(); jj++)
                 //         msL2R(ii, jj) *= (ii > jj || std::abs(msL2R(ii, jj)) < 1e-12) ? 0. : 1.;
-                // assert(msL2R.isUpperTriangular() && msR2L.isUpperTriangular());
+                // DNDS_assert(msL2R.isUpperTriangular() && msR2L.isUpperTriangular());
                 matrixSecondaryBatchElem.m(0) = msR2L;
                 matrixSecondaryBatchElem.m(1) = msL2R;
                 // std::cout << msR2L << std::endl;
@@ -753,7 +753,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             else
             {
                 log() << faceAtr.iPhy << std::endl;
-                assert(false);
+                DNDS_assert(false);
             }
             real D = delta.norm();
             real S = FV->faceArea[iFace];
@@ -772,7 +772,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 GW = std::pow(S / D, 0.5 / 2);
                 break;
             default:
-                assert(false);
+                DNDS_assert(false);
             }
             if (setting.tangWeightDirection == Setting::TangWeightDirection::TWD_Bary)
             {
@@ -784,7 +784,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
             }
             else
             {
-                assert(false);
+                DNDS_assert(false);
             }
 #ifndef USE_NORM_FUNCTIONAL
             delta[0] = delta[1] = delta({0, 1}).norm();
@@ -811,7 +811,7 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                     0. / 0.};
                 // static const real wdiff1[6] = {1., 1., 0.5, 0.2, 0. / 0., 0. / 0.};
 
-                assert(ndx + ndy < 5);
+                DNDS_assert(ndx + ndy < 5);
                 switch (setting.weightSchemeDir)
                 {
                 case Setting::WeightSchemeDir::NoneDir:
@@ -864,14 +864,14 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                                                             dirWeight3_HQM[ndx + ndy];
                             break;
                         default:
-                            assert(false);
+                            DNDS_assert(false);
                             break;
                         }
                     }
                     break;
 
                 default:
-                    assert(false);
+                    DNDS_assert(false);
                     break;
                 }
             }
@@ -912,7 +912,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
             }
             else
             {
-                assert(false);
+                DNDS_assert(false);
             }
         }
     };
@@ -935,7 +935,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 int nmats = 1;
                 std::vector<int> matSizes;
                 fGetVecSize(matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
             },
             [&](uint8_t *data, index siz, index i)
@@ -943,7 +943,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 int nmats = 1;
                 std::vector<int> matSizes;
                 fGetVecSize(matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
             },
             mesh->cell2faceLocal.dist->size()),
@@ -955,7 +955,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetMatSizes(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 return DNDS::SmallMatricesBatch::predictSize(nmats, matSizes);
             },
             [&](uint8_t *data, index siz, index i)
@@ -963,7 +963,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 int nmats = -123;
                 std::vector<int> matSizes;
                 fGetMatSizes(nmats, matSizes, i);
-                assert(matSizes.size() == nmats * 2);
+                DNDS_assert(matSizes.size() == nmats * 2);
                 DNDS::SmallMatricesBatch::initializeData(data, nmats, matSizes);
             },
             mesh->cell2faceLocal.dist->size()),
@@ -979,7 +979,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
             auto &cellAttribute = mesh->cellAtrLocal[iCell][0];
             auto &cellRecAttribute = cellRecAtrLocal[iCell][0];
             auto eCell = Elem::ElementManager(cellAttribute.type, cellAttribute.intScheme);
-            assert(c2f.size() == eCell.getNFace());
+            DNDS_assert(c2f.size() == eCell.getNFace());
             auto matrixBatchElem = (*matrixBatch)[iCell];
             auto vectorBatchElem = (*vectorBatch)[iCell];
 
@@ -1005,7 +1005,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                         Eigen::MatrixXd incAFull;
                         FFaceFunctional(iFace, ig, diffsI, diffsI, (*faceWeights)[iFace], incAFull);
                         // std::cout << diffsI << std::endl;
-                        assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
+                        DNDS_assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                         // std::cout << "\nincAFULL" << incAFull << std::endl;
                         // std::cout << "\ndiffsI" << diffsI << std::endl;
 
@@ -1064,7 +1064,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                             auto diffsJ = faceDiBjGaussBatchElem.m(ig * 2 + 1 - iCellAtFace);
                             Eigen::MatrixXd incBFull;
                             FFaceFunctional(iFace, ig, diffsI, diffsJ, (*faceWeights)[iFace], incBFull);
-                            assert(incBFull(Eigen::all, 0).norm() + incBFull(0, Eigen::all).norm() == 0);
+                            DNDS_assert(incBFull(Eigen::all, 0).norm() + incBFull(0, Eigen::all).norm() == 0);
                             incB = incBFull.bottomRightCorner(incBFull.rows() - 1, incBFull.cols() - 1);
                             incB *= faceNorms[iFace][ig].norm(); // note: don't forget the
                             // std::cout << "DI " << std::endl;
@@ -1095,7 +1095,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                             Eigen::MatrixXd incAFull;
                             FFaceFunctional(iFace, ig, diffsI, diffsI, (*faceWeights)[iFace], incAFull);
                             // std::cout << "W " << faceWeights[iFace] << std::endl;
-                            assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
+                            DNDS_assert(incAFull(Eigen::all, 0).norm() + incAFull(0, Eigen::all).norm() == 0);
                             incA = incAFull.bottomRightCorner(incAFull.rows() - 1, incAFull.cols() - 1);
                             incA *= faceNorms[iFace][ig].norm(); // note: don't forget the Jacobi!!!
                         });
@@ -1103,7 +1103,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                 }
                 else
                 {
-                    assert(false);
+                    DNDS_assert(false);
                 }
                 // everyone is welcome to have this
                 {
@@ -1119,7 +1119,7 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
                             Eigen::MatrixXd fw0 = (*faceWeights)[iFace]({0});
                             FFaceFunctional(iFace, ig, Eigen::MatrixXd::Ones(1, 1), rowDiffI, fw0, incbFull);
                             // std::cout << incbFull(0, 0) << " " << incbFull.size() << incb.size() << std::endl;
-                            assert(incbFull(0, 0) == 0);
+                            DNDS_assert(incbFull(0, 0) == 0);
                             incb = incbFull.rightCols(incbFull.size() - 1);
                             incb *= faceNorms[iFace][ig].norm(); // note: don't forget the
                             // std::cout << "DI " << std::endl;
@@ -1140,6 +1140,6 @@ void DNDS::VRFiniteVolume2D::initReconstructionMatVec()
             //               << matrixBatchElem.m(0) << std::endl;
             // }
             // if (iCell == 1)
-            //     assert(false);
+            //     DNDS_assert(false);
         });
 }

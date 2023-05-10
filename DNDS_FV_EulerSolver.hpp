@@ -103,7 +103,10 @@ namespace DNDS
             real curvilinearRange = 0.1;
 
             bool useLocalDt = true;
+
             bool useLimiter = true;
+            int limiterProcedure = 0; // 0 for V2==3WBAP, 1 for V3==CWBAP
+
             int nPartialLimiterStart = 2;
             int nPartialLimiterStartLocal = 500;
             int nForceLocalStartStep = -1;
@@ -167,6 +170,9 @@ namespace DNDS
             root.AddBool("useLocalDt", &config.useLocalDt);
 
             root.AddBool("useLimiter", &config.useLimiter);
+            root.AddInt(
+                "limiterProcedure", &config.limiterProcedure, []() {}, JSON::ParamParser::FLAG_NULL);
+
             root.AddInt("nPartialLimiterStart", &config.nPartialLimiterStart);
             root.AddInt("nPartialLimiterStartLocal", &config.nPartialLimiterStartLocal);
 
@@ -205,7 +211,6 @@ namespace DNDS
                 vfvParser.AddDNDS_Real("WBAP_SmoothIndicatorScale", &config.vfvSetting.WBAP_SmoothIndicatorScale);
                 vfvParser.AddBool("orthogonalizeBase", &config.vfvSetting.orthogonalizeBase);
                 vfvParser.AddBool("normWBAP", &config.vfvSetting.normWBAP);
-                
             }
             std::string centerOpt, weightOpt, tangWeightDirectionOpt;
             {
@@ -219,7 +224,7 @@ namespace DNDS
                         else if (centerOpt == "Bary")
                             config.vfvSetting.baseCenterType = VRFiniteVolume2D::Setting::BaseCenterType::Barycenter;
                         else
-                            assert(false);
+                            DNDS_assert(false);
                         if (mpi.rank == 0)
                             log() << "JSON: vfvSetting.baseCenterType = " << config.vfvSetting.baseCenterTypeName << std::endl;
                     });
@@ -237,7 +242,7 @@ namespace DNDS
                         else if (weightOpt == "SDHQM")
                             config.vfvSetting.weightSchemeGeom = VRFiniteVolume2D::Setting::WeightSchemeGeom::SDHQM;
                         else
-                            assert(false);
+                            DNDS_assert(false);
                         if (mpi.rank == 0)
                             log() << "JSON: vfvSetting.weightSchemeGeom = " << config.vfvSetting.weightSchemeGeomName << std::endl;
                     });
@@ -251,7 +256,7 @@ namespace DNDS
                         else if (weightOpt == "optHQM")
                             config.vfvSetting.weightSchemeDir = VRFiniteVolume2D::Setting::WeightSchemeDir::OPTHQM;
                         else
-                            assert(false);
+                            DNDS_assert(false);
                         if (mpi.rank == 0)
                             log() << "JSON: vfvSetting.weightSchemeDir = " << config.vfvSetting.weightSchemeDirName << std::endl;
                     },
@@ -266,7 +271,7 @@ namespace DNDS
                         else if (tangWeightDirectionOpt == "Norm")
                             config.vfvSetting.tangWeightDirection = VRFiniteVolume2D::Setting::TangWeightDirection::TWD_Norm;
                         else
-                            assert(false);
+                            DNDS_assert(false);
                         if (mpi.rank == 0)
                             log() << "JSON: vfvSetting.tangWeightDirection = " << config.vfvSetting.tangWeightDirectionName << std::endl;
                     },
@@ -301,7 +306,7 @@ namespace DNDS
                         else if (RSName == "Roe_M5")
                             config.eulerSetting.rsType = EulerEvaluator<model>::Setting::RiemannSolverType::Roe_M5;
                         else
-                            assert(false);
+                            DNDS_assert(false);
                     });
                 eulerParser.AddInt("nTimeFilterPass", &config.eulerSetting.nTimeFilterPass);
                 eulerParser.AddDNDS_Real("visScale", &config.eulerSetting.visScale);
@@ -337,7 +342,7 @@ namespace DNDS
                     "farFieldStaticValue", &eulerSetting_farFieldStaticValueBuf,
                     [&]()
                     {
-                        assert(eulerSetting_farFieldStaticValueBuf.size() == nVars);
+                        DNDS_assert(eulerSetting_farFieldStaticValueBuf.size() == nVars);
                         config.eulerSetting.farFieldStaticValue = eulerSetting_farFieldStaticValueBuf;
                     });
             }
@@ -347,7 +352,7 @@ namespace DNDS
                     "boxInitializerValue", &eulerSetting_boxInitializerValueBuf,
                     [&]()
                     {
-                        assert(eulerSetting_boxInitializerValueBuf.size() % (6 + nVars) == 0);
+                        DNDS_assert(eulerSetting_boxInitializerValueBuf.size() % (6 + nVars) == 0);
                         config.eulerSetting.boxInitializers.resize(eulerSetting_boxInitializerValueBuf.size() / (6 + nVars));
                         auto &boxVec = config.eulerSetting.boxInitializers;
                         for (int iInit = 0; iInit < boxVec.size(); iInit++)
@@ -369,7 +374,7 @@ namespace DNDS
                     "planeInitializerValue", &eulerSetting_planeInitializerValueBuf,
                     [&]()
                     {
-                        assert(eulerSetting_planeInitializerValueBuf.size() % (4 + nVars) == 0);
+                        DNDS_assert(eulerSetting_planeInitializerValueBuf.size() % (4 + nVars) == 0);
                         config.eulerSetting.planeInitializers.resize(eulerSetting_planeInitializerValueBuf.size() / (4 + nVars));
                         auto &planeVec = config.eulerSetting.planeInitializers;
                         for (int iInit = 0; iInit < planeVec.size(); iInit++)
@@ -393,7 +398,7 @@ namespace DNDS
                     "constMassForce", &eulerSetting_constMassForceValueBuf,
                     [&]()
                     {
-                        assert(eulerSetting_constMassForceValueBuf.size() == 3);
+                        DNDS_assert(eulerSetting_constMassForceValueBuf.size() == 3);
                         config.eulerSetting.constMassForce = eulerSetting_constMassForceValueBuf;
                     },
                     JSON::ParamParser::FLAG_NULL);
@@ -495,7 +500,7 @@ namespace DNDS
                     if (pos(0) * i.a + pos(1) * i.b + pos(2) * i.c + i.h > 0)
                     {
                         // std::cout << pos << std::endl << i.a << i.b << std::endl << i.h <<std::endl;
-                        // assert(false);
+                        // DNDS_assert(false);
                         u[iCell] = i.v;
                     }
                 }
@@ -504,7 +509,7 @@ namespace DNDS
             switch (config.eulerSetting.specialBuiltinInitializer)
             {
             case 1: // for RT problem
-                assert(model == NS || model == NS_2D);
+                DNDS_assert(model == NS || model == NS_2D);
                 if constexpr (model == NS || model == NS_2D)
                     for (index iCell = 0; iCell < u.dist->size(); iCell++)
                     {
@@ -525,7 +530,7 @@ namespace DNDS
                     }
                 break;
             case 2: // for IV10 problem
-                assert(model == NS || model == NS_2D);
+                DNDS_assert(model == NS || model == NS_2D);
                 for (index iCell = 0; iCell < u.dist->size(); iCell++)
                 {
                     Elem::tPoint &pos = vfv->cellBaries[iCell];
@@ -575,7 +580,7 @@ namespace DNDS
                 break;
             default:
                 log() << "Wrong specialBuiltinInitializer" << std::endl;
-                assert(false);
+                DNDS_assert(false);
                 break;
             }
 
@@ -734,63 +739,70 @@ namespace DNDS
                 InsertCheck(mpi, " Lambda RHS: StartLim");
                 if (config.useLimiter)
                 {
-// vfv->ReconstructionWBAPLimitFacial(
-//     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
-#ifdef USE_CWBAP_INSTEAD_OF_3WBAP
-                    vfv->ReconstructionWBAPLimitFacialV3<dim, nVars_Fixed>(
-#else
-                    vfv->ReconstructionWBAPLimitFacialV2<dim, nVars_Fixed>(
-#endif
+                    // vfv->ReconstructionWBAPLimitFacial(
+                    //     cx, uRec, uRecNew, uF0, uF1, ifUseLimiter,
 
-                        cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
-                        iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
-                        [&](const auto &UL, const auto &UR, const auto &n) -> auto
-                        {
-                            PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
-                            Eigen::Vector<real, I4 + 1> UC = (UL + UR)(Seq01234)*0.5;
-                            auto normBase = Elem::NormBuildLocalBaseV<dim>(n(Seq012));
-                            UC(Seq123) = normBase.transpose() * UC(Seq123);
+                    auto fML = [&](const auto &UL, const auto &UR, const auto &n) -> auto
+                    {
+                        PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
+                        Eigen::Vector<real, I4 + 1> UC = (UL + UR)(Seq01234)*0.5;
+                        auto normBase = Elem::NormBuildLocalBaseV<dim>(n(Seq012));
+                        UC(Seq123) = normBase.transpose() * UC(Seq123);
 
-                            auto M = Gas::IdealGas_EulerGasLeftEigenVector<dim>(UC, eval.settings.idealGasProperty.gamma);
-                            M(Eigen::all, Seq123) *= normBase.transpose();
+                        auto M = Gas::IdealGas_EulerGasLeftEigenVector<dim>(UC, eval.settings.idealGasProperty.gamma);
+                        M(Eigen::all, Seq123) *= normBase.transpose();
 
-                            Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> ret(nVars, nVars);
-                            ret.setIdentity();
-                            ret(Seq01234, Seq01234) = M;
-                            PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
-                            return ret;
-                            // return real(1);
-                        },
-                        [&](const auto &UL, const auto &UR, const auto &n) -> auto
-                        {
-                            PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
-                            Eigen::Vector<real, I4 + 1> UC = (UL + UR)(Seq01234)*0.5;
-                            auto normBase = Elem::NormBuildLocalBaseV<dim>(n(Seq012));
-                            UC(Seq123) = normBase.transpose() * UC(Seq123);
+                        Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> ret(nVars, nVars);
+                        ret.setIdentity();
+                        ret(Seq01234, Seq01234) = M;
+                        PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
+                        return ret;
+                        // return real(1);
+                    };
+                    auto fMR = [&](const auto &UL, const auto &UR, const auto &n) -> auto
+                    {
+                        PerformanceTimer::Instance().StartTimer(PerformanceTimer::LimiterA);
+                        Eigen::Vector<real, I4 + 1> UC = (UL + UR)(Seq01234)*0.5;
+                        auto normBase = Elem::NormBuildLocalBaseV<dim>(n(Seq012));
+                        UC(Seq123) = normBase.transpose() * UC(Seq123);
 
-                            // real ekFixRatio = 0.001;
-                            // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
-                            // real vsqr = velo.squaredNorm();
-                            // real Ek = vsqr * 0.5 * UC(0);
-                            // real Efix = Ek * ekFixRatio;
-                            // real e = UC(4) - Ek;
-                            // if (e < 0)
-                            //     e = 0.5 * Efix;
-                            // else if (e < Efix)
-                            //     e = (e * e + Efix * Efix) / (2 * Efix);
-                            // UC(4) = Ek + e;
+                        // real ekFixRatio = 0.001;
+                        // Eigen::Vector3d velo = UC({1, 2, 3}) / UC(0);
+                        // real vsqr = velo.squaredNorm();
+                        // real Ek = vsqr * 0.5 * UC(0);
+                        // real Efix = Ek * ekFixRatio;
+                        // real e = UC(4) - Ek;
+                        // if (e < 0)
+                        //     e = 0.5 * Efix;
+                        // else if (e < Efix)
+                        //     e = (e * e + Efix * Efix) / (2 * Efix);
+                        // UC(4) = Ek + e;
 
-                            auto M = Gas::IdealGas_EulerGasRightEigenVector<dim>(UC, eval.settings.idealGasProperty.gamma);
-                            M(Seq123, Eigen::all) = normBase * M(Seq123, Eigen::all);
+                        auto M = Gas::IdealGas_EulerGasRightEigenVector<dim>(UC, eval.settings.idealGasProperty.gamma);
+                        M(Seq123, Eigen::all) = normBase * M(Seq123, Eigen::all);
 
-                            Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> ret(nVars, nVars);
-                            ret.setIdentity();
-                            ret(Seq01234, Seq01234) = M;
+                        Eigen::Matrix<real, nVars_Fixed, nVars_Fixed> ret(nVars, nVars);
+                        ret.setIdentity();
+                        ret(Seq01234, Seq01234) = M;
 
-                            PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
-                            return ret;
-                            // return real(1);
-                        });
+                        PerformanceTimer::Instance().EndTimer(PerformanceTimer::LimiterA);
+                        return ret;
+                        // return real(1);
+                    };
+                    if (config.limiterProcedure == 1)
+                        vfv->ReconstructionWBAPLimitFacialV3<dim, nVars_Fixed>(
+                            cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
+                            iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
+                            fML, fMR);
+                    else if (config.limiterProcedure == 0)
+                        vfv->ReconstructionWBAPLimitFacialV2<dim, nVars_Fixed>(
+                            cx, uRec, uRecNew, uRecNew1, ifUseLimiter,
+                            iter < config.nPartialLimiterStartLocal && step < config.nPartialLimiterStart,
+                            fML, fMR);
+                    else
+                    {
+                        DNDS_assert(false);
+                    }
                     // uRecNew.StartPersistentPullClean();
                     // uRecNew.WaitPersistentPullClean();
                 }
@@ -883,7 +895,7 @@ namespace DNDS
                     }
                     else
                     {
-                        assert(false);
+                        DNDS_assert(false);
                         eval.UpdateLUSGSADForward(crhs, cx, cxInc, cxInc);
                         cxInc.StartPersistentPullClean();
                         cxInc.WaitPersistentPullClean();
@@ -1283,7 +1295,7 @@ namespace DNDS
                 // std::cout << yPlus << std::endl;
                 if (!fs.allFinite() || fs.hasNaN())
                 {
-                    assert(false);
+                    DNDS_assert(false);
                 }
                 return fs;
             };
@@ -1428,14 +1440,14 @@ namespace DNDS
                     vfv->cellDiBjCenterBatch->operator[](iCell).m(0)({0}, Eigen::all).rightCols(uRec[iCell].rows()) *
                     uRec[iCell];
                 // recu += u[iCell];
-                // assert(recu(0) > 0);
+                // DNDS_assert(recu(0) > 0);
                 // recu = EulerEvaluator::CompressRecPart(u[iCell], recu);
                 recu = u[iCell] + recu * 0;
                 TVec velo = (recu(Seq123).array() / recu(0)).matrix();
                 real vsqr = velo.squaredNorm();
                 real asqr, p, H;
                 Gas::IdealGasThermal(recu(I4), recu(0), vsqr, config.eulerSetting.idealGasProperty.gamma, p, asqr, H);
-                // assert(asqr > 0);
+                // DNDS_assert(asqr > 0);
                 real M = std::sqrt(vsqr / asqr);
                 real T = p / recu(0) / config.eulerSetting.idealGasProperty.Rgas;
 

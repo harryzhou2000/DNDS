@@ -26,6 +26,25 @@ static const std::string DNDS_Defines_state =
 #endif
     ;
 
+/***************/ // DNDS_assertS
+
+inline void DNDS_assert_false(const char *expr, const char *file, int line)
+{
+    std::cerr << "\033[91mDNDS DNDS_assertion failed\033[39m: \"" << expr << "\"  at [  " << file << ":" << line << "  ]" << std::endl;
+    std::abort();
+}
+
+#ifdef DNDS_NDEBUG
+#define DNDS_assert(expr)
+#else
+#define DNDS_assert(expr)\
+       (static_cast<bool>(expr) \
+            ? void(0)           \
+            : DNDS_assert_false(#expr, __FILE__, __LINE__))
+#endif
+
+/***************/
+
 static_assert(sizeof(uint8_t) == 1, "bad uint8_t");
 
 namespace DNDS
@@ -180,8 +199,6 @@ namespace DNDS
 
 */
 
-
-
 /*
 
 
@@ -193,7 +210,6 @@ namespace DNDS
 
 
 */
-
 
 /*------------------------------------------*/
 // Warning disabler:
