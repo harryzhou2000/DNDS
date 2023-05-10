@@ -2456,6 +2456,8 @@ namespace DNDS
 
             for (index iCell = 0; iCell < uRec.size(); iCell++)
             {
+                if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale && (!ifAll))
+                    continue;
                 uRecNewBuf[iCell] =
                     uRecNewBuf1[iCell];
             }
