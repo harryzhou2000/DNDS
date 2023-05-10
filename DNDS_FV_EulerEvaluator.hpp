@@ -392,7 +392,7 @@ namespace DNDS
             //     UR(Seq123) = -UL(Seq123);
             // if (btype == BoundaryType::Wall_Euler)
             //     UR(1) = -UL(1);
-            
+
             TU UMeanXy = 0.5 * (ULxy + URxy);
 
             real pMean, asqrMean, Hmean;
@@ -971,7 +971,8 @@ namespace DNDS
             if (btype == BoundaryType::Farfield ||
                 btype == BoundaryType::Special_DMRFar ||
                 btype == BoundaryType::Special_RTFar ||
-                btype == BoundaryType::Special_IVFar)
+                btype == BoundaryType::Special_IVFar ||
+                btype == BoundaryType::Special_2DRiemannFar)
             {
                 if (btype == BoundaryType::Farfield)
                 {
@@ -1121,6 +1122,123 @@ namespace DNDS
                     URxy(1) = rho * ux;
                     URxy(2) = rho * uy;
                     URxy(dim + 1) = E;
+                }
+                else if (btype == BoundaryType::Special_2DRiemannFar)
+                {
+                    real gamma = settings.idealGasProperty.gamma;
+                    real bdL = 0.0; // left
+                    real bdR = 1.0; // right
+                    real bdD = 0.0; // down
+                    real bdU = 1.0; // up
+
+                    real phi1 = -0.663324958071080;
+                    real phi2 = -0.422115882408869;
+                    real location = 0.8;
+                    real p1 = location + phi1 * t;
+                    real p2 = location + phi2 * t;
+                    real rho, u, v, pre;
+                    TU ULxyPrimitive;
+                    
+                    Gas::IdealGasThermalConservative2Primitive<dim>(ULxy, ULxyPrimitive, gamma);
+                    real rhoL = ULxyPrimitive(0);
+                    real uL = ULxyPrimitive(1);
+                    real vL = ULxyPrimitive(2);
+                    real preL = ULxyPrimitive(I4);
+                    TU farPrimitive = ULxyPrimitive;
+
+                    static const real bTol = 1e-9;
+                    if (std::abs(pPhysics(0) - bdL) < bTol)
+                    { // left, phi2
+                        if (pPhysics(1) <= p2)
+                        { // region 3
+                            rho = 0.137992831541219;
+                            u = 1.206045378311055;
+                            v = 1.206045378311055;
+                            pre = 0.029032258064516;
+                        }
+                        else
+                        { // region 2
+                            rho = 0.532258064516129;
+                            u = 1.206045378311055;
+                            v = 0.0;
+                            pre = 0.3;
+                        }
+                    }
+                    else if (std::abs(pPhysics(0) - bdR) < bTol)
+                    { // right, phi1
+                        if (pPhysics(1) <= p1)
+                        { // region 4
+                            // rho = 0.532258064516129;
+                            // u = 0.0;
+                            // v = 1.206045378311055;
+                            // pre = 0.3;
+                            rho = rhoL;
+                            u = -uL;
+                            v = vL;
+                            pre = preL;
+                        }
+                        else
+                        { // region 1
+                            // rho = 1.5;
+                            // u = 0.0;
+                            // v = 0.0;
+                            // pre = 1.5;
+                            rho = rhoL;
+                            u = -uL;
+                            v = vL;
+                            pre = preL;
+                        }
+                    }
+                    else if (std::abs(pPhysics(1) - bdU) < bTol)
+                    { // up, phi1
+                        if (pPhysics(0) <= p1)
+                        { // region 2
+                            // rho = 0.532258064516129;
+                            // u = 1.206045378311055;
+                            // v = 0.0;
+                            // pre = 0.3;
+                            rho = rhoL;
+                            u = uL;
+                            v = -vL;
+                            pre = preL;
+                        }
+                        else
+                        { // region 1
+                            // rho = 1.5;
+                            // u = 0.0;
+                            // v = 0.0;
+                            // pre = 1.5;
+                            rho = rhoL;
+                            u = uL;
+                            v = -vL;
+                            pre = preL;
+                        }
+                    }
+                    else if (std::abs(pPhysics(1) - bdD) < bTol)
+                    { // down, phi2
+                        if (pPhysics(0) <= p2)
+                        { // region 3
+                            rho = 0.137992831541219;
+                            u = 1.206045378311055;
+                            v = 1.206045378311055;
+                            pre = 0.029032258064516;
+                        }
+                        else
+                        { // region 4
+                            rho = 0.532258064516129;
+                            u = 0.0;
+                            v = 1.206045378311055;
+                            pre = 0.3;
+                        }
+                    }
+                    else
+                    {
+                        assert(false); // not valid boundary pos
+                    }
+                    farPrimitive(0) = rho;
+                    farPrimitive(1) = u, farPrimitive(2) = v;
+                    farPrimitive(I4) = pre;
+                    Gas::IdealGasThermalPrimitive2Conservative<dim>(farPrimitive, URxy, gamma);
                 }
                 else
                     assert(false);

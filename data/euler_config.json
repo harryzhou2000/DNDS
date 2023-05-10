@@ -24,7 +24,7 @@
     "rhsThresholdInternal": 1e-3,
     "useLocalDt": true,
     "useLimiter": true,
-    "nPartialLimiterStart": 10000,
+    "nPartialLimiterStart": 0,
     "nPartialLimiterStartLocal": 10000,
     "nLimiterTurnOn": 0,
     "nLimiterTurnOnInternal": 0,
@@ -50,8 +50,8 @@
         "data/mesh/NACA0012_WIDE_H3G_NS.msh",
         "data/mesh/UniformTube200.msh"
     ],
-    "outPltName": "data/outUnsteady/test_Euler_.UniformDM240",
-    "outLogName": "data/outUnsteady/test_Euler_.UniformDM240",
+    "outPltName": "data/outUnsteady/test_Euler_.UniformDM240_NF_SD",
+    "outLogName": "data/outUnsteady/test_Euler_.UniformDM240_NF_SD",
     "uniqueStamps": false,
     "err_dMax": 0.00,
     "res_base": 0,
@@ -83,7 +83,7 @@
         "baseCenterType": "Bary",
         "scaleMLargerPortion": 1,
         "curvilinearOrder": 2,
-        "WBAP_SmoothIndicatorScale": 1e-100,
+        "WBAP_SmoothIndicatorScale": 1e-1,
         "normWBAP": false,
         "orthogonalizeBase": false
     },
@@ -97,7 +97,7 @@
             "Rgas": 289,
             "muGas": 1e-200
         },
-        "ignoreSourceTerm": false,
+        "ignoreSourceTerm": true,
         "useScalarJacobian": false,
         "comment_euler": "the artificial vis params are unused;",
         "comment_settingNotes": "for scheme 8 30p30n: 32 2 2 4",
