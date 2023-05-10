@@ -2013,9 +2013,9 @@ namespace DNDS
 
                 for (index iScan = 0; iScan < uRec.size(); iScan++)
                 {
+                    index iCell = iScan;
                     if (ifUseLimiter[iCell][0] < setting.WBAP_SmoothIndicatorScale && (!ifAll)) //! uRecNewBuf1 is invalid unless limited
                         continue;
-                    index iCell = iScan;
                     uRecNewBuf[iCell](
                         Eigen::seq(
                             LimStart,

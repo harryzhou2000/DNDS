@@ -1093,9 +1093,9 @@ namespace DNDS
                     }
                     else // full inflow
                     {
-                        URxy = settings.farFieldStaticValue;
+                        URxy = far;
                     }
-                    // URxy = settings.farFieldStaticValue; //!override
+                    URxy = far; //!override
                 }
                 else if (btype == BoundaryType::Special_IVFar)
                 {
