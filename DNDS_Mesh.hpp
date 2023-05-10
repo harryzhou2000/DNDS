@@ -884,7 +884,7 @@ namespace DNDS
                 options[METIS_OPTION_CTYPE] = METIS_CTYPE_RM;
                 options[METIS_OPTION_IPTYPE] = METIS_IPTYPE_GROW;
                 options[METIS_OPTION_RTYPE] = METIS_RTYPE_FM;
-                // options[METIS_OPTION_NO2HOP] = 0; // only available in metis 5.1.0
+                //options[METIS_OPTION_NO2HOP] = 0; // only available in metis 5.1.0
                 options[METIS_OPTION_NCUTS] = 1;
                 options[METIS_OPTION_NITER] = 10;
                 options[METIS_OPTION_UFACTOR] = 30;
