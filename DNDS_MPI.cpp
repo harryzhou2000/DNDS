@@ -94,7 +94,7 @@ namespace DNDS
     {
         int64_t result = static_cast<int64_t>(std::time(nullptr));
         char bufTime[512];
-        char buf[512];
+        char buf[512 + 32];
         int64_t pid = 0;
 #if defined(linux) || defined(_UNIX) || defined(__linux__)
         pid = Debug::getpid();
