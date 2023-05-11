@@ -127,11 +127,19 @@ void DNDS::VRFiniteVolume2D::initMoment()
                     Elem::tJacobi Jacobi = Elem::DiNj2Jacobi(iDiNj, coords);
                     incC *= Jacobi({0, 1}, {0, 1}).determinant();
                 });
-            (*cellInertia)[iCell] /= FV->volumeLocal[iCell];
+            auto & iner = (*cellInertia)[iCell];
+            iner /= FV->volumeLocal[iCell];
             // std::cout << "I\n"
             //           << (*cellInertia)[iCell] << std::endl;
             // auto iOrig = (*cellInertia)[iCell];
-            (*cellInertia)[iCell] = HardEigen::Eigen3x3RealSymEigenDecomposition((*cellInertia)[iCell]);
+
+            real inerNorm = iner.norm();
+            Eigen::Matrix3d a = iner;
+            a(1, 1) += inerNorm * 0;           // regularization
+            a(2, 2) += inerNorm * 0;           // regularization 
+            auto ret = HardEigen::Eigen3x3RealSymEigenDecomposition(a);
+            iner = ret; //!why need a copy? Eigen BUG!!!
+            // std::cout << "here" << std::endl;
             // std::cout << "IS\n"
             //           << (*cellInertia)[iCell] << std::endl;
 
@@ -684,10 +692,11 @@ void DNDS::VRFiniteVolume2D::initBaseDiffCache()
                 int nRowL = faceDiBjCenterBatchElem.m(0).rows();
                 int nColR = faceDiBjCenterBatchElem.m(1).cols();
                 int nRowR = faceDiBjCenterBatchElem.m(1).rows();
-                HardEigen::EigenLeastSquareSolve(faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1),
-                                                 faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1), msR2L);
-                HardEigen::EigenLeastSquareSolve(faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1),
-                                                 faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1), msL2R);
+                // std::cout << nColL << nRowL << nColR << nRowR << f2c[0] <<" "<< f2c[1] << std::endl;
+                HardEigen::EigenLeastSquareSolve(Eigen::MatrixXd(faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1)),
+                                                 Eigen::MatrixXd(faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1)), msR2L);
+                HardEigen::EigenLeastSquareSolve(Eigen::MatrixXd(faceDiBjCenterBatchElem.m(1).bottomRightCorner(nRowR - 1, nColR - 1)),
+                                                 Eigen::MatrixXd(faceDiBjCenterBatchElem.m(0).bottomRightCorner(nRowL - 1, nColL - 1)), msL2R);
                 // //* Force to upperTri and sparse
                 // for (int ii = 0; ii < msR2L.rows(); ii++)
                 //     for (int jj = 0; jj < msR2L.cols(); jj++)

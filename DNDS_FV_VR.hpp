@@ -172,8 +172,10 @@ namespace DNDS
             real wallWeight = 1.0;
             real farWeight = 0.0;
 
-            real tangWeight = 5e-3;
+            real tangWeight = 1;
             real tangWeightModMin = 1;
+            int tangWeightModLoc = 0;
+            real tangWeightModPower = 1.;
             std::string tangWeightDirectionName = "Norm";
             enum TangWeightDirection
             {
@@ -302,11 +304,14 @@ namespace DNDS
                             const Elem::tDiFj &DiNj, //@ pParam
                             const Elem::tPoint &pParam,
                             const Elem::tPoint &cPhysics,
-                            Elem::tPoint &simpleScale,
+                            Elem::tPoint simpleScale,
                             const Eigen::VectorXd &baseMoment,
                             TWrite &&DiBj,
                             FDiffBaseValueOptions options = FDiffBaseValueOptions()) // for 2d polynomials here
         {
+            if (!setting.anisotropicLengths)
+                simpleScale.setConstant(simpleScale.norm());
+
             // static int i = 0;
             // if (i == 9)
             //     exit(0);
@@ -350,9 +355,9 @@ namespace DNDS
                 return;
             }
 
-            auto coordsC = coords.colwise() - cPhysics;
+            Eigen::MatrixXd coordsC = coords.colwise() - cPhysics;
             // ** minmax scaling
-            auto P2CDist = coordsC.colwise().norm();
+            Eigen::RowVectorXd P2CDist = coordsC.colwise().norm();
             Eigen::Index maxDistIndex, minDistIndex;
             real maxDist = P2CDist.maxCoeff(&maxDistIndex);
             real minDist = P2CDist.minCoeff(&minDistIndex);
@@ -364,7 +369,12 @@ namespace DNDS
             real scaleM = std::pow(scaleMLarge, setting.scaleMLargerPortion) *
                           std::pow(scaleMSmall, 1 - setting.scaleMLargerPortion);
 
-            Eigen::Matrix2d pJacobi = (*cellInertia)[iCell]({0, 1}, {0, 1}) * 1;
+            // std::cout << "icell " << iCell << std::endl;
+            // std::cout << (*cellInertia)[iCell]({0, 1}, {0, 1}) << std::endl;
+            Eigen::Matrix2d pJacobi = (*cellInertia).at(iCell)({0, 1}, {0, 1});
+            // Eigen::Matrix2d pJacobi;
+            // pJacobi.setIdentity();
+
             real scaleL0 = pJacobi.col(0).norm();
             real scaleL1 = pJacobi.col(1).norm();
             Eigen::Matrix2d invPJacobi;
@@ -374,8 +384,8 @@ namespace DNDS
 
             invPJacobi = pJacobi.inverse();
 
-            auto ncoords = (invPJacobi * coordsC.topRows(2));
-            auto nSizes = ncoords.rowwise().maxCoeff() - ncoords.rowwise().minCoeff();
+            Eigen::MatrixXd ncoords = (invPJacobi * coordsC.topRows(2));
+            Eigen::MatrixXd nSizes = ncoords.rowwise().maxCoeff() - ncoords.rowwise().minCoeff();
 
             scaleL0 = nSizes(0) * 0.5;
             scaleL1 = nSizes(1) * 0.5;
@@ -1047,7 +1057,10 @@ namespace DNDS
             // real tangModifier = (1- 1./cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
             real tangModifier = (1. / cellARMax) * (1 - setting.tangWeightModMin) + setting.tangWeightModMin;
             // tangModifier = sqr(tangModifier);
-            tangModifier = std::pow(tangModifier, real(1. / 1.)); // ! still testing
+            real tangWeightModPower = setting.tangWeightModPower;
+            int tangWeightModLoc = setting.tangWeightModLoc;
+            tangModifier = std::pow(tangModifier, tangWeightModPower); // ! still testing
+            
 
             DNDS_assert(Weights.size() == DiffI.rows() && DiffI.rows() == DiffJ.rows()); // has same n diffs
 #ifndef USE_NORM_FUNCTIONAL
@@ -1079,7 +1092,7 @@ namespace DNDS
 
                 Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
                 // fTang *= setting.tangWeight * faceSigG; //! using ultraFix
-                fTang *= setting.tangWeight * tangModifier;
+                fTang *= setting.tangWeight * (tangWeightModLoc == 1 ? tangModifier : 1);
                 real n0 = fNorm(0), n1 = fNorm(1);
                 real t0 = fTang(0), t1 = fTang(1);
 
@@ -1096,7 +1109,7 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
                         csumA = DiffI(1, i) * t0 + DiffI(2, i) * t1;
                         csumB = DiffJ(1, j) * t0 + DiffJ(2, j) * t1;
-                        Conj(i, j) += csumA * csumB;
+                        Conj(i, j) += csumA * csumB * (tangWeightModLoc == 0 ? sqr(tangModifier) : 1);
 
                         csumA = (DiffI(3, i) * n0 * n0 +
                                  DiffI(4, i) * n0 * n1 * 2 +
@@ -1122,7 +1135,7 @@ namespace DNDS
 #else
                                       2
 #endif
-                            ;
+                                      * (tangWeightModLoc == 0 ? sqr(tangModifier) : 1);
 
                         csumA = (DiffI(3, i) * t0 * t0 +
                                  DiffI(4, i) * t0 * t1 * 2 +
@@ -1132,7 +1145,7 @@ namespace DNDS
                                  DiffJ(4, j) * t0 * t1 * 2 +
                                  DiffJ(5, j) * t1 * t1) *
                                 w2r;
-                        Conj(i, j) += csumA * csumB;
+                        Conj(i, j) += csumA * csumB * (tangWeightModLoc == 0 ? sqr(tangModifier) : 1);
 
                         csumA = (DiffI(6, i) * n0 * n0 * n0 +
                                  DiffI(7, i) * n0 * n0 * n1 * 3 +
@@ -1162,7 +1175,7 @@ namespace DNDS
 #else
                                       3
 #endif
-                            ;
+                                      * (tangWeightModLoc == 0 ? sqr(tangModifier) : 1);
 
                         csumA = (DiffI(6, i) * n0 * t0 * t0 +
                                  DiffI(7, i) * (t0 * n0 * t1 + n0 * t0 * t1 + t0 * t0 * n1) +
@@ -1180,7 +1193,7 @@ namespace DNDS
 #else
                                       3
 #endif
-                            ;
+                                      * (tangWeightModLoc == 0 ? sqr(tangModifier) : 1);
 
                         csumA = (DiffI(6, i) * t0 * t0 * t0 +
                                  DiffI(7, i) * t0 * t0 * t1 * 3 +
@@ -1192,7 +1205,7 @@ namespace DNDS
                                  DiffJ(8, j) * t0 * t1 * t1 * 3 +
                                  DiffJ(9, j) * t1 * t1 * t1) *
                                 w3r;
-                        Conj(i, j) += csumA * csumB;
+                        Conj(i, j) += csumA * csumB * (tangWeightModLoc == 0 ? sqr(tangModifier) : 1);
                     }
             }
             else if (Weights.size() == 6) // ! warning : NORM_FUNCTIONAL only implemented for 4th order
@@ -1215,7 +1228,7 @@ namespace DNDS
                                                     : faceNormCenter[iFace]({0, 1}).stableNormalized() * length;
 
                 Eigen::Vector2d fTang{-fNorm(1), fNorm(0)};
-                fTang *= setting.tangWeight * tangModifier;
+                fTang *= setting.tangWeight * tangModifier * (tangWeightModLoc == 1 ? tangModifier : 1);
                 real n0 = fNorm(0), n1 = fNorm(1);
                 real t0 = fTang(0), t1 = fTang(1);
                 // w2r *= 0.1;
@@ -1234,7 +1247,7 @@ namespace DNDS
                         Conj(i, j) += csumA * csumB;
                         csumA = DiffI(1, i) * t0 + DiffI(2, i) * t1;
                         csumB = DiffJ(1, j) * t0 + DiffJ(2, j) * t1;
-                        Conj(i, j) += csumA * csumB;
+                        Conj(i, j) += csumA * csumB * (tangWeightModLoc == 0 ? sqr(tangModifier) : 1);
 
                         csumA = (DiffI(3, i) * n0 * n0 +
                                  DiffI(4, i) * n0 * n1 * 2 +
@@ -1260,7 +1273,7 @@ namespace DNDS
 #else
                                       2
 #endif
-                            ;
+                                      * (tangWeightModLoc == 0 ? sqr(tangModifier) : 1);
 
                         csumA = (DiffI(3, i) * t0 * t0 +
                                  DiffI(4, i) * t0 * t1 * 2 +
@@ -1270,7 +1283,7 @@ namespace DNDS
                                  DiffJ(4, j) * t0 * t1 * 2 +
                                  DiffJ(5, j) * t1 * t1) *
                                 w2r;
-                        Conj(i, j) += csumA * csumB;
+                        Conj(i, j) += csumA * csumB * (tangWeightModLoc == 0 ? sqr(tangModifier) : 1);
                     }
             }
             else

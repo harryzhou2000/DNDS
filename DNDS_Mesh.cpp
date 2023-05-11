@@ -9,17 +9,19 @@ namespace DNDS
             log() << "=== CompactFacedMeshSerialRWBuild ===" << std::endl
                   << "File name: \"" << gmshFile
                   << "\"" << std::endl;
-        DNDS::SerialGmshReader2d gmshReader2D;
-        if (mpi.rank == 0)
         {
-            gmshReader2D.FileRead(gmshFile);
-            if (RotZ != 0.0)
-                gmshReader2D.RotateZ(RotZ);
-            gmshReader2D.InterpolateTopology();
-            // gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
+            DNDS::SerialGmshReader2d gmshReader2D;
+            if (mpi.rank == 0)
+            {
+                gmshReader2D.FileRead(gmshFile);
+                if (RotZ != 0.0)
+                    gmshReader2D.RotateZ(RotZ);
+                gmshReader2D.InterpolateTopology();
+                // gmshReader2D.WriteMeshDebugTecASCII("data/out/debugmesh.plt");
+            }
+            mesh = std::make_shared<CompactFacedMeshSerialRW>(gmshReader2D, mpi);
+            // std::move(gmshReader2D);
         }
-        mesh = std::make_shared<CompactFacedMeshSerialRW>(gmshReader2D, mpi);
-        std::move(gmshReader2D);
         // mesh.LogStatusSerialPart();
         (mesh)->MetisSerialPartitionKWay(0);
         // mesh.LogStatusDistPart();

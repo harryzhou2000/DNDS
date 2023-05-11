@@ -199,6 +199,10 @@ namespace DNDS
                 vfvParser.AddDNDS_Real("tangWeight", &config.vfvSetting.tangWeight);
                 vfvParser.AddDNDS_Real(
                     "tangWeightModMin", &config.vfvSetting.tangWeightModMin, []() {}, JSON::ParamParser::FLAG_NULL);
+                vfvParser.AddInt(
+                    "tangWeightModLoc", &config.vfvSetting.tangWeightModLoc, []() {}, JSON::ParamParser::FLAG_NULL);
+                vfvParser.AddDNDS_Real(
+                    "tangWeightModPower", &config.vfvSetting.tangWeightModPower, []() {}, JSON::ParamParser::FLAG_NULL);
                 vfvParser.AddBool(
                     "useLocalCoord", &config.vfvSetting.useLocalCoord, []() {}, JSON::ParamParser::FLAG_NULL);
                 vfvParser.AddDNDS_Real(

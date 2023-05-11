@@ -23,7 +23,7 @@ namespace DNDS
 
             // AI = SVDResult.solve(Eigen::MatrixXd::Identity(A.rows(), A.rows()));
             auto sVs = SVDResult.singularValues();
-            auto sVsMax = SVDResult.singularValues().array().abs().maxCoeff();
+            real sVsMax = SVDResult.singularValues().array().abs().maxCoeff();
             for (auto &i : sVs)
                 if (std::fabs(i) > sVmin) //! note this filtering!
                     i = 1. / i;
@@ -43,7 +43,11 @@ namespace DNDS
             //     std::cout << solver.eigenvalues() << std::endl;
             //     std::exit(-1);
             // }
-            return (solver.eigenvectors() * solver.eigenvalues().array().abs().sqrt().matrix().asDiagonal())(Eigen::all, {2, 1, 0});
+            Eigen::Matrix3d ret =  (solver.eigenvectors() * solver.eigenvalues().array().abs().sqrt().matrix().asDiagonal())(Eigen::all, {2, 1, 0});
+            // ret(Eigen::all, 0) *= signP(ret(0, 0));
+            // ret(Eigen::all, 1) *= signP(ret(1, 1));
+            // ret(Eigen::all, 2) *= ret.determinant();
+            return ret;
         }
 
         void EigenLeastSquareSolve(const Eigen::MatrixXd &A, const Eigen::MatrixXd &B, Eigen::MatrixXd &AIB)
